@@ -28,4 +28,4 @@ D1 explicit shift start/end, test target ≥90 % points and gap ≤5 min. D2 che
 - Mutation check: break the new rule briefly, confirm a test fails, restore.
 - Mobile: logic goes in `src/LifeDrop.Mobile.Visits` (tested in CI). MAUI pages: compile check with `dotnet build src/LifeDrop.Mobile/LifeDrop.Mobile.csproj -p:TargetFrameworks=net10.0 -p:TargetFramework=net10.0 -p:OutputType=Library`. Android-only files: compile in a scratch project referencing `~/.dotnet/packs/Microsoft.Android.Ref.36/*/ref/net10.0/Mono.Android.dll` (the Android SDK cannot be downloaded here). CI job `mobile-android` builds the real app.
 - SQL ordering in tests: use `COLLATE "C"` (CI uses en_US).
-- Update the plan row, `docs/phase0-api-access-matrix.md`, and `memory-bank/progress.md` in the same PR.
+- Update the plan row, `docs/phase0-api-access-matrix.md`, and one log line in `memory-bank/phaseStatus.md` in the same PR (old evidence is in `memory-bank/archive/`).

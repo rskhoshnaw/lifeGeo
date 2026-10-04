@@ -17,4 +17,4 @@ LifeDrop manages pharmaceutical field work from assignment through travel, arriv
 - Sensitive actions need audit records. Never expose passwords, device secrets, or tokens in logs or documentation.
 
 ## Scope boundary
-The above describes target behavior, not what is already implemented. The authoritative product PRD is `docs/سند نیازمندی محصول LifeDrop.docx` v2.0. See `phaseStatus.md` and `progress.md` for evidence status. `docs/04-PRD-SUMMARY.md` is condensed context, and `docs/PRD.md` is the English working edition with the decision log; neither overrides the original PRD.
+The above describes target behavior, not what is already implemented. The authoritative product PRD is `docs/سند نیازمندی محصول LifeDrop.docx` v2.0. See `phaseStatus.md` (and `archive/` for evidence). `docs/04-PRD-SUMMARY.md` is condensed context, and `docs/PRD.md` is the English working edition with the decision log; neither overrides the original PRD.
