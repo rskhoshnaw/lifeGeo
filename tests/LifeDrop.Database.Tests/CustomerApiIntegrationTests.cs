@@ -886,6 +886,123 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task MobileClient_RunsAWholeVisitAgainstTheRealApi()
+    {
+        // Plan step 1.12: the mobile library's requests and error mapping match the server contract end to end.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        var now = new DateTimeOffset(2026, 10, 5, 11, 0, 0, TimeSpan.Zero);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    services.AddSingleton<TimeProvider>(new FixedClock(now));
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+
+        Guid t1 = Guid.NewGuid(), rep = Guid.NewGuid(), device = Guid.NewGuid(), customer = Guid.NewGuid(), visit = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                INSERT INTO users (id, tenant_id) VALUES (@r, @t1);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status)
+                VALUES (@d, @t1, @r, 'Phone', 'android', 'install-1', '1.0', '\x00', 'approved');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, geofence_radius_m, status)
+                VALUES (@c, @t1, 'Pharmacy', 'C-M', 'Mobile Pharmacy', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 30, 'located');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES (@v, @t1, @r, @c, 'Planned', '2026-10-05');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("r", rep), ("d", device), ("c", customer), ("v", visit) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var token = GenerateToken(t1, rep, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: device);
+        var api = new LifeDrop.Mobile.Visits.VisitsApiClient(factory.CreateClient(), new StaticMobileSession(token));
+        var inside = new LifeDrop.Mobile.Visits.DeviceFix(36.1912, 44.0093, 8, now.AddSeconds(-5), false);   // ~14 m
+        var outside = new LifeDrop.Mobile.Visits.DeviceFix(36.1916, 44.0092, 8, now.AddSeconds(-5), false);  // ~55 m
+        var location = new SwitchableLocation(outside);
+
+        // The daily plan as the phone sees it
+        var plan = await api.GetDailyPlanAsync(new DateOnly(2026, 10, 5));
+        Assert.Equal(LifeDrop.Mobile.Visits.PlanLoadStatus.Success, plan.Status);
+        var planned = Assert.Single(plan.Visits);
+        Assert.Equal(("Mobile Pharmacy", "C-M", "Planned"), (planned.CustomerName, planned.CustomerCode, planned.Status));
+
+        var lifecycle = new LifeDrop.Mobile.Visits.VisitLifecycle(api, planned, location, () => "replay-key");
+        await lifecycle.RunNextStepAsync();   // en-route
+        await lifecycle.RunNextStepAsync();   // arrive
+        await lifecycle.RunNextStepAsync();   // check-in outside the radius
+        Assert.Equal("Arrived", lifecycle.Visit.Status);
+        Assert.StartsWith("You are not at the customer's location.", lifecycle.Message);
+        location.Fix = inside;
+        await lifecycle.RunNextStepAsync();   // check-in inside
+        Assert.Equal("InVisit", lifecycle.Visit.Status);
+
+        // A lost reply: the same key again is accepted as a replay, with no second record
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Success, await api.CheckInAsync(visit, inside, "replay-key"));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.InvalidState, await api.CheckInAsync(visit, inside, "other-key"));
+
+        // An invalid report is refused by the server and check-out is not started
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.InvalidData,
+            await api.SaveReportAsync(visit, new LifeDrop.Mobile.Visits.VisitReportDraft("order_placed", "Ordered")));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.ReportRequired, await api.CheckOutAsync(visit, inside, "no-report"));
+
+        // Report saved, check-out refused outside: partial success, then check-out alone succeeds inside
+        location.Fix = outside;
+        await lifecycle.SubmitReportAndCheckOutAsync("products_presented", "Presented the new range");
+        Assert.True(lifecycle.ReportSaved);
+        Assert.Equal("InVisit", lifecycle.Visit.Status);
+        Assert.Equal((LifeDrop.Mobile.Visits.ReportLoadStatus.Found, new LifeDrop.Mobile.Visits.VisitReportDraft("products_presented", "Presented the new range")),
+            await api.GetReportAsync(visit));
+        location.Fix = inside;
+        await lifecycle.RetryCheckOutAsync();
+        Assert.Equal("Completed", lifecycle.Visit.Status);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                SELECT (SELECT status FROM visits WHERE id = @v),
+                       (SELECT string_agg(kind || ':' || coalesce(rejection_reason, 'accepted'), ',' ORDER BY received_at, kind COLLATE ""C"")
+                        FROM visit_location_events WHERE visit_id = @v),
+                       (SELECT string_agg(coalesce(from_status, '-') || '>' || to_status, ',' ORDER BY occurred_at) FROM visit_status_history WHERE visit_id = @v);", conn);
+            cmd.Parameters.AddWithValue("v", visit);
+            cmd.Parameters.AddWithValue("t1", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("Completed", reader.GetString(0));
+            Assert.Equal("check_in:outside_geofence,check_in:accepted,check_out:outside_geofence,check_out:accepted", reader.GetString(1));
+            Assert.Equal("->Planned,Planned>EnRoute,EnRoute>Arrived,Arrived>InVisit,InVisit>Completed", reader.GetString(2));
+        }
+    }
+
+    private sealed class StaticMobileSession(string token) : LifeDrop.Mobile.Auth.IAuthSession
+    {
+        public Task<LifeDrop.Mobile.Auth.Models.AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(LifeDrop.Mobile.Auth.Models.AuthResult<string>.Ok(token));
+    }
+
+    private sealed class SwitchableLocation(LifeDrop.Mobile.Visits.DeviceFix fix) : LifeDrop.Mobile.Visits.ILocationSource
+    {
+        public LifeDrop.Mobile.Visits.DeviceFix Fix { get; set; } = fix;
+        public Task<LifeDrop.Mobile.Visits.FixResult> GetFixAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(LifeDrop.Mobile.Visits.FixResult.Ok(Fix));
+    }
+
+    [SkippableFact]
     public async Task VisitApi_Failed_EnforcesPermissionsAndTransitions()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");

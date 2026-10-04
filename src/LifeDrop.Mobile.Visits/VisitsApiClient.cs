@@ -29,7 +29,21 @@ public sealed record PlanLoadResult(PlanLoadStatus Status, IReadOnlyList<Planned
     public static PlanLoadResult Failed(PlanLoadStatus status) => new(status, Array.Empty<PlannedVisit>());
 }
 
-public enum VisitActionResult { Success, InvalidState, Conflict, Forbidden, NotFound, SessionExpired, NetworkError, ServerError }
+public enum VisitActionResult
+{
+    Success, InvalidState, Conflict, Forbidden, NotFound, SessionExpired, NetworkError, ServerError,
+    // Check-in / check-out and report (plan step 1.12), from the server's ProblemDetails code.
+    InvalidData, DeviceRequired, CustomerLocationMissing, ReportRequired,
+    OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked
+}
+
+// A position from the device, sent as captured (plan step 1.12; the server judges it, PRD §6).
+public sealed record DeviceFix(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked);
+
+// Report outcome contract version 1: products_presented | order_intent | follow_up_needed | no_interest | other.
+public sealed record VisitReportDraft(string Outcome, string Note);
+
+public enum ReportLoadStatus { Found, None, SessionExpired, NetworkError, ServerError }
 
 public interface IVisitsApiClient
 {
@@ -40,6 +54,19 @@ public interface IVisitsApiClient
     Task<VisitActionResult> MarkEnRouteAsync(Guid visitId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     Task<VisitActionResult> MarkArrivedAsync(Guid visitId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // POST /visits/{id}/start and /complete with the fix and an Idempotency-Key (plan step 1.12). Retrying with the
+    // same key after a lost reply returns Success without a second record.
+    Task<VisitActionResult> CheckInAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    Task<VisitActionResult> CheckOutAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // PUT / GET /visits/{id}/report.
+    Task<VisitActionResult> SaveReportAsync(Guid visitId, VisitReportDraft report, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    Task<(ReportLoadStatus Status, VisitReportDraft? Report)> GetReportAsync(Guid visitId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 }
 
@@ -105,12 +132,66 @@ public sealed class VisitsApiClient : IVisitsApiClient
     }
 
     public Task<VisitActionResult> MarkEnRouteAsync(Guid visitId, CancellationToken cancellationToken = default) =>
-        PostActionAsync($"/visits/{visitId}/en-route", cancellationToken);
+        SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/en-route", null, null, cancellationToken);
 
     public Task<VisitActionResult> MarkArrivedAsync(Guid visitId, CancellationToken cancellationToken = default) =>
-        PostActionAsync($"/visits/{visitId}/arrive", cancellationToken);
+        SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/arrive", null, null, cancellationToken);
 
-    private async Task<VisitActionResult> PostActionAsync(string path, CancellationToken cancellationToken)
+    public Task<VisitActionResult> CheckInAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/start", FixBody(fix), idempotencyKey, cancellationToken);
+
+    public Task<VisitActionResult> CheckOutAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/complete", FixBody(fix), idempotencyKey, cancellationToken);
+
+    public Task<VisitActionResult> SaveReportAsync(Guid visitId, VisitReportDraft report, CancellationToken cancellationToken = default) =>
+        SendActionAsync(HttpMethod.Put, $"/visits/{visitId}/report",
+            new { outcome = report.Outcome, note = report.Note, contractVersion = 1 }, null, cancellationToken);
+
+    public async Task<(ReportLoadStatus Status, VisitReportDraft? Report)> GetReportAsync(Guid visitId, CancellationToken cancellationToken = default)
+    {
+        var token = await _session.GetAccessTokenAsync(cancellationToken);
+        if (!token.IsSuccess || string.IsNullOrEmpty(token.Data))
+            return (token.Status == AuthStatus.NetworkOrServerError ? ReportLoadStatus.NetworkError : ReportLoadStatus.SessionExpired, null);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/visits/{visitId}/report");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound) return (ReportLoadStatus.None, null);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) return (ReportLoadStatus.SessionExpired, null);
+            if (!response.IsSuccessStatusCode) return (ReportLoadStatus.ServerError, null);
+            try
+            {
+                var report = await response.Content.ReadFromJsonAsync<VisitReportDraft>(JsonOptions, cancellationToken);
+                return report is null || string.IsNullOrEmpty(report.Outcome) || report.Note is null
+                    ? (ReportLoadStatus.ServerError, null) : (ReportLoadStatus.Found, report);
+            }
+            catch (Exception e) when (e is JsonException or NotSupportedException)
+            {
+                return (ReportLoadStatus.ServerError, null);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
+        {
+            return (ReportLoadStatus.NetworkError, null);
+        }
+    }
+
+    private static object FixBody(DeviceFix fix) => new
+    {
+        latitude = fix.Latitude,
+        longitude = fix.Longitude,
+        accuracyMeters = fix.AccuracyMeters,
+        capturedAt = fix.CapturedAt,
+        isMocked = fix.IsMocked
+    };
+
+    private async Task<VisitActionResult> SendActionAsync(HttpMethod method, string path, object? body, string? idempotencyKey,
+        CancellationToken cancellationToken)
     {
         var token = await _session.GetAccessTokenAsync(cancellationToken);
         if (!token.IsSuccess || string.IsNullOrEmpty(token.Data))
@@ -118,18 +199,40 @@ public sealed class VisitsApiClient : IVisitsApiClient
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, path);
+            using var request = new HttpRequestMessage(method, path);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
+            if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
+            if (body is not null) request.Content = JsonContent.Create(body);
             using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.IsSuccessStatusCode) return VisitActionResult.Success;
+
+            var code = await ReadCodeAsync(response, cancellationToken);
             return response.StatusCode switch
             {
-                HttpStatusCode.NoContent or HttpStatusCode.OK => VisitActionResult.Success,
-                HttpStatusCode.BadRequest => await ReadCodeAsync(response, cancellationToken) == "INVALID_STATE"
-                    ? VisitActionResult.InvalidState : VisitActionResult.ServerError,
-                HttpStatusCode.Conflict => VisitActionResult.Conflict,
                 HttpStatusCode.Unauthorized => VisitActionResult.SessionExpired,
-                HttpStatusCode.Forbidden => VisitActionResult.Forbidden,
                 HttpStatusCode.NotFound => VisitActionResult.NotFound,
+                HttpStatusCode.BadRequest => code switch
+                {
+                    "INVALID_STATE" => VisitActionResult.InvalidState,
+                    "INVALID_DATA" => VisitActionResult.InvalidData,
+                    _ => VisitActionResult.ServerError
+                },
+                HttpStatusCode.Forbidden => code == "DEVICE_REQUIRED" ? VisitActionResult.DeviceRequired : VisitActionResult.Forbidden,
+                HttpStatusCode.Conflict => code switch
+                {
+                    "CUSTOMER_LOCATION_MISSING" => VisitActionResult.CustomerLocationMissing,
+                    "REPORT_REQUIRED" => VisitActionResult.ReportRequired,
+                    _ => VisitActionResult.Conflict
+                },
+                HttpStatusCode.UnprocessableEntity => code switch
+                {
+                    "OUTSIDE_GEOFENCE" => VisitActionResult.OutsideGeofence,
+                    "GPS_LOW_ACCURACY" => VisitActionResult.GpsLowAccuracy,
+                    "GPS_STALE" => VisitActionResult.GpsStale,
+                    "GPS_CLOCK_SKEW" => VisitActionResult.GpsClockSkew,
+                    "GPS_MOCKED" => VisitActionResult.GpsMocked,
+                    _ => VisitActionResult.ServerError
+                },
                 _ => VisitActionResult.ServerError
             };
         }
@@ -152,7 +255,9 @@ public sealed class VisitsApiClient : IVisitsApiClient
     {
         try
         {
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            var text = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            using var document = JsonDocument.Parse(text);
             return document.RootElement.ValueKind == JsonValueKind.Object &&
                    document.RootElement.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String
                 ? code.GetString() : null;

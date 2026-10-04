@@ -145,6 +145,83 @@ public class VisitsApiClientTests
         Assert.Null(handler.LastRequest);
     }
 
+    [Fact]
+    public async Task CheckInAndCheckOutSendFixAndIdempotencyKey()
+    {
+        var id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var bodies = new List<string>();
+        var (client, handler) = Create(request =>
+        {
+            bodies.Add(request.Content!.ReadAsStringAsync().Result);
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        var fix = new DeviceFix(36.1911, 44.0092, 7.5, new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero), true);
+
+        Assert.Equal(VisitActionResult.Success, await client.CheckInAsync(id, fix, "key-1"));
+        Assert.Equal((HttpMethod.Post, $"/visits/{id}/start"), (handler.LastRequest!.Method, handler.LastRequest.RequestUri!.AbsolutePath));
+        Assert.Equal("key-1", handler.LastRequest.Headers.GetValues("Idempotency-Key").Single());
+        using (var body = System.Text.Json.JsonDocument.Parse(bodies[0]))
+        {
+            var root = body.RootElement;
+            Assert.Equal(36.1911, root.GetProperty("latitude").GetDouble());
+            Assert.Equal(44.0092, root.GetProperty("longitude").GetDouble());
+            Assert.Equal(7.5, root.GetProperty("accuracyMeters").GetDouble());
+            Assert.Equal(fix.CapturedAt, root.GetProperty("capturedAt").GetDateTimeOffset());
+            Assert.True(root.GetProperty("isMocked").GetBoolean());
+        }
+
+        await client.CheckOutAsync(id, fix, "key-2");
+        Assert.Equal($"/visits/{id}/complete", handler.LastRequest!.RequestUri!.AbsolutePath);
+        Assert.Equal("key-2", handler.LastRequest.Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "OUTSIDE_GEOFENCE", VisitActionResult.OutsideGeofence)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "GPS_LOW_ACCURACY", VisitActionResult.GpsLowAccuracy)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "GPS_STALE", VisitActionResult.GpsStale)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "GPS_CLOCK_SKEW", VisitActionResult.GpsClockSkew)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "GPS_MOCKED", VisitActionResult.GpsMocked)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "SOMETHING_NEW", VisitActionResult.ServerError)]
+    [InlineData(HttpStatusCode.Forbidden, "DEVICE_REQUIRED", VisitActionResult.DeviceRequired)]
+    [InlineData(HttpStatusCode.Conflict, "CUSTOMER_LOCATION_MISSING", VisitActionResult.CustomerLocationMissing)]
+    [InlineData(HttpStatusCode.Conflict, "REPORT_REQUIRED", VisitActionResult.ReportRequired)]
+    [InlineData(HttpStatusCode.BadRequest, "INVALID_DATA", VisitActionResult.InvalidData)]
+    public async Task CheckpointMapsProblemCodes(HttpStatusCode status, string code, VisitActionResult expected)
+    {
+        var (client, _) = Create(_ => Json(status, $$"""{"code":"{{code}}"}"""));
+        var fix = new DeviceFix(1, 1, 5, DateTimeOffset.UtcNow, false);
+        Assert.Equal(expected, await client.CheckOutAsync(Guid.NewGuid(), fix, "k"));
+    }
+
+    [Fact]
+    public async Task SaveReportPutsContractVersionOne()
+    {
+        var id = Guid.NewGuid();
+        string? body = null;
+        var (client, handler) = Create(request =>
+        {
+            body = request.Content!.ReadAsStringAsync().Result;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        Assert.Equal(VisitActionResult.Success, await client.SaveReportAsync(id, new VisitReportDraft("order_intent", "Wants to order")));
+        Assert.Equal((HttpMethod.Put, $"/visits/{id}/report"), (handler.LastRequest!.Method, handler.LastRequest.RequestUri!.AbsolutePath));
+        Assert.Equal("""{"outcome":"order_intent","note":"Wants to order","contractVersion":1}""", body);
+    }
+
+    [Fact]
+    public async Task GetReportReadsSavedReportOrNone()
+    {
+        var (found, _) = Create(_ => Json(HttpStatusCode.OK,
+            """{"visitId":"11111111-1111-1111-1111-111111111111","outcome":"no_interest","note":"Not now","contractVersion":1}"""));
+        Assert.Equal((ReportLoadStatus.Found, new VisitReportDraft("no_interest", "Not now")), await found.GetReportAsync(Guid.NewGuid()));
+
+        var (none, _) = Create(_ => Json(HttpStatusCode.NotFound, """{"code":"NOT_FOUND"}"""));
+        Assert.Equal(ReportLoadStatus.None, (await none.GetReportAsync(Guid.NewGuid())).Status);
+
+        var (offline, _) = Create(_ => throw new HttpRequestException());
+        Assert.Equal(ReportLoadStatus.NetworkError, (await offline.GetReportAsync(Guid.NewGuid())).Status);
+    }
+
     private sealed class FixedSession(AuthResult<string> token) : IAuthSession
     {
         public Task<AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) => Task.FromResult(token);

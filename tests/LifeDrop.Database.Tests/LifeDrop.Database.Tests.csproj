@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/LifeDrop.Infrastructure/LifeDrop.Infrastructure.csproj" />
     <ProjectReference Include="../../src/LifeDrop.API/LifeDrop.API.csproj" />
+    <ProjectReference Include="../../src/LifeDrop.Mobile.Visits/LifeDrop.Mobile.Visits.csproj" />
     <None Include="../../db/migrations/0001_role_assignment.sql" Link="0001_role_assignment.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0002_login.sql" Link="0002_login.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0003_sessions_devices.sql" Link="0003_sessions_devices.sql" CopyToOutputDirectory="PreserveNewest" />

@@ -13,9 +13,20 @@
             <Label x:Name="StatusLabel" FontAttributes="Bold" />
             <Label x:Name="ReasonLabel" IsVisible="False" />
 
+            <!-- Start trip / I have arrived / Check in here -->
             <Button x:Name="StepBtn" Clicked="OnStepClicked" IsVisible="False" />
+
+            <!-- Report and check-out (InVisit) -->
+            <VerticalStackLayout x:Name="ReportForm" Spacing="8" IsVisible="False">
+                <Label Text="Visit report" FontAttributes="Bold" />
+                <Picker x:Name="OutcomePicker" Title="Result of the visit" />
+                <Editor x:Name="NoteEditor" Placeholder="What happened in this visit?" AutoSize="TextChanges" MaxLength="2000" HeightRequest="120" />
+                <Label x:Name="ReportSavedLabel" Text="Report saved on the server." IsVisible="False" />
+                <Button x:Name="SubmitBtn" Text="Save report and check out" Clicked="OnSubmitClicked" />
+                <Button x:Name="RetryCheckOutBtn" Text="Try check-out again" Clicked="OnRetryCheckOutClicked" IsVisible="False" />
+            </VerticalStackLayout>
+
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
-            <Label x:Name="NoteLabel" IsVisible="False" />
             <Label x:Name="MessageLabel" IsVisible="False" />
 
         </VerticalStackLayout>
