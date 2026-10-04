@@ -73,6 +73,7 @@ public partial class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.VisitPlanBoard>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerApprovalStore, LifeDrop.Infrastructure.Customers.PostgresCustomerApprovalStore>();

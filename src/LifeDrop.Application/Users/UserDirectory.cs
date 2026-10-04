@@ -30,8 +30,9 @@ public interface IUserDirectoryStore
 
 public sealed class UserDirectory(IUserDirectoryStore store, IPermissionStore permissions)
 {
-    // Same permission sets as the routes that change these records.
-    private static readonly string[] UserListPermissions = [PermissionKeys.SessionsKill, PermissionKeys.UserManageRoles, PermissionKeys.SystemAdmin];
+    // Same permission sets as the routes that change these records; visits.write lists the users a planner may
+    // assign visits to (plan step 1.18), within its own scope.
+    private static readonly string[] UserListPermissions = [PermissionKeys.SessionsKill, PermissionKeys.UserManageRoles, PermissionKeys.SystemAdmin, PermissionKeys.VisitsWrite];
     private static readonly string[] RolePermissions = [PermissionKeys.UserManageRoles, PermissionKeys.SystemAdmin];
     private static readonly string[] DevicePermissions = [PermissionKeys.DeviceApprove, PermissionKeys.DevicesManage, PermissionKeys.SystemAdmin];
     private static readonly string[] DeviceStatuses = ["pending", "approved", "blocked"];
