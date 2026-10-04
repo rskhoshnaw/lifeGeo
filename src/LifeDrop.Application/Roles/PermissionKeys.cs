@@ -25,4 +25,8 @@ public static class PermissionKeys
     public const string RegionsManage = "regions.manage";
     public const string TeamsRead = "teams.read";
     public const string TeamsManage = "teams.manage";
+
+    // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
+    public const string TrackingRead = "tracking.read";
+    public const string TrackingSummary = "tracking.summary";
 }

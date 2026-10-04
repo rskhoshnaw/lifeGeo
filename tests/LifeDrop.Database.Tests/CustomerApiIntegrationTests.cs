@@ -108,7 +108,8 @@ public class CustomerApiIntegrationTests
                 var m16 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0016_shifts_tracking.sql"));
                 var m17 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0017_offline_checkpoints.sql"));
                 var m18 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0018_customer_approval.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18;
+                var m19 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0019_live_map.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1985,7 +1986,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "38" }, grantsBefore);
+        Assert.Equal(new[] { "41" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -2340,6 +2341,132 @@ public class CustomerApiIntegrationTests
         var users = (await JsonAsync(supervisor, "/users")).EnumerateArray().Select(u => u.GetProperty("email").GetString()).ToArray();
         Assert.Equal(new[] { "rep-a@t1", "supervisor@t1" }, users);
         await AssertProblemAsync(await GetAsync(plainUser, "/users"), HttpStatusCode.Forbidden, "FORBIDDEN");
+    }
+
+    [SkippableFact]
+    public async Task LiveMap_ShowsPositionsOrStatusByPermissionWithinScope()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), plainUser = Guid.NewGuid();
+        Guid repA = Guid.NewGuid(), repB = Guid.NewGuid(), repC = Guid.NewGuid(), foreign = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid(), customer = Guid.NewGuid(), visit = Guid.NewGuid();
+        Guid devA = Guid.NewGuid(), devB = Guid.NewGuid(), devC = Guid.NewGuid(), devF = Guid.NewGuid();
+        Guid shiftA = Guid.NewGuid(), shiftB = Guid.NewGuid(), shiftC = Guid.NewGuid(), shiftF = Guid.NewGuid();
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'manager@t1'), (@sv, @t1, 'supervisor@t1'), (@fi, @t1, 'finance@t1'),
+                    (@pu, @t1, 'plain@t1'), (@ra, @t1, 'rep-a@t1'), (@rb, @t1, 'rep-b@t1'), (@rc, @t1, 'rep-c@t1'), (@fu, @t2, 'foreign@t2');
+                INSERT INTO roles (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-000000000001', @t1, 'Manager'),
+                    ('44444444-0000-0000-0000-000000000003', @t1, 'Finance');
+                INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('44444444-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region'),
+                    ('44444444-0000-0000-0000-000000000004', @t2, 'ForeignManager', 'tenant');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
+                    (@t1, '44444444-0000-0000-0000-000000000001', 'tracking.read'), (@t1, '44444444-0000-0000-0000-000000000002', 'tracking.read'),
+                    (@t1, '44444444-0000-0000-0000-000000000003', 'tracking.summary'), (@t2, '44444444-0000-0000-0000-000000000004', 'tracking.read');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES
+                    (@t1, @m, '44444444-0000-0000-0000-000000000001'), (@t1, @sv, '44444444-0000-0000-0000-000000000002'),
+                    (@t1, @fi, '44444444-0000-0000-0000-000000000003'), (@t2, @fu, '44444444-0000-0000-0000-000000000004');
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@da, @t1, @ra, 'A', 'android', 'i-a', '1.0', '\x01', 'approved'), (@db, @t1, @rb, 'B', 'android', 'i-b', '1.0', '\x02', 'approved'),
+                    (@dc, @t1, @rc, 'C', 'android', 'i-c', '1.0', '\x03', 'approved'), (@df, @t2, @fu, 'F', 'android', 'i-f', '1.0', '\x04', 'approved');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil'), (@bg, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @er, 'Team A'), (@tb, @t1, @bg, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sv, @ta), (@t1, @ra, @ta), (@t1, @rb, @tb), (@t1, @rc, @ta);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at, ended_at) VALUES
+                    (@sa, @t1, @ra, @da, now() - interval '2 hours', NULL), (@sb, @t1, @rb, @db, now() - interval '1 hour', NULL),
+                    (@sc, @t1, @rc, @dc, now() - interval '3 hours', now() - interval '1 hour');
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at) VALUES
+                    (@t1, @sa, @ra, @da, gen_random_uuid(), ST_GeogFromText('SRID=4326;POINT(44.00 36.10)'), 30, now() - interval '30 minutes'),
+                    (@t1, @sa, @ra, @da, gen_random_uuid(), ST_GeogFromText('SRID=4326;POINT(44.01 36.19)'), 12.5, now() - interval '1 minute'),
+                    (@t1, @sb, @rb, @db, gen_random_uuid(), ST_GeogFromText('SRID=4326;POINT(44.36 33.31)'), 20, now() - interval '20 minutes'),
+                    (@t1, @sc, @rc, @dc, gen_random_uuid(), ST_GeogFromText('SRID=4326;POINT(44.02 36.20)'), 10, now() - interval '61 minutes');
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@cu, @t1, 'Pharmacy', 'P-1', 'Shifa');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES (@vi, @t1, @ra, @cu, 'Arrived', CURRENT_DATE, now());
+                SELECT set_config('app.current_actor', @ra::text, false);
+                UPDATE visits SET status = 'InVisit' WHERE id = @vi;
+                SELECT set_config('app.current_tenant', @t2::text, false);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES (@sf, @t2, @fu, @df, now() - interval '1 hour');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("sv", supervisor), ("fi", finance), ("pu", plainUser), ("ra", repA),
+                ("rb", repB), ("rc", repC), ("fu", foreign), ("er", erbil), ("bg", baghdad), ("ta", teamA), ("tb", teamB), ("cu", customer), ("vi", visit),
+                ("da", devA), ("db", devB), ("dc", devC), ("df", devF), ("sa", shiftA), ("sb", shiftB), ("sc", shiftC), ("sf", shiftF) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        Task<HttpResponseMessage> GetAsync(Guid actor)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/live-map");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                GenerateToken(actor == foreign ? t2 : t1, actor, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+            return client.SendAsync(request);
+        }
+        async Task<JsonElement[]> MapAsync(Guid actor)
+        {
+            var response = await GetAsync(actor);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone().EnumerateArray().ToArray();
+        }
+        static string?[] Emails(JsonElement[] rows) => rows.Select(r => r.GetProperty("email").GetString()).ToArray();
+
+        await AssertProblemAsync(await client.GetAsync("/live-map"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        await AssertProblemAsync(await GetAsync(plainUser), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // tracking.read, tenant scope: open shifts only (rep C ended), last point, live only within 5 minutes
+        var all = await MapAsync(manager);
+        Assert.Equal(new[] { "rep-a@t1", "rep-b@t1" }, Emails(all));
+        var a = all[0];
+        Assert.True(a.GetProperty("precise").GetBoolean());
+        Assert.True(a.GetProperty("isLive").GetBoolean());
+        Assert.Equal(36.19, a.GetProperty("latitude").GetDouble(), 5);
+        Assert.Equal(44.01, a.GetProperty("longitude").GetDouble(), 5);
+        Assert.Equal(12.5, a.GetProperty("accuracyMeters").GetDouble(), 5);
+        Assert.Equal("Shifa", a.GetProperty("lastCustomerName").GetString());
+        Assert.Equal("Team A", a.GetProperty("teamName").GetString());
+        Assert.False(all[1].GetProperty("isLive").GetBoolean()); // 20 minutes old: last known, not live
+        Assert.Equal(33.31, all[1].GetProperty("latitude").GetDouble(), 5);
+
+        // Region scope: only the supervisor's region
+        Assert.Equal(new[] { "rep-a@t1" }, Emails(await MapAsync(supervisor)));
+
+        // tracking.summary (decision D3): status and times, never coordinates
+        var summary = await MapAsync(finance);
+        Assert.Equal(new[] { "rep-a@t1", "rep-b@t1" }, Emails(summary));
+        Assert.All(summary, r =>
+        {
+            Assert.False(r.GetProperty("precise").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, r.GetProperty("latitude").ValueKind);
+            Assert.Equal(JsonValueKind.Null, r.GetProperty("longitude").ValueKind);
+            Assert.Equal(JsonValueKind.Null, r.GetProperty("accuracyMeters").ValueKind);
+        });
+        Assert.True(summary[0].GetProperty("isLive").GetBoolean());
+        Assert.Equal("Shifa", summary[0].GetProperty("lastCustomerName").GetString());
+
+        // Other tenant only sees its own shift
+        Assert.Equal(new[] { "foreign@t2" }, Emails(await MapAsync(foreign)));
     }
 
     [SkippableFact]

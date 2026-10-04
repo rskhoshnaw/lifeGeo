@@ -250,3 +250,11 @@ Test: `PanelDirectory_ListsUsersDevicesAndRolesWithinScope` (scope, foreign tena
 | `GET /visit-plan` | `visits.write` (same as create/reassign); tenant scope: every visit of the day; region: visits of the actor and of members of teams in the actor's region; own: the actor's visits | `scheduleDate` optional (default today, Asia/Baghdad), `assignedUserId` optional filter; 200 list of visits (same shape as `GET /visits`, plus `assigneeEmail`), same order; 403 without `visits.write`; 400 malformed query | — |
 
 `GET /users` also accepts `visits.write`, so a planner can choose assignees within the same scope. The panel's Visits tab uses `POST /visits`, `PUT /visits/{id}/assignee` and `POST /visits/{id}/cancel`; the Regions & teams tab uses the routes of step 0.6a (`/regions`, `/teams`, `/teams/{id}/region`, `/teams/{id}/members/{userId}`). Each keeps its own server checks; the customer approval queue stays on `/customer-approvals` (step 1.17 screen). Tests: `VisitPlan_ListsOneDayWithinVisitsWriteScope`; panel `Panel.test.tsx`.
+
+## Live map (step 1.19, decision D3)
+
+| Route | Permission and scope | Response | Audit |
+| --- | --- | --- | --- |
+| `GET /live-map` | `tracking.read` (exact positions) and/or `tracking.summary` (status only); rows come from the wider of the two scopes (tenant: all; region: the actor and members of teams in the actor's region; own: the actor); coordinates only for users the `tracking.read` scope covers | 200 list of active users with an open shift: `email`, `teamName`, `shiftStartedAt`, `lastUpdateAt`, `isLive` (last point ≤ 5 min old), `precise`, `latitude`/`longitude`/`accuracyMeters`/`isMocked` (null without `tracking.read`), `lastCustomerName`/`lastVisitAt` (last check-in since the shift started); 403 without either permission | — |
+
+Default grants (migration 0019, also for existing tenants): SalesManager `tracking.read` (tenant), Supervisor `tracking.read` (region), FinanceManager `tracking.summary`. Tests: `LiveMap_ShowsPositionsOrStatusByPermissionWithinScope`, `LiveMapTests` (application), panel `LiveMap.test.tsx`.

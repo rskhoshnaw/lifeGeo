@@ -170,7 +170,7 @@ Step-level breakdown: `docs/IMPLEMENTATION-PLAN.md`.
 | --- | --- | --- | --- |
 | D1 | When tracking starts | Open | Explicit shift start after login |
 | D2 | Check-out location rule | **Decided 2026-10-04** | Fresh valid GPS inside the customer radius, same anti-fraud checks as check-in |
-| D3 | Finance Manager tracking detail | Open | Access kept; precise, summary or finance-scoped view to be decided |
+| D3 | Finance Manager tracking detail | Decided 2026-10-04 | Summary only (`tracking.summary`: on shift, last update time, last customer; no coordinates). Exact positions need `tracking.read`, which a tenant can grant later without code changes |
 | D4 | Backup deletion by Sales Manager | Open | Optional explicit grant; which copies and what confirmation |
 | D5 | Offline check-in/check-out | Open | Temporary unconfirmed record; whether late acceptance is allowed and how it is validated against D2 |
 | D6 | GPS history retention | Open | Short-term playback plus long-term reports; earlier proposal 90 days, needs privacy decision and staff consent |

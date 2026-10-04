@@ -76,6 +76,19 @@ public static class ShiftEndpoints
         }).RequireAuthorization()
             .WithName("GetShiftSummary").WithTags("Shifts").Produces<ShiftSummaryDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Basic live map (plan step 1.19, decision D3): tracking.read gives positions, tracking.summary status only.
+        app.MapGet("/live-map", async (HttpContext context, LiveMap liveMap, DatabaseSecurityState securityState,
+            CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var entries = await liveMap.ListAsync(tenantId, actorId, cancellationToken);
+            return entries is null ? Results.Forbid() : Results.Ok(entries);
+        }).RequireAuthorization()
+            .WithName("GetLiveMap").WithTags("Shifts").Produces<List<LiveMapEntryDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static IResult ToResult(ShiftResult result) => result switch
