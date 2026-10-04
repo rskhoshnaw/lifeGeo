@@ -104,6 +104,47 @@ public class VisitsApiClientTests
         Assert.Equal(PlanLoadStatus.NetworkError, (await offline.GetDailyPlanAsync()).Status);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.NoContent, "", VisitActionResult.Success)]
+    [InlineData(HttpStatusCode.BadRequest, """{"code":"INVALID_STATE"}""", VisitActionResult.InvalidState)]
+    [InlineData(HttpStatusCode.BadRequest, """{"code":"BAD_REQUEST"}""", VisitActionResult.ServerError)]
+    [InlineData(HttpStatusCode.BadRequest, "not json", VisitActionResult.ServerError)]
+    [InlineData(HttpStatusCode.Conflict, """{"code":"CONCURRENCY_CONFLICT"}""", VisitActionResult.Conflict)]
+    [InlineData(HttpStatusCode.Unauthorized, "", VisitActionResult.SessionExpired)]
+    [InlineData(HttpStatusCode.Forbidden, "", VisitActionResult.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound, "", VisitActionResult.NotFound)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "", VisitActionResult.ServerError)]
+    public async Task ActionMapsResponse(HttpStatusCode status, string body, VisitActionResult expected)
+    {
+        var (client, _) = Create(_ => Json(status, body));
+        Assert.Equal(expected, await client.MarkEnRouteAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task ActionsPostToTheirRoutesWithBearerToken()
+    {
+        var id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var (client, handler) = Create(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        await client.MarkEnRouteAsync(id);
+        Assert.Equal((HttpMethod.Post, $"/visits/{id}/en-route"), (handler.LastRequest!.Method, handler.LastRequest.RequestUri!.AbsolutePath));
+        Assert.Equal("Bearer access-1", handler.LastRequest.Headers.Authorization!.ToString());
+
+        await client.MarkArrivedAsync(id);
+        Assert.Equal($"/visits/{id}/arrive", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ActionNetworkFailureAndMissingSession()
+    {
+        var (offline, _) = Create(_ => throw new HttpRequestException("offline"));
+        Assert.Equal(VisitActionResult.NetworkError, await offline.MarkArrivedAsync(Guid.NewGuid()));
+
+        var (expired, handler) = Create(_ => new HttpResponseMessage(HttpStatusCode.NoContent), AuthResult<string>.Unauthorized("expired"));
+        Assert.Equal(VisitActionResult.SessionExpired, await expired.MarkArrivedAsync(Guid.NewGuid()));
+        Assert.Null(handler.LastRequest);
+    }
+
     private sealed class FixedSession(AuthResult<string> token) : IAuthSession
     {
         public Task<AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) => Task.FromResult(token);

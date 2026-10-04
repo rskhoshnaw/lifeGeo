@@ -16,7 +16,7 @@
         </VerticalStackLayout>
 
         <RefreshView x:Name="Refresher" Grid.Row="2" Refreshing="OnRefreshing">
-            <CollectionView x:Name="VisitList" SelectionMode="None">
+            <CollectionView x:Name="VisitList" SelectionMode="Single" SelectionChanged="OnVisitSelected">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="local:VisitRow">
                         <Border Padding="12" Margin="0,0,0,8" StrokeThickness="1">
