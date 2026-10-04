@@ -24,7 +24,7 @@ Updated: 2026-10-04. This is a repository snapshot plus explicitly identified ea
 ## Not yet implemented or verified
 - iOS build and runtime. No Apple build environment is available to verify `maccatalyst` or `ios` target structures.
 - Offline synchronization, live GPS/geofence tracking, and broader sales workflow remain future slices in this .NET checkout.
-- The repository root includes older template/frontend files. Do not infer the current .NET product implementation from the root `README.md` or the older TypeScript-oriented `docs/PRD.md` sections.
+- The inherited JSX/Express template was removed on 2026-10-04. The root `README.md` is still template text; do not infer product behavior from it. `docs/PRD.md` is now the English working edition of PRD v2.0 with the decision log.
 
 ## Next milestone
 Shared Android/iOS authentication client with secure storage and focused tests, followed by platform-specific verification. Treat iOS background GPS as a separate milestone.
@@ -34,3 +34,4 @@ Shared Android/iOS authentication client with secure storage and focused tests, 
 
 ## Plan
 Remaining work, step order and product decisions: `docs/IMPLEMENTATION-PLAN.md`.
+- Step 0.4 local evidence (2026-10-04): `LifeDrop.Database.Tests` on local PostgreSQL 16 + PostGIS 3.4 with restricted `test_user` and superuser URL: 14 passed, 0 failed, 0 skipped, three consecutive runs. Before the fix a clean run had 3 failures (`Jwt:Issuer is required`) and 3 skips.

@@ -3,12 +3,14 @@
 Updated: 2026-10-04.
 
 ## Current task
-The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 with numbered steps). The plan and the decisions below are on branch `claude/jolly-bardeen-5q93e2`, PR #3. The next recommended step is **0.4**: run all `LifeDrop.Database.Tests` in CI on a disposable PostGIS database from an empty schema.
+The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 with numbered steps). The plan and decisions D2, D10, D11 were merged to `main` in PR #3 (`bc70472`). Step **0.4** (all database tests in CI) is implemented on branch `claude/jolly-bardeen-5q93e2` (not yet in a PR), together with the template removal and the rewritten `docs/PRD.md` and `docs/06-CODING-CONVENTIONS.md`: new `database-tests.yml`, and a test-only fix for missing JWT settings and a parallel environment-variable race. Local: 14/14 passed, 0 skipped. Awaiting CI.
 
 ## Product decisions recorded 2026-10-04
 - **D2:** Check-out requires fresh, valid GPS inside the customer's geofence radius, with the same anti-fraud checks as check-in. Recording any location is not enough.
 - **D10:** The web panel is React + TypeScript (not Blazor), in a new `src/LifeDrop.Web` project.
 - **D11:** Each team operates in one region; the sales manager defines regions and assigns them to teams. A representative may register an out-of-region customer; it is pending until an authorized manager approves it, then it belongs to that representative.
+- Step 0.6 proposal (regions, teams, permission matrix) and the D11 approval queue were accepted.
+- The inherited JSX/Express template was removed. `docs/PRD.md` was rewritten as the English working PRD with the decision log; `docs/06-CODING-CONVENTIONS.md` now matches current code and the React + TypeScript panel.
 - Still open: D1, D3, D4, D5, D6, D8, D9 (see the plan, section 2).
 
 ## Relevant state
@@ -18,7 +20,7 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 - The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
-1. Step 0.4 — all database tests in CI.
+1. Open a PR for branch `claude/jolly-bardeen-5q93e2` and confirm step 0.4 is green in CI.
 2. Step 1.1 — missing `fail` integration test.
 3. Step 0.5 — common error contract.
 

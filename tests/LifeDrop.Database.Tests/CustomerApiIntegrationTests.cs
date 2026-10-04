@@ -186,6 +186,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -336,6 +337,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -465,6 +467,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -586,6 +589,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -678,6 +682,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -770,6 +775,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -881,6 +887,7 @@ public class CustomerApiIntegrationTests
                     .WithWebHostBuilder(webBuilder =>
                     {
                         webBuilder.UseSetting("ConnectionStrings:LifeDrop", connectionStringNormal);
+                        TestHostSettings.UseTestJwt(webBuilder);
                         webBuilder.ConfigureTestServices(services =>
                         {
                             var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
@@ -895,6 +902,7 @@ public class CustomerApiIntegrationTests
                     .WithWebHostBuilder(webBuilder =>
                     {
                         webBuilder.UseSetting("ConnectionStrings:LifeDrop", connectionStringSuper);
+                        TestHostSettings.UseTestJwt(webBuilder);
                         webBuilder.ConfigureTestServices(services =>
                         {
                             var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
