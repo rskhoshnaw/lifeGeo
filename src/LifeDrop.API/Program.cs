@@ -72,6 +72,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
         builder.Services.AddScoped<KillUserSessions>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 
@@ -142,6 +144,8 @@ public partial class Program
         builder.Services.AddAuthorization();
         builder.Services.AddOpenApi();
         builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = ApiErrors.Customize);
+        // Malformed route/query/body values must be 400 in every environment, never an exception (500).
+        builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
 
         var app = builder.Build();
         (string AccessToken, DateTime ExpiresAt) CreateAccessToken(SessionIdentity identity)
@@ -387,13 +391,13 @@ public partial class Program
                 LifeDrop.Application.Visits.CreateVisitResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Visits.CreateVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
                 LifeDrop.Application.Visits.CreateVisitResult.CustomerNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.CustomerNotFound),
-                LifeDrop.Application.Visits.CreateVisitResult.InvalidData => Results.BadRequest(),
+                LifeDrop.Application.Visits.CreateVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };}).RequireAuthorization()
             .WithName("CreateVisit").WithTags("Visits").Produces<CreatedResponse>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/visits", async (
-            DateOnly scheduleDate,
+            DateOnly? scheduleDate,
             HttpContext context, 
             LifeDrop.Application.Visits.ListAssignedVisits listVisits,
             DatabaseSecurityState securityState,
@@ -639,6 +643,7 @@ public partial class Program
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
+        LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
 
         app.Run();
     }

@@ -782,7 +782,6 @@
           {
             "name": "scheduleDate",
             "in": "query",
-            "required": true,
             "schema": {
               "type": "string",
               "format": "date"
@@ -2211,6 +2210,96 @@
           }
         }
       }
+    },
+    "/visits/unplanned": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "operationId": "CreateUnplannedVisit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUnplannedVisitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2315,6 +2404,28 @@
           }
         }
       },
+      "CreateUnplannedVisitRequest": {
+        "required": [
+          "customerId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "visitType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CreateVisitRequest": {
         "required": [
           "assignedUserId",
@@ -2334,6 +2445,25 @@
           "scheduleDate": {
             "type": "string",
             "format": "date"
+          },
+          "visitType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priority": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "plannedTime": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "time"
           }
         }
       },
@@ -2616,7 +2746,12 @@
           "status",
           "exceptionReason",
           "scheduleDate",
-          "createdAt"
+          "createdAt",
+          "visitType",
+          "priority",
+          "plannedTime",
+          "isUnplanned",
+          "unplannedReason"
         ],
         "type": "object",
         "properties": {
@@ -2652,6 +2787,28 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "visitType": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "plannedTime": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "time"
+          },
+          "isUnplanned": {
+            "type": "boolean"
+          },
+          "unplannedReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }

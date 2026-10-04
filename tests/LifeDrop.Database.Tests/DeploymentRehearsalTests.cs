@@ -85,7 +85,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";

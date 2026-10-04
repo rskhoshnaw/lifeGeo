@@ -8,7 +8,12 @@ namespace LifeDrop.Application.Visits;
 
 public enum CreateVisitResult { Created, Forbidden, InvalidData, UserNotFound, CustomerNotFound }
 
-public sealed record CreateVisitRequest(Guid AssignedUserId, Guid CustomerId, DateOnly ScheduleDate);
+// VisitType: pharmacy | doctor | wholesaler | other (default other). Priority: high | normal | low (default normal).
+// PlannedTime: local time of day in Asia/Baghdad, optional.
+public sealed record CreateVisitRequest(Guid AssignedUserId, Guid CustomerId, DateOnly ScheduleDate,
+    string? VisitType = null, string? Priority = null, TimeOnly? PlannedTime = null);
+
+public sealed record CreateUnplannedVisitRequest(Guid CustomerId, string Reason, string? VisitType = null);
 
 public interface IVisitStore
 {
@@ -43,7 +48,12 @@ public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customer
         if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken) is null)
             return (CreateVisitResult.CustomerNotFound, null);
 
-        var visit = Visit.Create(tenantId, new UserId(request.AssignedUserId), new CustomerId(request.CustomerId), request.ScheduleDate);
+        if (!VisitPlanningContract.TryParseType(request.VisitType, out var visitType) ||
+            !VisitPlanningContract.TryParsePriority(request.Priority, out var priority))
+            return (CreateVisitResult.InvalidData, null);
+
+        var visit = Visit.Create(tenantId, new UserId(request.AssignedUserId), new CustomerId(request.CustomerId), request.ScheduleDate,
+            visitType, priority, request.PlannedTime);
         
         var (result, storedVisit) = await store.CreateAsync(tenantId, actorId, visit, cancellationToken);
         
@@ -56,12 +66,62 @@ public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customer
     }
 }
 
-public sealed class ListAssignedVisits(IVisitStore store)
+// Unplanned visit (PRD §5.1): the field user records a visit for themself, today (Iraq local date),
+// only with visits.create_unplanned and a reason; the customer must be visible within that permission's scope.
+public sealed class CreateUnplannedVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers,
+    LifeDrop.Application.Roles.IPermissionStore permissions, TimeProvider clock)
 {
-    public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly scheduleDate, CancellationToken cancellationToken)
+    public async Task<(CreateVisitResult Result, Guid? VisitId)> ExecuteAsync(TenantId tenantId, UserId actorId, CreateUnplannedVisitRequest request, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (CreateVisitResult.Forbidden, null);
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsCreateUnplanned, cancellationToken);
+        if (scope is null) return (CreateVisitResult.Forbidden, null);
+
+        if (request.CustomerId == Guid.Empty || !VisitPlanningContract.TryParseType(request.VisitType, out var visitType))
+            return (CreateVisitResult.InvalidData, null);
+
+        Visit visit;
+        try
+        {
+            visit = Visit.CreateUnplanned(tenantId, actorId, new CustomerId(request.CustomerId), IraqCalendar.Today(clock), visitType, request.Reason);
+        }
+        catch (ArgumentException)
+        {
+            return (CreateVisitResult.InvalidData, null);
+        }
+
+        if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken) is null)
+            return (CreateVisitResult.CustomerNotFound, null);
+
+        var (result, stored) = await store.CreateAsync(tenantId, actorId, visit, cancellationToken);
+        return (result, result == CreateVisitResult.Created ? stored?.Id.Value : null);
+    }
+}
+
+// "Today" for Iraqi plans is the local date in Asia/Baghdad (UTC+3, no daylight saving), not the UTC date (PRD §11).
+public static class IraqCalendar
+{
+    private static readonly TimeZoneInfo Zone = Resolve();
+
+    public static DateOnly Today(TimeProvider clock) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Zone).DateTime);
+
+    private static TimeZoneInfo Resolve()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Baghdad"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.CreateCustomTimeZone("Asia/Baghdad", TimeSpan.FromHours(3), "Asia/Baghdad", "Asia/Baghdad"); }
+    }
+}
+
+// Daily plan of the caller (plan step 1.3, PRD §5.1, §11): only the caller's visits; without a date the day is
+// "today" in Asia/Baghdad; a day without visits is an empty list. Ordered by planned time (unscheduled last),
+// then priority, then creation.
+public sealed class ListAssignedVisits(IVisitStore store, TimeProvider clock)
+{
+    public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly? scheduleDate, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return null;
-        return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate, cancellationToken);
+        return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate ?? IraqCalendar.Today(clock), cancellationToken);
     }
 }
 
