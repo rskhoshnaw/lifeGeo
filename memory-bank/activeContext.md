@@ -17,11 +17,11 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 ## Relevant state
 - GitHub remote `rskhoshnaw/lifeGeo` is connected. PR #1 and PR #2 are merged; `build` and `test-device-block` CI checks are green on `main` (`4cbbd1f`).
 - Backend auth, device, role, customer and visit endpoints exist. `/start` and `/complete` change status only; server GPS/geofence and report checks are not implemented (steps 1.7, 1.8).
-- `VisitApi_Failed_EnforcesPermissionsAndTransitions` is still absent (step 1.1).
+- Step 1.1: `VisitApi_Failed_EnforcesPermissionsAndTransitions` added (no token 401, owner without `visits.fail` 403, other owner 403, other tenant 404, blank reason 400, success 204 with persisted reason, repeat 400 without overwrite). Local 15/15 database tests; awaiting CI. Visit transitions still write no audit rows (step 1.9).
 - The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
-1. Step 1.1 — missing `fail` integration test.
+1. Confirm step 1.1 is green in CI.
 2. Step 0.5 — common error contract.
 3. Step 0.6 — permission matrix and region/team model.
 

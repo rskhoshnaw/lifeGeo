@@ -857,6 +857,141 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task VisitApi_Failed_EnforcesPermissionsAndTransitions()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var assigneeId = Guid.NewGuid();
+        var otherRepId = Guid.NewGuid();
+        var noPermissionUserId = Guid.NewGuid();
+        var t2RepId = Guid.NewGuid();
+        var failRoleT1 = Guid.NewGuid();
+        var failRoleT2 = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var visitId = Guid.NewGuid();
+        var noPermissionVisitId = Guid.NewGuid();
+
+        // Assignee and another rep both hold visits.fail; a third user owns a visit but lacks visits.fail.
+        // A Tenant 2 user also holds visits.fail, so the cross-tenant case reaches the visit lookup.
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@o1, @t1), (@n1, @t1), (@x2, @t2);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @t1, 'FieldRep'), (@r2, @t2, 'FieldRep');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t1, @r1, 'visits.fail'), (@t2, @r2, 'visits.fail');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t1, @a1, @r1), (@t1, @o1, @r1), (@t2, @x2, @r2);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at)
+                VALUES (@v1, @t1, @a1, @c1, 'Arrived', '2026-10-03', now()),
+                       (@v2, @t1, @n1, @c1, 'Planned', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", assigneeId);
+            cmd.Parameters.AddWithValue("o1", otherRepId);
+            cmd.Parameters.AddWithValue("n1", noPermissionUserId);
+            cmd.Parameters.AddWithValue("x2", t2RepId);
+            cmd.Parameters.AddWithValue("r1", failRoleT1);
+            cmd.Parameters.AddWithValue("r2", failRoleT2);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            cmd.Parameters.AddWithValue("v2", noPermissionVisitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var assigneeToken = GenerateToken(tenantId1, assigneeId, signingKey!, issuer!, audience!);
+        var otherRepToken = GenerateToken(tenantId1, otherRepId, signingKey!, issuer!, audience!);
+        var noPermissionToken = GenerateToken(tenantId1, noPermissionUserId, signingKey!, issuer!, audience!);
+        var t2Token = GenerateToken(tenantId2, t2RepId, signingKey!, issuer!, audience!);
+        var validReason = new { Reason = "Pharmacy closed on arrival" };
+
+        // 1. No token
+        client.DefaultRequestHeaders.Authorization = null;
+        var respAnonymous = await client.PostAsJsonAsync($"/visits/{visitId}/fail", validReason);
+        Assert.Equal(HttpStatusCode.Unauthorized, respAnonymous.StatusCode);
+
+        // 2. Owner of the visit but without visits.fail
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", noPermissionToken);
+        var respNoPermission = await client.PostAsJsonAsync($"/visits/{noPermissionVisitId}/fail", validReason);
+        Assert.Equal(HttpStatusCode.Forbidden, respNoPermission.StatusCode);
+
+        // 3. Has visits.fail but is not the assigned user
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherRepToken);
+        var respOtherOwner = await client.PostAsJsonAsync($"/visits/{visitId}/fail", validReason);
+        Assert.Equal(HttpStatusCode.Forbidden, respOtherOwner.StatusCode);
+
+        // 4. Has visits.fail in another tenant: the visit is not visible
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
+        var respOtherTenant = await client.PostAsJsonAsync($"/visits/{visitId}/fail", validReason);
+        Assert.Equal(HttpStatusCode.NotFound, respOtherTenant.StatusCode);
+
+        // 5. Assignee with an empty reason
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", assigneeToken);
+        var respEmptyReason = await client.PostAsJsonAsync($"/visits/{visitId}/fail", new { Reason = "   " });
+        Assert.Equal(HttpStatusCode.BadRequest, respEmptyReason.StatusCode);
+
+        // None of the rejected requests may change either visit
+        Assert.Equal(("Arrived", (string?)null), await ReadVisitStatusAsync(schemaBlock.ConnectionString, tenantId1, visitId));
+        Assert.Equal(("Planned", (string?)null), await ReadVisitStatusAsync(schemaBlock.ConnectionString, tenantId1, noPermissionVisitId));
+
+        // 6. Success
+        var respSuccess = await client.PostAsJsonAsync($"/visits/{visitId}/fail", validReason);
+        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+
+        // 7. Repeated request on a terminal visit
+        var respRepeated = await client.PostAsJsonAsync($"/visits/{visitId}/fail", new { Reason = "Second attempt" });
+        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+
+        // The first reason is persisted and the repeat did not overwrite it
+        Assert.Equal(("Failed", (string?)validReason.Reason), await ReadVisitStatusAsync(schemaBlock.ConnectionString, tenantId1, visitId));
+    }
+
+    private static async Task<(string Status, string? Reason)> ReadVisitStatusAsync(string connectionString, Guid tenantId, Guid visitId)
+    {
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+        await using (var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false);", conn))
+        {
+            setCmd.Parameters.AddWithValue("t", tenantId);
+            await setCmd.ExecuteNonQueryAsync();
+        }
+
+        await using var cmd = new NpgsqlCommand("SELECT status, exception_reason FROM visits WHERE id = @v;", conn);
+        cmd.Parameters.AddWithValue("v", visitId);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync(), "Visit row not found.");
+        return (reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1));
+    }
+
+    [SkippableFact]
     public async Task CustomerApi_HostsMaintainIndependentSecurityStates()
     {
         var normalUrl = GetRequiredEnvVar("TEST_DATABASE_URL");
