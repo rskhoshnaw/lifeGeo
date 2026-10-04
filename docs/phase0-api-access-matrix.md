@@ -102,3 +102,10 @@ Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIs
 ## Audit search (step 0.8)
 
 `GET /audit-logs` — permission `audit.read`; scope tenant = all entries of the tenant, region = entries by actors in teams of the caller's region (plus the caller), own = the caller's entries. Filters: `action`, `actorId`, `entityId`, `from`, `to`; newest first; keyset pagination with `limit` (1–100, default 50) and `cursorOccurredAt` + `cursorId`. Returns only id, actor, action, entity and time. Invalid query → 400 `INVALID_DATA`. There is no update or delete route; the `audit_logs` trigger rejects UPDATE, DELETE and TRUNCATE even for the table owner. Test: `AuditApi_SearchesWithinScopeAndRowsCannotBeChanged`. `auth_login_audit` is not exposed yet.
+
+## Security baseline (step 0.9)
+
+- **Runtime grants:** `db/grants/lifedrop_app_grants.sql` is the single least-privilege grant list for `lifedrop_app`. `DeploymentRehearsalTests` applies the same file to a temporary NOSUPERUSER/NOBYPASSRLS role and calls every endpoint group through it; removing a needed grant fails the test.
+- **Deployment gap found:** `scripts/deploy_customer_api/02_apply_changes.sql` (applied to `lifedrop_dev`) grants nothing on `visits`, `regions`, `teams` or `team_members`, so visit endpoints there would fail with `permission denied`. After migrations 0006–0009, apply `db/grants/lifedrop_app_grants.sql` on that database (owner action; not done from CI).
+- **Protected routes:** `EveryRouteRequiresAuthorizationExceptReviewedPublicRoutes` fails if any route other than `GET /`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/devices/register` and the Development-only OpenAPI document lacks authorization.
+- **No secrets in logs:** the rehearsal captures all API logs at Debug level and asserts that the password, access and refresh tokens (before and after rotation) and the device secret never appear.
