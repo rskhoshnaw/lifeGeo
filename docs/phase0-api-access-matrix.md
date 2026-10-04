@@ -86,7 +86,7 @@ Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-
 | Role | Scope | Device binding | Permissions |
 | --- | --- | --- | --- |
 | CompanyManager | tenant | no | customers.read, regions.read, teams.read |
-| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles |
+| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill |
 | Supervisor | region | no | customers.read/write, visits.write, regions.read, teams.read |
 | FinanceManager | tenant | no | customers.read |
 | SalesRep | own | yes | customers.read/write, visits.fail |
@@ -94,3 +94,7 @@ Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-
 | WarehouseManager, Driver | own | yes | none yet (phase 2) |
 
 Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIsIdempotentAndEnforcedByApi`.
+
+## Kill Session (step 0.7)
+
+`POST /users/{userId}/sessions/revoke` — permission `sessions.kill`; scope tenant = any user, region = users in the actor's region, own = only self. Revokes every active refresh-token family of the target; because each request checks its session family, the target's access tokens stop working on the next request (401), without reinstalling the app. 204 on success, 403 out of scope, 404 `USER_NOT_FOUND`. Audit `auth.sessions_killed` (actor = administrator, entity = target user), written even when no session was active. Test: `KillSessions_RevokesTargetImmediatelyWithinScopeAndAudits`.

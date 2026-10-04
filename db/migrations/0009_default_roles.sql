@@ -22,7 +22,7 @@ CREATE FUNCTION seed_default_roles(p_tenant uuid) RETURNS void LANGUAGE sql AS $
                ('SalesManager', 'customers.read'), ('SalesManager', 'customers.write'), ('SalesManager', 'visits.write'),
                ('SalesManager', 'regions.read'), ('SalesManager', 'regions.manage'),
                ('SalesManager', 'teams.read'), ('SalesManager', 'teams.manage'),
-               ('SalesManager', 'device.approve'), ('SalesManager', 'user.manageroles'),
+               ('SalesManager', 'device.approve'), ('SalesManager', 'user.manageroles'), ('SalesManager', 'sessions.kill'),
                ('Supervisor', 'customers.read'), ('Supervisor', 'customers.write'), ('Supervisor', 'visits.write'),
                ('Supervisor', 'regions.read'), ('Supervisor', 'teams.read'),
                ('FinanceManager', 'customers.read'),

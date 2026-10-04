@@ -28,6 +28,7 @@ public class CustomerApiIntegrationTests
         public Task<LifeDrop.Application.Auth.SessionTokens?> RotateAsync(LifeDrop.Application.Auth.RefreshRequest request, System.Threading.CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<bool> IsAccessActiveAsync(LifeDrop.Application.Auth.SessionIdentity identity, System.Threading.CancellationToken cancellationToken) => Task.FromResult(true);
         public Task RevokeFamilyAsync(LifeDrop.Application.Auth.SessionIdentity identity, System.Threading.CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<int> RevokeAllForUserAsync(LifeDrop.Domain.Common.TenantId tenantId, LifeDrop.Domain.Common.UserId actorId, LifeDrop.Domain.Common.UserId targetUserId, System.Threading.CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     private class IsolatedSchema : IAsyncDisposable
@@ -150,7 +151,7 @@ public class CustomerApiIntegrationTests
         }
     }
 
-    private string GenerateToken(Guid tenantId, Guid userId, string signingKey, string issuer, string audience)
+    private string GenerateToken(Guid tenantId, Guid userId, string signingKey, string issuer, string audience, Guid? sessionFamily = null)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -158,7 +159,7 @@ public class CustomerApiIntegrationTests
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new Claim("tenant_id", tenantId.ToString()),
-            new Claim("session_family", Guid.NewGuid().ToString())
+            new Claim("session_family", (sessionFamily ?? Guid.NewGuid()).ToString())
         };
         var token = new JwtSecurityToken(
             issuer: issuer,
@@ -1394,7 +1395,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.read", "customers.write", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "23" }, grantsBefore);
+        Assert.Equal(new[] { "24" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -1420,6 +1421,114 @@ public class CustomerApiIntegrationTests
         As(rep);
         await AssertProblemAsync(await client.PostAsJsonAsync("/regions", new { Name = "Duhok" }), HttpStatusCode.Forbidden, "FORBIDDEN");
         Assert.Equal(new[] { repCustomer }, (await (await client.GetAsync("/customers")).Content.ReadFromJsonAsync<List<CustomerDto>>())!.Select(c => c.Id).ToArray());
+    }
+
+    [SkippableFact]
+    public async Task KillSessions_RevokesTargetImmediatelyWithinScopeAndAudits()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        // Real session store: every request checks that its session family is still active.
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), plainUser = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        var families = new Dictionary<Guid, Guid[]>
+        {
+            [manager] = new[] { Guid.NewGuid() }, [supervisor] = new[] { Guid.NewGuid() }, [plainUser] = new[] { Guid.NewGuid() },
+            [repA] = new[] { Guid.NewGuid(), Guid.NewGuid() }, [repB] = new[] { Guid.NewGuid() }
+        };
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@pu, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO roles (id, tenant_id, name) VALUES ('33333333-0000-0000-0000-000000000001', @t1, 'Admin');
+                INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('33333333-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
+                    (@t1, '33333333-0000-0000-0000-000000000001', 'sessions.kill'), (@t1, '33333333-0000-0000-0000-000000000002', 'sessions.kill');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES
+                    (@t1, @m, '33333333-0000-0000-0000-000000000001'), (@t1, @sv, '33333333-0000-0000-0000-000000000002');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil'), (@bg, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @er, 'Team A'), (@tb, @t1, @bg, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sv, @ta), (@t1, @ra, @ta), (@t1, @rb, @tb);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("pu", plainUser), ("ra", repA), ("rb", repB),
+                ("er", erbil), ("bg", baghdad), ("ta", teamA), ("tb", teamB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+
+            foreach (var (user, userFamilies) in families)
+                foreach (var family in userFamilies)
+                {
+                    await using var token = new NpgsqlCommand(@"
+                        INSERT INTO refresh_tokens (id, family_id, tenant_id, user_id, token_hash, expires_at)
+                        VALUES (gen_random_uuid(), @f, @t1, @u, @h, now() + interval '1 day');", conn);
+                    token.Parameters.AddWithValue("f", family);
+                    token.Parameters.AddWithValue("t1", t1);
+                    token.Parameters.AddWithValue("u", user);
+                    token.Parameters.AddWithValue("h", Guid.NewGuid().ToByteArray());
+                    await token.ExecuteNonQueryAsync();
+                }
+        }
+
+        string Token(Guid user, int family = 0) => GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, families[user][family]);
+        async Task<HttpStatusCode> ProbeAsync(Guid user, int family = 0)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/visits?scheduleDate=2026-10-05");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user, family));
+            return (await client.SendAsync(request)).StatusCode;
+        }
+        Task<HttpResponseMessage> KillAsync(Guid actor, Guid target)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/users/{target}/sessions/revoke");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(actor));
+            return client.SendAsync(request);
+        }
+
+        Assert.Equal(HttpStatusCode.OK, await ProbeAsync(repA));
+        Assert.Equal(HttpStatusCode.OK, await ProbeAsync(repA, 1));
+
+        // Without sessions.kill, and outside the actor's region, the request is refused
+        await AssertProblemAsync(await KillAsync(plainUser, repA), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await KillAsync(supervisor, repB), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await KillAsync(manager, Guid.NewGuid()), HttpStatusCode.NotFound, "USER_NOT_FOUND");
+        Assert.Equal(HttpStatusCode.OK, await ProbeAsync(repB));
+
+        // Region scope: the supervisor ends every session of a rep in the same region, effective on the next request
+        Assert.Equal(HttpStatusCode.NoContent, (await KillAsync(supervisor, repA)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, await ProbeAsync(repA));
+        Assert.Equal(HttpStatusCode.Unauthorized, await ProbeAsync(repA, 1));
+
+        // Tenant scope: any user of the tenant; other users keep their sessions
+        Assert.Equal(HttpStatusCode.NoContent, (await KillAsync(manager, repB)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, await ProbeAsync(repB));
+        Assert.Equal(HttpStatusCode.OK, await ProbeAsync(manager));
+        Assert.Equal(HttpStatusCode.OK, await ProbeAsync(supervisor));
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT actor_id, entity_id FROM audit_logs WHERE tenant_id = @t1 AND action = 'auth.sessions_killed' ORDER BY occurred_at, entity_id;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            var rows = new List<(Guid, string)>();
+            while (await reader.ReadAsync()) rows.Add((reader.GetGuid(0), reader.GetString(1)));
+            Assert.Equal(new[] { (supervisor, repA.ToString()), (manager, repB.ToString()) }, rows.ToArray());
+        }
     }
 
     // Contract drift check (plan step 0.5b): the OpenAPI document generated by the running API

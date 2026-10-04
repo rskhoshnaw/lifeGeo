@@ -12,6 +12,7 @@ public static class PermissionKeys
     public const string DevicesManage = "devices.manage";
     public const string UserManageRoles = "user.manageroles";
     public const string SystemAdmin = "system.admin";
+    public const string SessionsKill = "sessions.kill";
 
     // Regions and teams (decision D11): granted to the sales manager role.
     public const string RegionsRead = "regions.read";

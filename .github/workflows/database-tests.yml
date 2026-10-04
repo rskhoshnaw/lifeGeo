@@ -31,7 +31,7 @@ jobs:
       TEST_DATABASE_URL: "Host=localhost;Port=5432;Database=lifedrop_test_ci;Username=test_user;Password=test_pass;Include Error Detail=true"
       TEST_SUPERUSER_DATABASE_URL: "Host=localhost;Port=5432;Database=lifedrop_test_ci;Username=postgres;Password=temp_root;Include Error Detail=true"
       # Raise this when database tests are added; CI fails if fewer tests run.
-      MIN_EXPECTED_TESTS: 20
+      MIN_EXPECTED_TESTS: 21
 
     steps:
     - uses: actions/checkout@v7
