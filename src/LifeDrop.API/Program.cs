@@ -85,6 +85,13 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 
+        // Web panel (plan step 1.16): browsers may call the API only from the origins listed in Cors:AllowedOrigins
+        // (none by default). Tokens travel in the Authorization header, so no cookies or credentials are allowed.
+        var panelOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+            policy.WithOrigins(panelOrigins).WithHeaders("Authorization", "Content-Type", "Idempotency-Key")
+                .WithMethods("GET", "POST", "PUT", "DELETE")));
+
         builder.Services.AddRateLimiter(options =>
         {
             options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -193,6 +200,7 @@ public partial class Program
         app.UseStatusCodePages();
         if (app.Environment.IsDevelopment()) app.MapOpenApi();
         if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();
+        app.UseCors();
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
