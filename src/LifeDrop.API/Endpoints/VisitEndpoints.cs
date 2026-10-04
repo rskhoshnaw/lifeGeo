@@ -56,6 +56,21 @@ public static class VisitEndpoints
             .WithName("CancelVisit").WithTags("Visits").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        // Server-side check-in (plan step 1.7): replaces the earlier status-only /start.
+        app.MapPost("/visits/{visitId:guid}/start", async (Guid visitId, CheckInRequest request, HttpContext context,
+            CheckInVisit checkIn, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, rejection) = await checkIn.ExecuteAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
+                context.Request.Headers["Idempotency-Key"].FirstOrDefault(), cancellationToken);
+            return ToResult(result, rejection);
+        }).RequireAuthorization()
+            .WithName("StartVisit").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409)
+            .ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
+
         // Visit report (plan step 1.6).
         app.MapPut("/visits/{visitId:guid}/report", async (Guid visitId, SaveVisitReportRequest request, HttpContext context,
             VisitReports reports, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
@@ -100,6 +115,29 @@ public static class VisitEndpoints
         ManageVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
         ManageVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         ManageVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+        _ => Results.Forbid()
+    };
+
+    private static Guid? ReadDeviceId(HttpContext context) =>
+        Guid.TryParse(context.User.FindFirst("device_id")?.Value, out var deviceId) ? deviceId : null;
+
+    internal static IResult ToResult(LocationCheckResult result, LifeDrop.Domain.Visits.LocationRejection? rejection) => result switch
+    {
+        LocationCheckResult.Success => Results.NoContent(),
+        LocationCheckResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+        LocationCheckResult.DeviceRequired => ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.DeviceRequired),
+        LocationCheckResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+        LocationCheckResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        LocationCheckResult.CustomerLocationMissing => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerLocationMissing),
+        LocationCheckResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+        LocationCheckResult.Rejected => ApiErrors.Problem(StatusCodes.Status422UnprocessableEntity, rejection switch
+        {
+            LifeDrop.Domain.Visits.LocationRejection.OutsideGeofence => ApiErrors.OutsideGeofence,
+            LifeDrop.Domain.Visits.LocationRejection.LowAccuracy => ApiErrors.GpsLowAccuracy,
+            LifeDrop.Domain.Visits.LocationRejection.StaleFix => ApiErrors.GpsStale,
+            LifeDrop.Domain.Visits.LocationRejection.ClockSkew => ApiErrors.GpsClockSkew,
+            _ => ApiErrors.GpsMocked
+        }),
         _ => Results.Forbid()
     };
 }

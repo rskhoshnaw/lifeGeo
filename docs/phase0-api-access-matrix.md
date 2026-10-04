@@ -150,3 +150,15 @@ Migration 0011 grants `visits.cancel` to the default SalesManager and Supervisor
 | `GET /visits/{id}/report` | Assignee, or `visits.write` scope covering the assignee | 200 report; 404 if absent or out of scope | — |
 
 Migration 0013 adds `visit_reports` (one per visit, tenant RLS). There is no "order placed" outcome until orders exist (PRD §5.3). The database write is itself limited to an `InVisit` visit of the actor, so a bypass of the service check still cannot store a report. Check-out will require a saved report (step 1.8). Test: `VisitReport_SavedByAssigneeOnlyInVisitAndAudited`; domain tests `VisitReportTests`.
+
+## Server-side check-in (step 1.7)
+
+`POST /visits/{id}/start` (breaking change for clients: a body is now required)
+
+- Body: `latitude`, `longitude`, `accuracyMeters`, `capturedAt` (device time, ISO 8601), `isMocked` (Android mock-location flag). Optional header `Idempotency-Key` (1–100 chars).
+- Only the assignee; the access token must carry `device_id` of an approved device (403 `DEVICE_REQUIRED`); the visit must be `Arrived` (400 `INVALID_STATE`); the customer must have a location (409 `CUSTOMER_LOCATION_MISSING`).
+- The server measures the distance with PostGIS and refuses (422) a position that is: mocked `GPS_MOCKED`, more than 30 s in the future `GPS_CLOCK_SKEW`, older than 2 min `GPS_STALE`, less accurate than 50 m `GPS_LOW_ACCURACY`, or farther than the customer's radius (default 20 m) `OUTSIDE_GEOFENCE`.
+- Every attempt is stored in `visit_location_events` (migration 0014; accepted or with its rejection reason, device, distance, radius, accuracy and device time) and audited (`visit.checked_in` / `visit.check_in_rejected`). Coordinates are never written to audit or logs.
+- A retry with the same `Idempotency-Key` after success returns 204 without a second record.
+
+Test: `CheckIn_RequiresDeviceFreshGpsInsideGeofenceAndRecordsEveryAttempt`; domain `LocationCheckPolicyTests`; the deployment rehearsal checks in with a real device-bound login through the restricted role.

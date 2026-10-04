@@ -20,6 +20,14 @@ public static class ApiErrors
     public const string CustomerNotFound = "CUSTOMER_NOT_FOUND";
     public const string RegionNotFound = "REGION_NOT_FOUND";
     public const string DuplicateName = "DUPLICATE_NAME";
+    public const string DeviceRequired = "DEVICE_REQUIRED";
+    public const string CustomerLocationMissing = "CUSTOMER_LOCATION_MISSING";
+    // Check-in/out position rejected by the server (422); one code per reason.
+    public const string OutsideGeofence = "OUTSIDE_GEOFENCE";
+    public const string GpsLowAccuracy = "GPS_LOW_ACCURACY";
+    public const string GpsStale = "GPS_STALE";
+    public const string GpsClockSkew = "GPS_CLOCK_SKEW";
+    public const string GpsMocked = "GPS_MOCKED";
 
     // Generic codes for responses produced without a specific code
     // (empty-bodied results, authentication challenges, rate limiting, unhandled exceptions).
