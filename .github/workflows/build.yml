@@ -50,3 +50,27 @@ jobs:
 
     - name: Test solution
       run: dotnet test LifeDrop.CI.slnf --no-build --configuration Release
+
+  # The MAUI app is not in LifeDrop.CI.slnf (it needs the Android workload). GitHub's Ubuntu runners ship the
+  # Android SDK and a JDK, so this job builds the real Android app to catch compile and XAML errors (step 1.10).
+  mobile-android:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+      name: Checkout code
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install MAUI Android workload
+      run: dotnet workload install maui-android
+
+    - name: Ensure Android platform 36
+      run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+
+    - name: Build Android app
+      run: dotnet build src/LifeDrop.Mobile/LifeDrop.Mobile.csproj -f net10.0-android --configuration Release -p:AndroidSdkDirectory="$ANDROID_HOME"
