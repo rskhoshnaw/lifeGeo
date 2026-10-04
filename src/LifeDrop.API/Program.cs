@@ -69,6 +69,11 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitInVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitCompleted>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitFailed>();
+        builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
+        builder.Services.AddScoped<KillUserSessions>();
+        builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -185,7 +190,8 @@ public partial class Program
             Service = "LifeDrop API",
             Status = "running",
             OpenApi = "/openapi/v1.json"
-        }));
+        }))
+            .WithName("GetServiceStatus").WithTags("Status").Produces(200).ProducesProblem(429);
 
         app.MapPost("/auth/login", async (LoginRequest request, Login login,
             IDeviceAccessStore devices, ISessionStore sessions, HttpContext context,
@@ -213,15 +219,10 @@ public partial class Program
             }
             var session = await sessions.IssueAsync(identity, deviceId, cancellationToken);
             var (accessToken, expiresAt) = CreateAccessToken(session.Identity);
-            return Results.Ok(new
-            {
-                AccessToken = accessToken,
-                RefreshToken = session.RefreshToken,
-                TokenType = "Bearer",
-                ExpiresAt = expiresAt,
-                RefreshExpiresAt = session.RefreshExpiresAt
-            });
-        }).RequireRateLimiting("login");
+            return Results.Ok(new TokenResponse(accessToken, session.RefreshToken, "Bearer",
+                expiresAt, session.RefreshExpiresAt));
+        }).RequireRateLimiting("login")
+            .WithName("Login").WithTags("Auth").Produces<TokenResponse>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429);
 
         app.MapPost("/auth/refresh", async (RefreshRequest request, ISessionStore sessions,
             HttpContext context, CancellationToken cancellationToken) =>
@@ -231,15 +232,10 @@ public partial class Program
             var rotated = await sessions.RotateAsync(request, cancellationToken);
             if (rotated is null) return Results.Unauthorized();
             var (accessToken, expiresAt) = CreateAccessToken(rotated.Identity);
-            return Results.Ok(new
-            {
-                AccessToken = accessToken,
-                RefreshToken = rotated.RefreshToken,
-                TokenType = "Bearer",
-                ExpiresAt = expiresAt,
-                RefreshExpiresAt = rotated.RefreshExpiresAt
-            });
-        }).RequireRateLimiting("login");
+            return Results.Ok(new TokenResponse(accessToken, rotated.RefreshToken, "Bearer",
+                expiresAt, rotated.RefreshExpiresAt));
+        }).RequireRateLimiting("login")
+            .WithName("RefreshSession").WithTags("Auth").Produces<TokenResponse>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(429);
 
         app.MapPost("/auth/logout", async (HttpContext context, ISessionStore sessions,
             CancellationToken cancellationToken) =>
@@ -248,7 +244,8 @@ public partial class Program
             if (identity is null) return Results.Forbid();
             await sessions.RevokeFamilyAsync(identity, cancellationToken);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("Logout").WithTags("Auth").Produces(204).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429);
 
         app.MapPost("/auth/devices/register", async (RegisterDeviceRequest request,
             Login login, IDeviceAccessStore devices, HttpContext context,
@@ -272,7 +269,8 @@ public partial class Program
             var device = await devices.RegisterAsync(identity.TenantId, identity.UserId,
                 request, cancellationToken);
             return device is null ? Results.Conflict() : Results.Ok(device);
-        }).RequireRateLimiting("login");
+        }).RequireRateLimiting("login")
+            .WithName("RegisterDevice").WithTags("Devices").Produces<LifeDrop.Application.Devices.RegisteredDevice>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(409).ProducesProblem(429);
 
         app.MapPost("/devices/{deviceId:guid}/approve", async (Guid deviceId,
             HttpContext context, IDeviceAccessStore devices,
@@ -288,7 +286,8 @@ public partial class Program
                 DeviceChangeResult.Forbidden => Results.Forbid(),
                 _ => Results.NotFound()
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("ApproveDevice").WithTags("Devices").Produces(204).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429);
 
         app.MapPost("/devices/{deviceId:guid}/block", async (Guid deviceId,
             HttpContext context, IDeviceAccessStore devices,
@@ -304,7 +303,8 @@ public partial class Program
                 DeviceChangeResult.Forbidden => Results.Forbid(),
                 _ => Results.NotFound()
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("BlockDevice").WithTags("Devices").Produces(204).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429);
 
         app.MapPost("/users/{userId:guid}/roles/{roleId:guid}", async (
             Guid userId, Guid roleId, HttpContext context, AssignRole assignRole,
@@ -329,7 +329,8 @@ public partial class Program
                 AssignRoleResult.UserNotFound or AssignRoleResult.RoleNotFound => Results.NotFound(),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("AssignUserRole").WithTags("Users").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429);
 
         app.MapPost("/customers", async (
             LifeDrop.Application.Customers.CreateCustomerRequest request, 
@@ -359,7 +360,8 @@ public partial class Program
                 LifeDrop.Application.Customers.CreateCustomerResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Customers.CreateCustomerResult.InvalidData => Results.BadRequest(),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
-            };}).RequireAuthorization();
+            };}).RequireAuthorization()
+            .WithName("CreateCustomer").WithTags("Customers").Produces<Guid>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits", async (
             LifeDrop.Application.Visits.CreateVisitRequest request, 
@@ -378,19 +380,17 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "visits.write", cancellationToken))
-                return Results.Forbid();
-
             var result = await createVisit.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), request, cancellationToken);
             return result.Result switch
             {
-                LifeDrop.Application.Visits.CreateVisitResult.Created => Results.Created($"/visits/{result.VisitId}", new { id = result.VisitId }),
+                LifeDrop.Application.Visits.CreateVisitResult.Created => Results.Created($"/visits/{result.VisitId}", new CreatedResponse(result.VisitId!.Value)),
                 LifeDrop.Application.Visits.CreateVisitResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Visits.CreateVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
                 LifeDrop.Application.Visits.CreateVisitResult.CustomerNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.CustomerNotFound),
                 LifeDrop.Application.Visits.CreateVisitResult.InvalidData => Results.BadRequest(),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
-            };}).RequireAuthorization();
+            };}).RequireAuthorization()
+            .WithName("CreateVisit").WithTags("Visits").Produces<CreatedResponse>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/visits", async (
             DateOnly scheduleDate,
@@ -411,7 +411,8 @@ public partial class Program
             // Employee only sees their own visit schedule - no special permission required since they just query by their own actorId
             var result = await listVisits.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), scheduleDate, cancellationToken);
             return result is null ? Results.BadRequest() : Results.Ok(result);
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("ListAssignedVisits").WithTags("Visits").Produces<List<LifeDrop.Application.Visits.VisitDto>>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/en-route", async (
             Guid visitId,
@@ -439,7 +440,8 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("MarkVisitEnRoute").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/arrive", async (
             Guid visitId,
@@ -467,7 +469,8 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("MarkVisitArrived").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/start", async (
             Guid visitId,
@@ -495,7 +498,8 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("StartVisit").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/complete", async (
             Guid visitId,
@@ -523,7 +527,8 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("CompleteVisit").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/fail", async (
             Guid visitId,
@@ -553,7 +558,8 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("FailVisit").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/customers", async (
             int? limit,
@@ -574,12 +580,13 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken))
-                return Results.Forbid();
+            var readScope = await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken);
+            if (readScope is null) return Results.Forbid();
 
-            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), limit, cursorCreatedAt, cursorId, cancellationToken);
+            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, cancellationToken);
             return result.IsValid ? Results.Ok(result.Items) : Results.BadRequest();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+            .WithName("ListCustomers").WithTags("Customers").Produces<List<LifeDrop.Application.Customers.CustomerDto>>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/customers/{id:guid}", async (
             Guid id, 
@@ -598,11 +605,12 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken))
-                return Results.Forbid();
+            var readScope = await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken);
+            if (readScope is null) return Results.Forbid();
 
-            var result = await getCustomer.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.CustomerId(id), cancellationToken);
-            return result is null ? Results.NotFound() : Results.Ok(result);}).RequireAuthorization();
+            var result = await getCustomer.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.CustomerId(id), readScope, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);}).RequireAuthorization()
+            .WithName("GetCustomer").WithTags("Customers").Produces<LifeDrop.Application.Customers.CustomerDto>(200).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         using (var scope = app.Services.CreateScope())
         {
@@ -628,6 +636,10 @@ public partial class Program
             }
         }
 
+        LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
+        LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
+        LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
+
         app.Run();
     }
 }
@@ -638,5 +650,7 @@ public partial class Program
 
 
 public record FailVisitRequest(string Reason);
+public record TokenResponse(string AccessToken, string RefreshToken, string TokenType, DateTime ExpiresAt, DateTime RefreshExpiresAt);
+public record CreatedResponse(Guid Id);
 
 

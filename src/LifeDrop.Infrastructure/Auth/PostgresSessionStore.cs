@@ -139,6 +139,32 @@ public sealed class PostgresSessionStore(NpgsqlDataSource dataSource) : ISession
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task<int> RevokeAllForUserAsync(TenantId tenantId, UserId actorId, UserId targetUserId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            UPDATE refresh_tokens SET revoked_at=now()
+            WHERE tenant_id=@tenant AND user_id=@user AND revoked_at IS NULL
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", targetUserId.Value);
+        var revoked = await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Audited even when nothing was active: the administrative action itself is sensitive.
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs(id,tenant_id,actor_id,action,entity_id,occurred_at)
+            VALUES (gen_random_uuid(),@tenant,@actor,'auth.sessions_killed',@target::text,now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("target", targetUserId.Value);
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return revoked;
+    }
+
     private static async Task<bool> IsEligibleAsync(NpgsqlConnection connection,
         NpgsqlTransaction transaction, Guid tenant, Guid user, Guid? device,
         CancellationToken cancellationToken)

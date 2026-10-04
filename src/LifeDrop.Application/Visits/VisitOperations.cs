@@ -18,13 +18,30 @@ public interface IVisitStore
     Task<bool> TryUpdateStatusAsync(TenantId tenantId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, VisitStatus newStatus, string? exceptionReason, CancellationToken cancellationToken);
 }
 
-public sealed class CreateVisit(IVisitStore store)
+public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers, LifeDrop.Application.Roles.IPermissionStore permissions)
 {
     public async Task<(CreateVisitResult Result, Guid? VisitId)> ExecuteAsync(TenantId tenantId, UserId actorId, CreateVisitRequest request, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return (CreateVisitResult.Forbidden, null);
         if (request.AssignedUserId == Guid.Empty || request.CustomerId == Guid.Empty || request.ScheduleDate == default)
             return (CreateVisitResult.InvalidData, null);
+
+        // Data scope of visits.write (plan step 0.6b): own = only for oneself; region = only for users in the
+        // actor's region; the customer must be visible within the same scope.
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
+        if (scope is null) return (CreateVisitResult.Forbidden, null);
+
+        var assigneeId = new UserId(request.AssignedUserId);
+        if (scope.Scope != LifeDrop.Application.Roles.DataScope.Tenant && assigneeId != actorId)
+        {
+            if (scope.Scope == LifeDrop.Application.Roles.DataScope.Own) return (CreateVisitResult.Forbidden, null);
+            var (assigneeExists, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, assigneeId, cancellationToken);
+            if (!assigneeExists) return (CreateVisitResult.UserNotFound, null);
+            if (scope.RegionId is null || assigneeRegion != scope.RegionId) return (CreateVisitResult.Forbidden, null);
+        }
+
+        if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken) is null)
+            return (CreateVisitResult.CustomerNotFound, null);
 
         var visit = Visit.Create(tenantId, new UserId(request.AssignedUserId), new CustomerId(request.CustomerId), request.ScheduleDate);
         

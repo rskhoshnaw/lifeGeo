@@ -93,12 +93,12 @@ public class CustomersDatabaseTests
         Assert.Equal(CreateCustomerResult.Created, diffTenantResult);
 
         // Test 4: Get Customer (visibility scoped by tenant)
-        var fetched = await store.GetByIdAsync(tenantId1, custId, CancellationToken.None);
+        var fetched = await store.GetByIdAsync(tenantId1, custId, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), CancellationToken.None);
         Assert.NotNull(fetched);
         Assert.Equal("Central Pharmacy", fetched.Name);
 
         // Test 5: Cross-Tenant Invisibility (Tenant 2 cannot see Tenant 1's customer)
-        var crossFetched = await store.GetByIdAsync(tenantId2, custId, CancellationToken.None);
+        var crossFetched = await store.GetByIdAsync(tenantId2, custId, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), CancellationToken.None);
         Assert.Null(crossFetched);
         
         // Verify audit log
@@ -151,16 +151,16 @@ public class CustomersDatabaseTests
         await store.CreateAsync(tenantId2, actorId2, CustomerId.New(), req1, CancellationToken.None);
 
         // Test 1: List all for tenant 1 (should return 3)
-        var allT1 = await store.ListAsync(tenantId1, 10, null, null, CancellationToken.None);
+        var allT1 = await store.ListAsync(tenantId1, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), 10, null, null, CancellationToken.None);
         Assert.Equal(3, allT1.Count);
 
         // Test 2: Pagination (Limit 2)
-        var page1 = await store.ListAsync(tenantId1, 2, null, null, CancellationToken.None);
+        var page1 = await store.ListAsync(tenantId1, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), 2, null, null, CancellationToken.None);
         Assert.Equal(2, page1.Count);
 
         // Test 3: Next page via cursor
         var lastItem = page1[page1.Count - 1];
-        var page2 = await store.ListAsync(tenantId1, 2, lastItem.CreatedAt, lastItem.Id, CancellationToken.None);
+        var page2 = await store.ListAsync(tenantId1, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), 2, lastItem.CreatedAt, lastItem.Id, CancellationToken.None);
         Assert.Single(page2);
 
         // Verify pages concatenate exactly to the full ordered result
@@ -173,7 +173,7 @@ public class CustomersDatabaseTests
         }
 
         // Test 4: Tenant isolation (Tenant 2 only sees 1)
-        var allT2 = await store.ListAsync(tenantId2, 10, null, null, CancellationToken.None);
+        var allT2 = await store.ListAsync(tenantId2, LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New()), 10, null, null, CancellationToken.None);
         Assert.Single(allT2);
         Assert.Equal("C1", allT2[0].Code);
     }

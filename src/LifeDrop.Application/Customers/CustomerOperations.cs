@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LifeDrop.Application.Roles;
 using LifeDrop.Domain.Common;
 
 namespace LifeDrop.Application.Customers;
@@ -9,9 +10,10 @@ public sealed record CreateCustomerRequest(string Type, string Code, string Name
 
 public interface ICustomerStore
 {
-    Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken);
+    // scope limits rows to the caller's data scope (plan step 0.6b); out-of-scope rows behave as not found.
+    Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken);
     Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken);
-    Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken);
 }
 
 public sealed class CreateCustomer(ICustomerStore store)
@@ -30,16 +32,16 @@ public sealed class CreateCustomer(ICustomerStore store)
 
 public sealed class GetCustomer(ICustomerStore store)
 {
-    public Task<CustomerDto?> ExecuteAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken)
+    public Task<CustomerDto?> ExecuteAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || id.IsEmpty) return Task.FromResult<CustomerDto?>(null);
-        return store.GetByIdAsync(tenantId, id, cancellationToken);
+        return store.GetByIdAsync(tenantId, id, scope, cancellationToken);
     }
 }
 
 public sealed class ListCustomers(ICustomerStore store)
 {
-    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
+    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty) return (false, Array.Empty<CustomerDto>());
         
@@ -47,7 +49,7 @@ public sealed class ListCustomers(ICustomerStore store)
         if (actualLimit <= 0 || actualLimit > 100) return (false, Array.Empty<CustomerDto>());
         if (cursorCreatedAt.HasValue != cursorId.HasValue) return (false, Array.Empty<CustomerDto>());
 
-        var items = await store.ListAsync(tenantId, actualLimit, cursorCreatedAt, cursorId, cancellationToken);
+        var items = await store.ListAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, cancellationToken);
         return (true, items);
     }
 }

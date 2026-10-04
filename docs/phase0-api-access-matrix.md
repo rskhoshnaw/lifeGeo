@@ -18,7 +18,7 @@ Date: 2026-10-03. Scope: routes currently mapped in `src/LifeDrop.API/Program.cs
 ## Phase 0 gaps to resolve
 
 1. **Product access matrix:** The PRD requires role, tenant, region, owner and device rules per endpoint. Current permission keys implement only part of that matrix; region and owner rules are absent from these customer routes. Record a product-approved rule for each route before extending permissions. A name such as `system.admin` must not imply automatic cross-tenant access.
-2. **Contract consistency:** Since step 0.5 (2026-10-04) every error response is ProblemDetails with a stable `code` (see the error contract below). Request/response shapes, idempotency and Audit effects are not yet captured in one versioned OpenAPI contract (step 0.5b).
+2. **Contract consistency:** Since step 0.5 (2026-10-04) every error response is ProblemDetails with a stable `code` (see the error contract below). Request/response shapes, idempotency and Audit effects are not yet captured in one versioned OpenAPI contract (step 0.5b, now `docs/api/openapi-v1.json`, checked by `OpenApiDocument_MatchesCommittedContract`). Idempotency and Audit effects are still described only in this table.
 3. **Exit gate:** Database integration tests are outside `LifeDrop.slnx`, require explicit isolated database configuration, and were not run for this inventory. The existing build workflow runs `dotnet test` on the solution, so it does not establish that those database tests run in CI. Rehearsal source lists migrations `0001`–`0006`, but that is not evidence of a successful current run or a production decision for `0006`.
 4. **Security and recovery:** Verify protected-route coverage, audit retention, restricted-role deployment, empty-database migration, backup restore and secret-safe logs in separate acceptance tasks. This inventory does not establish these gates.
 
@@ -42,12 +42,70 @@ Every 4xx/5xx response is `application/problem+json` (RFC 9457) with `type`, `ti
 | 403 | `FORBIDDEN` | Missing permission or not the owner |
 | 403 | `DEVICE_NOT_APPROVED` | Login from an unapproved or unknown device (read by the mobile client) |
 | 404 | `NOT_FOUND` | Record absent or outside the caller's tenant/scope |
-| 404 | `USER_NOT_FOUND`, `CUSTOMER_NOT_FOUND` | `POST /visits` with an unknown assignee or customer |
+| 404 | `USER_NOT_FOUND`, `CUSTOMER_NOT_FOUND` | `POST /visits` with an unknown assignee or customer; `USER_NOT_FOUND` also for team membership |
+| 404 | `REGION_NOT_FOUND` | Team create or move with a region outside the caller's tenant |
 | 409 | `CONFLICT` | Duplicate device registration or role assignment |
 | 409 | `DUPLICATE_CODE` | Customer code already used in the tenant |
+| 409 | `DUPLICATE_NAME` | Region or team name already used in the tenant |
 | 409 | `CONCURRENCY_CONFLICT` | Visit changed by another request between read and update |
 | 429 | `TOO_MANY_REQUESTS` | Rate limit |
 | 503 | `SERVICE_UNAVAILABLE` | API running with an insecure database role |
 | 500 | `UNEXPECTED_ERROR` | Unhandled fault; must not occur for predictable errors |
 
 Changed in step 0.5: the visit endpoints previously returned `{ "error": "InvalidState" }`, `"InvalidData"`, `"ConcurrencyConflict"`, `"UserNotFound"`, `"CustomerNotFound"`; these are now the UPPER_SNAKE_CASE codes above. `DEVICE_NOT_APPROVED` and `DUPLICATE_CODE` keep their values. Test evidence: `CustomerApiIntegrationTests.ApiErrors_ReturnProblemDetailsWithStableCodes`, the `DEVICE_NOT_APPROVED` body check in `RoleAssignmentDatabaseTests`, and `AuthApiClientTests.LoginAsync_DeviceNotApprovedProblemDetails_ReturnsDeviceNotApprovedStatus`.
+
+## Regions and teams (step 0.6a, decision D11)
+
+| Route | Permission | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `POST /regions` | `regions.manage` | 201 `{id}`; name 1–100 chars, unique per tenant (409 `DUPLICATE_NAME`) | `region.created` |
+| `GET /regions` | `regions.read` | 200 array of the caller's tenant only | — |
+| `POST /teams` | `teams.manage` | 201 `{id}`; region must exist in the tenant (404 `REGION_NOT_FOUND`); name unique per tenant | `team.created` |
+| `GET /teams` | `teams.read` | 200 array with each team's `regionId` | — |
+| `PUT /teams/{teamId}/region` | `regions.manage` | 204; moves the team to another region of the tenant | `team.region_changed` |
+| `PUT /teams/{teamId}/members/{userId}` | `teams.manage` | 204; a user belongs to at most one team, so this moves the user | `team.member_assigned` |
+| `DELETE /teams/{teamId}/members/{userId}` | `teams.manage` | 204; 404 if the user is not in that team | `team.member_removed` |
+
+All tables use tenant RLS. Test: `CustomerApiIntegrationTests.RegionTeamApi_EnforcesPermissionsTenantIsolationAndAudit`. Region scope on customers and visits is step 0.6b. Deployment note: the production `lifedrop_app` role needs `SELECT, INSERT` on `regions`, `teams`, `team_members`, `UPDATE` on `teams`, `team_members` and `DELETE` on `team_members` (as in `DeploymentRehearsalTests`); this is part of step 0.9.
+
+## Data scope (step 0.6b)
+
+`roles.data_scope` (migration 0008): `tenant` (default, all rows), `region` (region of the user's team), `own` (owned/assigned only). A user's scope for a permission is the widest among roles granting it.
+
+| Route | `tenant` | `region` | `own` |
+| --- | --- | --- | --- |
+| `GET /customers`, `GET /customers/{id}` | all customers | customers in the team's region + customers owned by the user | customers owned by the user |
+| `POST /visits` | any user, any customer | assignee in the same region (or self); customer visible in region scope | only self; only owned customers |
+
+Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-region assignee returns 403. Test: `DataScope_LimitsCustomerReadsAndVisitAssignment`.
+
+## Default roles (step 0.6c)
+
+`seed_default_roles(tenant_id)` (migration 0009) creates these roles for a tenant and is run once for every existing tenant. Re-running only adds missing roles/grants; it never changes or removes existing ones. Note: if a tenant already has a role with one of these names, the default grants are added to it.
+
+| Role | Scope | Device binding | Permissions |
+| --- | --- | --- | --- |
+| CompanyManager | tenant | no | customers.read, regions.read, teams.read, audit.read |
+| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill, audit.read |
+| Supervisor | region | no | customers.read/write, visits.write, regions.read, teams.read |
+| FinanceManager | tenant | no | customers.read, audit.read |
+| SalesRep | own | yes | customers.read/write, visits.fail |
+| ScientificRep | own | yes | customers.read, visits.fail |
+| WarehouseManager, Driver | own | yes | none yet (phase 2) |
+
+Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIsIdempotentAndEnforcedByApi`.
+
+## Kill Session (step 0.7)
+
+`POST /users/{userId}/sessions/revoke` — permission `sessions.kill`; scope tenant = any user, region = users in the actor's region, own = only self. Revokes every active refresh-token family of the target; because each request checks its session family, the target's access tokens stop working on the next request (401), without reinstalling the app. 204 on success, 403 out of scope, 404 `USER_NOT_FOUND`. Audit `auth.sessions_killed` (actor = administrator, entity = target user), written even when no session was active. Test: `KillSessions_RevokesTargetImmediatelyWithinScopeAndAudits`.
+
+## Audit search (step 0.8)
+
+`GET /audit-logs` — permission `audit.read`; scope tenant = all entries of the tenant, region = entries by actors in teams of the caller's region (plus the caller), own = the caller's entries. Filters: `action`, `actorId`, `entityId`, `from`, `to`; newest first; keyset pagination with `limit` (1–100, default 50) and `cursorOccurredAt` + `cursorId`. Returns only id, actor, action, entity and time. Invalid query → 400 `INVALID_DATA`. There is no update or delete route; the `audit_logs` trigger rejects UPDATE, DELETE and TRUNCATE even for the table owner. Test: `AuditApi_SearchesWithinScopeAndRowsCannotBeChanged`. `auth_login_audit` is not exposed yet.
+
+## Security baseline (step 0.9)
+
+- **Runtime grants:** `db/grants/lifedrop_app_grants.sql` is the single least-privilege grant list for `lifedrop_app`. `DeploymentRehearsalTests` applies the same file to a temporary NOSUPERUSER/NOBYPASSRLS role and calls every endpoint group through it; removing a needed grant fails the test.
+- **Deployment gap found:** `scripts/deploy_customer_api/02_apply_changes.sql` (applied to `lifedrop_dev`) grants nothing on `visits`, `regions`, `teams` or `team_members`, so visit endpoints there would fail with `permission denied`. After migrations 0006–0009, apply `db/grants/lifedrop_app_grants.sql` on that database (owner action; not done from CI).
+- **Protected routes:** `EveryRouteRequiresAuthorizationExceptReviewedPublicRoutes` fails if any route other than `GET /`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/devices/register` and the Development-only OpenAPI document lacks authorization.
+- **No secrets in logs:** the rehearsal captures all API logs at Debug level and asserts that the password, access and refresh tokens (before and after rotation) and the device secret never appear.

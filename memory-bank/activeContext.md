@@ -21,9 +21,9 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 - The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
-1. Step 1.1 is green in CI on PR #5 (`build`, `database-tests`); waiting for the owner to merge it.
-2. Step 0.5 — common error contract: implemented locally (ProblemDetails with stable `code`, `ApiErrors.cs`); 16/16 database tests and 85/85 Mobile.Auth tests pass. Push after PR #5 is merged. Then 0.5b (OpenAPI contract file).
-3. Step 0.6 — permission matrix and region/team model.
+1. Steps 1.1 and 0.5 are merged and verified in CI (PR #5).
+2. Step 0.5b — OpenAPI contract file `docs/api/openapi-v1.json` with drift test; local 17/17; awaiting CI on its PR. Next: step 0.6.
+3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0009 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Next: Phase 1 step 1.2 (visit scheduling fields). D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
 

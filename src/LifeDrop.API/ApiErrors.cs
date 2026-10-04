@@ -18,6 +18,8 @@ public static class ApiErrors
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
     public const string UserNotFound = "USER_NOT_FOUND";
     public const string CustomerNotFound = "CUSTOMER_NOT_FOUND";
+    public const string RegionNotFound = "REGION_NOT_FOUND";
+    public const string DuplicateName = "DUPLICATE_NAME";
 
     // Generic codes for responses produced without a specific code
     // (empty-bodied results, authentication challenges, rate limiting, unhandled exceptions).

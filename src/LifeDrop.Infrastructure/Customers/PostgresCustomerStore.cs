@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using LifeDrop.Application.Customers;
+using LifeDrop.Application.Roles;
 using LifeDrop.Domain.Common;
 using Npgsql;
 
@@ -7,7 +8,7 @@ namespace LifeDrop.Infrastructure.Customers;
 
 public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustomerStore
 {
-    public async Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken)
+    public async Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -24,8 +25,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             WHERE id = @id
             """;
 
-        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        await using var command = new NpgsqlCommand(sql + " AND " + ScopeFilter(scope), connection, transaction);
         command.Parameters.AddWithValue("id", id.Value);
+        AddScopeParameters(command, scope);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -82,7 +84,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         return CreateCustomerResult.Created;
     }
 
-    public async Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -98,15 +100,17 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             FROM customers
             """;
 
+        sql += "\nWHERE " + ScopeFilter(scope);
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
-            sql += "\nWHERE (created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId)";
+            sql += "\nAND ((created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId))";
         }
 
         sql += "\nORDER BY created_at ASC, id ASC\nLIMIT @limit";
 
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("limit", limit);
+        AddScopeParameters(command, scope);
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             command.Parameters.AddWithValue("cursorDate", cursorCreatedAt.Value);
@@ -129,5 +133,20 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         }
 
         return results;
+    }
+
+    // Data scope (plan step 0.6b): tenant = all rows (RLS already limits the tenant); region = customers in the
+    // region of the actor's team plus customers the actor owns; own = customers the actor owns.
+    private static string ScopeFilter(AccessScope scope) => scope.Scope switch
+    {
+        DataScope.Tenant => "TRUE",
+        DataScope.Region when scope.RegionId is not null => "(owner_user_id = @scopeActor OR region_id = @scopeRegion)",
+        _ => "owner_user_id = @scopeActor"
+    };
+
+    private static void AddScopeParameters(NpgsqlCommand command, AccessScope scope)
+    {
+        command.Parameters.AddWithValue("scopeActor", scope.ActorId.Value);
+        command.Parameters.AddWithValue("scopeRegion", (object?)scope.RegionId ?? DBNull.Value);
     }
 }

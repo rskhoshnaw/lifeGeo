@@ -6,6 +6,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 using LifeDrop.API;
@@ -83,7 +85,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
@@ -96,9 +98,8 @@ public class DeploymentRehearsalTests
                 CREATE ROLE {appRole} WITH LOGIN PASSWORD '{appPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
                 GRANT USAGE ON SCHEMA {schema} TO {appRole};
                 GRANT USAGE ON SCHEMA public TO {appRole};
-                GRANT SELECT ON {schema}.tenants, {schema}.users, {schema}.roles, {schema}.role_permissions, {schema}.user_roles, {schema}.devices, {schema}.refresh_tokens, {schema}.customers, {schema}.audit_logs TO {appRole};
-                GRANT INSERT ON {schema}.user_roles, {schema}.audit_logs, {schema}.auth_login_audit, {schema}.devices, {schema}.refresh_tokens, {schema}.customers TO {appRole};
-                GRANT UPDATE ON {schema}.devices, {schema}.refresh_tokens TO {appRole};
+                SET search_path TO {schema};
+                {(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "lifedrop_app_grants.sql"))).Replace("lifedrop_app", appRole)}
             ", setupConn))
             {
                 await cmd.ExecuteNonQueryAsync();
@@ -118,7 +119,9 @@ public class DeploymentRehearsalTests
                 INSERT INTO roles (id, tenant_id, name) VALUES (@r, @t, 'DevAdmin'), (@f, @t, 'FieldRep');
                 INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES 
                     (@t, @r, 'device.approve'), (@t, @r, 'user.manageroles'), 
-                    (@t, @r, 'customers.write'), (@t, @r, 'customers.read');
+                    (@t, @r, 'customers.write'), (@t, @r, 'customers.read'),
+                    (@t, @r, 'visits.write'), (@t, @r, 'visits.fail'), (@t, @r, 'regions.manage'), (@t, @r, 'regions.read'),
+                    (@t, @r, 'teams.manage'), (@t, @r, 'teams.read'), (@t, @r, 'audit.read'), (@t, @r, 'sessions.kill');
                 INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t, @a, @r);
             ", setupConn))
             {
@@ -141,11 +144,13 @@ public class DeploymentRehearsalTests
             };
             var appConnString = appBuilder.ConnectionString;
 
+            var logs = new CapturingLoggerProvider();
             using (var factory = new WebApplicationFactory<Program>()
                 .WithWebHostBuilder(webBuilder =>
                 {
                     webBuilder.UseSetting("ConnectionStrings:LifeDrop", appConnString);
                     TestHostSettings.UseTestJwt(webBuilder);
+                    webBuilder.ConfigureLogging(logging => logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug).AddProvider(logs));
                 }))
             {
                 using var client = factory.CreateClient();
@@ -190,6 +195,32 @@ public class DeploymentRehearsalTests
                 using var doc = JsonDocument.Parse(json);
                 Assert.Equal("C999", doc.RootElement.GetProperty("code").GetString());
                 Assert.Equal("Test Clinic", doc.RootElement.GetProperty("name").GetString());
+
+                // Every endpoint group through the restricted role and db/grants/lifedrop_app_grants.sql (plan step 0.9)
+                async Task<Guid> CreatedIdAsync(HttpResponseMessage response)
+                {
+                    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+                    using var body = await response.Content.ReadFromJsonAsync<JsonDocument>();
+                    return body!.RootElement.GetProperty("id").GetGuid();
+                }
+                var regionId = await CreatedIdAsync(await client.PostAsJsonAsync("/regions", new { Name = "Erbil" }));
+                var teamId = await CreatedIdAsync(await client.PostAsJsonAsync("/teams", new { Name = "Team A", RegionId = regionId }));
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"/teams/{teamId}/members/{adminId}", null)).StatusCode);
+                Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/teams")).StatusCode);
+                var visitId = await CreatedIdAsync(await client.PostAsJsonAsync("/visits", new { AssignedUserId = adminId, CustomerId = custId, ScheduleDate = "2026-10-05" }));
+                Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/visits?scheduleDate=2026-10-05")).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/visits/{visitId}/en-route", null)).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/visits/{visitId}/fail", new { Reason = "Closed" })).StatusCode);
+                Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/audit-logs?limit=5")).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/teams/{teamId}/members/{adminId}")).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/users/{adminId}/sessions/revoke", null)).StatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/teams")).StatusCode);
+
+                // No secret reaches the application logs (PRD §2)
+                Assert.NotEmpty(logs.Messages);
+                var refreshed = await refreshResp.Content.ReadFromJsonAsync<LoginResponse>();
+                foreach (var secret in new[] { "password123", tokens.AccessToken, tokens.RefreshToken, refreshed!.AccessToken, refreshed.RefreshToken, deviceData.DeviceSecret })
+                    Assert.DoesNotContain(logs.Messages, message => message.Contains(secret, StringComparison.Ordinal));
             } 
         }
         catch (Exception ex)
@@ -260,6 +291,22 @@ public class DeploymentRehearsalTests
 }
 
 public class LoginResponse { public string AccessToken { get; set; } = ""; public string RefreshToken { get; set; } = ""; }
-public class RegisterDeviceResponse { public Guid DeviceId { get; set; } }
+public class RegisterDeviceResponse { public Guid DeviceId { get; set; } public string DeviceSecret { get; set; } = ""; }
+
+// Collects every log message (including exceptions) written by the API host.
+public sealed class CapturingLoggerProvider : Microsoft.Extensions.Logging.ILoggerProvider
+{
+    public System.Collections.Concurrent.ConcurrentQueue<string> Messages { get; } = new();
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName) => new Logger(Messages);
+    public void Dispose() { }
+
+    private sealed class Logger(System.Collections.Concurrent.ConcurrentQueue<string> messages) : Microsoft.Extensions.Logging.ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            messages.Enqueue(formatter(state, exception) + (exception is null ? "" : " " + exception));
+    }
+}
 
 
