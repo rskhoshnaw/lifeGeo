@@ -20,6 +20,11 @@ public interface IVisitStore
     Task<(CreateVisitResult Result, Visit? Visit)> CreateAsync(TenantId tenantId, UserId actorId, Visit visit, CancellationToken cancellationToken);
     Task<System.Collections.Generic.List<VisitDto>> ListAssignedVisitsAsync(TenantId tenantId, UserId assignedUserId, DateOnly scheduleDate, CancellationToken cancellationToken);
     Task<Visit?> GetAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken);
+    // Planning board (plan step 1.18): visits of one day whose assignee is inside the scope (tenant: all; region:
+    // the actor and members of teams in scope.RegionId; own: the actor), optionally for one assignee.
+    Task<System.Collections.Generic.List<VisitDto>> ListPlannedVisitsAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope,
+        DateOnly scheduleDate, UserId? assignedUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     Task<bool> TryUpdateStatusAsync(TenantId tenantId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, VisitStatus newStatus, string? exceptionReason, CancellationToken cancellationToken);
 
     // Conditional updates with their audit row in the same transaction (plan step 1.4). False when the visit
@@ -171,6 +176,21 @@ public sealed class ListAssignedVisits(IVisitStore store, TimeProvider clock)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return null;
         return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate ?? IraqCalendar.Today(clock), cancellationToken);
+    }
+}
+
+// Planning board for the web panel (plan step 1.18): the same visits.write scope that creates, reassigns and
+// cancels visits decides which visits are listed.
+public sealed class VisitPlanBoard(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions, TimeProvider clock)
+{
+    public async Task<System.Collections.Generic.List<VisitDto>?> ListAsync(TenantId tenantId, UserId actorId, DateOnly? scheduleDate,
+        Guid? assignedUserId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return null;
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
+        if (scope is null) return null;
+        var assignee = assignedUserId is { } id && id != Guid.Empty ? new UserId(id) : (UserId?)null;
+        return await store.ListPlannedVisitsAsync(tenantId, scope, scheduleDate ?? IraqCalendar.Today(clock), assignee, cancellationToken);
     }
 }
 

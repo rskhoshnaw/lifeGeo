@@ -237,8 +237,16 @@ Read-only routes for the web panel. The panel hides buttons by `/me` permissions
 | Route | Who | Behaviour | Audit |
 | --- | --- | --- | --- |
 | `GET /me` | any signed-in active user | `{id, email, roles, permissions}` of the caller | — |
-| `GET /users` | `sessions.kill`, `user.manageroles` or `system.admin`; widest scope of these (tenant: all; region: users in teams of the actor's region + self; own: self) | Active users of the tenant (max 500): email, roles, team, region, number of active session families | — |
+| `GET /users` | `sessions.kill`, `user.manageroles`, `system.admin` or (step 1.18) `visits.write`; widest scope of these (tenant: all; region: users in teams of the actor's region + self; own: self) | Active users of the tenant (max 500): email, roles, team, region, number of active session families | — |
 | `GET /roles` | `user.manageroles` or `system.admin` | Roles of the tenant: id, name, data scope | — |
 | `GET /devices?status=pending\|approved\|blocked` | `device.approve`, `devices.manage` or `system.admin` (same as approve/block) | Devices of the tenant (max 500, newest first) with owner email; never the secret. Unknown status → 400 `INVALID_DATA` | — |
 
 Test: `PanelDirectory_ListsUsersDevicesAndRolesWithinScope` (scope, foreign tenant, status filter, no secret). Panel tests: `src/LifeDrop.Web/src/pages/Panel.test.tsx`.
+
+## Panel visit planning, regions and teams (step 1.18)
+
+| Route | Permission and scope | Response | Audit |
+| --- | --- | --- | --- |
+| `GET /visit-plan` | `visits.write` (same as create/reassign); tenant scope: every visit of the day; region: visits of the actor and of members of teams in the actor's region; own: the actor's visits | `scheduleDate` optional (default today, Asia/Baghdad), `assignedUserId` optional filter; 200 list of visits (same shape as `GET /visits`, plus `assigneeEmail`), same order; 403 without `visits.write`; 400 malformed query | — |
+
+`GET /users` also accepts `visits.write`, so a planner can choose assignees within the same scope. The panel's Visits tab uses `POST /visits`, `PUT /visits/{id}/assignee` and `POST /visits/{id}/cancel`; the Regions & teams tab uses the routes of step 0.6a (`/regions`, `/teams`, `/teams/{id}/region`, `/teams/{id}/members/{userId}`). Each keeps its own server checks; the customer approval queue stays on `/customer-approvals` (step 1.17 screen). Tests: `VisitPlan_ListsOneDayWithinVisitsWriteScope`; panel `Panel.test.tsx`.

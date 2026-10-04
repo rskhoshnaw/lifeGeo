@@ -93,6 +93,50 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         command.Parameters.AddWithValue("userId", assignedUserId.Value);
         command.Parameters.AddWithValue("scheduleDate", scheduleDate);
 
+        return await ReadVisitsAsync(command, tenantId, withAssigneeEmail: false, cancellationToken);
+    }
+
+    public async Task<System.Collections.Generic.List<VisitDto>> ListPlannedVisitsAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope,
+        System.DateOnly scheduleDate, UserId? assignedUserId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var setTenantCommand = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
+        {
+            setTenantCommand.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+            await setTenantCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Scope 2 = tenant, 1 = region (the actor and members of teams in the region), 0 = own (DataScope values).
+        const string sql = @"
+            SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
+                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code, u.email
+            FROM visits v
+            LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
+            LEFT JOIN users u ON u.tenant_id = v.tenant_id AND u.id = v.user_id
+            WHERE v.tenant_id = @tenantId AND v.schedule_date = @scheduleDate
+              AND (@assignee::uuid IS NULL OR v.user_id = @assignee)
+              AND (@scope = 2 OR v.user_id = @actor
+                   OR (@scope = 1 AND @region::uuid IS NOT NULL AND EXISTS (
+                       SELECT 1 FROM team_members m JOIN teams t ON t.id = m.team_id
+                       WHERE m.user_id = v.user_id AND t.region_id = @region)))
+            ORDER BY v.planned_time ASC NULLS LAST,
+                     CASE v.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+                     v.created_at ASC, v.id ASC;
+        ";
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("tenantId", tenantId.Value);
+        command.Parameters.AddWithValue("scheduleDate", scheduleDate);
+        command.Parameters.Add(new NpgsqlParameter("assignee", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)assignedUserId?.Value ?? System.DBNull.Value });
+        command.Parameters.AddWithValue("scope", (int)scope.Scope);
+        command.Parameters.AddWithValue("actor", scope.ActorId.Value);
+        command.Parameters.Add(new NpgsqlParameter("region", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)scope.RegionId ?? System.DBNull.Value });
+        return await ReadVisitsAsync(command, tenantId, withAssigneeEmail: true, cancellationToken);
+    }
+
+    private static async Task<System.Collections.Generic.List<VisitDto>> ReadVisitsAsync(NpgsqlCommand command, TenantId tenantId,
+        bool withAssigneeEmail, CancellationToken cancellationToken)
+    {
         var results = new System.Collections.Generic.List<VisitDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -112,10 +156,10 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 IsUnplanned: reader.GetBoolean(10),
                 UnplannedReason: reader.IsDBNull(11) ? null : reader.GetString(11),
                 CustomerName: reader.IsDBNull(12) ? null : reader.GetString(12),
-                CustomerCode: reader.IsDBNull(13) ? null : reader.GetString(13)
+                CustomerCode: reader.IsDBNull(13) ? null : reader.GetString(13),
+                AssigneeEmail: withAssigneeEmail && !reader.IsDBNull(14) ? reader.GetString(14) : null
             ));
         }
-
         return results;
     }
 

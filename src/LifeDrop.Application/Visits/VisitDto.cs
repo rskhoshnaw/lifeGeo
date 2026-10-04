@@ -18,5 +18,7 @@ public sealed record VisitDto(
     string? UnplannedReason,
     // Customer display fields for the daily plan (plan step 1.10).
     string? CustomerName = null,
-    string? CustomerCode = null
+    string? CustomerCode = null,
+    // Planning board (plan step 1.18): the assignee's email, so the panel can show who the visit belongs to.
+    string? AssigneeEmail = null
 );

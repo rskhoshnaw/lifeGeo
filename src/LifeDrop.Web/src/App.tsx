@@ -6,8 +6,10 @@ import { HomePage } from './pages/HomePage.tsx'
 import { UsersPage } from './pages/UsersPage.tsx'
 import { DevicesPage } from './pages/DevicesPage.tsx'
 import { CustomersPage } from './pages/CustomersPage.tsx'
+import { VisitsPage } from './pages/VisitsPage.tsx'
+import { RegionsPage } from './pages/RegionsPage.tsx'
 
-type Tab = 'home' | 'users' | 'devices' | 'customers'
+type Tab = 'home' | 'visits' | 'users' | 'devices' | 'customers' | 'regions'
 
 export default function App({ api }: { api: ApiClient }) {
   const [account, setAccount] = useState<Account | null>(() => api.account)
@@ -31,9 +33,11 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   // Tabs follow the user's permissions; hiding is for convenience only, the server checks every request.
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
     { id: 'home', label: 'Home', visible: true },
+    { id: 'visits', label: 'Visits', visible: can(me, ...Permissions.planVisits) },
     { id: 'users', label: 'Users', visible: can(me, ...Permissions.users) },
     { id: 'devices', label: 'Devices', visible: can(me, ...Permissions.devices) },
     { id: 'customers', label: 'Customers', visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
+    { id: 'regions', label: 'Regions & teams', visible: can(me, ...Permissions.regions) },
   ]
 
   return (
@@ -58,6 +62,8 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'users' && <UsersPage admin={admin} me={me} />}
       {me && tab === 'devices' && <DevicesPage admin={admin} />}
       {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}
+      {me && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
+      {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
     </div>
   )
 }

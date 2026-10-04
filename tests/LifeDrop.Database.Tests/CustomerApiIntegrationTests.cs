@@ -2242,6 +2242,107 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task VisitPlan_ListsOneDayWithinVisitsWriteScope()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), plainUser = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid(), foreign = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid(), c1 = Guid.NewGuid(), cf = Guid.NewGuid();
+        Guid visitA = Guid.NewGuid(), visitB = Guid.NewGuid(), visitANextDay = Guid.NewGuid(), visitForeign = Guid.NewGuid();
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'manager@t1'), (@sv, @t1, 'supervisor@t1'), (@pu, @t1, 'plain@t1'),
+                    (@ra, @t1, 'rep-a@t1'), (@rb, @t1, 'rep-b@t1'), (@fu, @t2, 'foreign@t2');
+                INSERT INTO roles (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-000000000001', @t1, 'Planner');
+                INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('44444444-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region'),
+                    ('44444444-0000-0000-0000-000000000003', @t2, 'ForeignPlanner', 'tenant');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
+                    (@t1, '44444444-0000-0000-0000-000000000001', 'visits.write'), (@t1, '44444444-0000-0000-0000-000000000002', 'visits.write'),
+                    (@t2, '44444444-0000-0000-0000-000000000003', 'visits.write');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES
+                    (@t1, @m, '44444444-0000-0000-0000-000000000001'), (@t1, @sv, '44444444-0000-0000-0000-000000000002'),
+                    (@t2, @fu, '44444444-0000-0000-0000-000000000003');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil'), (@bg, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @er, 'Team A'), (@tb, @t1, @bg, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sv, @ta), (@t1, @ra, @ta), (@t1, @rb, @tb);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, planned_time, created_at) VALUES
+                    (@va, @t1, @ra, @c1, 'Planned', '2026-10-05', '09:00', now()),
+                    (@vb, @t1, @rb, @c1, 'Planned', '2026-10-05', '08:00', now()),
+                    (@vn, @t1, @ra, @c1, 'Planned', '2026-10-06', NULL, now());
+                SELECT set_config('app.current_tenant', @t2::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@cf, @t2, 'Clinic', 'F001', 'Foreign Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (@vf, @t2, @fu, @cf, 'Planned', '2026-10-05', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("sv", supervisor), ("pu", plainUser), ("ra", repA), ("rb", repB),
+                ("fu", foreign), ("er", erbil), ("bg", baghdad), ("ta", teamA), ("tb", teamB), ("c1", c1), ("cf", cf),
+                ("va", visitA), ("vb", visitB), ("vn", visitANextDay), ("vf", visitForeign) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        Task<HttpResponseMessage> GetAsync(Guid actor, string path)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                GenerateToken(actor == foreign ? t2 : t1, actor, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+            return client.SendAsync(request);
+        }
+        async Task<JsonElement> JsonAsync(Guid actor, string path)
+        {
+            var response = await GetAsync(actor, path);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+        }
+        static Guid[] Ids(JsonElement array) => array.EnumerateArray().Select(e => e.GetProperty("id").GetGuid()).ToArray();
+
+        // Same permission as create/reassign: without visits.write the board is refused
+        await AssertProblemAsync(await client.GetAsync("/visit-plan?scheduleDate=2026-10-05"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        await AssertProblemAsync(await GetAsync(plainUser, "/visit-plan?scheduleDate=2026-10-05"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Tenant scope: every visit of the day in its tenant, ordered by planned time, with assignee and customer
+        var day = await JsonAsync(manager, "/visit-plan?scheduleDate=2026-10-05");
+        Assert.Equal(new[] { visitB, visitA }, Ids(day));
+        Assert.Equal("rep-b@t1", day[0].GetProperty("assigneeEmail").GetString());
+        Assert.Equal("C001", day[0].GetProperty("customerCode").GetString());
+        Assert.Equal(new[] { visitA }, Ids(await JsonAsync(manager, $"/visit-plan?scheduleDate=2026-10-05&assignedUserId={repA}")));
+        Assert.Equal(new[] { visitANextDay }, Ids(await JsonAsync(manager, "/visit-plan?scheduleDate=2026-10-06")));
+
+        // Region scope: only assignees in the supervisor's region; the other tenant only sees its own visit
+        Assert.Equal(new[] { visitA }, Ids(await JsonAsync(supervisor, "/visit-plan?scheduleDate=2026-10-05")));
+        Assert.Empty(Ids(await JsonAsync(supervisor, $"/visit-plan?scheduleDate=2026-10-05&assignedUserId={repB}")));
+        Assert.Equal(new[] { visitForeign }, Ids(await JsonAsync(foreign, "/visit-plan?scheduleDate=2026-10-05")));
+
+        // /users lists the users a planner may assign visits to, in the same scope
+        var users = (await JsonAsync(supervisor, "/users")).EnumerateArray().Select(u => u.GetProperty("email").GetString()).ToArray();
+        Assert.Equal(new[] { "rep-a@t1", "supervisor@t1" }, users);
+        await AssertProblemAsync(await GetAsync(plainUser, "/users"), HttpStatusCode.Forbidden, "FORBIDDEN");
+    }
+
+    [SkippableFact]
     public async Task AuditApi_SearchesWithinScopeAndRowsCannotBeChanged()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");

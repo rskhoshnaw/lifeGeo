@@ -34,6 +34,19 @@ public static class VisitEndpoints
             .WithName("CreateUnplannedVisit").WithTags("Visits").Produces<CreatedResponse>(201)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Planning board for the panel (plan step 1.18): one day's visits within the caller's visits.write scope.
+        app.MapGet("/visit-plan", async (DateOnly? scheduleDate, Guid? assignedUserId, HttpContext context, VisitPlanBoard board,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var items = await board.ListAsync(tenantId, actorId, scheduleDate, assignedUserId, cancellationToken);
+            return items is null ? Results.Forbid() : Results.Ok(items);
+        }).RequireAuthorization()
+            .WithName("ListVisitPlan").WithTags("Visits").Produces<List<VisitDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
         // Manager actions (plan step 1.4).
         app.MapPut("/visits/{visitId:guid}/assignee", async (Guid visitId, ReassignVisitRequest request, HttpContext context,
             ManageVisit manage, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
