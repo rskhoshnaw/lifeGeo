@@ -74,7 +74,7 @@ public class CustomerApiIntegrationTests
         await using (var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", setup))
             await create.ExecuteNonQueryAsync();
 
-        builder.SearchPath = schema;
+        builder.SearchPath = $"{schema},public"; // PostGIS types and functions live in public
         var connectionString = builder.ConnectionString;
 
         try
@@ -100,7 +100,8 @@ public class CustomerApiIntegrationTests
                 var m9 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0009_default_roles.sql"));
                 var m10 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0010_visit_planning.sql"));
                 var m11 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0011_visit_cancel_permission.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11;
+                var m12 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0012_customer_location.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1394,10 +1395,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
+        Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "31" }, grantsBefore);
+        Assert.Equal(new[] { "36" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -1906,6 +1907,114 @@ public class CustomerApiIntegrationTests
                 ("visit.reassigned", supervisor, vA.ToString()),
                 ("visit.cancelled", supervisor, vC.ToString()),
                 ("visit.reassigned", manager, vB.ToString())
+            }, rows.ToArray());
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomerLocation_SetsLocationAndRadiusWithinScopeAndAudits()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), rep = Guid.NewGuid(), cRep = Guid.NewGuid(), cBaghdad = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@r, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('66666666-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('66666666-0000-0000-0000-0000000000b1', @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('66666666-0000-0000-0000-0000000000a1', @t1, '66666666-0000-0000-0000-0000000000e1', 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sv, '66666666-0000-0000-0000-0000000000a1'), (@t1, @r, '66666666-0000-0000-0000-0000000000a1');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id) VALUES
+                    (@cr, @t1, 'Pharmacy', 'C-R', 'Rep customer', '66666666-0000-0000-0000-0000000000e1', @r),
+                    (@cb, @t1, 'Pharmacy', 'C-B', 'Baghdad customer', '66666666-0000-0000-0000-0000000000b1', @m);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("r", rep), ("cr", cRep), ("cb", cBaghdad) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<CustomerDto> GetAsync(Guid id) => (await (await client.GetAsync($"/customers/{id}")).Content.ReadFromJsonAsync<CustomerDto>())!;
+        Task<HttpResponseMessage> SetLocation(Guid id, object body) => client.PutAsJsonAsync($"/customers/{id}/location", body);
+        Task<HttpResponseMessage> SetRadius(Guid id, int? radius) => client.PutAsJsonAsync($"/customers/{id}/geofence", new { RadiusMeters = radius });
+
+        // Field rep: own customers only; GPS needs a good accuracy; invalid coordinates are rejected
+        As(rep);
+        var before = await GetAsync(cRep);
+        Assert.Equal(("no_location", (double?)null, 20), (before.Status, before.Latitude, before.GeofenceRadiusMeters));
+        Assert.Equal(HttpStatusCode.NoContent, (await SetLocation(cRep, new { Latitude = 36.1911, Longitude = 44.0092, Source = "gps", AccuracyMeters = 8 })).StatusCode);
+        var located = await GetAsync(cRep);
+        Assert.Equal(("located", "gps"), (located.Status, located.LocationSource));
+        Assert.Equal(36.1911, located.Latitude!.Value, 6);
+        Assert.Equal(44.0092, located.Longitude!.Value, 6);
+        Assert.NotNull(located.LocationUpdatedAt);
+        await AssertProblemAsync(await SetLocation(cBaghdad, new { Latitude = 33.31, Longitude = 44.36, Source = "manual" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        foreach (var invalid in new object[]
+        {
+            new { Latitude = 91.0, Longitude = 44.0, Source = "manual" },
+            new { Latitude = 0.0, Longitude = 0.0, Source = "manual" },
+            new { Latitude = 36.19, Longitude = 44.01, Source = "gps" },
+            new { Latitude = 36.19, Longitude = 44.01, Source = "gps", AccuracyMeters = 150 },
+            new { Latitude = 36.19, Longitude = 44.01, Source = "guess" }
+        })
+            await AssertProblemAsync(await SetLocation(cRep, invalid), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetRadius(cRep, 50), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Supervisor: radius within the region; null restores the default
+        As(supervisor);
+        Assert.Equal(HttpStatusCode.NoContent, (await SetRadius(cRep, 50)).StatusCode);
+        Assert.Equal(50, (await GetAsync(cRep)).GeofenceRadiusMeters);
+        await AssertProblemAsync(await SetRadius(cBaghdad, 50), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await SetRadius(cRep, 4), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await SetRadius(cRep, null)).StatusCode);
+        Assert.Equal(20, (await GetAsync(cRep)).GeofenceRadiusMeters);
+
+        // Manager: any customer of the tenant, placed manually
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await SetLocation(cBaghdad, new { Latitude = 33.3152, Longitude = 44.3661, Source = "manual" })).StatusCode);
+        Assert.Equal(("located", "manual"), ((await GetAsync(cBaghdad)).Status, (await GetAsync(cBaghdad)).LocationSource));
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT action, actor_id, entity_id FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'customer.%' ORDER BY occurred_at, action;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            var rows = new List<(string, Guid, string)>();
+            while (await reader.ReadAsync()) rows.Add((reader.GetString(0), reader.GetGuid(1), reader.GetString(2)));
+            Assert.Equal(new[]
+            {
+                ("customer.location_changed", rep, cRep.ToString()),
+                ("customer.geofence_changed", supervisor, cRep.ToString()),
+                ("customer.geofence_changed", supervisor, cRep.ToString()),
+                ("customer.location_changed", manager, cBaghdad.ToString())
             }, rows.ToArray());
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LifeDrop.Application.Customers;
@@ -25,7 +26,7 @@ public class CustomersDatabaseTests
         await using (var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", setup))
             await create.ExecuteNonQueryAsync();
 
-        builder.SearchPath = schema;
+        builder.SearchPath = $"{schema},public"; // PostGIS types and functions live in public
         var connectionString = builder.ConnectionString;
 
         // Run migrations
@@ -37,7 +38,11 @@ public class CustomersDatabaseTests
         var m3 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0003_sessions_devices.sql"));
         var m4 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0004_customers.sql"));
 
-        await using (var cmd = new NpgsqlCommand(m1 + m2 + m3 + m4, migrationConnection))
+        // All migrations, so the store always runs against the current schema.
+        var later = string.Concat(Directory.GetFiles(AppContext.BaseDirectory, "00??_*.sql")
+            .Select(Path.GetFileName).Where(f => string.CompareOrdinal(f, "0005") > 0).OrderBy(f => f, StringComparer.Ordinal)
+            .Select(f => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, f!))));
+        await using (var cmd = new NpgsqlCommand(m1 + m2 + m3 + m4 + later, migrationConnection))
         {
             // Set the search path explicitly for the migration batch
             cmd.CommandText = $"SET search_path TO {schema}, public; {cmd.CommandText}";
