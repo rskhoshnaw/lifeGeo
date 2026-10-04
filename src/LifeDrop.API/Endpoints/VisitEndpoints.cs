@@ -58,16 +58,31 @@ public static class VisitEndpoints
 
         // Server-side check-in (plan step 1.7): replaces the earlier status-only /start.
         app.MapPost("/visits/{visitId:guid}/start", async (Guid visitId, CheckInRequest request, HttpContext context,
-            CheckInVisit checkIn, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+            VisitCheckpoint checkpoint, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole)
                 return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, rejection) = await checkIn.ExecuteAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
+            var (result, rejection) = await checkpoint.CheckInAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
                 context.Request.Headers["Idempotency-Key"].FirstOrDefault(), cancellationToken);
             return ToResult(result, rejection);
         }).RequireAuthorization()
             .WithName("StartVisit").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409)
+            .ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
+
+        // Server-side check-out (plan step 1.8, decision D2): replaces the earlier status-only /complete.
+        app.MapPost("/visits/{visitId:guid}/complete", async (Guid visitId, CheckInRequest request, HttpContext context,
+            VisitCheckpoint checkpoint, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, rejection) = await checkpoint.CheckOutAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
+                context.Request.Headers["Idempotency-Key"].FirstOrDefault(), cancellationToken);
+            return ToResult(result, rejection);
+        }).RequireAuthorization()
+            .WithName("CompleteVisit").WithTags("Visits").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409)
             .ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
 
@@ -129,6 +144,7 @@ public static class VisitEndpoints
         LocationCheckResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
         LocationCheckResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         LocationCheckResult.CustomerLocationMissing => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerLocationMissing),
+        LocationCheckResult.ReportRequired => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ReportRequired),
         LocationCheckResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
         LocationCheckResult.Rejected => ApiErrors.Problem(StatusCodes.Status422UnprocessableEntity, rejection switch
         {

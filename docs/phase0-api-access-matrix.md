@@ -162,3 +162,14 @@ Migration 0013 adds `visit_reports` (one per visit, tenant RLS). There is no "or
 - A retry with the same `Idempotency-Key` after success returns 204 without a second record.
 
 Test: `CheckIn_RequiresDeviceFreshGpsInsideGeofenceAndRecordsEveryAttempt`; domain `LocationCheckPolicyTests`; the deployment rehearsal checks in with a real device-bound login through the restricted role.
+
+## Server-side check-out (step 1.8)
+
+`POST /visits/{id}/complete` (breaking change for clients: same body and `Idempotency-Key` as `/start`)
+
+- Only the assignee with an approved device in the token; the visit must be `InVisit` (400 `INVALID_STATE`) and must have a saved report (409 `REPORT_REQUIRED`).
+- Same GPS rules as check-in (D2): mocked, clock skew, stale, low accuracy or outside the customer's radius is refused (422) and recorded in `visit_location_events` with its reason.
+- The database update itself refuses `Completed` without a report row. After completion the report can no longer be edited.
+- Audit: `visit.checked_out` / `visit.check_out_rejected`. A retry with the same `Idempotency-Key` returns 204 without a second record.
+
+Test: `CheckOut_RequiresReportDeviceAndGpsInsideGeofence`; the deployment rehearsal checks out through the restricted role.

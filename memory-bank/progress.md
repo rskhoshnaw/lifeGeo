@@ -41,3 +41,4 @@ Remaining work, step order and product decisions: `docs/IMPLEMENTATION-PLAN.md`.
 - Steps 1.1 and 0.5 CI evidence (2026-10-04): PR #5 job `database-tests` (run 37211924702) 16 passed, 0 skipped; `build` green.
 - Step 0.5b local evidence (2026-10-04): OpenAPI contract snapshot test passes; altering one documented status makes it fail; database tests 17/17 twice.
 - Step 0.6a local evidence (2026-10-04): database tests 18/18 twice; region/team test fails when the `regions.manage` check or the member audit is removed; OpenAPI contract diff is additive only (7 routes).
+- Step 1.8 local evidence (2026-10-04): database tests 28/28 twice, 0 skipped; Domain 155, Application 31, Mobile.Auth 85. Removing the report requirement makes `CheckOut_RequiresReportDeviceAndGpsInsideGeofence` fail. OpenAPI diff: `/complete` gains a body and 422 only.

@@ -784,14 +784,15 @@ public class CustomerApiIntegrationTests
         }
     }
 
+    // Server-side check-out (plan step 1.8, decision D2). Replaces the earlier status-only /complete test.
     [SkippableFact]
-    public async Task VisitApi_Completed_EnforcesPermissionsAndTransitions()
+    public async Task CheckOut_RequiresReportDeviceAndGpsInsideGeofence()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
         await VerifyRoleAsync(url, expectElevated: false);
-        
+
         await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
-        
+        var now = new DateTimeOffset(2026, 10, 5, 11, 0, 0, TimeSpan.Zero);
         await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
             .WithWebHostBuilder(webBuilder =>
             {
@@ -802,78 +803,84 @@ public class CustomerApiIntegrationTests
                     var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
                     if (descriptor != null) services.Remove(descriptor);
                     services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    services.AddSingleton<TimeProvider>(new FixedClock(now));
                 });
             });
-
         var conf = factory.Services.GetRequiredService<IConfiguration>();
-        var signingKey = conf["Jwt:SigningKey"];
-        var issuer = conf["Jwt:Issuer"];
-        var audience = conf["Jwt:Audience"];
-
         var client = factory.CreateClient();
 
-        var tenantId1 = Guid.NewGuid();
-        var tenantId2 = Guid.NewGuid();
-        var adminId = Guid.NewGuid();
-        var anotherUser = Guid.NewGuid();
-        var customerId = Guid.NewGuid();
-        var visitId = Guid.NewGuid();
-        
+        Guid t1 = Guid.NewGuid(), rep = Guid.NewGuid(), otherRep = Guid.NewGuid(), device = Guid.NewGuid(), customer = Guid.NewGuid();
+        Guid vReported = Guid.NewGuid(), vNoReport = Guid.NewGuid(), vArrived = Guid.NewGuid();
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
             await using var cmd = new NpgsqlCommand(@"
-                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
-                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                INSERT INTO users (id, tenant_id) VALUES (@r, @t1), (@o, @t1);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status)
+                VALUES (@d, @t1, @r, 'Phone', 'android', 'install-1', '1.0', '\x00', 'approved');
                 SELECT set_config('app.current_tenant', @t1::text, false);
-                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
-                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
-                VALUES (@v1, @t1, @a1, @c1, 'InVisit', '2026-10-03', now());
-            ", conn);
-            cmd.Parameters.AddWithValue("t1", tenantId1);
-            cmd.Parameters.AddWithValue("t2", tenantId2);
-            cmd.Parameters.AddWithValue("a1", adminId);
-            cmd.Parameters.AddWithValue("u1", anotherUser);
-            cmd.Parameters.AddWithValue("c1", customerId);
-            cmd.Parameters.AddWithValue("v1", visitId);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, geofence_radius_m, status)
+                VALUES (@c, @t1, 'Pharmacy', 'C-L', 'Located', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 30, 'located');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES
+                    (@vr, @t1, @r, @c, 'InVisit', '2026-10-05'), (@vn, @t1, @r, @c, 'InVisit', '2026-10-05'), (@va, @t1, @r, @c, 'Arrived', '2026-10-05');
+                INSERT INTO visit_reports (visit_id, tenant_id, outcome, note, submitted_by) VALUES (@vr, @t1, 'products_presented', 'Presented the range', @r);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("r", rep), ("o", otherRep), ("d", device), ("c", customer), ("vr", vReported), ("vn", vNoReport), ("va", vArrived) })
+                cmd.Parameters.AddWithValue(name, value);
             await cmd.ExecuteNonQueryAsync();
         }
 
-        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
-        var wrongUserToken = GenerateToken(tenantId1, anotherUser, signingKey!, issuer!, audience!);
-        var t2Token = GenerateToken(tenantId2, adminId, signingKey!, issuer!, audience!);
+        string Token(Guid user, Guid? dev) => GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: dev);
+        async Task<HttpResponseMessage> CheckOutAsync(string token, Guid visit, double lat, double lon, bool mocked = false, string? key = null)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/visits/{visit}/complete")
+            {
+                Content = JsonContent.Create(new { Latitude = lat, Longitude = lon, AccuracyMeters = 10, CapturedAt = now.AddSeconds(-5), IsMocked = mocked })
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (key is not null) request.Headers.Add("Idempotency-Key", key);
+            return await client.SendAsync(request);
+        }
+        const double inLat = 36.1912, inLon = 44.0093;    // about 14 m away, inside the 30 m radius
+        const double outLat = 36.1916, outLon = 44.0092;  // about 55 m away, outside it
+        var repDevice = Token(rep, device);
 
-        // 1. Wrong user (another employee)
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", wrongUserToken);
-        var respWrong = await client.PostAsync($"/visits/{visitId}/complete", null);
-        Assert.Equal(HttpStatusCode.Forbidden, respWrong.StatusCode);
+        await AssertProblemAsync(await CheckOutAsync(Token(rep, null), vReported, inLat, inLon), HttpStatusCode.Forbidden, "DEVICE_REQUIRED");
+        await AssertProblemAsync(await CheckOutAsync(Token(otherRep, Guid.NewGuid()), vReported, inLat, inLon), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await CheckOutAsync(repDevice, vArrived, inLat, inLon), HttpStatusCode.BadRequest, "INVALID_STATE");
+        await AssertProblemAsync(await CheckOutAsync(repDevice, vNoReport, inLat, inLon), HttpStatusCode.Conflict, "REPORT_REQUIRED");
 
-        // 2. Wrong tenant (t2 admin)
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
-        var respT2 = await client.PostAsync($"/visits/{visitId}/complete", null);
-        Assert.Equal(HttpStatusCode.NotFound, respT2.StatusCode);
+        // Decision D2: leaving the customer's radius is not enough; check-out must be inside it
+        await AssertProblemAsync(await CheckOutAsync(repDevice, vReported, outLat, outLon), HttpStatusCode.UnprocessableEntity, "OUTSIDE_GEOFENCE");
+        await AssertProblemAsync(await CheckOutAsync(repDevice, vReported, inLat, inLon, mocked: true), HttpStatusCode.UnprocessableEntity, "GPS_MOCKED");
 
-        // 3. Success
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-        var respSuccess = await client.PostAsync($"/visits/{visitId}/complete", null);
-        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await CheckOutAsync(repDevice, vReported, inLat, inLon, key: "out-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await CheckOutAsync(repDevice, vReported, inLat, inLon, key: "out-1")).StatusCode);
+        await AssertProblemAsync(await CheckOutAsync(repDevice, vReported, inLat, inLon), HttpStatusCode.BadRequest, "INVALID_STATE");
 
-        // 4. Repeated transition (invalid state)
-        var respRepeated = await client.PostAsync($"/visits/{visitId}/complete", null);
-        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+        // The report is frozen once the visit is completed
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", repDevice);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/visits/{vReported}/report", new { Outcome = "other", Note = "Changed later" }), HttpStatusCode.BadRequest, "INVALID_STATE");
 
-        // Verify it was persisted
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
-            await using var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false);", conn);
-            setCmd.Parameters.AddWithValue("t1", tenantId1);
-            await setCmd.ExecuteNonQueryAsync();
-
-            await using var cmd = new NpgsqlCommand("SELECT status FROM visits WHERE id = @v1;", conn);
-            cmd.Parameters.AddWithValue("v1", visitId);
-            var status = (string)await cmd.ExecuteScalarAsync();
-            Assert.Equal("Completed", status);
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                SELECT (SELECT string_agg(id::text || ':' || status, ',' ORDER BY id) FROM visits WHERE id IN (@vr, @vn)),
+                       (SELECT string_agg(coalesce(rejection_reason, 'accepted'), ',' ORDER BY received_at, id) FROM visit_location_events WHERE visit_id = @vr AND kind = 'check_out'),
+                       (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"") FROM (SELECT action, count(*) n FROM audit_logs WHERE tenant_id = @t1 GROUP BY action) a);", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            cmd.Parameters.AddWithValue("vr", vReported);
+            cmd.Parameters.AddWithValue("vn", vNoReport);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            var statuses = reader.GetString(0).Split(',').ToDictionary(x => Guid.Parse(x.Split(':')[0]), x => x.Split(':')[1]);
+            Assert.Equal("Completed", statuses[vReported]);
+            Assert.Equal("InVisit", statuses[vNoReport]);
+            Assert.Equal("outside_geofence,mock_location,accepted", reader.GetString(1));
+            Assert.Equal("visit.check_out_rejected=2,visit.checked_out=1", reader.GetString(2)); // byte order
         }
     }
 
@@ -1072,8 +1079,8 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new CreateCustomerRequest("Clinic", "C001", "Other Clinic")),
             HttpStatusCode.Conflict, "DUPLICATE_CODE");
 
-        // 400 with a specific code: visit state conflict (Planned cannot be completed)
-        await AssertProblemAsync(await client.PostAsync($"/visits/{plannedVisitId}/complete", null), HttpStatusCode.BadRequest, "INVALID_STATE");
+        // 400 with a specific code: visit state conflict (Planned cannot be marked arrived)
+        await AssertProblemAsync(await client.PostAsync($"/visits/{plannedVisitId}/arrive", null), HttpStatusCode.BadRequest, "INVALID_STATE");
 
         // Success responses keep their normal JSON shape; an empty page is 200 with []
         var emptyPage = await client.GetAsync($"/customers?limit=1&cursorCreatedAt={Uri.EscapeDataString(new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero).ToString("O"))}&cursorId={Guid.Empty}");
