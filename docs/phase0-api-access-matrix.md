@@ -258,3 +258,7 @@ Test: `PanelDirectory_ListsUsersDevicesAndRolesWithinScope` (scope, foreign tena
 | `GET /live-map` | `tracking.read` (exact positions) and/or `tracking.summary` (status only); rows come from the wider of the two scopes (tenant: all; region: the actor and members of teams in the actor's region; own: the actor); coordinates only for users the `tracking.read` scope covers | 200 list of active users with an open shift: `email`, `teamName`, `shiftStartedAt`, `lastUpdateAt`, `isLive` (last point ≤ 5 min old), `precise`, `latitude`/`longitude`/`accuracyMeters`/`isMocked` (null without `tracking.read`), `lastCustomerName`/`lastVisitAt` (last check-in since the shift started); 403 without either permission | — |
 
 Default grants (migration 0019, also for existing tenants): SalesManager `tracking.read` (tenant), Supervisor `tracking.read` (region), FinanceManager `tracking.summary`. Tests: `LiveMap_ShowsPositionsOrStatusByPermissionWithinScope`, `LiveMapTests` (application), panel `LiveMap.test.tsx`.
+
+## Audit viewer (step 1.20)
+
+`GET /audit-logs` rows also carry `actorEmail` (additive, nullable). The rules are unchanged: `audit.read`, the same scope, and no route that changes or deletes rows. The panel's Audit tab filters by action, actor, entity and Iraq-local days (`from` = 00:00 and `to` = 23:59:59.999 at +03:00), and pages with the cursor of the last row. It offers no edit or delete. Tests: `AuditApi_SearchesWithinScopeAndRowsCannotBeChanged`, panel `Audit.test.tsx`.

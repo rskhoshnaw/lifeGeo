@@ -9,8 +9,9 @@ import { CustomersPage } from './pages/CustomersPage.tsx'
 import { VisitsPage } from './pages/VisitsPage.tsx'
 import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
+import { AuditPage } from './pages/AuditPage.tsx'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'regions'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'regions' | 'audit'
 
 export default function App({ api }: { api: ApiClient }) {
   const [account, setAccount] = useState<Account | null>(() => api.account)
@@ -40,6 +41,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'devices', label: 'Devices', visible: can(me, ...Permissions.devices) },
     { id: 'customers', label: 'Customers', visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
     { id: 'regions', label: 'Regions & teams', visible: can(me, ...Permissions.regions) },
+    { id: 'audit', label: 'Audit', visible: can(me, ...Permissions.audit) },
   ]
 
   return (
@@ -67,6 +69,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'map' && <LiveMapPage admin={admin} />}
       {me && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
+      {me && tab === 'audit' && <AuditPage admin={admin} />}
     </div>
   )
 }

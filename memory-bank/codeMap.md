@@ -17,7 +17,7 @@
 - `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`), `TrackingHost.cs` (shared services), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
 
 ## Web panel
-- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, LiveMap), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
+- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, LiveMap, Audit), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
 
 ## CI
 - `.github/workflows/build.yml` (jobs: build, mobile-android, web), `database-tests.yml` (`MIN_EXPECTED_TESTS`).

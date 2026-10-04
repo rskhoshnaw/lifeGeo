@@ -6,7 +6,7 @@ Updated: 2026-10-04 (handoff for a new session).
 Work follows `docs/IMPLEMENTATION-PLAN.md` step by step. Phase 0 is done (exit report `docs/PHASE0-EXIT-REPORT.md`). Phase 1:
 - Backend 1.1–1.9 merged (PRs #5–#13): planning fields, Iraq "today", reassign/cancel, customer location and radius, visit report, server check-in/check-out with GPS + geofence (D2), status history and audit of every transition.
 - Mobile 1.10–1.14 merged (PRs #14–#21): daily plan, visit details, check-in/report/check-out, shifts and Android background tracking, offline outbox. All need a **real-device check** (owner): `docs/TRACKING-DEVICE-TEST.md`.
-- Step 1.15 merged (PR #22). Step 1.16 merged (PR #23); owner sets up Cloudflare Pages (src/LifeDrop.Web/README.md); API host still to decide. Steps 1.17–1.18 merged (PRs #24, #25). Step **1.19** (live map) in its PR.
+- Step 1.15 merged (PR #22). Step 1.16 merged (PR #23); owner sets up Cloudflare Pages (src/LifeDrop.Web/README.md); API host still to decide. Steps 1.17–1.19 merged (PRs #24–#26). Step **1.20** (panel audit viewer) in its PR.
 
 ## Decisions (details in the plan, section 2)
 D1 explicit shift start/end, test target ≥90 % points and gap ≤5 min. D2 check-out inside the geofence. D3 finance manager sees tracking summary only (`tracking.summary`); exact positions need `tracking.read`, grantable later without code. D5 offline check-in/out up to 24 h, manager review when the monotonic clock disagrees or no tracking point is near the customer. D10/D12/D13 panel stack and hosting. D11 one region per team; out-of-region customers pending until a sales manager or that region's supervisor approves. Open: D4, D6, D8, D9.
