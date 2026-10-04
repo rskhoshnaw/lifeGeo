@@ -1,19 +1,7 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - .gitignore
-      - CODE_OF_CONDUCT.md
-      - LICENSE
-      - README.md
-
-  pull_request:
-    branches: [ main ]
-
-  schedule:
-    - cron: '00 0 * * 1'
+  workflow_dispatch:
 
 jobs:
   analyze:
