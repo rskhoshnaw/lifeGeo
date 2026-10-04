@@ -72,6 +72,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
         builder.Services.AddScoped<KillUserSessions>();
+        builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -636,6 +638,7 @@ public partial class Program
 
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
+        LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
 
         app.Run();
     }

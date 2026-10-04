@@ -23,7 +23,7 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 ## Next actions
 1. Steps 1.1 and 0.5 are merged and verified in CI (PR #5).
 2. Step 0.5b — OpenAPI contract file `docs/api/openapi-v1.json` with drift test; local 17/17; awaiting CI on its PR. Next: step 0.6.
-3. Steps 0.6a–c and 0.7 in PR #6 (local 21/21). Next: 0.8 Audit read API.
+3. Steps 0.6a–c, 0.7, 0.8 in PR #6 (local 22/22). Next: 0.9 security baseline.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
 

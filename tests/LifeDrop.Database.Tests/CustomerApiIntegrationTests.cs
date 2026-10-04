@@ -1395,7 +1395,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.read", "customers.write", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "24" }, grantsBefore);
+        Assert.Equal(new[] { "27" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -1529,6 +1529,112 @@ public class CustomerApiIntegrationTests
             while (await reader.ReadAsync()) rows.Add((reader.GetGuid(0), reader.GetString(1)));
             Assert.Equal(new[] { (supervisor, repA.ToString()), (manager, repB.ToString()) }, rows.ToArray());
         }
+    }
+
+    [SkippableFact]
+    public async Task AuditApi_SearchesWithinScopeAndRowsCannotBeChanged()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid auditor = Guid.NewGuid(), supervisor = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid(), noPerm = Guid.NewGuid(), t2User = Guid.NewGuid();
+        Guid a1 = Guid.NewGuid(), a2 = Guid.NewGuid(), a3 = Guid.NewGuid(), a4 = Guid.NewGuid();
+
+        await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await conn.OpenAsync();
+        await using (var cmd = new NpgsqlCommand(@"
+            INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+            INSERT INTO users (id, tenant_id) VALUES (@au, @t1), (@sv, @t1), (@ra, @t1), (@rb, @t1), (@np, @t1), (@u2, @t2);
+            INSERT INTO roles (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-000000000001', @t1, 'Auditor');
+            INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('44444444-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region');
+            INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
+                (@t1, '44444444-0000-0000-0000-000000000001', 'audit.read'), (@t1, '44444444-0000-0000-0000-000000000002', 'audit.read');
+            INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES
+                (@t1, @au, '44444444-0000-0000-0000-000000000001'), (@t1, @sv, '44444444-0000-0000-0000-000000000002');
+            SELECT set_config('app.current_tenant', @t1::text, false);
+            INSERT INTO regions (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('44444444-0000-0000-0000-0000000000b1', @t1, 'Baghdad');
+            INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                ('44444444-0000-0000-0000-0000000000a1', @t1, '44444444-0000-0000-0000-0000000000e1', 'Team A'),
+                ('44444444-0000-0000-0000-0000000000a2', @t1, '44444444-0000-0000-0000-0000000000b1', 'Team B');
+            INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                (@t1, @sv, '44444444-0000-0000-0000-0000000000a1'), (@t1, @ra, '44444444-0000-0000-0000-0000000000a1'), (@t1, @rb, '44444444-0000-0000-0000-0000000000a2');
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at) VALUES
+                (@a1, @t1, @ra, 'customer.created', 'c1', '2026-10-01T08:00:00Z'),
+                (@a2, @t1, @rb, 'customer.created', 'c2', '2026-10-01T09:00:00Z'),
+                (@a3, @t1, @sv, 'team.created', 'team-1', '2026-10-01T10:00:00Z'),
+                (@a4, @t1, @ra, 'device.approved', 'd1', '2026-10-01T11:00:00Z'),
+                (gen_random_uuid(), @t2, @u2, 'customer.created', 'c9', '2026-10-01T12:00:00Z');", conn))
+        {
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("au", auditor), ("sv", supervisor), ("ra", repA), ("rb", repB), ("np", noPerm), ("u2", t2User),
+                ("a1", a1), ("a2", a2), ("a3", a3), ("a4", a4) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<Guid[]> SearchAsync(string queryString)
+        {
+            var response = await client.GetAsync("/audit-logs" + queryString);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<List<LifeDrop.Application.Audit.AuditLogEntryDto>>())!.Select(e => e.Id).ToArray();
+        }
+
+        client.DefaultRequestHeaders.Authorization = null;
+        await AssertProblemAsync(await client.GetAsync("/audit-logs"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        As(noPerm);
+        await AssertProblemAsync(await client.GetAsync("/audit-logs"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Tenant scope: own tenant only, newest first, with filters
+        As(auditor);
+        Assert.Equal(new[] { a4, a3, a2, a1 }, await SearchAsync(""));
+        Assert.Equal(new[] { a2, a1 }, await SearchAsync("?action=customer.created"));
+        Assert.Equal(new[] { a4, a1 }, await SearchAsync($"?actorId={repA}"));
+        Assert.Equal(new[] { a2 }, await SearchAsync("?entityId=c2"));
+        Assert.Equal(new[] { a3, a2 }, await SearchAsync("?from=2026-10-01T09:00:00Z&to=2026-10-01T10:00:00Z"));
+
+        // Keyset pagination
+        Assert.Equal(new[] { a4, a3 }, await SearchAsync("?limit=2"));
+        Assert.Equal(new[] { a2, a1 }, await SearchAsync($"?limit=2&cursorOccurredAt={Uri.EscapeDataString("2026-10-01T10:00:00Z")}&cursorId={a3}"));
+
+        // Invalid queries
+        await AssertProblemAsync(await client.GetAsync("/audit-logs?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/audit-logs?limit=101"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/audit-logs?from=2026-10-02T00:00:00Z&to=2026-10-01T00:00:00Z"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/audit-logs?cursorId={a3}"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Region scope: entries by actors in the supervisor's region (supervisor and rep A), not rep B
+        As(supervisor);
+        Assert.Equal(new[] { a4, a3, a1 }, await SearchAsync(""));
+
+        // No route changes audit rows, and the table itself rejects changes even for its owner
+        As(auditor);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.DeleteAsync("/audit-logs")).StatusCode);
+        foreach (var sql in new[] { "DELETE FROM audit_logs", "UPDATE audit_logs SET action = 'x'", "TRUNCATE audit_logs" })
+        {
+            await using var mutate = new NpgsqlCommand(sql, conn);
+            var error = await Assert.ThrowsAsync<PostgresException>(() => mutate.ExecuteNonQueryAsync());
+            Assert.Contains("append-only", error.MessageText);
+        }
+        As(auditor);
+        Assert.Equal(4, (await SearchAsync("")).Length);
     }
 
     // Contract drift check (plan step 0.5b): the OpenAPI document generated by the running API

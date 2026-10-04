@@ -18,14 +18,14 @@ CREATE FUNCTION seed_default_roles(p_tenant uuid) RETURNS void LANGUAGE sql AS $
     ON CONFLICT (tenant_id, name) DO NOTHING;
 
     WITH grants(role_name, permission_key) AS (
-        VALUES ('CompanyManager', 'customers.read'), ('CompanyManager', 'regions.read'), ('CompanyManager', 'teams.read'),
+        VALUES ('CompanyManager', 'customers.read'), ('CompanyManager', 'audit.read'), ('CompanyManager', 'regions.read'), ('CompanyManager', 'teams.read'),
                ('SalesManager', 'customers.read'), ('SalesManager', 'customers.write'), ('SalesManager', 'visits.write'),
                ('SalesManager', 'regions.read'), ('SalesManager', 'regions.manage'),
                ('SalesManager', 'teams.read'), ('SalesManager', 'teams.manage'),
-               ('SalesManager', 'device.approve'), ('SalesManager', 'user.manageroles'), ('SalesManager', 'sessions.kill'),
+               ('SalesManager', 'device.approve'), ('SalesManager', 'user.manageroles'), ('SalesManager', 'sessions.kill'), ('SalesManager', 'audit.read'),
                ('Supervisor', 'customers.read'), ('Supervisor', 'customers.write'), ('Supervisor', 'visits.write'),
                ('Supervisor', 'regions.read'), ('Supervisor', 'teams.read'),
-               ('FinanceManager', 'customers.read'),
+               ('FinanceManager', 'customers.read'), ('FinanceManager', 'audit.read'),
                ('SalesRep', 'customers.read'), ('SalesRep', 'customers.write'), ('SalesRep', 'visits.fail'),
                ('ScientificRep', 'customers.read'), ('ScientificRep', 'visits.fail')
     )

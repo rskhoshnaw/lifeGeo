@@ -85,10 +85,10 @@ Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-
 
 | Role | Scope | Device binding | Permissions |
 | --- | --- | --- | --- |
-| CompanyManager | tenant | no | customers.read, regions.read, teams.read |
-| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill |
+| CompanyManager | tenant | no | customers.read, regions.read, teams.read, audit.read |
+| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill, audit.read |
 | Supervisor | region | no | customers.read/write, visits.write, regions.read, teams.read |
-| FinanceManager | tenant | no | customers.read |
+| FinanceManager | tenant | no | customers.read, audit.read |
 | SalesRep | own | yes | customers.read/write, visits.fail |
 | ScientificRep | own | yes | customers.read, visits.fail |
 | WarehouseManager, Driver | own | yes | none yet (phase 2) |
@@ -98,3 +98,7 @@ Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIs
 ## Kill Session (step 0.7)
 
 `POST /users/{userId}/sessions/revoke` — permission `sessions.kill`; scope tenant = any user, region = users in the actor's region, own = only self. Revokes every active refresh-token family of the target; because each request checks its session family, the target's access tokens stop working on the next request (401), without reinstalling the app. 204 on success, 403 out of scope, 404 `USER_NOT_FOUND`. Audit `auth.sessions_killed` (actor = administrator, entity = target user), written even when no session was active. Test: `KillSessions_RevokesTargetImmediatelyWithinScopeAndAudits`.
+
+## Audit search (step 0.8)
+
+`GET /audit-logs` — permission `audit.read`; scope tenant = all entries of the tenant, region = entries by actors in teams of the caller's region (plus the caller), own = the caller's entries. Filters: `action`, `actorId`, `entityId`, `from`, `to`; newest first; keyset pagination with `limit` (1–100, default 50) and `cursorOccurredAt` + `cursorId`. Returns only id, actor, action, entity and time. Invalid query → 400 `INVALID_DATA`. There is no update or delete route; the `audit_logs` trigger rejects UPDATE, DELETE and TRUNCATE even for the table owner. Test: `AuditApi_SearchesWithinScopeAndRowsCannotBeChanged`. `auth_login_audit` is not exposed yet.
