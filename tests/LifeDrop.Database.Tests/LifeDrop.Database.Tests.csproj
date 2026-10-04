@@ -23,5 +23,6 @@
     <None Include="../../db/migrations/0006_visits.sql" Link="0006_visits.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0007_regions_teams.sql" Link="0007_regions_teams.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0008_role_data_scope.sql" Link="0008_role_data_scope.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0009_default_roles.sql" Link="0009_default_roles.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

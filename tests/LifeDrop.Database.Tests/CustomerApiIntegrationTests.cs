@@ -96,7 +96,8 @@ public class CustomerApiIntegrationTests
                 var m6 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0006_visits.sql"));
                 var m7 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0007_regions_teams.sql"));
                 var m8 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0008_role_data_scope.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8;
+                var m9 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0009_default_roles.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1335,6 +1336,90 @@ public class CustomerApiIntegrationTests
             Assert.True(await reader.ReadAsync());
             Assert.Equal(3L, reader.GetInt64(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task DefaultRoles_SeedIsIdempotentAndEnforcedByApi()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid();
+        Guid repCustomer = Guid.NewGuid(), otherCustomer = Guid.NewGuid();
+
+        await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await conn.OpenAsync();
+        async Task ExecAsync(string sql)
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("r", rep), ("rc", repCustomer), ("oc", otherCustomer) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        async Task<string[]> RowsAsync(string sql)
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            var rows = new List<string>();
+            while (await reader.ReadAsync()) rows.Add(reader.GetString(0));
+            return rows.ToArray();
+        }
+
+        await ExecAsync("INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'); SELECT seed_default_roles(@t1);");
+
+        const string rolesSql = "SELECT name || ':' || data_scope || ':' || requires_device_binding FROM roles WHERE tenant_id = @t1 ORDER BY name";
+        Assert.Equal(new[]
+        {
+            "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
+            "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
+        }, await RowsAsync(rolesSql));
+        Assert.Equal(new[] { "customers.read", "customers.write", "visits.fail" }, await RowsAsync(
+            "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
+        var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
+        Assert.Equal(new[] { "23" }, grantsBefore);
+
+        // Re-running adds nothing and keeps a tenant's own change to a default role
+        await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
+        Assert.Equal(grantsBefore, await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1"));
+        Assert.Equal(8, (await RowsAsync(rolesSql)).Length);
+
+        // The seeded roles work through the API: the sales manager manages regions, a rep cannot
+        // and sees only own customers.
+        await ExecAsync(@"
+            INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@r, @t1);
+            INSERT INTO user_roles (tenant_id, user_id, role_id)
+            SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+            UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+            SELECT set_config('app.current_tenant', @t1::text, false);
+            INSERT INTO customers (id, tenant_id, type, code, name, owner_user_id) VALUES
+                (@rc, @t1, 'Pharmacy', 'C-R', 'Rep customer', @r), (@oc, @t1, 'Pharmacy', 'C-O', 'Other customer', @m);");
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        As(manager);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/regions", new { Name = "Erbil" })).StatusCode);
+        Assert.Equal(2, (await (await client.GetAsync("/customers")).Content.ReadFromJsonAsync<List<CustomerDto>>())!.Count);
+        As(rep);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/regions", new { Name = "Duhok" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(new[] { repCustomer }, (await (await client.GetAsync("/customers")).Content.ReadFromJsonAsync<List<CustomerDto>>())!.Select(c => c.Id).ToArray());
     }
 
     // Contract drift check (plan step 0.5b): the OpenAPI document generated by the running API

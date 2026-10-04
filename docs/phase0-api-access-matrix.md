@@ -78,3 +78,19 @@ All tables use tenant RLS. Test: `CustomerApiIntegrationTests.RegionTeamApi_Enfo
 | `POST /visits` | any user, any customer | assignee in the same region (or self); customer visible in region scope | only self; only owned customers |
 
 Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-region assignee returns 403. Test: `DataScope_LimitsCustomerReadsAndVisitAssignment`.
+
+## Default roles (step 0.6c)
+
+`seed_default_roles(tenant_id)` (migration 0009) creates these roles for a tenant and is run once for every existing tenant. Re-running only adds missing roles/grants; it never changes or removes existing ones. Note: if a tenant already has a role with one of these names, the default grants are added to it.
+
+| Role | Scope | Device binding | Permissions |
+| --- | --- | --- | --- |
+| CompanyManager | tenant | no | customers.read, regions.read, teams.read |
+| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles |
+| Supervisor | region | no | customers.read/write, visits.write, regions.read, teams.read |
+| FinanceManager | tenant | no | customers.read |
+| SalesRep | own | yes | customers.read/write, visits.fail |
+| ScientificRep | own | yes | customers.read, visits.fail |
+| WarehouseManager, Driver | own | yes | none yet (phase 2) |
+
+Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIsIdempotentAndEnforcedByApi`.
