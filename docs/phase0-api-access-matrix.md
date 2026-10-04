@@ -173,3 +173,15 @@ Test: `CheckIn_RequiresDeviceFreshGpsInsideGeofenceAndRecordsEveryAttempt`; doma
 - Audit: `visit.checked_out` / `visit.check_out_rejected`. A retry with the same `Idempotency-Key` returns 204 without a second record.
 
 Test: `CheckOut_RequiresReportDeviceAndGpsInsideGeofence`; the deployment rehearsal checks out through the restricted role.
+
+## Visit status history (step 1.9)
+
+| Route | Who | Behaviour |
+| --- | --- | --- |
+| `GET /visits/{id}/history` | Assignee, or `visits.write` scope covering the assignee (same as the report) | 200 list, oldest first: `actorId`, `fromStatus` (null on creation), `toStatus`, `reason` (for `Cancelled`/`Failed`), `occurredAt`; 404 if absent or out of scope |
+
+- Migration 0015 adds `visit_status_history` (tenant RLS, append-only). A trigger on `visits` writes a row on every insert and status change, so no code path can skip it. Writers name the actor with `app.current_actor`; a status update without it is refused by the database. A row inserted without an actor (data import) is kept with a null actor.
+- New audit actions: `visit.created`, `visit.created_unplanned`, `visit.en_route`, `visit.arrived`, `visit.failed` (with `visit.reassigned`, `visit.cancelled`, `visit.report_saved`, `visit.checked_in`/`checked_out` and their rejections, every visit action is now audited). No coordinates are stored in history or audit.
+- The runtime grants file adds `SELECT, INSERT` on `visit_status_history`.
+
+Test: `VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope`.

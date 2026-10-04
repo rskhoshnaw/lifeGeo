@@ -103,7 +103,8 @@ public class CustomerApiIntegrationTests
                 var m12 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0012_customer_location.sql"));
                 var m13 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0013_visit_reports.sql"));
                 var m14 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0014_visit_location_events.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14;
+                var m15 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0015_visit_status_history.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1929,6 +1930,138 @@ public class CustomerApiIntegrationTests
                 ("visit.cancelled", supervisor, vC.ToString()),
                 ("visit.reassigned", manager, vB.ToString())
             }, rows.ToArray());
+        }
+    }
+
+    [SkippableFact]
+    public async Task VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid customer = Guid.NewGuid(), seeded = Guid.NewGuid();
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('66666666-0000-0000-0000-0000000000e1', @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('66666666-0000-0000-0000-0000000000a1', @t1, '66666666-0000-0000-0000-0000000000e1', 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '66666666-0000-0000-0000-0000000000a1'), (@t1, @ra, '66666666-0000-0000-0000-0000000000a1');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer', '66666666-0000-0000-0000-0000000000e1', @ra);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES (@vs, @t1, @ra, @c, 'Planned', '2026-10-06');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("ra", repA), ("rb", repB), ("c", customer), ("vs", seeded) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<Guid> CreatedId(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
+        }
+        async Task<List<LifeDrop.Application.Visits.VisitStatusChangeDto>> History(Guid visit)
+        {
+            var response = await client.GetAsync($"/visits/{visit}/history");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitStatusChangeDto>>())!;
+        }
+
+        // Planned visit: manager creates, rep moves it, supervisor cancels
+        As(manager);
+        var planned = await CreatedId(await client.PostAsJsonAsync("/visits", new { AssignedUserId = repA, CustomerId = customer, ScheduleDate = "2026-10-06" }));
+        As(repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/visits/{planned}/en-route", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/visits/{planned}/arrive", null)).StatusCode);
+        // A refused transition leaves no trace
+        await AssertProblemAsync(await client.PostAsync($"/visits/{planned}/arrive", null), HttpStatusCode.BadRequest, "INVALID_STATE");
+        As(supervisor);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/visits/{planned}/cancel", new { Reason = "Customer closed" })).StatusCode);
+
+        // Unplanned visit: rep creates and fails it
+        As(repA);
+        var unplanned = await CreatedId(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = customer, Reason = "Passing by" }));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/visits/{unplanned}/fail", new { Reason = "Pharmacist absent" })).StatusCode);
+
+        // The assignee, the region supervisor and the manager read the history; another rep does not
+        var expected = new (Guid?, string?, string, string?)[]
+        {
+            (manager, null, "Planned", null), (repA, "Planned", "EnRoute", null), (repA, "EnRoute", "Arrived", null),
+            (supervisor, "Arrived", "Cancelled", "Customer closed")
+        };
+        foreach (var reader in new[] { repA, supervisor, manager })
+        {
+            As(reader);
+            Assert.Equal(expected, (await History(planned)).Select(h => (h.ActorId, h.FromStatus, h.ToStatus, h.Reason)).ToArray());
+        }
+        As(repA);
+        Assert.Equal(new (Guid?, string?, string, string?)[] { (repA, null, "Planned", null), (repA, "Planned", "Failed", "Pharmacist absent") },
+            (await History(unplanned)).Select(h => (h.ActorId, h.FromStatus, h.ToStatus, h.Reason)).ToArray());
+        // A row inserted without an actor (data import) is kept with no actor
+        Assert.Equal(new (Guid?, string?, string, string?)[] { (null, null, "Planned", null) },
+            (await History(seeded)).Select(h => (h.ActorId, h.FromStatus, h.ToStatus, h.Reason)).ToArray());
+        As(repB);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{planned}/history"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/visits/{Guid.NewGuid()}/history"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            // Every successful action is in the audit log with its actor
+            await using (var cmd = new NpgsqlCommand(@"
+                SELECT string_agg(action || '=' || CASE actor_id WHEN @m THEN 'm' WHEN @sv THEN 'sv' WHEN @ra THEN 'ra' ELSE '?' END, ',' ORDER BY action COLLATE ""C"")
+                FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'visit.%';", conn))
+            {
+                foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("ra", repA) })
+                    cmd.Parameters.AddWithValue(name, value);
+                Assert.Equal("visit.arrived=ra,visit.cancelled=sv,visit.created=m,visit.created_unplanned=ra,visit.en_route=ra,visit.failed=ra",
+                    (string?)await cmd.ExecuteScalarAsync());
+            }
+
+            await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false)", conn))
+            {
+                setTenant.Parameters.AddWithValue("t1", t1);
+                await setTenant.ExecuteNonQueryAsync();
+            }
+            // A status change without a named actor is refused, and history rows cannot be changed
+            await using (var cmd = new NpgsqlCommand("UPDATE visits SET status = 'EnRoute' WHERE id = @vs", conn))
+            {
+                cmd.Parameters.AddWithValue("vs", seeded);
+                var error = await Assert.ThrowsAsync<PostgresException>(() => cmd.ExecuteNonQueryAsync());
+                Assert.Contains("app.current_actor", error.MessageText);
+            }
+            await using (var cmd = new NpgsqlCommand("DELETE FROM visit_status_history", conn))
+                Assert.Contains("append-only", (await Assert.ThrowsAsync<PostgresException>(() => cmd.ExecuteNonQueryAsync())).MessageText);
         }
     }
 

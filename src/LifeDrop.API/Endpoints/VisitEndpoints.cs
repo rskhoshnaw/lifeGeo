@@ -109,6 +109,19 @@ public static class VisitEndpoints
         }).RequireAuthorization()
             .WithName("GetVisitReport").WithTags("Visits").Produces<VisitReportDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Visit status history (plan step 1.9): same readers as the report.
+        app.MapGet("/visits/{visitId:guid}/history", async (Guid visitId, HttpContext context,
+            VisitReports reports, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, history) = await reports.GetHistoryAsync(tenantId, actorId, visitId, cancellationToken);
+            return result == ManageVisitResult.Success ? Results.Ok(history) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GetVisitHistory").WithTags("Visits").Produces<List<VisitStatusChangeDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

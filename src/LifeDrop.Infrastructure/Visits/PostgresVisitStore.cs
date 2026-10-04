@@ -12,13 +12,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
     public async Task<(CreateVisitResult Result, Visit? Visit)> CreateAsync(TenantId tenantId, UserId actorId, Visit visit, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        await using (var setTenantCommand = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
-        {
-            setTenantCommand.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
-            await setTenantCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken, actorId);
 
         const string sql = """
             WITH u AS (
@@ -69,6 +63,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             return (CreateVisitResult.InvalidData, null);
         }
 
+        await InsertAuditAsync(connection, transaction, tenantId, actorId, visit.IsUnplanned ? "visit.created_unplanned" : "visit.created", visit.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (CreateVisitResult.Created, visit);
     }
@@ -163,13 +158,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
     public async Task<bool> TryUpdateStatusAsync(TenantId tenantId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, VisitStatus newStatus, string? exceptionReason, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        await using (var setTenantCommand = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
-        {
-            setTenantCommand.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
-            await setTenantCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken, expectedUserId);
 
         const string sql = @"
             UPDATE visits 
@@ -183,10 +172,18 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         command.Parameters.AddWithValue("userId", expectedUserId.Value);
         command.Parameters.AddWithValue("expectedStatus", expectedStatus.ToString());
 
-        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+
+        // The status history row is written by a trigger; the audit row names the transition.
+        await InsertAuditAsync(connection, transaction, tenantId, expectedUserId, newStatus switch
+        {
+            VisitStatus.EnRoute => "visit.en_route",
+            VisitStatus.Arrived => "visit.arrived",
+            VisitStatus.Failed => "visit.failed",
+            _ => "visit.status_changed"
+        }, visitId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        
-        return rowsAffected > 0;
+        return true;
     }
 
     public Task<bool> TryReassignAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, UserId newUserId, CancellationToken cancellationToken) =>
@@ -249,6 +246,23 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6));
     }
 
+    public async Task<System.Collections.Generic.List<VisitStatusChangeDto>> ListStatusHistoryAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT actor_id, from_status, to_status, reason, occurred_at FROM visit_status_history
+            WHERE visit_id = @id ORDER BY occurred_at, id
+            """, connection, transaction);
+        command.Parameters.AddWithValue("id", visitId.Value);
+        var history = new System.Collections.Generic.List<VisitStatusChangeDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            history.Add(new VisitStatusChangeDto(reader.IsDBNull(0) ? null : reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetFieldValue<DateTimeOffset>(4)));
+        return history;
+    }
+
     public async Task<(double DistanceMeters, int RadiusMeters)?> MeasureFromCustomerAsync(TenantId tenantId, CustomerId customerId, GpsFix fix, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -282,7 +296,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         LocationEvent locationEvent, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken, actorId);
         await using (var update = new NpgsqlCommand(
             """
             UPDATE visits SET status = @new
@@ -353,11 +367,15 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         await audit.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static async Task<NpgsqlTransaction> BeginTenantAsync(NpgsqlConnection connection, TenantId tenantId, CancellationToken cancellationToken)
+    // Sets the tenant for RLS and, for writes, the actor that the visit status history trigger records (step 1.9).
+    private static async Task<NpgsqlTransaction> BeginTenantAsync(NpgsqlConnection connection, TenantId tenantId, CancellationToken cancellationToken,
+        UserId? actorId = null)
     {
         var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction);
+        await using var setTenant = new NpgsqlCommand(
+            "SELECT set_config('app.current_tenant', @tenant, true), set_config('app.current_actor', @actor, true)", connection, transaction);
         setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+        setTenant.Parameters.AddWithValue("actor", actorId?.Value.ToString() ?? "");
         await setTenant.ExecuteNonQueryAsync(cancellationToken);
         return transaction;
     }
@@ -367,12 +385,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
-        {
-            setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
-            await setTenant.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken, actorId);
 
         await using var update = new NpgsqlCommand(updateSql, connection, transaction);
         update.Parameters.AddWithValue("id", visitId.Value);
@@ -380,15 +393,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         addParameters(update);
         if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
 
-        await using var audit = new NpgsqlCommand("""
-            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
-            VALUES (gen_random_uuid(), @tenant, @actor, @action, @entity, now())
-            """, connection, transaction);
-        audit.Parameters.AddWithValue("tenant", tenantId.Value);
-        audit.Parameters.AddWithValue("actor", actorId.Value);
-        audit.Parameters.AddWithValue("action", auditAction);
-        audit.Parameters.AddWithValue("entity", visitId.Value.ToString());
-        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await InsertAuditAsync(connection, transaction, tenantId, actorId, auditAction, visitId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
     }
