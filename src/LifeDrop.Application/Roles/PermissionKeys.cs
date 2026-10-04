@@ -8,6 +8,7 @@ public static class PermissionKeys
     public const string CustomersWrite = "customers.write";
     public const string VisitsWrite = "visits.write";
     public const string VisitsFail = "visits.fail";
+    public const string VisitsCreateUnplanned = "visits.create_unplanned";
     public const string DeviceApprove = "device.approve";
     public const string DevicesManage = "devices.manage";
     public const string UserManageRoles = "user.manageroles";

@@ -27,8 +27,10 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             c AS (
                 SELECT id FROM customers WHERE id = @customerId AND tenant_id = @tenantId
             )
-            INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at)
-            SELECT @id, @tenantId, u.id, c.id, @status, @scheduleDate, now()
+            INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at,
+                visit_type, priority, planned_time, is_unplanned, unplanned_reason)
+            SELECT @id, @tenantId, u.id, c.id, @status, @scheduleDate, now(),
+                @visitType, @priority, @plannedTime, @isUnplanned, @unplannedReason
             FROM u, c
             RETURNING id;
             """;
@@ -40,6 +42,11 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         command.Parameters.AddWithValue("customerId", visit.CustomerId.Value);
         command.Parameters.AddWithValue("status", visit.Status.ToString());
         command.Parameters.AddWithValue("scheduleDate", visit.ScheduleDate);
+        command.Parameters.AddWithValue("visitType", visit.Type.ToContract());
+        command.Parameters.AddWithValue("priority", visit.Priority.ToContract());
+        command.Parameters.AddWithValue("plannedTime", (object?)visit.PlannedTime ?? DBNull.Value);
+        command.Parameters.AddWithValue("isUnplanned", visit.IsUnplanned);
+        command.Parameters.AddWithValue("unplannedReason", (object?)visit.UnplannedReason ?? DBNull.Value);
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken);
         
@@ -78,7 +85,8 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         }
 
         const string sql = @"
-            SELECT id, user_id, customer_id, status, exception_reason, schedule_date, created_at 
+            SELECT id, user_id, customer_id, status, exception_reason, schedule_date, created_at,
+                visit_type, priority, planned_time, is_unplanned, unplanned_reason 
             FROM visits 
             WHERE user_id = @userId AND schedule_date = @scheduleDate
             ORDER BY created_at ASC;
@@ -99,7 +107,12 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 Status: reader.GetString(3),
                 ExceptionReason: reader.IsDBNull(4) ? null : reader.GetString(4),
                 ScheduleDate: System.DateOnly.FromDateTime(reader.GetDateTime(5)),
-                CreatedAt: reader.GetFieldValue<System.DateTimeOffset>(6)
+                CreatedAt: reader.GetFieldValue<System.DateTimeOffset>(6),
+                VisitType: reader.GetString(7),
+                Priority: reader.GetString(8),
+                PlannedTime: reader.IsDBNull(9) ? null : reader.GetFieldValue<System.TimeOnly>(9),
+                IsUnplanned: reader.GetBoolean(10),
+                UnplannedReason: reader.IsDBNull(11) ? null : reader.GetString(11)
             ));
         }
 

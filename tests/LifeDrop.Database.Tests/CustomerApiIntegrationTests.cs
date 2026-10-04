@@ -98,7 +98,8 @@ public class CustomerApiIntegrationTests
                 var m7 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0007_regions_teams.sql"));
                 var m8 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0008_role_data_scope.sql"));
                 var m9 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0009_default_roles.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9;
+                var m10 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0010_visit_planning.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1392,10 +1393,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "customers.read", "customers.write", "visits.fail" }, await RowsAsync(
+        Assert.Equal(new[] { "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "27" }, grantsBefore);
+        Assert.Equal(new[] { "29" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -1635,6 +1636,93 @@ public class CustomerApiIntegrationTests
         }
         As(auditor);
         Assert.Equal(4, (await SearchAsync("")).Length);
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [SkippableFact]
+    public async Task VisitPlanning_StoresDetailsAndEnforcesUnplannedRules()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    // 22:30 UTC on 4 Oct is already 5 Oct in Baghdad (UTC+3).
+                    services.AddSingleton<TimeProvider>(new FixedClock(new DateTimeOffset(2026, 10, 4, 22, 30, 0, TimeSpan.Zero)));
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), noPerm = Guid.NewGuid();
+        Guid repCustomer = Guid.NewGuid(), otherCustomer = Guid.NewGuid();
+
+        // Default roles from the seed: SalesManager (tenant, visits.write) and SalesRep (own, visits.create_unplanned).
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@r, @t1), (@n, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, owner_user_id) VALUES
+                    (@rc, @t1, 'Pharmacy', 'C-R', 'Rep customer', @r), (@oc, @t1, 'Pharmacy', 'C-O', 'Other customer', @m);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("r", rep), ("n", noPerm), ("rc", repCustomer), ("oc", otherCustomer) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<List<LifeDrop.Application.Visits.VisitDto>> PlanAsync(string date) =>
+            (await (await client.GetAsync($"/visits?scheduleDate={date}")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+
+        // Planned visits with details; defaults when omitted; several visits for one customer on one day
+        As(manager);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits", new
+            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06", VisitType = "scientific", Priority = "high", PlannedTime = "09:30:00" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits", new
+            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/visits", new
+            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06", VisitType = "party" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/visits", new
+            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06", Priority = "urgent" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        As(rep);
+        var plan = (await PlanAsync("2026-10-06")).OrderBy(v => v.PlannedTime is null).ToList();
+        Assert.Equal(2, plan.Count);
+        Assert.Equal(("scientific", "high", (TimeOnly?)new TimeOnly(9, 30), false), (plan[0].VisitType, plan[0].Priority, plan[0].PlannedTime, plan[0].IsUnplanned));
+        Assert.Equal(("sales", "normal", (TimeOnly?)null, false), (plan[1].VisitType, plan[1].Priority, plan[1].PlannedTime, plan[1].IsUnplanned));
+
+        // Unplanned: requires permission and a reason; customer must be in the caller's scope; dated today in Baghdad
+        await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "  " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = otherCustomer, Reason = "Passing by" }), HttpStatusCode.NotFound, "CUSTOMER_NOT_FOUND");
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "Customer called", VisitType = "follow_up" })).StatusCode);
+        As(noPerm);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "x" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        As(rep);
+        Assert.Empty(await PlanAsync("2026-10-04"));
+        var today = Assert.Single(await PlanAsync("2026-10-05"));
+        Assert.Equal((true, "Customer called", "follow_up", rep), (today.IsUnplanned, today.UnplannedReason, today.VisitType, today.UserId));
     }
 
     // Security baseline (plan step 0.9): every route requires an authenticated user unless it is on this

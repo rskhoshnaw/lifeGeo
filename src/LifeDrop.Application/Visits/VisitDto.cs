@@ -10,5 +10,10 @@ public sealed record VisitDto(
     string Status,
     string? ExceptionReason,
     DateOnly ScheduleDate,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string VisitType,
+    string Priority,
+    TimeOnly? PlannedTime,
+    bool IsUnplanned,
+    string? UnplannedReason
 );

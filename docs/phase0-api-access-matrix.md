@@ -109,3 +109,15 @@ Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIs
 - **Deployment gap found:** `scripts/deploy_customer_api/02_apply_changes.sql` (applied to `lifedrop_dev`) grants nothing on `visits`, `regions`, `teams` or `team_members`, so visit endpoints there would fail with `permission denied`. After migrations 0006–0009, apply `db/grants/lifedrop_app_grants.sql` on that database (owner action; not done from CI).
 - **Protected routes:** `EveryRouteRequiresAuthorizationExceptReviewedPublicRoutes` fails if any route other than `GET /`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/devices/register` and the Development-only OpenAPI document lacks authorization.
 - **No secrets in logs:** the rehearsal captures all API logs at Debug level and asserts that the password, access and refresh tokens (before and after rotation) and the device secret never appear.
+
+## Visit planning (step 1.2)
+
+Migration 0010 adds `visit_type` (`sales` | `scientific` | `follow_up` | `other`, default `sales`), `priority` (`high` | `normal` | `low`, default `normal`), optional `planned_time` (local time, Asia/Baghdad), `is_unplanned` and `unplanned_reason`. Several visits per customer per day are allowed.
+
+| Route | Permission | Behaviour |
+| --- | --- | --- |
+| `POST /visits` | `visits.write` + scope | Optional `visitType`, `priority`, `plannedTime`; unknown values → 400 `INVALID_DATA` |
+| `POST /visits/unplanned` | `visits.create_unplanned` + scope | For the caller only, dated today in Asia/Baghdad; `reason` 1–500 chars required; customer must be in the caller's scope (404 `CUSTOMER_NOT_FOUND`) |
+| `GET /visits` | authenticated | Returns the new fields |
+
+`visits.create_unplanned` is granted to the default SalesRep and ScientificRep roles (0010 replaces `seed_default_roles`; 0009 is unchanged). Test: `VisitPlanning_StoresDetailsAndEnforcesUnplannedRules`; domain tests in `VisitPlanningTests`.

@@ -24,6 +24,7 @@
     <None Include="../../db/migrations/0007_regions_teams.sql" Link="0007_regions_teams.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0008_role_data_scope.sql" Link="0008_role_data_scope.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0009_default_roles.sql" Link="0009_default_roles.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0010_visit_planning.sql" Link="0010_visit_planning.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

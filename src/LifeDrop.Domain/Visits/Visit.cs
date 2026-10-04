@@ -10,6 +10,13 @@ public class Visit : AggregateRoot<VisitId>
     public VisitStatus Status { get; private set; }
     public string? ExceptionReason { get; private set; }
     public DateOnly ScheduleDate { get; private set; }
+    public VisitType Type { get; private set; } = VisitType.Sales;
+    public VisitPriority Priority { get; private set; } = VisitPriority.Normal;
+    public TimeOnly? PlannedTime { get; private set; }
+    public bool IsUnplanned { get; private set; }
+    public string? UnplannedReason { get; private set; }
+
+    public const int MaxUnplannedReasonLength = 500;
 
     // Product decision: either exception outcome may occur at any active stage
     // (Planned, EnRoute, Arrived, InVisit). A plan can fail before departure,
@@ -34,6 +41,30 @@ public class Visit : AggregateRoot<VisitId>
         if (scheduleDate == default) throw new ArgumentException("ScheduleDate is required.", nameof(scheduleDate));
 
         return new Visit(VisitId.New(), tenantId, userId, customerId, scheduleDate);
+    }
+
+    // Planned visit with planning details (plan step 1.2).
+    public static Visit Create(TenantId tenantId, UserId userId, CustomerId customerId, DateOnly scheduleDate,
+        VisitType type, VisitPriority priority, TimeOnly? plannedTime)
+    {
+        var visit = Create(tenantId, userId, customerId, scheduleDate);
+        visit.Type = type;
+        visit.Priority = priority;
+        visit.PlannedTime = plannedTime;
+        return visit;
+    }
+
+    // Visit without a prior plan (PRD §5.1): allowed only with permission and a recorded reason.
+    public static Visit CreateUnplanned(TenantId tenantId, UserId userId, CustomerId customerId, DateOnly scheduleDate,
+        VisitType type, string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > MaxUnplannedReasonLength)
+            throw new ArgumentException("A reason of 1-500 characters is required for an unplanned visit.", nameof(reason));
+
+        var visit = Create(tenantId, userId, customerId, scheduleDate, type, VisitPriority.Normal, null);
+        visit.IsUnplanned = true;
+        visit.UnplannedReason = reason.Trim();
+        return visit;
     }
 
     public static Visit Load(VisitId id, TenantId tenantId, UserId userId, CustomerId customerId, DateOnly scheduleDate, VisitStatus status, string? exceptionReason)
