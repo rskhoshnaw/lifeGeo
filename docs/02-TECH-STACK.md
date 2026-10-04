@@ -19,6 +19,7 @@
 
 ## Web Panel
 - React + TypeScript (strict), built with Vite (product decision D10, 2026-10-04)
+- Tailwind CSS v4 for styling, with logical (RTL-safe) utilities (decision D12)
 - Calls the ASP.NET Core API directly; server-side permission checks remain authoritative
 
 ## Mobile

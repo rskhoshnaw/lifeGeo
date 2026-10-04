@@ -18,7 +18,7 @@ Date: 2026-10-03. Scope: routes currently mapped in `src/LifeDrop.API/Program.cs
 ## Phase 0 gaps to resolve
 
 1. **Product access matrix:** The PRD requires role, tenant, region, owner and device rules per endpoint. Current permission keys implement only part of that matrix; region and owner rules are absent from these customer routes. Record a product-approved rule for each route before extending permissions. A name such as `system.admin` must not imply automatic cross-tenant access.
-2. **Contract consistency:** Request/response shapes, validation failures, idempotency and Audit effects are not captured in one versioned contract. Some invalid data returns 400 without a common error body. The table records present behavior, not a finalized contract.
+2. **Contract consistency:** Since step 0.5 (2026-10-04) every error response is ProblemDetails with a stable `code` (see the error contract below). Request/response shapes, idempotency and Audit effects are not yet captured in one versioned OpenAPI contract (step 0.5b).
 3. **Exit gate:** Database integration tests are outside `LifeDrop.slnx`, require explicit isolated database configuration, and were not run for this inventory. The existing build workflow runs `dotnet test` on the solution, so it does not establish that those database tests run in CI. Rehearsal source lists migrations `0001`–`0006`, but that is not evidence of a successful current run or a production decision for `0006`.
 4. **Security and recovery:** Verify protected-route coverage, audit retention, restricted-role deployment, empty-database migration, backup restore and secret-safe logs in separate acceptance tasks. This inventory does not establish these gates.
 
@@ -28,3 +28,26 @@ Date: 2026-10-03. Scope: routes currently mapped in `src/LifeDrop.API/Program.cs
 - Identity, permission and audit: `src/LifeDrop.Infrastructure/Auth/PostgresLoginStore.cs`, `Auth/PostgresSessionStore.cs`, `Devices/PostgresDeviceAccessStore.cs`, `Roles/PostgresRoleAssignmentStore.cs`, `Roles/PostgresPermissionStore.cs`, and `Customers/PostgresCustomerStore.cs`.
 - Test source: `tests/LifeDrop.Database.Tests/RoleAssignmentDatabaseTests.cs`, `CustomerApiIntegrationTests.cs`, `DeploymentRehearsalTests.cs`; solution membership: `LifeDrop.slnx`; CI source: `.github/workflows/build.yml`.
 - The codebase-memory graph was indexed on 2026-10-01 and flags several current files as changed or untracked. All material claims above were checked against current source. No build, test, API request, database migration or device run was performed for this inventory.
+
+## Error contract (step 0.5)
+
+Every 4xx/5xx response is `application/problem+json` (RFC 9457) with `type`, `title`, `status`, `code` and `traceId`. Clients must branch on `code`.
+
+| Status | Code | Produced by |
+| --- | --- | --- |
+| 400 | `BAD_REQUEST` | Invalid input or non-TLS request outside Development |
+| 400 | `INVALID_DATA` | Visit fail without a meaningful reason |
+| 400 | `INVALID_STATE` | Visit transition not allowed from the current status |
+| 401 | `UNAUTHENTICATED` | Missing, invalid or revoked session; failed login |
+| 403 | `FORBIDDEN` | Missing permission or not the owner |
+| 403 | `DEVICE_NOT_APPROVED` | Login from an unapproved or unknown device (read by the mobile client) |
+| 404 | `NOT_FOUND` | Record absent or outside the caller's tenant/scope |
+| 404 | `USER_NOT_FOUND`, `CUSTOMER_NOT_FOUND` | `POST /visits` with an unknown assignee or customer |
+| 409 | `CONFLICT` | Duplicate device registration or role assignment |
+| 409 | `DUPLICATE_CODE` | Customer code already used in the tenant |
+| 409 | `CONCURRENCY_CONFLICT` | Visit changed by another request between read and update |
+| 429 | `TOO_MANY_REQUESTS` | Rate limit |
+| 503 | `SERVICE_UNAVAILABLE` | API running with an insecure database role |
+| 500 | `UNEXPECTED_ERROR` | Unhandled fault; must not occur for predictable errors |
+
+Changed in step 0.5: the visit endpoints previously returned `{ "error": "InvalidState" }`, `"InvalidData"`, `"ConcurrencyConflict"`, `"UserNotFound"`, `"CustomerNotFound"`; these are now the UPPER_SNAKE_CASE codes above. `DEVICE_NOT_APPROVED` and `DUPLICATE_CODE` keep their values. Test evidence: `CustomerApiIntegrationTests.ApiErrors_ReturnProblemDetailsWithStableCodes`, the `DEVICE_NOT_APPROVED` body check in `RoleAssignmentDatabaseTests`, and `AuthApiClientTests.LoginAsync_DeviceNotApprovedProblemDetails_ReturnsDeviceNotApprovedStatus`.

@@ -11,6 +11,7 @@ Standing Rules:
 - State machine transitions must be strictly controlled on the server side.
 - Report only: changed files, exact focused test/build/runtime results, and remaining unverified items. Do not paste complete files or large logs unless requested.
 - Explanation language: Persian
+- Times shown to the team (reports, check-ins, schedules) use Iraq local time (`Asia/Baghdad`, UTC+3), not UTC.
 - File names, class names, and code: English
 - Never expose passwords, tokens, precise coordinates, or sensitive data in logs or output.
 - Prioritize simplicity, readability, and maintainability.

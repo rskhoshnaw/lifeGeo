@@ -136,6 +136,7 @@ public partial class Program
             });
         builder.Services.AddAuthorization();
         builder.Services.AddOpenApi();
+        builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = ApiErrors.Customize);
 
         var app = builder.Build();
         (string AccessToken, DateTime ExpiresAt) CreateAccessToken(SessionIdentity identity)
@@ -171,6 +172,8 @@ public partial class Program
             return new SessionIdentity(new TenantId(tenantId), new UserId(userId),
                 familyId, device is null ? null : Guid.Parse(device));
         }
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
         if (app.Environment.IsDevelopment()) app.MapOpenApi();
         if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();
         app.UseRateLimiter();
@@ -204,7 +207,7 @@ public partial class Program
                 {
                     await devices.RecordDeniedAsync(identity.TenantId, identity.UserId,
                         cancellationToken);
-                    return Results.Json(new { Code = "DEVICE_NOT_APPROVED" }, statusCode: 403);
+                    return ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.DeviceNotApproved);
                 }
                 deviceId = request.DeviceId;
             }
@@ -324,7 +327,7 @@ public partial class Program
                 AssignRoleResult.AlreadyAssigned => Results.Conflict(),
                 AssignRoleResult.Forbidden => Results.Forbid(),
                 AssignRoleResult.UserNotFound or AssignRoleResult.RoleNotFound => Results.NotFound(),
-                _ => Results.StatusCode(500)
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 
@@ -352,10 +355,10 @@ public partial class Program
             return result.Result switch
             {
                 LifeDrop.Application.Customers.CreateCustomerResult.Created => Results.Created($"/customers/{result.Id.Value}", result.Id.Value),
-                LifeDrop.Application.Customers.CreateCustomerResult.DuplicateCode => Results.Conflict(new { Code = "DUPLICATE_CODE" }),
+                LifeDrop.Application.Customers.CreateCustomerResult.DuplicateCode => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DuplicateCode),
                 LifeDrop.Application.Customers.CreateCustomerResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Customers.CreateCustomerResult.InvalidData => Results.BadRequest(),
-                _ => Results.StatusCode(500)
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };}).RequireAuthorization();
 
         app.MapPost("/visits", async (
@@ -383,10 +386,10 @@ public partial class Program
             {
                 LifeDrop.Application.Visits.CreateVisitResult.Created => Results.Created($"/visits/{result.VisitId}", new { id = result.VisitId }),
                 LifeDrop.Application.Visits.CreateVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.CreateVisitResult.UserNotFound => Results.NotFound(new { error = "UserNotFound" }),
-                LifeDrop.Application.Visits.CreateVisitResult.CustomerNotFound => Results.NotFound(new { error = "CustomerNotFound" }),
+                LifeDrop.Application.Visits.CreateVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
+                LifeDrop.Application.Visits.CreateVisitResult.CustomerNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.CustomerNotFound),
                 LifeDrop.Application.Visits.CreateVisitResult.InvalidData => Results.BadRequest(),
-                _ => Results.StatusCode(500)
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };}).RequireAuthorization();
 
         app.MapGet("/visits", async (
@@ -432,9 +435,9 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
                 LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
                 LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => Results.BadRequest(new { error = "InvalidState" }),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => Results.Conflict(new { error = "ConcurrencyConflict" }),
-                _ => Results.StatusCode(500)
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 
@@ -460,9 +463,9 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
                 LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
                 LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => Results.BadRequest(new { error = "InvalidState" }),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => Results.Conflict(new { error = "ConcurrencyConflict" }),
-                _ => Results.StatusCode(500)
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 
@@ -488,9 +491,9 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
                 LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
                 LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => Results.BadRequest(new { error = "InvalidState" }),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => Results.Conflict(new { error = "ConcurrencyConflict" }),
-                _ => Results.StatusCode(500)
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 
@@ -516,9 +519,9 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
                 LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
                 LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => Results.BadRequest(new { error = "InvalidState" }),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => Results.Conflict(new { error = "ConcurrencyConflict" }),
-                _ => Results.StatusCode(500)
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 
@@ -545,10 +548,10 @@ public partial class Program
                 LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
                 LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
                 LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => Results.BadRequest(new { error = "InvalidState" }),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidData => Results.BadRequest(new { error = "InvalidData" }),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => Results.Conflict(new { error = "ConcurrencyConflict" }),
-                _ => Results.StatusCode(500)
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+                LifeDrop.Application.Visits.MarkVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };
         }).RequireAuthorization();
 

@@ -184,12 +184,15 @@ public class RoleAssignmentDatabaseTests
                 Password = "field-password-for-test" };
             Assert.Equal(HttpStatusCode.Forbidden,
                 (await client.PostAsJsonAsync("/auth/login", fieldLogin)).StatusCode);
-            Assert.Equal(HttpStatusCode.Forbidden,
-                (await client.PostAsJsonAsync("/auth/login", new
-                {
-                    fieldLogin.TenantCode, fieldLogin.Email, fieldLogin.Password,
-                    DeviceId = deviceId, DeviceSecret = deviceSecret
-                })).StatusCode);
+            var pendingDeviceLogin = await client.PostAsJsonAsync("/auth/login", new
+            {
+                fieldLogin.TenantCode, fieldLogin.Email, fieldLogin.Password,
+                DeviceId = deviceId, DeviceSecret = deviceSecret
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, pendingDeviceLogin.StatusCode);
+            Assert.Equal("application/problem+json", pendingDeviceLogin.Content.Headers.ContentType?.MediaType);
+            using (var problem = await pendingDeviceLogin.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
+                Assert.Equal("DEVICE_NOT_APPROVED", problem!.RootElement.GetProperty("code").GetString());
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
             Assert.Equal(HttpStatusCode.NoContent,
                 (await client.PostAsync($"/devices/{deviceId}/approve", null)).StatusCode);
