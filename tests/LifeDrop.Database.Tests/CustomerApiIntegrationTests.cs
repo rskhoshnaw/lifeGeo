@@ -770,7 +770,7 @@ public class CustomerApiIntegrationTests
                 SELECT (SELECT status FROM visits WHERE id = @va),
                        (SELECT string_agg(coalesce(rejection_reason, 'accepted'), ',' ORDER BY received_at, id) FROM visit_location_events WHERE visit_id = @va),
                        (SELECT distance_m < 20 AND device_id = @d FROM visit_location_events WHERE visit_id = @va AND accepted),
-                       (SELECT string_agg(action || '=' || n, ',' ORDER BY action) FROM (SELECT action, count(*) n FROM audit_logs WHERE tenant_id = @t1 GROUP BY action) a);", conn);
+                       (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"") FROM (SELECT action, count(*) n FROM audit_logs WHERE tenant_id = @t1 GROUP BY action) a);", conn);
             cmd.Parameters.AddWithValue("t1", t1);
             cmd.Parameters.AddWithValue("va", vArrived);
             cmd.Parameters.AddWithValue("d", device);
@@ -780,7 +780,7 @@ public class CustomerApiIntegrationTests
             Assert.Equal("InVisit", reader.GetString(0));
             Assert.Equal(new[] { "outside_geofence", "low_accuracy", "stale_fix", "clock_skew", "mock_location", "accepted" }, reader.GetString(1).Split(',').OrderBy(x => x == "accepted").ToArray());
             Assert.True(reader.GetBoolean(2));
-            Assert.Equal("visit.check_in_rejected=5,visit.checked_in=1", reader.GetString(3));
+            Assert.Equal("visit.check_in_rejected=5,visit.checked_in=1", reader.GetString(3)); // byte order, independent of the server locale
         }
     }
 
