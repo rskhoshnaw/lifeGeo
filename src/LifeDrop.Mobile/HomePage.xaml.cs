@@ -23,7 +23,7 @@ public partial class HomePage : ContentPage
         PlanBtn.IsEnabled = !isBusy;
     }
 
-    private async void OnPlanClicked(object sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
+    private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 
     private async void OnLogoutClicked(object sender, EventArgs e)
     {
