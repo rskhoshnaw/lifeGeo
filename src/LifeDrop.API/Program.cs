@@ -69,6 +69,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitInVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitCompleted>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitFailed>();
+        builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -633,6 +635,8 @@ public partial class Program
                 }
             }
         }
+
+        LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
 
         app.Run();
     }

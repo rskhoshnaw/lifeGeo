@@ -83,7 +83,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
@@ -99,6 +99,9 @@ public class DeploymentRehearsalTests
                 GRANT SELECT ON {schema}.tenants, {schema}.users, {schema}.roles, {schema}.role_permissions, {schema}.user_roles, {schema}.devices, {schema}.refresh_tokens, {schema}.customers, {schema}.audit_logs TO {appRole};
                 GRANT INSERT ON {schema}.user_roles, {schema}.audit_logs, {schema}.auth_login_audit, {schema}.devices, {schema}.refresh_tokens, {schema}.customers TO {appRole};
                 GRANT UPDATE ON {schema}.devices, {schema}.refresh_tokens TO {appRole};
+                GRANT SELECT, INSERT ON {schema}.regions, {schema}.teams, {schema}.team_members TO {appRole};
+                GRANT UPDATE ON {schema}.teams, {schema}.team_members TO {appRole};
+                GRANT DELETE ON {schema}.team_members TO {appRole};
             ", setupConn))
             {
                 await cmd.ExecuteNonQueryAsync();

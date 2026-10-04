@@ -40,3 +40,4 @@ Remaining work, step order and product decisions: `docs/IMPLEMENTATION-PLAN.md`.
 - Step 0.5 local evidence (2026-10-04): unified ProblemDetails error contract; database tests 16/16 (two runs), Mobile.Auth 85/85 including a ProblemDetails `DEVICE_NOT_APPROVED` compatibility test. Against the pre-change `Program.cs` the two new contract assertions fail.
 - Steps 1.1 and 0.5 CI evidence (2026-10-04): PR #5 job `database-tests` (run 37211924702) 16 passed, 0 skipped; `build` green.
 - Step 0.5b local evidence (2026-10-04): OpenAPI contract snapshot test passes; altering one documented status makes it fail; database tests 17/17 twice.
+- Step 0.6a local evidence (2026-10-04): database tests 18/18 twice; region/team test fails when the `regions.manage` check or the member audit is removed; OpenAPI contract diff is additive only (7 routes).

@@ -42,12 +42,28 @@ Every 4xx/5xx response is `application/problem+json` (RFC 9457) with `type`, `ti
 | 403 | `FORBIDDEN` | Missing permission or not the owner |
 | 403 | `DEVICE_NOT_APPROVED` | Login from an unapproved or unknown device (read by the mobile client) |
 | 404 | `NOT_FOUND` | Record absent or outside the caller's tenant/scope |
-| 404 | `USER_NOT_FOUND`, `CUSTOMER_NOT_FOUND` | `POST /visits` with an unknown assignee or customer |
+| 404 | `USER_NOT_FOUND`, `CUSTOMER_NOT_FOUND` | `POST /visits` with an unknown assignee or customer; `USER_NOT_FOUND` also for team membership |
+| 404 | `REGION_NOT_FOUND` | Team create or move with a region outside the caller's tenant |
 | 409 | `CONFLICT` | Duplicate device registration or role assignment |
 | 409 | `DUPLICATE_CODE` | Customer code already used in the tenant |
+| 409 | `DUPLICATE_NAME` | Region or team name already used in the tenant |
 | 409 | `CONCURRENCY_CONFLICT` | Visit changed by another request between read and update |
 | 429 | `TOO_MANY_REQUESTS` | Rate limit |
 | 503 | `SERVICE_UNAVAILABLE` | API running with an insecure database role |
 | 500 | `UNEXPECTED_ERROR` | Unhandled fault; must not occur for predictable errors |
 
 Changed in step 0.5: the visit endpoints previously returned `{ "error": "InvalidState" }`, `"InvalidData"`, `"ConcurrencyConflict"`, `"UserNotFound"`, `"CustomerNotFound"`; these are now the UPPER_SNAKE_CASE codes above. `DEVICE_NOT_APPROVED` and `DUPLICATE_CODE` keep their values. Test evidence: `CustomerApiIntegrationTests.ApiErrors_ReturnProblemDetailsWithStableCodes`, the `DEVICE_NOT_APPROVED` body check in `RoleAssignmentDatabaseTests`, and `AuthApiClientTests.LoginAsync_DeviceNotApprovedProblemDetails_ReturnsDeviceNotApprovedStatus`.
+
+## Regions and teams (step 0.6a, decision D11)
+
+| Route | Permission | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `POST /regions` | `regions.manage` | 201 `{id}`; name 1–100 chars, unique per tenant (409 `DUPLICATE_NAME`) | `region.created` |
+| `GET /regions` | `regions.read` | 200 array of the caller's tenant only | — |
+| `POST /teams` | `teams.manage` | 201 `{id}`; region must exist in the tenant (404 `REGION_NOT_FOUND`); name unique per tenant | `team.created` |
+| `GET /teams` | `teams.read` | 200 array with each team's `regionId` | — |
+| `PUT /teams/{teamId}/region` | `regions.manage` | 204; moves the team to another region of the tenant | `team.region_changed` |
+| `PUT /teams/{teamId}/members/{userId}` | `teams.manage` | 204; a user belongs to at most one team, so this moves the user | `team.member_assigned` |
+| `DELETE /teams/{teamId}/members/{userId}` | `teams.manage` | 204; 404 if the user is not in that team | `team.member_removed` |
+
+All tables use tenant RLS. Test: `CustomerApiIntegrationTests.RegionTeamApi_EnforcesPermissionsTenantIsolationAndAudit`. Region scope on customers and visits is step 0.6b. Deployment note: the production `lifedrop_app` role needs `SELECT, INSERT` on `regions`, `teams`, `team_members`, `UPDATE` on `teams`, `team_members` and `DELETE` on `team_members` (as in `DeploymentRehearsalTests`); this is part of step 0.9.
