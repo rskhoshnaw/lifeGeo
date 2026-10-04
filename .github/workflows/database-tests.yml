@@ -1,0 +1,88 @@
+name: Database Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: temp_root
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Disposable CI-only credentials for the service container above.
+      TEST_DATABASE_URL: "Host=localhost;Port=5432;Database=lifedrop_test_ci;Username=test_user;Password=test_pass;Include Error Detail=true"
+      TEST_SUPERUSER_DATABASE_URL: "Host=localhost;Port=5432;Database=lifedrop_test_ci;Username=postgres;Password=temp_root;Include Error Detail=true"
+      # Raise this when database tests are added; CI fails if fewer tests run.
+      MIN_EXPECTED_TESTS: 14
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Initialize empty test database
+      run: |
+        PGPASSWORD=temp_root psql -h localhost -U postgres -c "CREATE DATABASE lifedrop_test_ci;"
+        PGPASSWORD=temp_root psql -h localhost -U postgres -d lifedrop_test_ci -c "CREATE EXTENSION postgis;"
+        PGPASSWORD=temp_root psql -h localhost -U postgres -c "CREATE USER test_user WITH PASSWORD 'test_pass' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;"
+        PGPASSWORD=temp_root psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE lifedrop_test_ci TO test_user;"
+        PGPASSWORD=temp_root psql -h localhost -U postgres -d lifedrop_test_ci -c "GRANT ALL ON SCHEMA public TO test_user;"
+
+    - name: Run all database tests
+      run: |
+        set -euo pipefail
+        dotnet test tests/LifeDrop.Database.Tests/LifeDrop.Database.Tests.csproj \
+          --logger "trx;LogFileName=test_results.trx" \
+          --results-directory tests/LifeDrop.Database.Tests/TestResults
+
+    - name: Check test counts (no skipped tests)
+      if: always()
+      run: |
+        python3 - <<'PY'
+        import os
+        import xml.etree.ElementTree as ET
+        path = 'tests/LifeDrop.Database.Tests/TestResults/test_results.trx'
+        if not os.path.exists(path):
+            raise SystemExit('TRX file missing')
+        root = ET.parse(path).getroot()
+        ns = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+        counters = root.find('.//t:Counters', ns)
+        if counters is None:
+            raise SystemExit('TRX counters missing')
+        result = {key: int(counters.attrib.get(key, '0')) for key in ('total', 'passed', 'failed', 'notExecuted')}
+        print('Database test counts:', result)
+        minimum = int(os.environ['MIN_EXPECTED_TESTS'])
+        if result['total'] < minimum:
+            raise SystemExit(f"Expected at least {minimum} tests, found {result['total']}")
+        if result['failed'] or result['notExecuted'] or result['passed'] != result['total']:
+            raise SystemExit('Every database test must pass; skipped tests are not accepted')
+        PY
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: database-test-results
+        path: tests/LifeDrop.Database.Tests/TestResults/test_results.trx
+        if-no-files-found: error

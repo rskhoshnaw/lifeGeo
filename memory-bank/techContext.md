@@ -2,7 +2,7 @@
 
 ## Current checkout
 - Workspace: `F:\Projects\lifeGeo` (separate from `F:\Projects\life-drop`).
-- CI (`.github/workflows/build.yml`) builds and unit-tests `LifeDrop.CI.slnf` on .NET 10; `device-block-test.yml` runs one database test on PostGIS. Both were green on PR #2 (merged at `4cbbd1f`, 2026-10-04).
+- CI (`.github/workflows/build.yml`) builds and unit-tests `LifeDrop.CI.slnf` on .NET 10; `database-tests.yml` (step 0.4) runs all `LifeDrop.Database.Tests` on a disposable PostGIS container with a restricted `test_user` and a superuser URL, and fails if any test is skipped or fewer than `MIN_EXPECTED_TESTS` run. It replaced `device-block-test.yml` (one test), which was green on PR #2.
 - `LifeDrop.slnx` targets .NET 10 and lists Domain, Application, Infrastructure, API, DevBootstrap, Domain.Tests, Application.Tests, Mobile.Auth.Tests, Mobile.Auth, and the Android MAUI app. `tests/LifeDrop.Database.Tests` exists but is not listed in the solution; run it by project path when needed.
 - API is ASP.NET Core with Npgsql/PostgreSQL. Migrations are plain SQL under `db/migrations/`. The development HTTP launch profile uses `http://localhost:5256`; the root route is a service status endpoint and OpenAPI is exposed in Development.
 - Required API configuration: `ConnectionStrings:LifeDrop`, `Jwt:Issuer`, `Jwt:Audience`, and a `Jwt:SigningKey` of at least 32 UTF-8 bytes. Keep real values in ignored local configuration or secret storage, never in this folder.

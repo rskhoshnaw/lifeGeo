@@ -145,6 +145,7 @@ public class DeploymentRehearsalTests
                 .WithWebHostBuilder(webBuilder =>
                 {
                     webBuilder.UseSetting("ConnectionStrings:LifeDrop", appConnString);
+                    TestHostSettings.UseTestJwt(webBuilder);
                 }))
             {
                 using var client = factory.CreateClient();

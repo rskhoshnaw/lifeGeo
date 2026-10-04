@@ -21,7 +21,7 @@
 | مشتری | `POST/GET /customers`، `GET /customers/{id}`، RLS و نقش محدود `lifedrop_app` | تست ایزوله و `lifedrop_dev` |
 | ویزیت | ماشین وضعیت دامنه (`Planned → EnRoute → Arrived → InVisit → Completed` + `Failed`/`Cancelled`)؛ endpointهای ایجاد، لیست روزانه، en-route، arrive، start، complete، fail | 107 تست Domain؛ تست‌های یکپارچهٔ Visit (به‌جز Failed) |
 | موبایل | کتابخانهٔ Auth مشترک (84 تست)، ذخیرهٔ امن Android، صفحات Login/Home در MAUI | آزمون روی دستگاه فیزیکی Android |
-| CI | `build.yml` (build + unit tests)، `device-block-test.yml` (PostGIS) | هر دو سبز روی PR #2 |
+| CI | `build.yml` (build + unit tests)، `database-tests.yml` (همهٔ تست‌های PostGIS؛ جایگزین `device-block-test.yml` در گام 0.4) | build و Device Block سبز روی PR #2 |
 
 ### مانده (خلاصه)
 - **فاز ۰:** ماتریس کامل مجوز (نقش/منطقه/مالک)، Kill Session، API خواندن Audit و حفاظت آن، قرارداد خطای یکسان، اجرای همهٔ تست‌های دیتابیس و migration از پایگاه خالی در CI، تصمیم استقرار 0006.
@@ -57,7 +57,7 @@
 | 0.1 | Auth، دستگاه، نقش، مشتری | موجود در کد و تست | §۴ | ✅ |
 | 0.2 | تست مسدودسازی دستگاه (403/404/Audit) | تست متمرکز موفق | §۳ | ✅ |
 | 0.3 | CI سبز (build + Device Block) | PR #2 ادغام شد، هر دو check سبز | §۱۴ | ✅ |
-| 0.4 | **همهٔ تست‌های دیتابیس در CI** و migration ۰۰۰۱–۰۰۰۶ از پایگاه خالی | workflow همهٔ `LifeDrop.Database.Tests` را روی PostGIS یکبارمصرف و نقش محدود اجرا کند؛ تعداد Skipped = 0 بررسی شود | §۱۱، §۱۴ | ⬜ |
+| 0.4 | **همهٔ تست‌های دیتابیس در CI** و migration ۰۰۰۱–۰۰۰۶ از پایگاه خالی | workflow همهٔ `LifeDrop.Database.Tests` را روی PostGIS یکبارمصرف و نقش محدود اجرا کند؛ تعداد Skipped = 0 بررسی شود | §۱۱، §۱۴ | 🟡 محلی 14/14 سه‌بار پیاپی؛ منتظر CI |
 | 0.5 | **قرارداد خطای یکسان** (ProblemDetails) و سند OpenAPI نسخه‌دار برای مسیرهای فعلی | 400/401/403/404/409 با بدنهٔ یکسان؛ هیچ خطای قابل پیش‌بینی 500 نشود؛ تست برای هر کد | §۱۱ | ⬜ |
 | 0.6 | **ماتریس مجوز و مدل منطقه/تیم** (D11): جدول‌های region، team (هر تیم یک منطقه) و عضویت کاربر در تیم؛ تعریف منطقه و اختصاص آن به تیم فقط توسط مدیر فروش؛ permissionهای مستقل طبق جدول §۳ و seed نقش‌ها؛ فیلتر منطقه/مالک روی مشتری و ویزیت | به‌ازای هر endpoint تست «مجاز / نقش نامجاز / Tenant دیگر / منطقهٔ دیگر / مالک دیگر»؛ تغییر منطقه/تیم Audit شود | §۳ | 🟡 (فقط چند permission) |
 | 0.7 | **Kill Session** مدیریتی | endpoint ابطال همهٔ نشست‌های کاربر هدف با Audit؛ درخواست بعدی 401؛ اثر بدون نصب مجدد اپ | §۴ | ⬜ |
