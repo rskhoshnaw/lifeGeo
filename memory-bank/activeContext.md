@@ -9,6 +9,8 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 - **D2:** Check-out requires fresh, valid GPS inside the customer's geofence radius, with the same anti-fraud checks as check-in. Recording any location is not enough.
 - **D10:** The web panel is React + TypeScript (not Blazor), in a new `src/LifeDrop.Web` project.
 - **D11:** Each team operates in one region; the sales manager defines regions and assigns them to teams. A representative may register an out-of-region customer; it is pending until an authorized manager approves it, then it belongs to that representative.
+- Step 0.6 proposal (regions, teams, permission matrix) and the D11 approval queue were accepted.
+- The inherited JSX/Express template was removed. `docs/PRD.md` was rewritten as the English working PRD with the decision log; `docs/06-CODING-CONVENTIONS.md` now matches current code and the React + TypeScript panel.
 - Still open: D1, D3, D4, D5, D6, D8, D9 (see the plan, section 2).
 
 ## Relevant state

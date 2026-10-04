@@ -1,5 +1,0 @@
-{
-  "name": "Clean Architecture",
-  "description": "Clean Architecture Solution with React, Express, Pico CSS, Todo Management, and Weather Forecasts.",
-  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

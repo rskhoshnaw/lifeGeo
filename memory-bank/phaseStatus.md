@@ -1,6 +1,6 @@
 # LifeDrop phase status
 
-Updated: 2026-10-04 (CI observations added 2026-10-04). Source of product requirements: `docs/سند نیازمندی محصول LifeDrop.docx` (version 2.0, especially sections 14 and 5-7). `docs/PRD.md` is an older execution plan, not the primary product PRD. This file tracks the ASP.NET Core/.NET MAUI checkout at `F:/Projects/lifeGeo` only.
+Updated: 2026-10-04 (CI observations added 2026-10-04). Source of product requirements: `docs/سند نیازمندی محصول LifeDrop.docx` (version 2.0, especially sections 14 and 5-7). `docs/PRD.md` is the English working edition of that PRD with the decision log (D1–D11); the Persian document stays authoritative. This file tracks the ASP.NET Core/.NET MAUI checkout at `F:/Projects/lifeGeo` only.
 
 Status words: **present** = observed in current source; **reported test** = Antigravity output pasted into the planning chat; **verified** = independently checked in the named environment; **open** = no sufficient evidence of completion. Never infer a production deployment from isolated tests.
 
