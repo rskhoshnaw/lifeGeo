@@ -66,7 +66,6 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.ListAssignedVisits>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitEnRoute>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitArrived>();
-        builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitCompleted>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitFailed>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
@@ -75,7 +74,7 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
-        builder.Services.AddScoped<LifeDrop.Application.Visits.CheckInVisit>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
@@ -478,35 +477,6 @@ public partial class Program
             };
         }).RequireAuthorization()
             .WithName("MarkVisitArrived").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
-
-        app.MapPost("/visits/{visitId:guid}/complete", async (
-            Guid visitId,
-            HttpContext context, 
-            LifeDrop.Application.Visits.MarkVisitCompleted markCompleted,
-            DatabaseSecurityState securityState,
-            CancellationToken cancellationToken) =>
-        {
-            if (securityState.IsInsecureDbRole) return Results.StatusCode(503);
-
-            var subject = context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
-            var tenant = context.User.FindFirst("tenant_id")?.Value;
-
-            if (!Guid.TryParse(subject, out var actorId) || actorId == Guid.Empty ||
-                !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
-                return Results.Forbid();
-
-            var result = await markCompleted.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), visitId, cancellationToken);
-            return result switch
-            {
-                LifeDrop.Application.Visits.MarkVisitResult.Success => Results.NoContent(),
-                LifeDrop.Application.Visits.MarkVisitResult.NotFound => Results.NotFound(),
-                LifeDrop.Application.Visits.MarkVisitResult.Forbidden => Results.Forbid(),
-                LifeDrop.Application.Visits.MarkVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
-                LifeDrop.Application.Visits.MarkVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
-                _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
-            };
-        }).RequireAuthorization()
-            .WithName("CompleteVisit").WithTags("Visits").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits/{visitId:guid}/fail", async (
             Guid visitId,

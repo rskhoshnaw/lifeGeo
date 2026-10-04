@@ -230,6 +230,14 @@ public class DeploymentRehearsalTests
                 }
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/visits/{reportVisit}/report", new { Outcome = "products_presented", Note = "Presented the new range" })).StatusCode);
                 Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/visits/{reportVisit}/report")).StatusCode);
+                using (var checkOut = new HttpRequestMessage(HttpMethod.Post, $"/visits/{reportVisit}/complete")
+                {
+                    Content = JsonContent.Create(new { Latitude = 36.19005, Longitude = 44.01005, AccuracyMeters = 6, CapturedAt = DateTimeOffset.UtcNow })
+                })
+                {
+                    checkOut.Headers.Authorization = new AuthenticationHeaderValue("Bearer", deviceTokens!.AccessToken);
+                    Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(checkOut)).StatusCode);
+                }
                 Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/audit-logs?limit=5")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/teams/{teamId}/members/{adminId}")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/users/{adminId}/sessions/revoke", null)).StatusCode);

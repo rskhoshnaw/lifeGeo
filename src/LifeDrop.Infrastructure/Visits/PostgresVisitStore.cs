@@ -284,7 +284,11 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
         await using (var update = new NpgsqlCommand(
-            "UPDATE visits SET status = @new WHERE id = @id AND user_id = @actor AND status = @expected", connection, transaction))
+            """
+            UPDATE visits SET status = @new
+            WHERE id = @id AND user_id = @actor AND status = @expected
+              AND (@new <> 'Completed' OR EXISTS (SELECT 1 FROM visit_reports r WHERE r.visit_id = visits.id))
+            """, connection, transaction))
         {
             update.Parameters.AddWithValue("new", newStatus.ToString());
             update.Parameters.AddWithValue("id", visitId.Value);

@@ -178,58 +178,6 @@ public class VisitOperationsTests
         Assert.False(store.UpdateCalled);
     } 
 
-    [Fact]
-    public async Task MarkCompleted_Valid_Success()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitCompleted(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, user, CustomerId.New(), new DateOnly(2026, 10, 3));
-        visit.MarkEnRoute();
-        visit.MarkArrived();
-        visit.StartVisit();
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.Success, result);
-        Assert.True(store.UpdateCalled);
-        Assert.Equal(VisitStatus.Completed, visit.Status);
-    }
-
-    [Fact]
-    public async Task MarkCompleted_WrongUser_Forbidden()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitCompleted(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, UserId.New(), CustomerId.New(), new DateOnly(2026, 10, 3));
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.Forbidden, result);
-        Assert.False(store.UpdateCalled);
-    }
-
-    [Fact]
-    public async Task MarkCompleted_InvalidState_ReturnsInvalidState()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitCompleted(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, user, CustomerId.New(), new DateOnly(2026, 10, 3));
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.InvalidState, result);
-        Assert.False(store.UpdateCalled);
-    }
-
     private sealed class FakeCustomerLookup : LifeDrop.Application.Customers.ICustomerStore
     {
         public Task<LifeDrop.Application.Customers.CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, LifeDrop.Application.Roles.AccessScope scope, CancellationToken cancellationToken) =>

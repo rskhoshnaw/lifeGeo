@@ -16,14 +16,14 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 
 ## Relevant state
 - GitHub remote `rskhoshnaw/lifeGeo` is connected. PR #1 and PR #2 are merged; `build` and `test-device-block` CI checks are green on `main` (`4cbbd1f`).
-- Backend auth, device, role, customer and visit endpoints exist. `/start` and `/complete` change status only; server GPS/geofence and report checks are not implemented (steps 1.7, 1.8).
+- Backend auth, device, role, customer and visit endpoints exist. `/start` and `/complete` enforce device, GPS and geofence on the server (steps 1.7, 1.8); `/complete` also requires the saved report.
 - Step 1.1: `VisitApi_Failed_EnforcesPermissionsAndTransitions` added (no token 401, owner without `visits.fail` 403, other owner 403, other tenant 404, blank reason 400, success 204 with persisted reason, repeat 400 without overwrite). Local 15/15 database tests; awaiting CI. Visit transitions still write no audit rows (step 1.9).
 - The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
 1. Steps 1.1 and 0.5 are merged and verified in CI (PR #5).
 2. Step 0.5b — OpenAPI contract file `docs/api/openapi-v1.json` with drift test; local 17/17; awaiting CI on its PR. Next: step 0.6.
-3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0009 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Steps 1.2, 1.3 merged (PR #7). Steps 1.4–1.6 merged (PRs #8–#10). Step 1.7 (server check-in) in its PR — breaking change for mobile `/start`. Next: 1.8 check-out. D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
+3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0009 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Steps 1.2, 1.3 merged (PR #7). Steps 1.4–1.6 merged (PRs #8–#10). Step 1.7 merged (PR #11). Step 1.8 (server check-out) in its PR — breaking change for mobile `/complete`. Next: 1.9. D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
 
