@@ -23,7 +23,8 @@ Updated: 2026-10-04. These rules describe how code in this repository is written
 - Permission keys are `resource.action` (`customers.read`, `visits.fail`). Audit actions are `entity.past_tense` (`customer.created`, `device.blocked`).
 - State-changing visit, check-in/out, order and payment endpoints accept an idempotency key; a retried request must not create a second record or transition.
 - Check-in and check-out decisions are made on the server with fresh, valid GPS inside the customer geofence (decision D2).
-- Every new or changed route is recorded in the OpenAPI contract and in `docs/phase0-api-access-matrix.md` (roles, tenant/region/owner scope, errors, audit).
+- Every route declares OpenAPI metadata: `.WithName(...)`, `.WithTags(...)`, `.Produces<T>(status)` for success and `.ProducesProblem(status)` for each error status it can return. Use named records for responses, not anonymous objects.
+- The committed contract `docs/api/openapi-v1.json` must match the running API; `OpenApiDocument_MatchesCommittedContract` fails on any drift. After an intended API change, regenerate it with `UPDATE_OPENAPI_SNAPSHOT=1` while running that test and review the file diff in the PR. Also update `docs/phase0-api-access-matrix.md` (roles, tenant/region/owner scope, errors, audit).
 
 ## 4. Database
 - PostgreSQL + PostGIS with Npgsql and parameterised SQL. EF Core **(target, not adopted)**.
