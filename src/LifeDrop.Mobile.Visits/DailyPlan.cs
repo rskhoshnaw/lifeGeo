@@ -25,13 +25,19 @@ public enum DailyPlanState { Idle, Loading, Loaded, Empty, Error }
 // A failed refresh keeps the visits already shown and marks them as possibly out of date.
 public sealed class DailyPlan
 {
+    private const string CacheKey = "daily-plan";
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web);
     private readonly IVisitsApiClient _api;
     private readonly TimeProvider _clock;
+    private readonly LifeDrop.Mobile.Offline.IDurableStore? _cache;
 
-    public DailyPlan(IVisitsApiClient api, TimeProvider clock)
+    // With a cache, the last plan received today is kept on the phone and shown (as possibly out of date) when the
+    // app starts without internet (plan step 1.14).
+    public DailyPlan(IVisitsApiClient api, TimeProvider clock, LifeDrop.Mobile.Offline.IDurableStore? cache = null)
     {
         _api = api ?? throw new ArgumentNullException(nameof(api));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _cache = cache;
     }
 
     public DailyPlanState State { get; private set; } = DailyPlanState.Idle;
@@ -69,12 +75,18 @@ public sealed class DailyPlan
                 Date = today;
                 Visits = result.Visits;
                 Error = null;
+                _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(today, result.Visits.ToList()), Json));
                 State = Visits.Count == 0 ? DailyPlanState.Empty : DailyPlanState.Loaded;
             }
             else
             {
                 // A new day must not show yesterday's visits as today's.
                 if (Date != today) Visits = Array.Empty<PlannedVisit>();
+                if (Visits.Count == 0 && ReadCache(today) is { } cached)
+                {
+                    Date = today;
+                    Visits = cached;
+                }
                 Error = result.Status;
                 State = DailyPlanState.Error;
             }
@@ -94,6 +106,23 @@ public sealed class DailyPlan
             return true;
         }
     }
+
+    private IReadOnlyList<PlannedVisit>? ReadCache(DateOnly today)
+    {
+        var text = _cache?.Read(CacheKey);
+        if (text is null) return null;
+        try
+        {
+            var cached = System.Text.Json.JsonSerializer.Deserialize<CachedPlan>(text, Json);
+            return cached is not null && cached.Date == today && cached.Visits is { Count: > 0 } ? cached.Visits : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record CachedPlan(DateOnly Date, List<PlannedVisit>? Visits);
 
     public static string StatusLabel(string status) => status switch
     {

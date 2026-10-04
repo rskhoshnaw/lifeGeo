@@ -115,6 +115,35 @@ public class DailyPlanTests
         Assert.Equal(DailyPlanState.Idle, plan.State);
     }
 
+    [Fact]
+    public async Task CachedPlanIsShownAfterRestartWithoutInternetButNotOnAnotherDay()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "lifedrop-plan-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var clock = new FixedClock(new DateTimeOffset(2026, 10, 5, 6, 0, 0, TimeSpan.Zero));
+            var visits = new[] { Visit("A") };
+            await new DailyPlan(new ScriptedApi(PlanLoadResult.Ok(visits)), clock, new LifeDrop.Mobile.Offline.FileDurableStore(directory)).LoadAsync();
+
+            // A new process, no internet
+            var offline = new DailyPlan(new ScriptedApi(PlanLoadResult.Failed(PlanLoadStatus.NetworkError)), clock,
+                new LifeDrop.Mobile.Offline.FileDurableStore(directory));
+            await offline.LoadAsync();
+            Assert.Equal(visits.Select(v => v.Id), offline.Visits.Select(v => v.Id));
+            Assert.True(offline.IsStale);
+
+            clock.Now = clock.Now.AddDays(1);
+            var nextDay = new DailyPlan(new ScriptedApi(PlanLoadResult.Failed(PlanLoadStatus.NetworkError)), clock,
+                new LifeDrop.Mobile.Offline.FileDurableStore(directory));
+            await nextDay.LoadAsync();
+            Assert.Empty(nextDay.Visits);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("EnRoute", "On the way")]
     [InlineData("InVisit", "In visit")]

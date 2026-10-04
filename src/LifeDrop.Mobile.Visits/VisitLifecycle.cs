@@ -35,13 +35,64 @@ public sealed class VisitLifecycle
     private string? _checkInKey;
     private string? _checkOutKey;
 
-    public VisitLifecycle(IVisitsApiClient api, PlannedVisit visit, ILocationSource? location = null, Func<string>? newKey = null)
+    private readonly LifeDrop.Mobile.Offline.Outbox? _outbox;
+
+    // With an outbox, a step that cannot reach the server is saved on the phone and sent later (plan step 1.14,
+    // decision D5); the screen then shows the step as done and waiting to be sent.
+    public VisitLifecycle(IVisitsApiClient api, PlannedVisit visit, ILocationSource? location = null, Func<string>? newKey = null,
+        LifeDrop.Mobile.Offline.Outbox? outbox = null)
     {
         _api = api ?? throw new ArgumentNullException(nameof(api));
-        Visit = visit ?? throw new ArgumentNullException(nameof(visit));
         _location = location;
         _newKey = newKey ?? (() => Guid.NewGuid().ToString("N"));
+        _outbox = outbox;
+        visit = visit ?? throw new ArgumentNullException(nameof(visit));
+        Visit = outbox is null ? visit : visit with { Status = LocalStatus(outbox, visit) };
     }
+
+    // Steps of this visit saved on the phone, with their state (on the phone, sent, accepted, rejected).
+    public IReadOnlyList<LifeDrop.Mobile.Offline.OutboxItem> PendingSteps =>
+        _outbox?.ForVisit(Visit.Id) ?? Array.Empty<LifeDrop.Mobile.Offline.OutboxItem>();
+
+    public bool WaitingToSend => _outbox?.HasPending(Visit.Id) == true;
+
+    // The server's status moved forward by steps still waiting on the phone.
+    public static string LocalStatus(LifeDrop.Mobile.Offline.Outbox outbox, PlannedVisit visit)
+    {
+        var status = visit.Status;
+        foreach (var item in outbox.ForVisit(visit.Id).Where(i => i.State is LifeDrop.Mobile.Offline.SyncState.Local or LifeDrop.Mobile.Offline.SyncState.Sent))
+        {
+            var after = item.Kind switch
+            {
+                LifeDrop.Mobile.Offline.OutboxKind.EnRoute => "EnRoute",
+                LifeDrop.Mobile.Offline.OutboxKind.Arrive => "Arrived",
+                LifeDrop.Mobile.Offline.OutboxKind.CheckIn => "InVisit",
+                LifeDrop.Mobile.Offline.OutboxKind.CheckOut => "Completed",
+                _ => status
+            };
+            if (Rank(after) > Rank(status)) status = after;
+        }
+        return status;
+    }
+
+    private static int Rank(string status) => status switch
+    {
+        "Planned" => 0, "EnRoute" => 1, "Arrived" => 2, "InVisit" => 3, "Completed" => 4, _ => -1
+    };
+
+    // Saves the step on the phone and moves the visit forward locally.
+    private void SaveOffline(LifeDrop.Mobile.Offline.OutboxKind kind, string newStatus, string key, DeviceFix? fix = null, VisitReportDraft? report = null)
+    {
+        _outbox!.Enqueue(Visit.Id, Visit.ScheduleDate, kind, key, fix, report);
+        Visit = Visit with { Status = newStatus };
+        Message = OfflineMessage;
+    }
+
+    public const string OfflineMessage = "No internet: saved on the phone. It will be sent automatically when the connection is back.";
+
+    // An earlier step still waits, or the server could not be reached: either way the step goes to the phone.
+    private bool GoesOffline(VisitActionResult? result = null) =>
+        _outbox is not null && (result is null ? _outbox.HasPending(Visit.Id) : result == VisitActionResult.NetworkError);
 
     public PlannedVisit Visit { get; private set; }
     public bool IsBusy { get; private set; }
@@ -96,16 +147,26 @@ public sealed class VisitLifecycle
             switch (NextStep)
             {
                 case VisitStep.StartTrip:
-                    await ApplyAsync(await _api.MarkEnRouteAsync(Visit.Id, cancellationToken), "EnRoute", cancellationToken);
+                    if (GoesOffline()) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.EnRoute, "EnRoute", _newKey()); return; }
+                    var enRoute = await _api.MarkEnRouteAsync(Visit.Id, cancellationToken);
+                    if (GoesOffline(enRoute)) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.EnRoute, "EnRoute", _newKey()); return; }
+                    await ApplyAsync(enRoute, "EnRoute", cancellationToken);
                     break;
                 case VisitStep.MarkArrived:
-                    await ApplyAsync(await _api.MarkArrivedAsync(Visit.Id, cancellationToken), "Arrived", cancellationToken);
+                    if (GoesOffline()) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.Arrive, "Arrived", _newKey()); return; }
+                    var arrived = await _api.MarkArrivedAsync(Visit.Id, cancellationToken);
+                    if (GoesOffline(arrived)) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.Arrive, "Arrived", _newKey()); return; }
+                    await ApplyAsync(arrived, "Arrived", cancellationToken);
                     break;
                 case VisitStep.CheckIn:
                     var fix = await GetFixAsync(cancellationToken);
                     if (fix is null) return;
                     _checkInKey ??= _newKey();
-                    await ApplyAsync(await _api.CheckInAsync(Visit.Id, fix, _checkInKey, cancellationToken), "InVisit", cancellationToken);
+                    // The same key is used offline: if the online attempt did reach the server, the later send is a replay.
+                    if (GoesOffline()) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.CheckIn, "InVisit", _checkInKey, fix); return; }
+                    var checkedIn = await _api.CheckInAsync(Visit.Id, fix, _checkInKey, cancellationToken);
+                    if (GoesOffline(checkedIn)) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.CheckIn, "InVisit", _checkInKey, fix); return; }
+                    await ApplyAsync(checkedIn, "InVisit", cancellationToken);
                     break;
             }
         }, cancellationToken);
@@ -134,9 +195,19 @@ public sealed class VisitLifecycle
         var draft = new VisitReportDraft(outcome!, note!.Trim());
         return RunAsync(async () =>
         {
+            if (GoesOffline())
+            {
+                await SubmitOfflineAsync(draft, cancellationToken);
+                return;
+            }
             if (SavedReport != draft)
             {
                 var saved = await _api.SaveReportAsync(Visit.Id, draft, cancellationToken);
+                if (GoesOffline(saved))
+                {
+                    await SubmitOfflineAsync(draft, cancellationToken);
+                    return;
+                }
                 if (saved != VisitActionResult.Success)
                 {
                     // Check-out is not attempted.
@@ -157,6 +228,25 @@ public sealed class VisitLifecycle
         return RunAsync(() => CheckOutCoreAsync(cancellationToken), cancellationToken);
     }
 
+    // Without internet: the report and then the check-out wait on the phone, in that order. If the server later
+    // refuses the report, the check-out is refused with it, so a check-out never goes through without the report.
+    private async Task SubmitOfflineAsync(VisitReportDraft draft, CancellationToken cancellationToken)
+    {
+        if (SavedReport != draft)
+        {
+            _outbox!.Enqueue(Visit.Id, Visit.ScheduleDate, LifeDrop.Mobile.Offline.OutboxKind.Report, _newKey(), report: draft);
+            SavedReport = draft;
+        }
+        var fix = await GetFixAsync(cancellationToken);
+        if (fix is null)
+        {
+            Message = "Report saved on the phone. " + Message;
+            return;
+        }
+        _checkOutKey ??= _newKey();
+        SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.CheckOut, "Completed", _checkOutKey, fix);
+    }
+
     private async Task CheckOutCoreAsync(CancellationToken cancellationToken)
     {
         var fix = await GetFixAsync(cancellationToken);
@@ -166,7 +256,9 @@ public sealed class VisitLifecycle
             return;
         }
         _checkOutKey ??= _newKey();
+        if (GoesOffline()) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.CheckOut, "Completed", _checkOutKey, fix); return; }
         var result = await _api.CheckOutAsync(Visit.Id, fix, _checkOutKey, cancellationToken);
+        if (GoesOffline(result)) { SaveOffline(LifeDrop.Mobile.Offline.OutboxKind.CheckOut, "Completed", _checkOutKey, fix); return; }
         if (result == VisitActionResult.Success)
         {
             Visit = Visit with { Status = "Completed" };
@@ -261,6 +353,7 @@ public sealed class VisitLifecycle
         VisitActionResult.GpsStale => "Your position was too old. Try again.",
         VisitActionResult.GpsClockSkew => "The phone's clock is wrong. Set the time automatically and try again.",
         VisitActionResult.GpsMocked => "A fake location app was detected. Turn it off to continue.",
+        VisitActionResult.OfflineExpired => "This step was saved on the phone more than 24 hours ago and can no longer be accepted.",
         VisitActionResult.InvalidState or VisitActionResult.Conflict => "This visit was changed elsewhere.",
         _ => "The server could not record this step. Try again later."
     };

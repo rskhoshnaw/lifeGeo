@@ -27,3 +27,15 @@ and `meetsTarget`.
 
 If a phone fails, note the maker's battery settings; the fix may be guidance for users (exclude the app from
 battery optimisation) rather than code. Thresholds can be changed only by the product owner.
+
+## Offline test (plan step 1.14, decision D5)
+
+1. Start a shift with internet, then turn on **airplane mode** (GPS still works).
+2. On a visit: Start trip → I have arrived → Check in → report → check-out. Each step must say "saved on the phone"
+   and the visit must show "waiting to send" in the plan.
+3. **Close the app completely** (swipe it away) and reopen it, still offline: the plan (from the phone's copy) and
+   the steps must still be there; nothing is lost.
+4. Turn airplane mode off. Within a minute the steps must become "accepted" (or "accepted, a manager will review
+   it"), in order, and the tracking points' "on the phone" count must fall to 0.
+5. On the server: the visit is `Completed`; `GET /offline-reviews` (manager) shows the step only if it needed review;
+   no step or point is stored twice.

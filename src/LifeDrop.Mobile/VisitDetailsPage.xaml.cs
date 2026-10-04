@@ -34,6 +34,12 @@ public partial class VisitDetailsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // Send steps saved without internet, then show their new state.
+        if (_lifecycle.WaitingToSend)
+        {
+            await TrackingHost.SyncQuietlyAsync();
+            Render();
+        }
         if (_reportLoaded || _lifecycle.NextStep != VisitStep.ReportAndCheckOut) return;
         _reportLoaded = true;
         try
@@ -94,6 +100,27 @@ public partial class VisitDetailsPage : ContentPage
             Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
     }
 
+    // "Check-in: saved on the phone", "Report: accepted", ... for steps made without internet.
+    private static string DescribeStep(LifeDrop.Mobile.Offline.OutboxItem step)
+    {
+        var name = step.Kind switch
+        {
+            LifeDrop.Mobile.Offline.OutboxKind.EnRoute => "Start trip",
+            LifeDrop.Mobile.Offline.OutboxKind.Arrive => "Arrival",
+            LifeDrop.Mobile.Offline.OutboxKind.CheckIn => "Check-in",
+            LifeDrop.Mobile.Offline.OutboxKind.Report => "Report",
+            _ => "Check-out"
+        };
+        var state = step.State switch
+        {
+            LifeDrop.Mobile.Offline.SyncState.Local => "saved on the phone",
+            LifeDrop.Mobile.Offline.SyncState.Sent => "sent, waiting for the server",
+            LifeDrop.Mobile.Offline.SyncState.Accepted => step.ReviewRequired ? "accepted, a manager will review it" : "accepted",
+            _ => "rejected — " + VisitLifecycle.Describe(step.Answer ?? VisitActionResult.ServerError)
+        };
+        return $"{name}: {state}";
+    }
+
     private void Render()
     {
         var visit = _lifecycle.Visit;
@@ -118,6 +145,10 @@ public partial class VisitDetailsPage : ContentPage
         ReportSavedLabel.IsVisible = _lifecycle.ReportSaved;
         RetryCheckOutBtn.IsVisible = _lifecycle.ReportSaved;
         RetryCheckOutBtn.IsEnabled = _lifecycle.CanRetryCheckOut;
+
+        var steps = _lifecycle.PendingSteps;
+        StepsLabel.Text = string.Join("\n", steps.Select(DescribeStep));
+        StepsLabel.IsVisible = steps.Count > 0;
 
         Spinner.IsVisible = Spinner.IsRunning = _lifecycle.IsBusy;
         MessageLabel.Text = _lifecycle.Message;
