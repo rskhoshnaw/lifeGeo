@@ -75,6 +75,16 @@ public class Visit : AggregateRoot<VisitId>
         return visit;
     }
 
+    // Reassignment (plan step 1.4): only before the field work starts.
+    public void Reassign(UserId newUserId)
+    {
+        if (newUserId.IsEmpty) throw new ArgumentException("UserId is required.", nameof(newUserId));
+        if (newUserId == UserId) throw new ArgumentException("The visit is already assigned to this user.", nameof(newUserId));
+        if (Status != VisitStatus.Planned)
+            throw new InvalidOperationException($"Cannot reassign a visit that is {Status}.");
+        UserId = newUserId;
+    }
+
     public void MarkEnRoute()
     {
         if (Status != VisitStatus.Planned)

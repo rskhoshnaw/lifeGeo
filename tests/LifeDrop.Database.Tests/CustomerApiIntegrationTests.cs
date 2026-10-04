@@ -99,7 +99,8 @@ public class CustomerApiIntegrationTests
                 var m8 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0008_role_data_scope.sql"));
                 var m9 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0009_default_roles.sql"));
                 var m10 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0010_visit_planning.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10;
+                var m11 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0011_visit_cancel_permission.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1396,7 +1397,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "29" }, grantsBefore);
+        Assert.Equal(new[] { "31" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -1796,6 +1797,117 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, empty.StatusCode);
         Assert.Equal("[]", (await empty.Content.ReadAsStringAsync()).Trim());
         await AssertProblemAsync(await client.GetAsync("/visits?scheduleDate=not-a-date"), HttpStatusCode.BadRequest, "BAD_REQUEST");
+    }
+
+    [SkippableFact]
+    public async Task ManageVisit_ReassignAndCancelWithinScopeAndAudit()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), repA = Guid.NewGuid(), repA2 = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid customer = Guid.NewGuid(), vA = Guid.NewGuid(), vB = Guid.NewGuid(), vC = Guid.NewGuid();
+
+        // Default roles: SalesManager (tenant), Supervisor (region, Team A = Erbil), SalesRep (no visits.write / visits.cancel).
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@ra, @t1), (@ra2, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('55555555-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('55555555-0000-0000-0000-0000000000b1', @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, '55555555-0000-0000-0000-0000000000e1', 'Team A'),
+                    ('55555555-0000-0000-0000-0000000000a2', @t1, '55555555-0000-0000-0000-0000000000b1', 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @ra2, '55555555-0000-0000-0000-0000000000a1'), (@t1, @rb, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES
+                    (@va, @t1, @ra, @c, 'Planned', '2026-10-06'), (@vb, @t1, @rb, @c, 'Planned', '2026-10-06'), (@vc, @t1, @ra, @c, 'EnRoute', '2026-10-06');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("ra", repA), ("ra2", repA2), ("rb", repB),
+                ("c", customer), ("va", vA), ("vb", vB), ("vc", vC) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Reassign(Guid visit, Guid to) => client.PutAsJsonAsync($"/visits/{visit}/assignee", new { AssignedUserId = to });
+        Task<HttpResponseMessage> Cancel(Guid visit, string reason) => client.PostAsJsonAsync($"/visits/{visit}/cancel", new { Reason = reason });
+
+        // A rep has neither permission
+        As(repA);
+        await AssertProblemAsync(await Reassign(vA, repA2), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Cancel(vA, "No longer needed"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Supervisor (region scope): only visits and assignees in Erbil; only Planned visits can be reassigned
+        As(supervisor);
+        await AssertProblemAsync(await Reassign(vA, repB), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Reassign(vB, repA2), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Reassign(vC, repA2), HttpStatusCode.BadRequest, "INVALID_STATE");
+        await AssertProblemAsync(await Reassign(vA, Guid.NewGuid()), HttpStatusCode.NotFound, "USER_NOT_FOUND");
+        await AssertProblemAsync(await Reassign(vA, repA), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Reassign(vA, repA2)).StatusCode);
+
+        // Cancel needs a reason, works from an active state, and is final
+        await AssertProblemAsync(await Cancel(vB, "Out of region"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Cancel(vC, "  "), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Cancel(vC, "Customer closed for holiday")).StatusCode);
+        await AssertProblemAsync(await Cancel(vC, "Again"), HttpStatusCode.BadRequest, "INVALID_STATE");
+
+        // Sales manager (tenant scope) reassigns across regions
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Reassign(vB, repA)).StatusCode);
+
+        // The new assignee sees the visit in their plan; the previous one no longer does
+        As(repA2);
+        Assert.Contains(vA, (await (await client.GetAsync("/visits?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!.Select(v => v.Id));
+        As(repA);
+        var repAPlan = (await (await client.GetAsync("/visits?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        Assert.DoesNotContain(vA, repAPlan.Select(v => v.Id));
+        Assert.Equal(("Cancelled", "Customer closed for holiday"), repAPlan.Where(v => v.Id == vC).Select(v => (v.Status, v.ExceptionReason)).Single());
+
+        // Exactly the successful actions are audited, with the acting manager
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT action, actor_id, entity_id FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'visit.%' ORDER BY occurred_at, action;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            var rows = new List<(string, Guid, string)>();
+            while (await reader.ReadAsync()) rows.Add((reader.GetString(0), reader.GetGuid(1), reader.GetString(2)));
+            Assert.Equal(new[]
+            {
+                ("visit.reassigned", supervisor, vA.ToString()),
+                ("visit.cancelled", supervisor, vC.ToString()),
+                ("visit.reassigned", manager, vB.ToString())
+            }, rows.ToArray());
+        }
     }
 
     // Security baseline (plan step 0.9): every route requires an authenticated user unless it is on this

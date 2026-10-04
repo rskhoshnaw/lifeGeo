@@ -21,6 +21,13 @@ public interface IVisitStore
     Task<System.Collections.Generic.List<VisitDto>> ListAssignedVisitsAsync(TenantId tenantId, UserId assignedUserId, DateOnly scheduleDate, CancellationToken cancellationToken);
     Task<Visit?> GetAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken);
     Task<bool> TryUpdateStatusAsync(TenantId tenantId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, VisitStatus newStatus, string? exceptionReason, CancellationToken cancellationToken);
+
+    // Conditional updates with their audit row in the same transaction (plan step 1.4). False when the visit
+    // changed since it was read (other assignee or status).
+    Task<bool> TryReassignAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, UserId newUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    Task<bool> TryCancelAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, string reason, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
 
 public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers, LifeDrop.Application.Roles.IPermissionStore permissions)
@@ -271,4 +278,72 @@ public sealed class MarkVisitFailed(IVisitStore store, LifeDrop.Application.Role
 
         return MarkVisitResult.Success;
     }
+}
+
+public sealed record ReassignVisitRequest(Guid AssignedUserId);
+public sealed record CancelVisitRequest(string Reason);
+
+public enum ManageVisitResult { Success, NotFound, Forbidden, InvalidState, InvalidData, Conflict, UserNotFound }
+
+// Manager actions on a visit (plan step 1.4, PRD §5.1, §5.2). The visit must be within the actor's data scope
+// for the permission (otherwise it is reported as not found); a new assignee must also be within that scope.
+public sealed class ManageVisit(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions)
+{
+    public async Task<ManageVisitResult> ReassignAsync(TenantId tenantId, UserId actorId, Guid visitId, ReassignVisitRequest request, CancellationToken cancellationToken)
+    {
+        var (scope, visit, error) = await LoadInScopeAsync(tenantId, actorId, visitId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
+        if (error is not null) return error.Value;
+
+        var newUserId = new UserId(request.AssignedUserId);
+        if (newUserId.IsEmpty) return ManageVisitResult.InvalidData;
+        var (exists, newUserRegion) = await permissions.GetUserRegionAsync(tenantId, newUserId, cancellationToken);
+        if (!exists) return ManageVisitResult.UserNotFound;
+        if (!IsUserInScope(scope!, newUserId, newUserRegion)) return ManageVisitResult.Forbidden;
+
+        var previousUserId = visit!.UserId;
+        try { visit.Reassign(newUserId); }
+        catch (ArgumentException) { return ManageVisitResult.InvalidData; }
+        catch (InvalidOperationException) { return ManageVisitResult.InvalidState; }
+
+        return await store.TryReassignAsync(tenantId, actorId, visit.Id, previousUserId, newUserId, cancellationToken)
+            ? ManageVisitResult.Success : ManageVisitResult.Conflict;
+    }
+
+    public async Task<ManageVisitResult> CancelAsync(TenantId tenantId, UserId actorId, Guid visitId, CancelVisitRequest request, CancellationToken cancellationToken)
+    {
+        var (_, visit, error) = await LoadInScopeAsync(tenantId, actorId, visitId, LifeDrop.Application.Roles.PermissionKeys.VisitsCancel, cancellationToken);
+        if (error is not null) return error.Value;
+
+        var expectedStatus = visit!.Status;
+        try { visit.Cancel(request.Reason?.Trim()); }
+        catch (ArgumentException) { return ManageVisitResult.InvalidData; }
+        catch (InvalidOperationException) { return ManageVisitResult.InvalidState; }
+        if (visit.ExceptionReason!.Length > Visit.MaxUnplannedReasonLength) return ManageVisitResult.InvalidData;
+
+        return await store.TryCancelAsync(tenantId, actorId, visit.Id, visit.UserId, expectedStatus, visit.ExceptionReason, cancellationToken)
+            ? ManageVisitResult.Success : ManageVisitResult.Conflict;
+    }
+
+    private async Task<(LifeDrop.Application.Roles.AccessScope? Scope, Visit? Visit, ManageVisitResult? Error)> LoadInScopeAsync(
+        TenantId tenantId, UserId actorId, Guid visitId, string permission, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (null, null, ManageVisitResult.Forbidden);
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, permission, cancellationToken);
+        if (scope is null) return (null, null, ManageVisitResult.Forbidden);
+        if (visitId == Guid.Empty) return (scope, null, ManageVisitResult.NotFound);
+
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return (scope, null, ManageVisitResult.NotFound);
+        var (_, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, visit.UserId, cancellationToken);
+        return IsUserInScope(scope, visit.UserId, assigneeRegion)
+            ? (scope, visit, null)
+            : (scope, null, ManageVisitResult.NotFound);
+    }
+
+    private static bool IsUserInScope(LifeDrop.Application.Roles.AccessScope scope, UserId userId, Guid? userRegion) => scope.Scope switch
+    {
+        LifeDrop.Application.Roles.DataScope.Tenant => true,
+        LifeDrop.Application.Roles.DataScope.Region => userId == scope.ActorId || (scope.RegionId is not null && userRegion == scope.RegionId),
+        _ => userId == scope.ActorId
+    };
 }
