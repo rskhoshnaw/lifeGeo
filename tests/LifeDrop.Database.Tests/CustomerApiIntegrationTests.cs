@@ -1420,6 +1420,36 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task Cors_AllowsOnlyConfiguredPanelOrigin()
+    {
+        // Plan step 1.16: the web panel calls the API from its own origin; other sites get no CORS grant.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.UseSetting("Cors:AllowedOrigins:0", "https://panel.lifedrop.test");
+                TestHostSettings.UseTestJwt(webBuilder);
+            });
+        var client = factory.CreateClient();
+
+        async Task<HttpResponseMessage> Preflight(string origin)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Options, "/auth/login");
+            request.Headers.Add("Origin", origin);
+            request.Headers.Add("Access-Control-Request-Method", "POST");
+            request.Headers.Add("Access-Control-Request-Headers", "content-type");
+            return await client.SendAsync(request);
+        }
+
+        var allowed = await Preflight("https://panel.lifedrop.test");
+        Assert.Equal("https://panel.lifedrop.test", allowed.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.False(allowed.Headers.Contains("Access-Control-Allow-Credentials"));
+        Assert.False((await Preflight("https://evil.example")).Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    [SkippableFact]
     public async Task VisitApi_Failed_EnforcesPermissionsAndTransitions()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
