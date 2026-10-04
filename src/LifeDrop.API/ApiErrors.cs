@@ -23,6 +23,7 @@ public static class ApiErrors
     public const string DeviceRequired = "DEVICE_REQUIRED";
     public const string CustomerLocationMissing = "CUSTOMER_LOCATION_MISSING";
     public const string ReportRequired = "REPORT_REQUIRED";
+    public const string DeviceMismatch = "DEVICE_MISMATCH";
     // Check-in/out position rejected by the server (422); one code per reason.
     public const string OutsideGeofence = "OUTSIDE_GEOFENCE";
     public const string GpsLowAccuracy = "GPS_LOW_ACCURACY";
