@@ -74,6 +74,7 @@ public partial class Program
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 

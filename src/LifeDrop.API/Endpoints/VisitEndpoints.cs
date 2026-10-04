@@ -32,5 +32,50 @@ public static class VisitEndpoints
         }).RequireAuthorization()
             .WithName("CreateUnplannedVisit").WithTags("Visits").Produces<CreatedResponse>(201)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Manager actions (plan step 1.4).
+        app.MapPut("/visits/{visitId:guid}/assignee", async (Guid visitId, ReassignVisitRequest request, HttpContext context,
+            ManageVisit manage, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.ReassignAsync(tenantId, actorId, visitId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("ReassignVisit").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/visits/{visitId:guid}/cancel", async (Guid visitId, CancelVisitRequest request, HttpContext context,
+            ManageVisit manage, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.CancelAsync(tenantId, actorId, visitId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("CancelVisit").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
     }
+
+    private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)
+    {
+        var subject = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var tenant = context.User.FindFirst("tenant_id")?.Value;
+        var valid = Guid.TryParse(subject, out var actor) && actor != Guid.Empty &&
+                    Guid.TryParse(tenant, out var tenantGuid) && tenantGuid != Guid.Empty;
+        tenantId = valid ? new TenantId(Guid.Parse(tenant!)) : default;
+        actorId = valid ? new UserId(actor) : default;
+        return valid;
+    }
+
+    private static IResult ToResult(ManageVisitResult result) => result switch
+    {
+        ManageVisitResult.Success => Results.NoContent(),
+        ManageVisitResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+        ManageVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
+        ManageVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
+        ManageVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        ManageVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+        _ => Results.Forbid()
+    };
 }

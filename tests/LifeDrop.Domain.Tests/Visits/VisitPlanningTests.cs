@@ -93,4 +93,29 @@ public class VisitPlanningTests
         Assert.False(VisitPlanningContract.TryParseType(value, out _));
         Assert.False(VisitPlanningContract.TryParsePriority(value, out _));
     }
+
+    [Fact]
+    public void Reassign_PlannedVisit_ChangesAssignee()
+    {
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
+        var other = UserId.New();
+        visit.Reassign(other);
+        Assert.Equal(other, visit.UserId);
+    }
+
+    [Fact]
+    public void Reassign_SameUserOrEmpty_Throws()
+    {
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
+        Assert.Throws<ArgumentException>(() => visit.Reassign(_userId));
+        Assert.Throws<ArgumentException>(() => visit.Reassign(UserId.Empty));
+    }
+
+    [Fact]
+    public void Reassign_AfterWorkStarted_Throws()
+    {
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
+        visit.MarkEnRoute();
+        Assert.Throws<InvalidOperationException>(() => visit.Reassign(UserId.New()));
+    }
 }

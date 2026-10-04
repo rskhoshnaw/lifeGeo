@@ -188,4 +188,57 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         
         return rowsAffected > 0;
     }
+
+    public Task<bool> TryReassignAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, UserId newUserId, CancellationToken cancellationToken) =>
+        UpdateWithAuditAsync(tenantId, actorId, visitId, "visit.reassigned", """
+            UPDATE visits SET user_id = @newUser
+            WHERE id = @id AND user_id = @expectedUser AND status = 'Planned'
+              AND EXISTS (SELECT 1 FROM users WHERE tenant_id = @tenant AND id = @newUser AND is_active)
+            """, command =>
+        {
+            command.Parameters.AddWithValue("newUser", newUserId.Value);
+            command.Parameters.AddWithValue("expectedUser", expectedUserId.Value);
+        }, cancellationToken);
+
+    public Task<bool> TryCancelAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, string reason, CancellationToken cancellationToken) =>
+        UpdateWithAuditAsync(tenantId, actorId, visitId, "visit.cancelled", """
+            UPDATE visits SET status = 'Cancelled', exception_reason = @reason
+            WHERE id = @id AND user_id = @expectedUser AND status = @expectedStatus
+            """, command =>
+        {
+            command.Parameters.AddWithValue("reason", reason);
+            command.Parameters.AddWithValue("expectedUser", expectedUserId.Value);
+            command.Parameters.AddWithValue("expectedStatus", expectedStatus.ToString());
+        }, cancellationToken);
+
+    // Runs one conditional UPDATE and, only if it changed a row, its audit entry, in one transaction.
+    private async Task<bool> UpdateWithAuditAsync(TenantId tenantId, UserId actorId, VisitId visitId, string auditAction, string updateSql,
+        Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
+        {
+            setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+            await setTenant.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var update = new NpgsqlCommand(updateSql, connection, transaction);
+        update.Parameters.AddWithValue("id", visitId.Value);
+        update.Parameters.AddWithValue("tenant", tenantId.Value);
+        addParameters(update);
+        if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, @action, @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("action", auditAction);
+        audit.Parameters.AddWithValue("entity", visitId.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
 }

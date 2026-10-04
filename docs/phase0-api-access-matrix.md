@@ -86,8 +86,8 @@ Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-
 | Role | Scope | Device binding | Permissions |
 | --- | --- | --- | --- |
 | CompanyManager | tenant | no | customers.read, regions.read, teams.read, audit.read |
-| SalesManager | tenant | no | customers.read/write, visits.write, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill, audit.read |
-| Supervisor | region | no | customers.read/write, visits.write, regions.read, teams.read |
+| SalesManager | tenant | no | customers.read/write, visits.write, visits.cancel, regions.read/manage, teams.read/manage, device.approve, user.manageroles, sessions.kill, audit.read |
+| Supervisor | region | no | customers.read/write, visits.write, visits.cancel, regions.read, teams.read |
 | FinanceManager | tenant | no | customers.read, audit.read |
 | SalesRep | own | yes | customers.read/write, visits.fail |
 | ScientificRep | own | yes | customers.read, visits.fail |
@@ -123,3 +123,12 @@ Migration 0010 adds `visit_type` (`pharmacy` | `doctor` | `wholesaler` | `other`
 `visits.create_unplanned` is granted to the default SalesRep and ScientificRep roles (0010 replaces `seed_default_roles`; 0009 is unchanged). Test: `VisitPlanning_StoresDetailsAndEnforcesUnplannedRules`; domain tests in `VisitPlanningTests`.
 
 Step 1.3 also sets `RouteHandlerOptions.ThrowOnBadRequest = false`, so malformed route, query or body values return 400 ProblemDetails in every environment instead of a 500 in Development.
+
+## Visit reassignment and cancellation (step 1.4)
+
+| Route | Permission | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /visits/{id}/assignee` | `visits.write` + scope | Only `Planned` visits (else 400 `INVALID_STATE`); visit outside scope → 404 `NOT_FOUND`; new assignee outside scope → 403; unknown → 404 `USER_NOT_FOUND`; same assignee → 400 `INVALID_DATA`; changed meanwhile → 409 `CONCURRENCY_CONFLICT` | `visit.reassigned` |
+| `POST /visits/{id}/cancel` | `visits.cancel` + scope | From any active state with a reason (1–500 chars); terminal afterwards | `visit.cancelled` |
+
+Migration 0011 grants `visits.cancel` to the default SalesManager and Supervisor roles (seed function replaced; earlier migrations unchanged). Test: `ManageVisit_ReassignAndCancelWithinScopeAndAudit`.
