@@ -18,7 +18,7 @@ Planning → Assignment → Travel → Arrival → Check-in → Visit, report an
 | Component | Technology | Users |
 | --- | --- | --- |
 | Mobile app | .NET MAUI, Android first | Sales and scientific representatives; later warehouse staff and drivers |
-| Web panel | React + TypeScript (D10) | Managers, supervisors, finance, administrators |
+| Web panel | React + TypeScript + Tailwind CSS (D10, D12) | Managers, supervisors, finance, administrators |
 | Backend | ASP.NET Core API, PostgreSQL + PostGIS | Access control, location validation, sync, audit |
 
 Initial deployment: about 50 field staff in Iraq (Erbil, Baghdad, Sulaymaniyah, Kirkuk, Duhok, Nineveh, Salah al-Din). Must grow to 150 without a fundamental redesign. UI languages: Sorani Kurdish, Arabic, Persian (RTL) and English (LTR).
@@ -179,6 +179,7 @@ Step-level breakdown: `docs/IMPLEMENTATION-PLAN.md`.
 | D9 | Backup RPO/RTO | Open | Business-acceptable values before launch |
 | D10 | Web panel technology | **Decided 2026-10-04** | React + TypeScript in `src/LifeDrop.Web`; inherited JSX/Express template removed |
 | D11 | Regions, teams, out-of-region customers | **Decided 2026-10-04** | One region per team, set by the Sales Manager; out-of-region customers registered by a representative need manager approval, then belong to that representative |
+| D12 | Web panel styling | **Decided 2026-10-04** | Tailwind CSS v4 with logical RTL-safe utilities; no other CSS framework |
 | — | Kurdish variant | Open | Sorani (`ckb`) assumed; confirm |
 
 ## 16. Engineering lessons carried forward

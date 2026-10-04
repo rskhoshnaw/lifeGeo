@@ -42,6 +42,7 @@ Updated: 2026-10-04. These rules describe how code in this repository is written
 
 ## 6. Web panel — React + TypeScript (decision D10)
 - Project `src/LifeDrop.Web` (step 1.16): Vite, React, TypeScript with `strict`; no `any` without a comment explaining why.
+- Styling with Tailwind CSS v4 through `@tailwindcss/vite` (decision D12). Use logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`, `text-start`, `text-end`) instead of left/right ones, and `rtl:`/`ltr:` variants only where direction truly changes a design. Colours, spacing and fonts come from theme tokens in the main CSS file (`@theme`); no inline styles, no other CSS framework, and no hard-coded colours in components.
 - One typed API client generated from the backend OpenAPI contract; no hand-written duplicate DTOs.
 - Access tokens are kept in memory only and never logged; hiding a button is never a substitute for a server permission check.
 - All UI text through the i18n layer: `ckb` (Sorani Kurdish), `ar`, `fa` (RTL) and `en` (LTR). Use CSS logical properties so layouts work in both directions.
