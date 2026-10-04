@@ -9,5 +9,14 @@ public sealed record CustomerDto(
     string Code,
     string Name,
     string Status,
-    DateTimeOffset CreatedAt
-);
+    DateTimeOffset CreatedAt,
+    double? Latitude = null,
+    double? Longitude = null,
+    string? LocationSource = null,
+    DateTimeOffset? LocationUpdatedAt = null,
+    int GeofenceRadiusMeters = CustomerDto.DefaultGeofenceRadiusMeters
+)
+{
+    // PRD §6.1: default check-in radius when the customer has no own radius.
+    public const int DefaultGeofenceRadiusMeters = 20;
+}

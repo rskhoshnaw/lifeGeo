@@ -6,6 +6,8 @@ public static class PermissionKeys
 {
     public const string CustomersRead = "customers.read";
     public const string CustomersWrite = "customers.write";
+    public const string CustomersLocationWrite = "customers.location.write";
+    public const string CustomersGeofenceWrite = "customers.geofence.write";
     public const string VisitsWrite = "visits.write";
     public const string VisitsFail = "visits.fail";
     public const string VisitsCreateUnplanned = "visits.create_unplanned";

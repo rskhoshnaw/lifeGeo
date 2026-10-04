@@ -19,11 +19,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             await setTenantCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        const string sql = """
-            SELECT id, tenant_id, type, code, name, status, created_at
-            FROM customers
-            WHERE id = @id
-            """;
+        var sql = "SELECT " + SelectColumns + " FROM customers WHERE id = @id";
 
         await using var command = new NpgsqlCommand(sql + " AND " + ScopeFilter(scope), connection, transaction);
         command.Parameters.AddWithValue("id", id.Value);
@@ -32,15 +28,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
 
-        return new CustomerDto(
-            reader.GetGuid(0),
-            reader.GetGuid(1),
-            reader.GetString(2),
-            reader.GetString(3),
-            reader.GetString(4),
-            reader.GetString(5),
-            reader.GetFieldValue<DateTimeOffset>(6)
-        );
+        return ReadCustomer(reader);
     }
 
     public async Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken)
@@ -95,10 +83,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             await setTenantCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        var sql = """
-            SELECT id, tenant_id, type, code, name, status, created_at
-            FROM customers
-            """;
+        var sql = "SELECT " + SelectColumns + " FROM customers";
 
         sql += "\nWHERE " + ScopeFilter(scope);
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
@@ -121,15 +106,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            results.Add(new CustomerDto(
-                reader.GetGuid(0),
-                reader.GetGuid(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.GetString(4),
-                reader.GetString(5),
-                reader.GetFieldValue<DateTimeOffset>(6)
-            ));
+            results.Add(ReadCustomer(reader));
         }
 
         return results;
@@ -148,5 +125,68 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
     {
         command.Parameters.AddWithValue("scopeActor", scope.ActorId.Value);
         command.Parameters.AddWithValue("scopeRegion", (object?)scope.RegionId ?? DBNull.Value);
+    }
+
+    private const string SelectColumns = """
+        id, tenant_id, type, code, name, status, created_at,
+        ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m
+        """;
+
+    private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
+        reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
+        reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6),
+        reader.IsDBNull(7) ? null : reader.GetDouble(7),
+        reader.IsDBNull(8) ? null : reader.GetDouble(8),
+        reader.IsDBNull(9) ? null : reader.GetString(9),
+        reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10),
+        reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11));
+
+    public async Task<bool> SetLocationAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        double latitude, double longitude, string source, double? accuracyMeters, CancellationToken cancellationToken) =>
+        await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.location_changed", """
+            geom = ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, location_source = @source,
+            location_accuracy_m = @accuracy, location_updated_at = now(), location_updated_by = @scopeActor, status = 'located'
+            """, command =>
+        {
+            command.Parameters.AddWithValue("lat", latitude);
+            command.Parameters.AddWithValue("lon", longitude);
+            command.Parameters.AddWithValue("source", source);
+            command.Parameters.AddWithValue("accuracy", (object?)accuracyMeters ?? DBNull.Value);
+        }, cancellationToken);
+
+    public async Task<bool> SetGeofenceRadiusAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        int? radiusMeters, CancellationToken cancellationToken) =>
+        await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.geofence_changed", "geofence_radius_m = @radius",
+            command => command.Parameters.AddWithValue("radius", (object?)radiusMeters ?? DBNull.Value), cancellationToken);
+
+    // One UPDATE limited to the actor's scope and, only if a row changed, its audit entry, in one transaction.
+    private async Task<bool> UpdateWithAuditAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string auditAction,
+        string setClause, Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
+        {
+            setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+            await setTenant.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var update = new NpgsqlCommand($"UPDATE customers SET {setClause} WHERE id = @id AND {ScopeFilter(scope)}", connection, transaction);
+        update.Parameters.AddWithValue("id", id.Value);
+        AddScopeParameters(update, scope);
+        addParameters(update);
+        if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, @action, @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("action", auditAction);
+        audit.Parameters.AddWithValue("entity", id.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 }

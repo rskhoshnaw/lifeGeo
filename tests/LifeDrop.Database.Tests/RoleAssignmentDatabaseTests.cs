@@ -34,7 +34,7 @@ public class RoleAssignmentDatabaseTests
 
         try
         {
-            builder.SearchPath = schema;
+            builder.SearchPath = $"{schema},public"; // PostGIS types and functions live in public
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
             var migration = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0001_role_assignment.sql"));

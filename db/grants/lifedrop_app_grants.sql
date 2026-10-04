@@ -13,6 +13,6 @@ GRANT INSERT ON
     customers, visits, regions, teams, team_members
 TO lifedrop_app;
 
-GRANT UPDATE ON devices, refresh_tokens, visits, teams, team_members TO lifedrop_app;
+GRANT UPDATE ON devices, refresh_tokens, visits, teams, team_members, customers TO lifedrop_app;
 
 GRANT DELETE ON team_members TO lifedrop_app;

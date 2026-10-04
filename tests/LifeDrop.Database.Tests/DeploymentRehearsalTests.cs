@@ -85,7 +85,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql", "0012_customer_location.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
@@ -121,7 +121,7 @@ public class DeploymentRehearsalTests
                     (@t, @r, 'device.approve'), (@t, @r, 'user.manageroles'), 
                     (@t, @r, 'customers.write'), (@t, @r, 'customers.read'),
                     (@t, @r, 'visits.write'), (@t, @r, 'visits.fail'), (@t, @r, 'regions.manage'), (@t, @r, 'regions.read'),
-                    (@t, @r, 'teams.manage'), (@t, @r, 'teams.read'), (@t, @r, 'audit.read'), (@t, @r, 'sessions.kill');
+                    (@t, @r, 'teams.manage'), (@t, @r, 'teams.read'), (@t, @r, 'audit.read'), (@t, @r, 'sessions.kill'), (@t, @r, 'customers.location.write'), (@t, @r, 'customers.geofence.write');
                 INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t, @a, @r);
             ", setupConn))
             {
@@ -140,7 +140,7 @@ public class DeploymentRehearsalTests
             {
                 Username = appRole,
                 Password = appPassword,
-                SearchPath = schema
+                SearchPath = $"{schema},public" // PostGIS types and functions live in public
             };
             var appConnString = appBuilder.ConnectionString;
 
@@ -211,6 +211,8 @@ public class DeploymentRehearsalTests
                 Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/visits?scheduleDate=2026-10-05")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/visits/{visitId}/en-route", null)).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/visits/{visitId}/fail", new { Reason = "Closed" })).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{custId}/location", new { Latitude = 36.19, Longitude = 44.01, Source = "gps", AccuracyMeters = 8.5 })).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{custId}/geofence", new { RadiusMeters = 50 })).StatusCode);
                 Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/audit-logs?limit=5")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/teams/{teamId}/members/{adminId}")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/users/{adminId}/sessions/revoke", null)).StatusCode);

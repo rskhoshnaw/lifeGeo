@@ -132,3 +132,12 @@ Step 1.3 also sets `RouteHandlerOptions.ThrowOnBadRequest = false`, so malformed
 | `POST /visits/{id}/cancel` | `visits.cancel` + scope | From any active state with a reason (1–500 chars); terminal afterwards | `visit.cancelled` |
 
 Migration 0011 grants `visits.cancel` to the default SalesManager and Supervisor roles (seed function replaced; earlier migrations unchanged). Test: `ManageVisit_ReassignAndCancelWithinScopeAndAudit`.
+
+## Customer location and geofence (step 1.5)
+
+| Route | Permission | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /customers/{id}/location` | `customers.location.write` + scope | `latitude`, `longitude`, `source` (`gps` needs `accuracyMeters` 0–100; `manual`); rejects out-of-range and 0,0; sets status `located`, source, time and actor | `customer.location_changed` |
+| `PUT /customers/{id}/geofence` | `customers.geofence.write` + scope | `radiusMeters` 5–1000, or null for the default 20 m | `customer.geofence_changed` |
+
+`GET /customers` and `GET /customers/{id}` now return `latitude`, `longitude`, `locationSource`, `locationUpdatedAt` and the effective `geofenceRadiusMeters`. Migration 0012 adds `location_accuracy_m`, `geofence_radius_m` and a source check, and grants `customers.location.write` to SalesManager, Supervisor, SalesRep and `customers.geofence.write` to SalesManager, Supervisor. The runtime grants file now includes `UPDATE` on `customers`. Test: `CustomerLocation_SetsLocationAndRadiusWithinScopeAndAudits`.

@@ -75,6 +75,7 @@ public partial class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
 
@@ -645,6 +646,7 @@ public partial class Program
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
+        LifeDrop.API.Endpoints.CustomerEndpoints.MapCustomerEndpoints(app);
 
         app.Run();
     }
