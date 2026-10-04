@@ -66,7 +66,7 @@ public sealed class TrackingService : Service, ILocationListener
         return StartCommandResult.Sticky;
     }
 
-    public void OnLocationChanged(Location location)
+    public void OnLocationChanged(Android.Locations.Location location)
     {
 #pragma warning disable CA1422 // IsFromMockProvider is the only flag before Android 12
         var mocked = OperatingSystem.IsAndroidVersionAtLeast(31) ? location.IsMock : location.IsFromMockProvider;
