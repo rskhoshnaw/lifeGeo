@@ -991,6 +991,12 @@ public class CustomerApiIntegrationTests
         }
     }
 
+    private sealed class MobileMonotonic : LifeDrop.Mobile.Offline.IMonotonicClock
+    {
+        public long ElapsedMs { get; set; }
+        public string? BootId { get; set; }
+    }
+
     private sealed class StaticMobileSession(string token) : LifeDrop.Mobile.Auth.IAuthSession
     {
         public Task<LifeDrop.Mobile.Auth.Models.AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
@@ -1181,6 +1187,7 @@ public class CustomerApiIntegrationTests
 
         Guid t1 = Guid.NewGuid(), manager = Guid.NewGuid(), supervisorB = Guid.NewGuid(), rep = Guid.NewGuid(), device = Guid.NewGuid(), customer = Guid.NewGuid();
         Guid vTracked = Guid.NewGuid(), vUntracked = Guid.NewGuid(), vOld = Guid.NewGuid(), vOutside = Guid.NewGuid(), vOnline = Guid.NewGuid(), shift = Guid.NewGuid();
+        Guid vMobile = Guid.NewGuid();
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
@@ -1205,13 +1212,13 @@ public class CustomerApiIntegrationTests
                 VALUES (@c, @t1, 'Pharmacy', 'C-O', 'Offline', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 30, 'located');
                 INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES
                     (@v1, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v2, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v3, @t1, @r, @c, 'Arrived', '2026-10-05'),
-                    (@v4, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v5, @t1, @r, @c, 'Arrived', '2026-10-05');
+                    (@v4, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v5, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v6, @t1, @r, @c, 'Arrived', '2026-10-05');
                 -- The shift's tracking path passed the customer about an hour ago
                 INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES (@s, @t1, @r, @d, @start);
                 INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at)
                 VALUES (@t1, @s, @r, @d, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0093, 36.1912), 4326)::geography, 12, @tp);", conn);
             foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sb", supervisorB), ("r", rep), ("d", device), ("c", customer),
-                ("v1", vTracked), ("v2", vUntracked), ("v3", vOld), ("v4", vOutside), ("v5", vOnline), ("s", shift) })
+                ("v1", vTracked), ("v2", vUntracked), ("v3", vOld), ("v4", vOutside), ("v5", vOnline), ("v6", vMobile), ("s", shift) })
                 cmd.Parameters.AddWithValue(name, value);
             cmd.Parameters.AddWithValue("start", now.AddHours(-3));
             cmd.Parameters.AddWithValue("tp", now.AddMinutes(-62));
@@ -1250,6 +1257,17 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await CheckIn(vOnline, now.AddMinutes(-60), false, null), (HttpStatusCode)422, "GPS_STALE");
         // A replay of an accepted offline check-in is a plain success
         Assert.Equal(HttpStatusCode.NoContent, (await CheckIn(vTracked, now.AddMinutes(-60), true, 60 * 60_000)).StatusCode);
+
+        // The phone's outbox sends a check-in saved an hour ago without internet (step 1.14b) and the server accepts it
+        var monotonic = new MobileMonotonic { ElapsedMs = 10_000_000, BootId = "boot" };
+        var outbox = new LifeDrop.Mobile.Offline.Outbox(new LifeDrop.Mobile.Visits.VisitsApiClient(factory.CreateClient(), new StaticMobileSession(repToken)),
+            monotonic, TimeProvider.System);
+        outbox.Enqueue(vMobile, new DateOnly(2026, 10, 5), LifeDrop.Mobile.Offline.OutboxKind.CheckIn, "mobile-key",
+            new LifeDrop.Mobile.Visits.DeviceFix(36.1912, 44.0093, 10, now.AddMinutes(-60), false));
+        monotonic.ElapsedMs += 60 * 60_000;
+        Assert.True(await outbox.SyncAsync());
+        var sent = Assert.Single(outbox.Items);
+        Assert.Equal((LifeDrop.Mobile.Offline.SyncState.Accepted, false), (sent.State, sent.ReviewRequired));
 
         void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
             GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
@@ -1290,7 +1308,7 @@ public class CustomerApiIntegrationTests
             await reader.NextResultAsync();
             Assert.True(await reader.ReadAsync());
             Assert.Equal("Arrived,Arrived,Arrived,InVisit,InVisit", reader.GetString(0));
-            Assert.Equal("visit.check_in_rejected=3,visit.checked_in=2,visit.offline_review_approved=1,visit.offline_review_required=1", reader.GetString(1));
+            Assert.Equal("visit.check_in_rejected=3,visit.checked_in=3,visit.offline_review_approved=1,visit.offline_review_required=1", reader.GetString(1));
         }
     }
 

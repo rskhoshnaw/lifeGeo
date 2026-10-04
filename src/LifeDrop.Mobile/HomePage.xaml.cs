@@ -37,6 +37,7 @@ public partial class HomePage : ContentPage
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
                 if (await tracker.ResumeAsync(cts.Token) == ShiftCallStatus.Success && tracker.State == ShiftState.On) StartTrackingService();
+                await TrackingHost.SyncQuietlyAsync();
             }
             catch (OperationCanceledException)
             {
@@ -99,7 +100,16 @@ public partial class HomePage : ContentPage
         ShiftBtn.Text = on ? "End shift" : "Start shift";
         if (tracker is not null && (on || tracker.QueuedPoints > 0))
         {
-            ShiftDetailLabel.Text = $"Points sent: {tracker.SentPoints} · waiting: {tracker.QueuedPoints}";
+            // The four states are shown separately (plan step 1.14).
+            var p = tracker.Counts;
+            ShiftDetailLabel.Text = $"Points — on the phone: {p.Local} · sent: {p.Sent} · accepted: {p.Accepted} · rejected: {p.Rejected}";
+            ShiftDetailLabel.IsVisible = true;
+        }
+        if (TrackingHost.Outbox is { } outbox && outbox.Items.Count > 0)
+        {
+            var v = outbox.Counts;
+            ShiftDetailLabel.Text = (ShiftDetailLabel.IsVisible ? ShiftDetailLabel.Text + "\n" : "") +
+                $"Visit steps — on the phone: {v.Local} · sent: {v.Sent} · accepted: {v.Accepted} · rejected: {v.Rejected}";
             ShiftDetailLabel.IsVisible = true;
         }
     }
@@ -148,7 +158,12 @@ public partial class HomePage : ContentPage
 
     private async void OnLogoutClicked(object sender, EventArgs e)
     {
-        bool confirm = await DisplayAlert("Logout", "Are you sure you want to log out?", "Yes", "No");
+        // Steps or points not yet sent are lost at logout; say so first.
+        var unsent = (TrackingHost.Outbox?.Counts is { } c ? c.Local + c.Sent : 0) + (TrackingHost.Tracker?.QueuedPoints ?? 0);
+        var question = unsent > 0
+            ? $"{unsent} items saved on this phone have not reached the server yet and will be lost. Log out anyway?"
+            : "Are you sure you want to log out?";
+        bool confirm = await DisplayAlert("Logout", question, "Yes", "No");
         if (!confirm) return;
 
         SetBusy(true);

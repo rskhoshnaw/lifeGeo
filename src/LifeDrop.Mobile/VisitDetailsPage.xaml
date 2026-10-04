@@ -26,6 +26,9 @@
                 <Button x:Name="RetryCheckOutBtn" Text="Try check-out again" Clicked="OnRetryCheckOutClicked" IsVisible="False" />
             </VerticalStackLayout>
 
+            <!-- Steps saved on the phone and their state (plan step 1.14) -->
+            <Label x:Name="StepsLabel" IsVisible="False" />
+
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
             <Label x:Name="MessageLabel" IsVisible="False" />
 

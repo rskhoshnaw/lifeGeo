@@ -1,7 +1,12 @@
 using LifeDrop.Mobile.Auth;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Tracking;
+using LifeDrop.Mobile.Visits;
 using System;
+using System.IO;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 #if ANDROID
 using LifeDrop.Mobile.Auth.Android;
@@ -9,16 +14,38 @@ using LifeDrop.Mobile.Auth.Android;
 
 namespace LifeDrop.Mobile;
 
-// The one shift tracker of the app process, shared by the Home page and the Android tracking service (step 1.13).
+// The app's shared services for one signed-in user (steps 1.13, 1.14): the shift tracker, the visit outbox and the
+// API clients, used by the pages and the Android tracking service. Offline data lives in the app's private folder.
 public static class TrackingHost
 {
     private static readonly object Gate = new();
     private static ShiftTracker? _tracker;
+    private static Outbox? _outbox;
+    private static IVisitsApiClient? _visits;
+    private static IDurableStore? _store;
+    private static bool _listening;
 
     public static ShiftTracker? Tracker
     {
         get { lock (Gate) return _tracker; }
     }
+
+    public static Outbox? Outbox
+    {
+        get { lock (Gate) return _outbox; }
+    }
+
+    public static IVisitsApiClient? VisitsApi
+    {
+        get { lock (Gate) return _visits; }
+    }
+
+    public static IDurableStore? Store
+    {
+        get { lock (Gate) return _store; }
+    }
+
+    private static string OfflineFolder => Path.Combine(FileSystem.AppDataDirectory, "offline");
 
     // Null when the app is not configured (no API address) or not on Android.
     public static ShiftTracker? GetOrCreate()
@@ -29,10 +56,22 @@ public static class TrackingHost
             var url = Preferences.Get("ApiUrl", "");
             if (string.IsNullOrEmpty(url)) return null;
 #if ANDROID
-            var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
+            var credentials = new AndroidSecureCredentialStore(Android.App.Application.Context);
             var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(20) };
-            var session = new AuthSession(store, new AuthApiClient(http), TimeProvider.System);
-            _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System);
+            var session = new AuthSession(credentials, new AuthApiClient(http), TimeProvider.System);
+            _store = new FileDurableStore(OfflineFolder);
+            _visits = new VisitsApiClient(http, session);
+            _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
+            _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store));
+            if (!_listening)
+            {
+                // Send what waits on the phone as soon as the internet is back.
+                Connectivity.ConnectivityChanged += (_, e) =>
+                {
+                    if (e.NetworkAccess == NetworkAccess.Internet) _ = SyncQuietlyAsync();
+                };
+                _listening = true;
+            }
             return _tracker;
 #else
             return null;
@@ -40,9 +79,37 @@ public static class TrackingHost
         }
     }
 
-    // After logout the next user must not reuse this tracker.
+    // Sends waiting visit steps and tracking points; failures stay on the phone for the next attempt.
+    public static async Task SyncQuietlyAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            if (Outbox is { } outbox) await outbox.SyncAsync(cts.Token);
+            if (Tracker is { } tracker) await tracker.FlushAsync(cts.Token);
+        }
+        catch (Exception)
+        {
+            // Retried on the next connection change, page visit or service tick.
+        }
+    }
+
+    // After logout the next user must not reuse these services or see this user's offline data.
     public static void Reset()
     {
-        lock (Gate) _tracker = null;
+        lock (Gate)
+        {
+            _tracker = null;
+            _outbox = null;
+            _visits = null;
+            _store = null;
+            try
+            {
+                if (Directory.Exists(OfflineFolder)) Directory.Delete(OfflineFolder, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 }

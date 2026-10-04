@@ -1,14 +1,8 @@
-using LifeDrop.Mobile.Auth;
 using LifeDrop.Mobile.Visits;
 using System;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-
-#if ANDROID
-using LifeDrop.Mobile.Auth.Android;
-#endif
 
 namespace LifeDrop.Mobile;
 
@@ -46,16 +40,19 @@ public partial class DailyPlanPage : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is not VisitRow row || _api is null) return;
         VisitList.SelectedItem = null;
-        await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit, new MauiLocationSource())));
+        await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit, new MauiLocationSource(), outbox: TrackingHost.Outbox)));
     }
 
     private async Task LoadAsync()
     {
         if (_plan is null)
         {
-            _api = CreateApi();
-            _plan = _api is null ? null : new DailyPlan(_api, TimeProvider.System);
+            TrackingHost.GetOrCreate();
+            _api = TrackingHost.VisitsApi;
+            _plan = _api is null ? null : new DailyPlan(_api, TimeProvider.System, TrackingHost.Store);
         }
+        // Steps saved offline go first, so the plan shows what the server now has.
+        await TrackingHost.SyncQuietlyAsync();
         if (_plan is null)
         {
             ShowSessionEnded();
@@ -108,20 +105,11 @@ public partial class DailyPlanPage : ContentPage
         var details = DailyPlan.TypeLabel(v.VisitType);
         if (v.Priority == "high") details += " · High priority";
         if (v.IsUnplanned) details += " · Unplanned";
-        return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? "Any time", details, DailyPlan.StatusLabel(v.Status));
-    }
-
-    private static IVisitsApiClient? CreateApi()
-    {
-        var url = Preferences.Get("ApiUrl", "");
-        if (string.IsNullOrEmpty(url)) return null;
-#if ANDROID
-        var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
-        var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(15) };
-        var session = new AuthSession(store, new AuthApiClient(http), TimeProvider.System);
-        return new VisitsApiClient(http, session);
-#else
-        return null;
-#endif
+        // Steps saved on the phone move the status forward until the server has them.
+        var outbox = TrackingHost.Outbox;
+        var waiting = outbox?.HasPending(v.Id) == true;
+        var status = waiting ? VisitLifecycle.LocalStatus(outbox!, v) : v.Status;
+        return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? "Any time", details,
+            DailyPlan.StatusLabel(status) + (waiting ? " · waiting to send" : ""));
     }
 }

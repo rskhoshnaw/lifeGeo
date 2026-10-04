@@ -108,7 +108,7 @@ public sealed class TrackingService : Service, ILocationListener
     {
         try
         {
-            if (TrackingHost.Tracker is { } tracker) await tracker.FlushAsync();
+            await TrackingHost.SyncQuietlyAsync(); // tracking points and visit steps saved offline
         }
         catch (Exception)
         {

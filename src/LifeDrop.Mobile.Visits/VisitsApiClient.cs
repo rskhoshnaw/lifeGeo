@@ -34,7 +34,7 @@ public enum VisitActionResult
     Success, InvalidState, Conflict, Forbidden, NotFound, SessionExpired, NetworkError, ServerError,
     // Check-in / check-out and report (plan step 1.12), from the server's ProblemDetails code.
     InvalidData, DeviceRequired, CustomerLocationMissing, ReportRequired,
-    OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked
+    OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked, OfflineExpired
 }
 
 // A position from the device, sent as captured (plan step 1.12; the server judges it, PRD §6).
@@ -61,6 +61,11 @@ public interface IVisitsApiClient
     Task<VisitActionResult> CheckInAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     Task<VisitActionResult> CheckOutAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // Offline check-in / check-out sent later (decision D5): the server may accept it and ask a manager to review it.
+    Task<(VisitActionResult Result, bool ReviewRequired)> SendOfflineCheckpointAsync(Guid visitId, bool checkOut, DeviceFix fix,
+        long? elapsedSinceCaptureMs, string idempotencyKey, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
     // PUT / GET /visits/{id}/report.
@@ -143,6 +148,37 @@ public sealed class VisitsApiClient : IVisitsApiClient
     public Task<VisitActionResult> CheckOutAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/complete", FixBody(fix), idempotencyKey, cancellationToken);
 
+    public async Task<(VisitActionResult Result, bool ReviewRequired)> SendOfflineCheckpointAsync(Guid visitId, bool checkOut, DeviceFix fix,
+        long? elapsedSinceCaptureMs, string idempotencyKey, CancellationToken cancellationToken = default)
+    {
+        var body = new
+        {
+            latitude = fix.Latitude,
+            longitude = fix.Longitude,
+            accuracyMeters = fix.AccuracyMeters,
+            capturedAt = fix.CapturedAt,
+            isMocked = fix.IsMocked,
+            isOffline = true,
+            elapsedSinceCaptureMs
+        };
+        bool reviewRequired = false;
+        var result = await SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/{(checkOut ? "complete" : "start")}", body, idempotencyKey,
+            cancellationToken, async response =>
+            {
+                // 200 carries {reviewRequired, reviewReasons}; 204 is a replay of an already accepted attempt.
+                if (response.StatusCode != HttpStatusCode.OK) return;
+                try
+                {
+                    using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                    reviewRequired = document.RootElement.TryGetProperty("reviewRequired", out var flag) && flag.ValueKind == JsonValueKind.True;
+                }
+                catch (JsonException)
+                {
+                }
+            });
+        return (result, reviewRequired);
+    }
+
     public Task<VisitActionResult> SaveReportAsync(Guid visitId, VisitReportDraft report, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Put, $"/visits/{visitId}/report",
             new { outcome = report.Outcome, note = report.Note, contractVersion = 1 }, null, cancellationToken);
@@ -191,7 +227,7 @@ public sealed class VisitsApiClient : IVisitsApiClient
     };
 
     private async Task<VisitActionResult> SendActionAsync(HttpMethod method, string path, object? body, string? idempotencyKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<HttpResponseMessage, Task>? onSuccess = null)
     {
         var token = await _session.GetAccessTokenAsync(cancellationToken);
         if (!token.IsSuccess || string.IsNullOrEmpty(token.Data))
@@ -204,7 +240,11 @@ public sealed class VisitsApiClient : IVisitsApiClient
             if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
             if (body is not null) request.Content = JsonContent.Create(body);
             using var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (response.IsSuccessStatusCode) return VisitActionResult.Success;
+            if (response.IsSuccessStatusCode)
+            {
+                if (onSuccess is not null) await onSuccess(response);
+                return VisitActionResult.Success;
+            }
 
             var code = await ReadCodeAsync(response, cancellationToken);
             return response.StatusCode switch
@@ -231,6 +271,7 @@ public sealed class VisitsApiClient : IVisitsApiClient
                     "GPS_STALE" => VisitActionResult.GpsStale,
                     "GPS_CLOCK_SKEW" => VisitActionResult.GpsClockSkew,
                     "GPS_MOCKED" => VisitActionResult.GpsMocked,
+                    "OFFLINE_EXPIRED" => VisitActionResult.OfflineExpired,
                     _ => VisitActionResult.ServerError
                 },
                 _ => VisitActionResult.ServerError
