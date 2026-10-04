@@ -179,57 +179,6 @@ public class VisitOperationsTests
     } 
 
     [Fact]
-    public async Task MarkInVisit_Valid_Success()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitInVisit(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, user, CustomerId.New(), new DateOnly(2026, 10, 3));
-        visit.MarkEnRoute();
-        visit.MarkArrived();
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.Success, result);
-        Assert.True(store.UpdateCalled);
-        Assert.Equal(VisitStatus.InVisit, visit.Status);
-    }
-
-    [Fact]
-    public async Task MarkInVisit_WrongUser_Forbidden()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitInVisit(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, UserId.New(), CustomerId.New(), new DateOnly(2026, 10, 3));
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.Forbidden, result);
-        Assert.False(store.UpdateCalled);
-    }
-
-    [Fact]
-    public async Task MarkInVisit_InvalidState_ReturnsInvalidState()
-    {
-        var store = new FakeVisitStore();
-        var sut = new MarkVisitInVisit(store);
-        var tenant = TenantId.New();
-        var user = UserId.New();
-        var visit = Visit.Create(tenant, user, CustomerId.New(), new DateOnly(2026, 10, 3));
-        store.ReturnForGet = visit;
-
-        var result = await sut.ExecuteAsync(tenant, user, visit.Id.Value, CancellationToken.None);
-
-        Assert.Equal(MarkVisitResult.InvalidState, result);
-        Assert.False(store.UpdateCalled);
-    }
-
-    [Fact]
     public async Task MarkCompleted_Valid_Success()
     {
         var store = new FakeVisitStore();

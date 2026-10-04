@@ -249,6 +249,115 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6));
     }
 
+    public async Task<(double DistanceMeters, int RadiusMeters)?> MeasureFromCustomerAsync(TenantId tenantId, CustomerId customerId, GpsFix fix, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT ST_Distance(geom, ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography), coalesce(geofence_radius_m, 20)
+            FROM customers WHERE id = @id AND geom IS NOT NULL
+            """, connection, transaction);
+        command.Parameters.AddWithValue("id", customerId.Value);
+        command.Parameters.AddWithValue("lat", fix.Latitude);
+        command.Parameters.AddWithValue("lon", fix.Longitude);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        return (reader.GetDouble(0), reader.GetInt32(1));
+    }
+
+    public async Task<bool> HasAcceptedEventAsync(TenantId tenantId, VisitId visitId, string kind, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM visit_location_events WHERE visit_id = @id AND kind = @kind AND accepted AND idempotency_key = @key)",
+            connection, transaction);
+        command.Parameters.AddWithValue("id", visitId.Value);
+        command.Parameters.AddWithValue("kind", kind);
+        command.Parameters.AddWithValue("key", idempotencyKey);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+    }
+
+    public async Task<bool> TryAcceptLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, VisitStatus expectedStatus, VisitStatus newStatus,
+        LocationEvent locationEvent, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using (var update = new NpgsqlCommand(
+            "UPDATE visits SET status = @new WHERE id = @id AND user_id = @actor AND status = @expected", connection, transaction))
+        {
+            update.Parameters.AddWithValue("new", newStatus.ToString());
+            update.Parameters.AddWithValue("id", visitId.Value);
+            update.Parameters.AddWithValue("actor", actorId.Value);
+            update.Parameters.AddWithValue("expected", expectedStatus.ToString());
+            if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+        }
+
+        await InsertLocationEventAsync(connection, transaction, tenantId, actorId, visitId, locationEvent, cancellationToken);
+        await InsertAuditAsync(connection, transaction, tenantId, actorId, locationEvent.Kind == "check_in" ? "visit.checked_in" : "visit.checked_out", visitId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task RecordRejectedLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, LocationEvent locationEvent, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await InsertLocationEventAsync(connection, transaction, tenantId, actorId, visitId, locationEvent, cancellationToken);
+        await InsertAuditAsync(connection, transaction, tenantId, actorId, $"visit.{locationEvent.Kind}_rejected", visitId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task InsertLocationEventAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId,
+        VisitId visitId, LocationEvent e, CancellationToken cancellationToken)
+    {
+        await using var insert = new NpgsqlCommand("""
+            INSERT INTO visit_location_events (id, tenant_id, visit_id, user_id, device_id, kind, accepted, rejection_reason,
+                geom, accuracy_m, distance_m, radius_m, captured_at, is_mocked, idempotency_key)
+            VALUES (gen_random_uuid(), @tenant, @visit, @user, @device, @kind, @accepted, @reason,
+                ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, @accuracy, @distance, @radius, @captured, @mocked, @key)
+            """, connection, transaction);
+        insert.Parameters.AddWithValue("tenant", tenantId.Value);
+        insert.Parameters.AddWithValue("visit", visitId.Value);
+        insert.Parameters.AddWithValue("user", actorId.Value);
+        insert.Parameters.AddWithValue("device", e.DeviceId);
+        insert.Parameters.AddWithValue("kind", e.Kind);
+        insert.Parameters.AddWithValue("accepted", e.Rejection is null);
+        insert.Parameters.AddWithValue("reason", (object?)e.Rejection?.ToContract() ?? DBNull.Value);
+        insert.Parameters.AddWithValue("lat", e.Fix.Latitude);
+        insert.Parameters.AddWithValue("lon", e.Fix.Longitude);
+        insert.Parameters.AddWithValue("accuracy", Math.Min(e.Fix.AccuracyMeters, 99999.99));
+        insert.Parameters.AddWithValue("distance", (object?)(e.DistanceMeters is { } d ? Math.Min(d, 9999999.99) : null) ?? DBNull.Value);
+        insert.Parameters.AddWithValue("radius", (object?)e.RadiusMeters ?? DBNull.Value);
+        insert.Parameters.AddWithValue("captured", e.Fix.CapturedAt);
+        insert.Parameters.AddWithValue("mocked", e.Fix.IsMocked);
+        insert.Parameters.AddWithValue("key", (object?)e.IdempotencyKey ?? DBNull.Value);
+        await insert.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task InsertAuditAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId,
+        string action, VisitId visitId, CancellationToken cancellationToken)
+    {
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, @action, @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("action", action);
+        audit.Parameters.AddWithValue("entity", visitId.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task<NpgsqlTransaction> BeginTenantAsync(NpgsqlConnection connection, TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction);
+        setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+        await setTenant.ExecuteNonQueryAsync(cancellationToken);
+        return transaction;
+    }
+
     // Runs one conditional UPDATE and, only if it changed a row, its audit entry, in one transaction.
     private async Task<bool> UpdateWithAuditAsync(TenantId tenantId, UserId actorId, VisitId visitId, string auditAction, string updateSql,
         Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)

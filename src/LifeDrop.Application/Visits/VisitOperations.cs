@@ -34,7 +34,26 @@ public interface IVisitStore
         throw new NotSupportedException();
     Task<VisitReportDto?> GetReportAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    // Check-in/out evidence (plan steps 1.7, 1.8). Distance in metres from the customer's location to the fix and
+    // the effective radius; null when the customer has no location.
+    Task<(double DistanceMeters, int RadiusMeters)?> MeasureFromCustomerAsync(TenantId tenantId, CustomerId customerId, GpsFix fix, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    // True when an accepted event of this kind with this idempotency key exists for the visit (a network retry).
+    Task<bool> HasAcceptedEventAsync(TenantId tenantId, VisitId visitId, string kind, string idempotencyKey, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    // Moves the visit from expectedStatus to newStatus for its assignee and stores the accepted event and audit row
+    // in one transaction. False when the visit changed meanwhile.
+    Task<bool> TryAcceptLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, VisitStatus expectedStatus, VisitStatus newStatus,
+        LocationEvent locationEvent, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    // Stores a rejected attempt and its audit row.
+    Task RecordRejectedLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, LocationEvent locationEvent, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
+
+public sealed record LocationEvent(string Kind, GpsFix Fix, Guid DeviceId, double? DistanceMeters, int? RadiusMeters,
+    LocationRejection? Rejection, string? IdempotencyKey);
 
 public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers, LifeDrop.Application.Roles.IPermissionStore permissions)
 {
@@ -183,34 +202,6 @@ public sealed class MarkVisitArrived(IVisitStore store)
         try
         {
             visit.MarkArrived();
-        }
-        catch (InvalidOperationException)
-        {
-            return MarkVisitResult.InvalidState;
-        }
-
-        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
-        if (!success) return MarkVisitResult.Conflict;
-
-        return MarkVisitResult.Success;
-    }
-}
-
-public sealed class MarkVisitInVisit(IVisitStore store)
-{
-    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
-    {
-        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
-        
-        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
-        if (visit is null) return MarkVisitResult.NotFound;
-
-        if (visit.UserId != actorId) return MarkVisitResult.Forbidden;
-
-        var expectedStatus = visit.Status;
-        try
-        {
-            visit.StartVisit();
         }
         catch (InvalidOperationException)
         {
@@ -395,5 +386,52 @@ public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.I
 
         var report = await store.GetReportAsync(tenantId, visit.Id, cancellationToken);
         return report is null ? (ManageVisitResult.NotFound, null) : (ManageVisitResult.Success, report);
+    }
+}
+
+public sealed record CheckInRequest(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked = false);
+
+public enum LocationCheckResult { Success, NotFound, Forbidden, DeviceRequired, InvalidState, InvalidData, CustomerLocationMissing, Rejected, Conflict }
+
+// Server-side check-in (plan step 1.7, PRD §5.2, §6): only the assignee, from an approved bound device, from
+// Arrived, with a fresh, accurate, non-mocked fix inside the customer's geofence. Every attempt is recorded.
+public sealed class CheckInVisit(IVisitStore store, TimeProvider clock)
+{
+    public const string Kind = "check_in";
+    public const int MaxIdempotencyKeyLength = 100;
+
+    public async Task<(LocationCheckResult Result, LocationRejection? Rejection)> ExecuteAsync(TenantId tenantId, UserId actorId, Guid? deviceId,
+        Guid visitId, CheckInRequest request, string? idempotencyKey, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (LocationCheckResult.Forbidden, null);
+        var visit = visitId == Guid.Empty ? null : await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return (LocationCheckResult.NotFound, null);
+        if (visit.UserId != actorId) return (LocationCheckResult.Forbidden, null);
+        if (deviceId is null || deviceId == Guid.Empty) return (LocationCheckResult.DeviceRequired, null);
+        if (idempotencyKey is { Length: 0 or > MaxIdempotencyKeyLength }) return (LocationCheckResult.InvalidData, null);
+
+        if (idempotencyKey is not null && visit.Status == VisitStatus.InVisit &&
+            await store.HasAcceptedEventAsync(tenantId, visit.Id, Kind, idempotencyKey, cancellationToken))
+            return (LocationCheckResult.Success, null);
+        if (visit.Status != VisitStatus.Arrived) return (LocationCheckResult.InvalidState, null);
+
+        var fix = new GpsFix(request.Latitude, request.Longitude, request.AccuracyMeters, request.CapturedAt, request.IsMocked);
+        if (!fix.IsWellFormed) return (LocationCheckResult.InvalidData, null);
+
+        var measured = await store.MeasureFromCustomerAsync(tenantId, visit.CustomerId, fix, cancellationToken);
+        if (measured is null) return (LocationCheckResult.CustomerLocationMissing, null);
+
+        var (distance, radius) = measured.Value;
+        var rejection = LocationCheckPolicy.Evaluate(fix, clock.GetUtcNow(), distance, radius);
+        var locationEvent = new LocationEvent(Kind, fix, deviceId.Value, distance, radius, rejection, idempotencyKey);
+        if (rejection is not null)
+        {
+            await store.RecordRejectedLocationEventAsync(tenantId, actorId, visit.Id, locationEvent, cancellationToken);
+            return (LocationCheckResult.Rejected, rejection);
+        }
+
+        return await store.TryAcceptLocationEventAsync(tenantId, actorId, visit.Id, VisitStatus.Arrived, VisitStatus.InVisit, locationEvent, cancellationToken)
+            ? (LocationCheckResult.Success, null)
+            : (LocationCheckResult.Conflict, null);
     }
 }
