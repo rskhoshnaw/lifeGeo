@@ -141,3 +141,12 @@ Migration 0011 grants `visits.cancel` to the default SalesManager and Supervisor
 | `PUT /customers/{id}/geofence` | `customers.geofence.write` + scope | `radiusMeters` 5–1000, or null for the default 20 m | `customer.geofence_changed` |
 
 `GET /customers` and `GET /customers/{id}` now return `latitude`, `longitude`, `locationSource`, `locationUpdatedAt` and the effective `geofenceRadiusMeters`. Migration 0012 adds `location_accuracy_m`, `geofence_radius_m` and a source check, and grants `customers.location.write` to SalesManager, Supervisor, SalesRep and `customers.geofence.write` to SalesManager, Supervisor. The runtime grants file now includes `UPDATE` on `customers`. Test: `CustomerLocation_SetsLocationAndRadiusWithinScopeAndAudits`.
+
+## Visit report (step 1.6)
+
+| Route | Who | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /visits/{id}/report` | Assigned user only | Only while `InVisit` (else 400 `INVALID_STATE`); `outcome` ∈ `products_presented`, `order_intent`, `follow_up_needed`, `no_interest`, `other`; `note` 3–2000 chars with letters or digits; `contractVersion` 1 (default). Re-saving while `InVisit` updates the report | `visit.report_saved` |
+| `GET /visits/{id}/report` | Assignee, or `visits.write` scope covering the assignee | 200 report; 404 if absent or out of scope | — |
+
+Migration 0013 adds `visit_reports` (one per visit, tenant RLS). There is no "order placed" outcome until orders exist (PRD §5.3). The database write is itself limited to an `InVisit` visit of the actor, so a bypass of the service check still cannot store a report. Check-out will require a saved report (step 1.8). Test: `VisitReport_SavedByAssigneeOnlyInVisitAndAudited`; domain tests `VisitReportTests`.

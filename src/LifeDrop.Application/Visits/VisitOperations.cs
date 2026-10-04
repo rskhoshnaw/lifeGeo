@@ -28,6 +28,12 @@ public interface IVisitStore
         throw new NotSupportedException();
     Task<bool> TryCancelAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, string reason, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    // Visit report (plan step 1.6): saved only while the visit is InVisit and assigned to the actor, with audit.
+    Task<bool> TrySaveReportAsync(TenantId tenantId, UserId actorId, VisitId visitId, VisitReport report, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    Task<VisitReportDto?> GetReportAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
 
 public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers, LifeDrop.Application.Roles.IPermissionStore permissions)
@@ -346,4 +352,48 @@ public sealed class ManageVisit(IVisitStore store, LifeDrop.Application.Roles.IP
         LifeDrop.Application.Roles.DataScope.Region => userId == scope.ActorId || (scope.RegionId is not null && userRegion == scope.RegionId),
         _ => userId == scope.ActorId
     };
+}
+
+// Outcome: products_presented | order_intent | follow_up_needed | no_interest | other. ContractVersion: 1 (default).
+public sealed record SaveVisitReportRequest(string? Outcome, string? Note, int? ContractVersion = null);
+public sealed record VisitReportDto(Guid VisitId, string Outcome, string Note, int ContractVersion, Guid SubmittedBy,
+    DateTimeOffset SubmittedAt, DateTimeOffset UpdatedAt);
+
+// Visit report (plan step 1.6, PRD §5.3): written by the assigned user while InVisit; editable until check-out.
+// Readable by the assignee and by users whose visits.write scope covers the assignee.
+public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions)
+{
+    public async Task<ManageVisitResult> SaveAsync(TenantId tenantId, UserId actorId, Guid visitId, SaveVisitReportRequest request, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return ManageVisitResult.Forbidden;
+        var visit = visitId == Guid.Empty ? null : await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return ManageVisitResult.NotFound;
+        if (visit.UserId != actorId) return ManageVisitResult.Forbidden;
+        if (visit.Status != VisitStatus.InVisit) return ManageVisitResult.InvalidState;
+        if (!VisitReport.TryCreate(request.Outcome, request.Note, request.ContractVersion, out var report))
+            return ManageVisitResult.InvalidData;
+
+        return await store.TrySaveReportAsync(tenantId, actorId, visit.Id, report!, cancellationToken)
+            ? ManageVisitResult.Success : ManageVisitResult.Conflict;
+    }
+
+    public async Task<(ManageVisitResult Result, VisitReportDto? Report)> GetAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (ManageVisitResult.Forbidden, null);
+        var visit = visitId == Guid.Empty ? null : await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return (ManageVisitResult.NotFound, null);
+
+        if (visit.UserId != actorId)
+        {
+            var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
+            if (scope is null) return (ManageVisitResult.NotFound, null);
+            var (_, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, visit.UserId, cancellationToken);
+            var inScope = scope.Scope == LifeDrop.Application.Roles.DataScope.Tenant ||
+                          (scope.Scope == LifeDrop.Application.Roles.DataScope.Region && scope.RegionId is not null && assigneeRegion == scope.RegionId);
+            if (!inScope) return (ManageVisitResult.NotFound, null);
+        }
+
+        var report = await store.GetReportAsync(tenantId, visit.Id, cancellationToken);
+        return report is null ? (ManageVisitResult.NotFound, null) : (ManageVisitResult.Success, report);
+    }
 }
