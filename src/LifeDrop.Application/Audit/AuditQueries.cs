@@ -5,7 +5,8 @@ namespace LifeDrop.Application.Audit;
 
 // Read-only audit search (plan step 0.8, PRD §3, §12). Audit rows are never changed or deleted
 // through the product; the table itself rejects UPDATE/DELETE/TRUNCATE.
-public sealed record AuditLogEntryDto(Guid Id, Guid ActorId, string Action, string EntityId, DateTimeOffset OccurredAt);
+// ActorEmail (plan step 1.20) lets the panel show who acted without another request.
+public sealed record AuditLogEntryDto(Guid Id, Guid ActorId, string Action, string EntityId, DateTimeOffset OccurredAt, string? ActorEmail = null);
 
 public sealed record AuditLogQuery(
     string? Action, Guid? ActorId, string? EntityId, DateTimeOffset? From, DateTimeOffset? To,

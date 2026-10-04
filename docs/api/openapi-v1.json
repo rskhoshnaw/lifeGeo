@@ -4267,6 +4267,12 @@
           "occurredAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "actorEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

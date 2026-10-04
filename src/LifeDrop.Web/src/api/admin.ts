@@ -1,5 +1,5 @@
 // Panel calls for users, devices and customers (plan step 1.17), visit planning, regions and teams (step 1.18),
-// live map (step 1.19). The server checks every action again;
+// live map (step 1.19), audit viewer (step 1.20). The server checks every action again;
 // permissions from /me only decide which buttons the panel shows.
 import type { ApiClient } from './client.ts'
 
@@ -107,6 +107,40 @@ export interface LiveMapEntry {
   lastVisitAt: string | null
 }
 
+export interface AuditEntry {
+  id: string
+  actorId: string
+  actorEmail: string | null
+  action: string
+  entityId: string
+  occurredAt: string
+}
+
+// Filters of the audit search; dates are Iraq local days (YYYY-MM-DD), inclusive.
+export interface AuditFilter {
+  action?: string
+  actorId?: string
+  entityId?: string
+  fromDate?: string
+  toDate?: string
+}
+
+export const auditPageSize = 50
+
+export function auditQuery(filter: AuditFilter, after?: AuditEntry): string {
+  const params = new URLSearchParams({ limit: String(auditPageSize) })
+  if (filter.action) params.set('action', filter.action)
+  if (filter.actorId) params.set('actorId', filter.actorId)
+  if (filter.entityId) params.set('entityId', filter.entityId)
+  if (filter.fromDate) params.set('from', `${filter.fromDate}T00:00:00+03:00`)
+  if (filter.toDate) params.set('to', `${filter.toDate}T23:59:59.999+03:00`)
+  if (after) {
+    params.set('cursorOccurredAt', after.occurredAt)
+    params.set('cursorId', after.id)
+  }
+  return `/audit-logs?${params.toString()}`
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly code: string | null
@@ -136,6 +170,7 @@ export const Permissions = {
   readTeams: ['teams.read'],
   manageTeams: ['teams.manage'],
   liveMap: ['tracking.read', 'tracking.summary'],
+  audit: ['audit.read'],
 } as const
 
 // Iraq local date (Asia/Baghdad) as YYYY-MM-DD, the server's "today" for visit plans.
@@ -193,6 +228,7 @@ export class AdminApi {
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
+  auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')
   teams = () => this.get<Team[]>('/teams')
   createRegion = (name: string) => this.post('/regions', { name })

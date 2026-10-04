@@ -20,8 +20,9 @@ public sealed class PostgresAuditLogStore(NpgsqlDataSource dataSource) : IAuditL
         // audit_logs has no RLS, so the tenant filter is explicit. Region scope: entries whose actor is in a
         // team of the caller's region (team tables are tenant-filtered by RLS). Own scope: the caller's own entries.
         var sql = """
-            SELECT a.id, a.actor_id, a.action, a.entity_id, a.occurred_at
+            SELECT a.id, a.actor_id, a.action, a.entity_id, a.occurred_at, u.email
             FROM audit_logs a
+            LEFT JOIN users u ON u.tenant_id = a.tenant_id AND u.id = a.actor_id
             WHERE a.tenant_id = @tenant
             """;
         sql += scope.Scope switch
@@ -63,7 +64,7 @@ public sealed class PostgresAuditLogStore(NpgsqlDataSource dataSource) : IAuditL
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new AuditLogEntryDto(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
-                reader.GetFieldValue<DateTimeOffset>(4)));
+                reader.GetFieldValue<DateTimeOffset>(4), reader.IsDBNull(5) ? null : reader.GetString(5)));
         return items;
     }
 }

@@ -2500,6 +2500,7 @@ public class CustomerApiIntegrationTests
         await using (var cmd = new NpgsqlCommand(@"
             INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
             INSERT INTO users (id, tenant_id) VALUES (@au, @t1), (@sv, @t1), (@ra, @t1), (@rb, @t1), (@np, @t1), (@u2, @t2);
+            UPDATE users SET email = 'rep-a@t1' WHERE id = @ra;
             INSERT INTO roles (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-000000000001', @t1, 'Auditor');
             INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('44444444-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region');
             INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
@@ -2545,6 +2546,10 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { a4, a3, a2, a1 }, await SearchAsync(""));
         Assert.Equal(new[] { a2, a1 }, await SearchAsync("?action=customer.created"));
         Assert.Equal(new[] { a4, a1 }, await SearchAsync($"?actorId={repA}"));
+        // Each row names its actor's email for the panel (step 1.20); null when the user has none
+        var rows = (await (await client.GetAsync($"/audit-logs?actorId={repA}")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Audit.AuditLogEntryDto>>())!;
+        Assert.All(rows, r => Assert.Equal("rep-a@t1", r.ActorEmail));
+        Assert.Null((await (await client.GetAsync($"/audit-logs?actorId={repB}")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Audit.AuditLogEntryDto>>())!.First().ActorEmail);
         Assert.Equal(new[] { a2 }, await SearchAsync("?entityId=c2"));
         Assert.Equal(new[] { a3, a2 }, await SearchAsync("?from=2026-10-01T09:00:00Z&to=2026-10-01T10:00:00Z"));
 
