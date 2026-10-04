@@ -1,0 +1,16 @@
+{
+  "solution": {
+    "path": "LifeDrop.slnx",
+    "projects": [
+      "src/LifeDrop.API/LifeDrop.API.csproj",
+      "src/LifeDrop.Application/LifeDrop.Application.csproj",
+      "src/LifeDrop.Domain/LifeDrop.Domain.csproj",
+      "src/LifeDrop.Infrastructure/LifeDrop.Infrastructure.csproj",
+      "src/LifeDrop.Mobile.Auth/LifeDrop.Mobile.Auth.csproj",
+      "tests/LifeDrop.Application.Tests/LifeDrop.Application.Tests.csproj",
+      "tests/LifeDrop.Domain.Tests/LifeDrop.Domain.Tests.csproj",
+      "tests/LifeDrop.Mobile.Auth.Tests/LifeDrop.Mobile.Auth.Tests.csproj",
+      "tools/LifeDrop.DevBootstrap/LifeDrop.DevBootstrap.csproj"
+    ]
+  }
+}
