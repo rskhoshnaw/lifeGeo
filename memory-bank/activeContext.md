@@ -23,7 +23,7 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 ## Next actions
 1. Steps 1.1 and 0.5 are merged and verified in CI (PR #5).
 2. Step 0.5b — OpenAPI contract file `docs/api/openapi-v1.json` with drift test; local 17/17; awaiting CI on its PR. Next: step 0.6.
-3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0015 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Steps 1.2, 1.3 merged (PR #7). Steps 1.4–1.6 merged (PRs #8–#10). Step 1.7 merged (PR #11). Step 1.8 merged (PR #12). Step 1.9 merged (PR #13). Phase 1 backend (1.1–1.9) done. Step 1.10 merged (PRs #14, #15; CI builds the Android app). Step 1.11 (visit details, en-route/arrive) in its PR. Both need a real-device check. Next: 1.12. D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
+3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0015 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Steps 1.2, 1.3 merged (PR #7). Steps 1.4–1.6 merged (PRs #8–#10). Step 1.7 merged (PR #11). Step 1.8 merged (PR #12). Step 1.9 merged (PR #13). Phase 1 backend (1.1–1.9) done. Step 1.10 merged (PRs #14, #15; CI builds the Android app). Step 1.11 merged (PR #16). Step 1.12 (check-in GPS, report, check-out on mobile) in its PR. 1.10–1.12 need a real-device check. Next: 1.13 (shift and tracking; decision D1 open). D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
 

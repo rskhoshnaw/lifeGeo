@@ -46,7 +46,7 @@ public partial class DailyPlanPage : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is not VisitRow row || _api is null) return;
         VisitList.SelectedItem = null;
-        await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit)));
+        await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit, new MauiLocationSource())));
     }
 
     private async Task LoadAsync()
