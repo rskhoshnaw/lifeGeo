@@ -316,6 +316,8 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
 
         await InsertLocationEventAsync(connection, transaction, tenantId, actorId, visitId, locationEvent, cancellationToken);
         await InsertAuditAsync(connection, transaction, tenantId, actorId, locationEvent.Kind == "check_in" ? "visit.checked_in" : "visit.checked_out", visitId, cancellationToken);
+        if (NeedsReview(locationEvent))
+            await InsertAuditAsync(connection, transaction, tenantId, actorId, "visit.offline_review_required", visitId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
     }
@@ -329,14 +331,37 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         await transaction.CommitAsync(cancellationToken);
     }
 
+    private static bool NeedsReview(LocationEvent e) => e.Offline && e.Rejection is null && e.ReviewReasons is { Count: > 0 };
+
+    public async Task<bool> HasTrackingPointNearCustomerAsync(TenantId tenantId, UserId userId, CustomerId customerId, DateTimeOffset from,
+        DateTimeOffset to, double maxDistanceMeters, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM tracking_points p JOIN customers c ON c.id = @customer AND c.geom IS NOT NULL
+                WHERE p.user_id = @user AND p.captured_at BETWEEN @from AND @to AND NOT p.is_mocked
+                  AND ST_DWithin(p.geom, c.geom, @distance))
+            """, connection, transaction);
+        command.Parameters.AddWithValue("customer", customerId.Value);
+        command.Parameters.AddWithValue("user", userId.Value);
+        command.Parameters.AddWithValue("from", from);
+        command.Parameters.AddWithValue("to", to);
+        command.Parameters.AddWithValue("distance", maxDistanceMeters);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+    }
+
     private static async Task InsertLocationEventAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId,
         VisitId visitId, LocationEvent e, CancellationToken cancellationToken)
     {
         await using var insert = new NpgsqlCommand("""
             INSERT INTO visit_location_events (id, tenant_id, visit_id, user_id, device_id, kind, accepted, rejection_reason,
-                geom, accuracy_m, distance_m, radius_m, captured_at, is_mocked, idempotency_key)
+                geom, accuracy_m, distance_m, radius_m, captured_at, is_mocked, idempotency_key,
+                offline, elapsed_ms, review_state, review_reasons)
             VALUES (gen_random_uuid(), @tenant, @visit, @user, @device, @kind, @accepted, @reason,
-                ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, @accuracy, @distance, @radius, @captured, @mocked, @key)
+                ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, @accuracy, @distance, @radius, @captured, @mocked, @key,
+                @offline, @elapsed, @reviewState, @reviewReasons)
             """, connection, transaction);
         insert.Parameters.AddWithValue("tenant", tenantId.Value);
         insert.Parameters.AddWithValue("visit", visitId.Value);
@@ -353,6 +378,10 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         insert.Parameters.AddWithValue("captured", e.Fix.CapturedAt);
         insert.Parameters.AddWithValue("mocked", e.Fix.IsMocked);
         insert.Parameters.AddWithValue("key", (object?)e.IdempotencyKey ?? DBNull.Value);
+        insert.Parameters.AddWithValue("offline", e.Offline);
+        insert.Parameters.AddWithValue("elapsed", (object?)e.ElapsedMs ?? DBNull.Value);
+        insert.Parameters.AddWithValue("reviewState", NeedsReview(e) ? "pending" : DBNull.Value);
+        insert.Parameters.AddWithValue("reviewReasons", (e.ReviewReasons ?? []).ToArray());
         await insert.ExecuteNonQueryAsync(cancellationToken);
     }
 

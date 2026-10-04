@@ -203,3 +203,17 @@ All routes act on the caller's own shift only (another user's or tenant's shift 
 | `GET /shifts/{id}/summary` | `pointCount`, `expectedPoints` (one per 30 s), `coveragePercent`, `maxGapSeconds` (including start→first and last→end/now), `meetsTarget` (≥ 90 % and ≤ 5 min) — for the real-device test | — |
 
 Migration 0016 adds `shifts` and `tracking_points` (tenant RLS). Coordinates are never written to audit or logs. Viewing other users' points is for the live map (step 1.19, D3). Retention (D6) is still open. Tests: `Shift_StartTrackEndWithDeviceDedupAndSummary`, `ShiftSummaryTests`, and the deployment rehearsal.
+
+## Offline check-in / check-out and manager review (step 1.14a, decision D5)
+
+`POST /visits/{id}/start` and `/complete` accept two more fields: `isOffline` (saved on the phone without internet) and `elapsedSinceCaptureMs` (time since capture by the phone's monotonic clock, unaffected by changing the phone's clock).
+
+- Offline attempts: same rules as online (device, owner, state, report, accuracy ≤ 50 m, inside the radius, not mocked, not in the future) except freshness: up to **24 h** old (else 422 `OFFLINE_EXPIRED`). Online attempts keep the 2-minute rule.
+- An accepted offline attempt answers **200** `{reviewRequired, reviewReasons}` (online and replays stay 204). It needs review when the monotonic time and the GPS time differ by more than 2 min (`clock_mismatch`, also when not sent), or when the user's tracking path has no point within radius + accuracy + 50 m of the customer within ±10 min (`no_tracking_nearby`). Audit `visit.offline_review_required`.
+
+| Route | Who | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /offline-reviews?state=pending\|approved\|rejected&limit=1..200` | `visits.write` with tenant or region scope | Events of users in scope: visit, user, kind, capture/receive time, distance, radius, accuracy, reasons, decision. No coordinates | — |
+| `POST /offline-reviews/{eventId}` | same; never one's own event | `{decision: approve\|reject, note}`; reject needs a note (≤ 500). 404 outside scope, 409 `INVALID_STATE` when already decided | `visit.offline_review_approved` / `_rejected` |
+
+The decision does not change the visit's status; it is recorded for reports and follow-up. Migration 0017 adds the offline and review columns to `visit_location_events` (grant `UPDATE` added). Tests: `OfflineCheckpoints_AutoAcceptReviewOrRejectAndManagerDecides`, `OfflineCheckPolicyTests`.
