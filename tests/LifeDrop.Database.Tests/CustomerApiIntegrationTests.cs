@@ -1698,7 +1698,7 @@ public class CustomerApiIntegrationTests
         // Planned visits with details; defaults when omitted; several visits for one customer on one day
         As(manager);
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits", new
-            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06", VisitType = "scientific", Priority = "high", PlannedTime = "09:30:00" })).StatusCode);
+            { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06", VisitType = "doctor", Priority = "high", PlannedTime = "09:30:00" })).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits", new
             { AssignedUserId = rep, CustomerId = repCustomer, ScheduleDate = "2026-10-06" })).StatusCode);
         await AssertProblemAsync(await client.PostAsJsonAsync("/visits", new
@@ -1709,20 +1709,93 @@ public class CustomerApiIntegrationTests
         As(rep);
         var plan = (await PlanAsync("2026-10-06")).OrderBy(v => v.PlannedTime is null).ToList();
         Assert.Equal(2, plan.Count);
-        Assert.Equal(("scientific", "high", (TimeOnly?)new TimeOnly(9, 30), false), (plan[0].VisitType, plan[0].Priority, plan[0].PlannedTime, plan[0].IsUnplanned));
-        Assert.Equal(("sales", "normal", (TimeOnly?)null, false), (plan[1].VisitType, plan[1].Priority, plan[1].PlannedTime, plan[1].IsUnplanned));
+        Assert.Equal(("doctor", "high", (TimeOnly?)new TimeOnly(9, 30), false), (plan[0].VisitType, plan[0].Priority, plan[0].PlannedTime, plan[0].IsUnplanned));
+        Assert.Equal(("other", "normal", (TimeOnly?)null, false), (plan[1].VisitType, plan[1].Priority, plan[1].PlannedTime, plan[1].IsUnplanned));
 
         // Unplanned: requires permission and a reason; customer must be in the caller's scope; dated today in Baghdad
         await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "  " }), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = otherCustomer, Reason = "Passing by" }), HttpStatusCode.NotFound, "CUSTOMER_NOT_FOUND");
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "Customer called", VisitType = "follow_up" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "Customer called", VisitType = "pharmacy" })).StatusCode);
         As(noPerm);
         await AssertProblemAsync(await client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = repCustomer, Reason = "x" }), HttpStatusCode.Forbidden, "FORBIDDEN");
 
         As(rep);
         Assert.Empty(await PlanAsync("2026-10-04"));
         var today = Assert.Single(await PlanAsync("2026-10-05"));
-        Assert.Equal((true, "Customer called", "follow_up", rep), (today.IsUnplanned, today.UnplannedReason, today.VisitType, today.UserId));
+        Assert.Equal((true, "Customer called", "pharmacy", rep), (today.IsUnplanned, today.UnplannedReason, today.VisitType, today.UserId));
+    }
+
+    [SkippableFact]
+    public async Task DailyPlan_DefaultsToIraqTodayOwnVisitsOnlyAndOrdered()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    // 22:30 UTC on 4 Oct = 01:30 on 5 Oct in Baghdad.
+                    services.AddSingleton<TimeProvider>(new FixedClock(new DateTimeOffset(2026, 10, 4, 22, 30, 0, TimeSpan.Zero)));
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), otherRep = Guid.NewGuid(), customer = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@r, @t1), (@o, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("r", rep), ("o", otherRep), ("c", customer) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<Guid> CreateAsync(Guid assignee, string date, string priority, string? time)
+        {
+            var response = await client.PostAsJsonAsync("/visits", new { AssignedUserId = assignee, CustomerId = customer, ScheduleDate = date, Priority = priority, PlannedTime = time });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            using var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+            return body!.RootElement.GetProperty("id").GetGuid();
+        }
+
+        As(manager);
+        var lowUntimed = await CreateAsync(rep, "2026-10-05", "low", null);
+        var highUntimed = await CreateAsync(rep, "2026-10-05", "high", null);
+        var afternoon = await CreateAsync(rep, "2026-10-05", "normal", "14:00:00");
+        var morning = await CreateAsync(rep, "2026-10-05", "normal", "08:00:00");
+        await CreateAsync(otherRep, "2026-10-05", "high", "07:00:00");
+        await CreateAsync(rep, "2026-10-04", "high", "07:00:00");
+
+        // No date: today in Baghdad (5 Oct), only the caller's visits, timed first then by priority
+        As(rep);
+        var today = await client.GetAsync("/visits");
+        Assert.Equal(HttpStatusCode.OK, today.StatusCode);
+        var ids = (await today.Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!.Select(v => v.Id).ToArray();
+        Assert.Equal(new[] { morning, afternoon, highUntimed, lowUntimed }, ids);
+
+        // A day without visits is a successful empty list; a malformed date is rejected
+        var empty = await client.GetAsync("/visits?scheduleDate=2026-10-07");
+        Assert.Equal(HttpStatusCode.OK, empty.StatusCode);
+        Assert.Equal("[]", (await empty.Content.ReadAsStringAsync()).Trim());
+        await AssertProblemAsync(await client.GetAsync("/visits?scheduleDate=not-a-date"), HttpStatusCode.BadRequest, "BAD_REQUEST");
     }
 
     // Security baseline (plan step 0.9): every route requires an authenticated user unless it is on this

@@ -89,7 +89,9 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 visit_type, priority, planned_time, is_unplanned, unplanned_reason 
             FROM visits 
             WHERE user_id = @userId AND schedule_date = @scheduleDate
-            ORDER BY created_at ASC;
+            ORDER BY planned_time ASC NULLS LAST,
+                     CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+                     created_at ASC, id ASC;
         ";
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("userId", assignedUserId.Value);

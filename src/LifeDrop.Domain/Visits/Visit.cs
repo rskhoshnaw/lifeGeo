@@ -10,7 +10,7 @@ public class Visit : AggregateRoot<VisitId>
     public VisitStatus Status { get; private set; }
     public string? ExceptionReason { get; private set; }
     public DateOnly ScheduleDate { get; private set; }
-    public VisitType Type { get; private set; } = VisitType.Sales;
+    public VisitType Type { get; private set; } = VisitType.Other;
     public VisitPriority Priority { get; private set; } = VisitPriority.Normal;
     public TimeOnly? PlannedTime { get; private set; }
     public bool IsUnplanned { get; private set; }

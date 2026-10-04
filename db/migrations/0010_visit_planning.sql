@@ -3,8 +3,8 @@
 -- local time of day in the tenant's time zone (Asia/Baghdad for Iraq); NULL means "any time that day".
 -- An unplanned visit is created by the field user on the spot and must carry a reason.
 ALTER TABLE visits
-    ADD COLUMN visit_type text NOT NULL DEFAULT 'sales'
-        CHECK (visit_type IN ('sales', 'scientific', 'follow_up', 'other')),
+    ADD COLUMN visit_type text NOT NULL DEFAULT 'other'
+        CHECK (visit_type IN ('pharmacy', 'doctor', 'wholesaler', 'other')),
     ADD COLUMN priority text NOT NULL DEFAULT 'normal'
         CHECK (priority IN ('high', 'normal', 'low')),
     ADD COLUMN planned_time time,

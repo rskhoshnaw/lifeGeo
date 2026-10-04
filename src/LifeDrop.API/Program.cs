@@ -144,6 +144,8 @@ public partial class Program
         builder.Services.AddAuthorization();
         builder.Services.AddOpenApi();
         builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = ApiErrors.Customize);
+        // Malformed route/query/body values must be 400 in every environment, never an exception (500).
+        builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
 
         var app = builder.Build();
         (string AccessToken, DateTime ExpiresAt) CreateAccessToken(SessionIdentity identity)
@@ -395,7 +397,7 @@ public partial class Program
             .WithName("CreateVisit").WithTags("Visits").Produces<CreatedResponse>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/visits", async (
-            DateOnly scheduleDate,
+            DateOnly? scheduleDate,
             HttpContext context, 
             LifeDrop.Application.Visits.ListAssignedVisits listVisits,
             DatabaseSecurityState securityState,

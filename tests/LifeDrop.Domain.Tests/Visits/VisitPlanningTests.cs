@@ -17,7 +17,7 @@ public class VisitPlanningTests
     {
         var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
 
-        Assert.Equal(VisitType.Sales, visit.Type);
+        Assert.Equal(VisitType.Other, visit.Type);
         Assert.Equal(VisitPriority.Normal, visit.Priority);
         Assert.Null(visit.PlannedTime);
         Assert.False(visit.IsUnplanned);
@@ -27,9 +27,9 @@ public class VisitPlanningTests
     [Fact]
     public void Create_WithPlanningDetails_StoresThem()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Scientific, VisitPriority.High, new TimeOnly(9, 30));
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Doctor, VisitPriority.High, new TimeOnly(9, 30));
 
-        Assert.Equal(VisitType.Scientific, visit.Type);
+        Assert.Equal(VisitType.Doctor, visit.Type);
         Assert.Equal(VisitPriority.High, visit.Priority);
         Assert.Equal(new TimeOnly(9, 30), visit.PlannedTime);
         Assert.Equal(VisitStatus.Planned, visit.Status);
@@ -38,11 +38,11 @@ public class VisitPlanningTests
     [Fact]
     public void CreateUnplanned_WithReason_IsMarkedUnplannedWithTrimmedReason()
     {
-        var visit = Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.FollowUp, "  Customer called  ");
+        var visit = Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Pharmacy, "  Customer called  ");
 
         Assert.True(visit.IsUnplanned);
         Assert.Equal("Customer called", visit.UnplannedReason);
-        Assert.Equal(VisitType.FollowUp, visit.Type);
+        Assert.Equal(VisitType.Pharmacy, visit.Type);
         Assert.Equal(VisitStatus.Planned, visit.Status);
     }
 
@@ -52,19 +52,19 @@ public class VisitPlanningTests
     [InlineData("   ")]
     public void CreateUnplanned_WithoutReason_Throws(string? reason)
     {
-        Assert.Throws<ArgumentException>(() => Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Sales, reason));
+        Assert.Throws<ArgumentException>(() => Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Other, reason));
     }
 
     [Fact]
     public void CreateUnplanned_WithTooLongReason_Throws()
     {
-        Assert.Throws<ArgumentException>(() => Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Sales, new string('x', 501)));
+        Assert.Throws<ArgumentException>(() => Visit.CreateUnplanned(_tenantId, _userId, _customerId, _scheduleDate, VisitType.Other, new string('x', 501)));
     }
 
     [Theory]
-    [InlineData("sales", VisitType.Sales)]
-    [InlineData("scientific", VisitType.Scientific)]
-    [InlineData("follow_up", VisitType.FollowUp)]
+    [InlineData("pharmacy", VisitType.Pharmacy)]
+    [InlineData("doctor", VisitType.Doctor)]
+    [InlineData("wholesaler", VisitType.Wholesaler)]
     [InlineData("other", VisitType.Other)]
     public void VisitType_ContractRoundTrips(string value, VisitType expected)
     {
@@ -85,7 +85,7 @@ public class VisitPlanningTests
     }
 
     [Theory]
-    [InlineData("Sales")]
+    [InlineData("Pharmacy")]
     [InlineData("urgent")]
     [InlineData("")]
     public void Contract_RejectsUnknownValues(string value)

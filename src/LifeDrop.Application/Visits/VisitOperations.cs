@@ -8,7 +8,7 @@ namespace LifeDrop.Application.Visits;
 
 public enum CreateVisitResult { Created, Forbidden, InvalidData, UserNotFound, CustomerNotFound }
 
-// VisitType: sales | scientific | follow_up | other (default sales). Priority: high | normal | low (default normal).
+// VisitType: pharmacy | doctor | wholesaler | other (default other). Priority: high | normal | low (default normal).
 // PlannedTime: local time of day in Asia/Baghdad, optional.
 public sealed record CreateVisitRequest(Guid AssignedUserId, Guid CustomerId, DateOnly ScheduleDate,
     string? VisitType = null, string? Priority = null, TimeOnly? PlannedTime = null);
@@ -113,12 +113,15 @@ public static class IraqCalendar
     }
 }
 
-public sealed class ListAssignedVisits(IVisitStore store)
+// Daily plan of the caller (plan step 1.3, PRD §5.1, §11): only the caller's visits; without a date the day is
+// "today" in Asia/Baghdad; a day without visits is an empty list. Ordered by planned time (unscheduled last),
+// then priority, then creation.
+public sealed class ListAssignedVisits(IVisitStore store, TimeProvider clock)
 {
-    public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly scheduleDate, CancellationToken cancellationToken)
+    public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly? scheduleDate, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return null;
-        return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate, cancellationToken);
+        return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate ?? IraqCalendar.Today(clock), cancellationToken);
     }
 }
 

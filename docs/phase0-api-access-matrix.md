@@ -112,12 +112,14 @@ Super Admin is cross-tenant and not seeded (phase 3). Test: `DefaultRoles_SeedIs
 
 ## Visit planning (step 1.2)
 
-Migration 0010 adds `visit_type` (`sales` | `scientific` | `follow_up` | `other`, default `sales`), `priority` (`high` | `normal` | `low`, default `normal`), optional `planned_time` (local time, Asia/Baghdad), `is_unplanned` and `unplanned_reason`. Several visits per customer per day are allowed.
+Migration 0010 adds `visit_type` (`pharmacy` | `doctor` | `wholesaler` | `other`, default `other`; selects the report form later), `priority` (`high` | `normal` | `low`, default `normal`), optional `planned_time` (local time, Asia/Baghdad), `is_unplanned` and `unplanned_reason`. Several visits per customer per day are allowed.
 
 | Route | Permission | Behaviour |
 | --- | --- | --- |
 | `POST /visits` | `visits.write` + scope | Optional `visitType`, `priority`, `plannedTime`; unknown values → 400 `INVALID_DATA` |
 | `POST /visits/unplanned` | `visits.create_unplanned` + scope | For the caller only, dated today in Asia/Baghdad; `reason` 1–500 chars required; customer must be in the caller's scope (404 `CUSTOMER_NOT_FOUND`) |
-| `GET /visits` | authenticated | Returns the new fields |
+| `GET /visits` | authenticated | Caller's own visits only. `scheduleDate` optional; default is today in Asia/Baghdad (step 1.3). Ordered by `plannedTime` (unscheduled last), then priority high → low, then creation. Empty day → 200 `[]`; malformed date → 400 `BAD_REQUEST` |
 
 `visits.create_unplanned` is granted to the default SalesRep and ScientificRep roles (0010 replaces `seed_default_roles`; 0009 is unchanged). Test: `VisitPlanning_StoresDetailsAndEnforcesUnplannedRules`; domain tests in `VisitPlanningTests`.
+
+Step 1.3 also sets `RouteHandlerOptions.ThrowOnBadRequest = false`, so malformed route, query or body values return 400 ProblemDetails in every environment instead of a 500 in Development.
