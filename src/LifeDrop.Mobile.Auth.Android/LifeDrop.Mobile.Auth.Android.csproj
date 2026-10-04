@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseMaui>false</UseMaui>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LifeDrop.Mobile.Auth\LifeDrop.Mobile.Auth.csproj" />
+  </ItemGroup>
+</Project>

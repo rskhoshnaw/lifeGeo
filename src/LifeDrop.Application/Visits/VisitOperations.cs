@@ -1,0 +1,197 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using LifeDrop.Domain.Common;
+using LifeDrop.Domain.Visits;
+
+namespace LifeDrop.Application.Visits;
+
+public enum CreateVisitResult { Created, Forbidden, InvalidData, UserNotFound, CustomerNotFound }
+
+public sealed record CreateVisitRequest(Guid AssignedUserId, Guid CustomerId, DateOnly ScheduleDate);
+
+public interface IVisitStore
+{
+    Task<(CreateVisitResult Result, Visit? Visit)> CreateAsync(TenantId tenantId, UserId actorId, Visit visit, CancellationToken cancellationToken);
+    Task<System.Collections.Generic.List<VisitDto>> ListAssignedVisitsAsync(TenantId tenantId, UserId assignedUserId, DateOnly scheduleDate, CancellationToken cancellationToken);
+    Task<Visit?> GetAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken);
+    Task<bool> TryUpdateStatusAsync(TenantId tenantId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, VisitStatus newStatus, string? exceptionReason, CancellationToken cancellationToken);
+}
+
+public sealed class CreateVisit(IVisitStore store)
+{
+    public async Task<(CreateVisitResult Result, Guid? VisitId)> ExecuteAsync(TenantId tenantId, UserId actorId, CreateVisitRequest request, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (CreateVisitResult.Forbidden, null);
+        if (request.AssignedUserId == Guid.Empty || request.CustomerId == Guid.Empty || request.ScheduleDate == default)
+            return (CreateVisitResult.InvalidData, null);
+
+        var visit = Visit.Create(tenantId, new UserId(request.AssignedUserId), new CustomerId(request.CustomerId), request.ScheduleDate);
+        
+        var (result, storedVisit) = await store.CreateAsync(tenantId, actorId, visit, cancellationToken);
+        
+        if (result == CreateVisitResult.Created && storedVisit is not null)
+        {
+            return (result, storedVisit.Id.Value);
+        }
+        
+        return (result, null);
+    }
+}
+
+public sealed class ListAssignedVisits(IVisitStore store)
+{
+    public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly scheduleDate, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return null;
+        return await store.ListAssignedVisitsAsync(tenantId, actorId, scheduleDate, cancellationToken);
+    }
+}
+
+public enum MarkVisitResult { Success, NotFound, Forbidden, InvalidState, Conflict, InvalidData }
+
+public sealed class MarkVisitEnRoute(IVisitStore store)
+{
+    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
+        
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return MarkVisitResult.NotFound;
+
+        if (visit.UserId != actorId) return MarkVisitResult.Forbidden; // Employee can only mark their own visit
+
+        var expectedStatus = visit.Status;
+        try
+        {
+            visit.MarkEnRoute();
+        }
+        catch (InvalidOperationException)
+        {
+            return MarkVisitResult.InvalidState;
+        }
+
+        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
+        if (!success) return MarkVisitResult.Conflict;
+
+        return MarkVisitResult.Success;
+    }
+}
+
+public sealed class MarkVisitArrived(IVisitStore store)
+{
+    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
+        
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return MarkVisitResult.NotFound;
+
+        if (visit.UserId != actorId) return MarkVisitResult.Forbidden;
+
+        var expectedStatus = visit.Status;
+        try
+        {
+            visit.MarkArrived();
+        }
+        catch (InvalidOperationException)
+        {
+            return MarkVisitResult.InvalidState;
+        }
+
+        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
+        if (!success) return MarkVisitResult.Conflict;
+
+        return MarkVisitResult.Success;
+    }
+}
+
+public sealed class MarkVisitInVisit(IVisitStore store)
+{
+    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
+        
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return MarkVisitResult.NotFound;
+
+        if (visit.UserId != actorId) return MarkVisitResult.Forbidden;
+
+        var expectedStatus = visit.Status;
+        try
+        {
+            visit.StartVisit();
+        }
+        catch (InvalidOperationException)
+        {
+            return MarkVisitResult.InvalidState;
+        }
+
+        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
+        if (!success) return MarkVisitResult.Conflict;
+
+        return MarkVisitResult.Success;
+    }
+}
+
+public sealed class MarkVisitCompleted(IVisitStore store)
+{
+    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
+        
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return MarkVisitResult.NotFound;
+
+        if (visit.UserId != actorId) return MarkVisitResult.Forbidden;
+
+        var expectedStatus = visit.Status;
+        try
+        {
+            visit.Complete();
+        }
+        catch (InvalidOperationException)
+        {
+            return MarkVisitResult.InvalidState;
+        }
+
+        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
+        if (!success) return MarkVisitResult.Conflict;
+
+        return MarkVisitResult.Success;
+    }
+}
+public sealed class MarkVisitFailed(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions)
+{
+    public async Task<MarkVisitResult> ExecuteAsync(TenantId tenantId, UserId actorId, Guid visitId, string reason, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty || visitId == Guid.Empty) return MarkVisitResult.NotFound;
+        
+        if (!await permissions.HasPermissionAsync(tenantId, actorId, "visits.fail", cancellationToken))
+            return MarkVisitResult.Forbidden;
+
+        var visit = await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null) return MarkVisitResult.NotFound;
+
+        if (visit.UserId != actorId) return MarkVisitResult.Forbidden;
+
+        var expectedStatus = visit.Status;
+        try
+        {
+            visit.Fail(reason);
+        }
+        catch (ArgumentException)
+        {
+            return MarkVisitResult.InvalidData;
+        }
+        catch (InvalidOperationException)
+        {
+            return MarkVisitResult.InvalidState;
+        }
+
+        var success = await store.TryUpdateStatusAsync(tenantId, visit.Id, actorId, expectedStatus, visit.Status, visit.ExceptionReason, cancellationToken);
+        if (!success) return MarkVisitResult.Conflict;
+
+        return MarkVisitResult.Success;
+    }
+}

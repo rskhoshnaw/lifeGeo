@@ -1,0 +1,43 @@
+# .NET build artifacts
+bin/
+obj/
+
+# IDE / Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test / coverage output
+TestResults/
+coverage/
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+
+# Git
+.git/
+
+# Frontend dependencies/build artifacts (if applicable)
+node_modules/
+**/node_modules/
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Generated/minified files
+*.min.js
+*.map
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,264 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Npgsql;
+using Xunit;
+using LifeDrop.API;
+using LifeDrop.Application.Auth;
+using LifeDrop.Application.Customers;
+using LifeDrop.Application.Devices;
+using System.Text.Json;
+using System.Runtime.ExceptionServices;
+
+namespace LifeDrop.Database.Tests;
+
+public class DeploymentRehearsalTests
+{
+    private string GetRequiredEnvVar(string key)
+    {
+        var val = Environment.GetEnvironmentVariable(key);
+        if (string.IsNullOrWhiteSpace(val)) throw new SkipException($"{key} not set. Skipping test.");
+        return val;
+    }
+
+    [SkippableFact]
+    public async Task Rehearse_LeastPrivilege_Deployment()
+    {
+        var schemaId = Guid.NewGuid().ToString("N");
+        await RunRehearsal(failIntentionally: false, schemaId: schemaId);
+    }
+
+    [SkippableFact]
+    public async Task Rehearse_CleanupRunsOnFailure()
+    {
+        var schemaId = Guid.NewGuid().ToString("N");
+        var ex = await Assert.ThrowsAsync<Exception>(() => RunRehearsal(failIntentionally: true, schemaId: schemaId));
+        Assert.Equal("Intentional failure after resource creation", ex.Message);
+
+        // Intentional-failure test asserts that the exact resources are absent.
+        var superUrl = GetRequiredEnvVar("TEST_SUPERUSER_DATABASE_URL");
+        await using var verifyConn = new NpgsqlConnection(superUrl);
+        await verifyConn.OpenAsync();
+        
+        var schema = "rehearsal_" + schemaId;
+        var appRole = "app_rehearsal_" + schemaId;
+
+        await using var checkSchemaCmd = new NpgsqlCommand("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = @s", verifyConn);
+        checkSchemaCmd.Parameters.AddWithValue("s", schema);
+        var schemaCount = Convert.ToInt64(await checkSchemaCmd.ExecuteScalarAsync());
+        Assert.Equal(0, schemaCount);
+
+        await using var checkRoleCmd = new NpgsqlCommand("SELECT COUNT(*) FROM pg_roles WHERE rolname = @r", verifyConn);
+        checkRoleCmd.Parameters.AddWithValue("r", appRole);
+        var roleCount = Convert.ToInt64(await checkRoleCmd.ExecuteScalarAsync());
+        Assert.Equal(0, roleCount);
+    }
+
+    private async Task RunRehearsal(bool failIntentionally, string schemaId)
+    {
+        var superUrl = GetRequiredEnvVar("TEST_SUPERUSER_DATABASE_URL");
+        var builder = new NpgsqlConnectionStringBuilder(superUrl);
+        var dbName = builder.Database;
+        if (!dbName.StartsWith("lifedrop_test_")) throw new Exception("Must use a test database!");
+
+        var schema = "rehearsal_" + schemaId;
+        var appRole = "app_rehearsal_" + schemaId;
+        var appPassword = "rehearsalpass";
+        
+        Exception? testException = null;
+        Exception? cleanupException = null;
+        
+        try
+        {
+            await using var setupConn = new NpgsqlConnection(superUrl);
+            await setupConn.OpenAsync();
+            
+            // 1. CREATE SCHEMA
+            await using (var cmd = new NpgsqlCommand($"CREATE SCHEMA {schema}", setupConn))
+                await cmd.ExecuteNonQueryAsync();
+
+            // 2. RUN MIGRATIONS
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql" };
+            var migSql = $"SET search_path TO {schema}, public; ";
+            foreach(var f in migrationFiles) {
+                migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
+            }
+            await using (var cmd = new NpgsqlCommand(migSql, setupConn))
+                await cmd.ExecuteNonQueryAsync();
+
+            // 3. CREATE ROLE & GRANTS
+            await using (var cmd = new NpgsqlCommand($@"
+                CREATE ROLE {appRole} WITH LOGIN PASSWORD '{appPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+                GRANT USAGE ON SCHEMA {schema} TO {appRole};
+                GRANT USAGE ON SCHEMA public TO {appRole};
+                GRANT SELECT ON {schema}.tenants, {schema}.users, {schema}.roles, {schema}.role_permissions, {schema}.user_roles, {schema}.devices, {schema}.refresh_tokens, {schema}.customers, {schema}.audit_logs TO {appRole};
+                GRANT INSERT ON {schema}.user_roles, {schema}.audit_logs, {schema}.auth_login_audit, {schema}.devices, {schema}.refresh_tokens, {schema}.customers TO {appRole};
+                GRANT UPDATE ON {schema}.devices, {schema}.refresh_tokens TO {appRole};
+            ", setupConn))
+            {
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 4. SEED BOOTSTRAP DATA
+            var tenantId = Guid.NewGuid();
+            var adminId = Guid.NewGuid();
+            var adminRole = Guid.NewGuid();
+            var fieldRole = Guid.NewGuid();
+            string realHash = LifeDrop.Infrastructure.Auth.PasswordHash.Create("password123");
+
+            await using (var cmd = new NpgsqlCommand($@"
+                SET search_path TO {schema}, public;
+                INSERT INTO tenants (id, name, code) VALUES (@t, 'Dev Tenant', 'dev');
+                INSERT INTO users (id, tenant_id, email, password_hash) VALUES (@a, @t, 'admin@rehearsal.local', @h);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r, @t, 'DevAdmin'), (@f, @t, 'FieldRep');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES 
+                    (@t, @r, 'device.approve'), (@t, @r, 'user.manageroles'), 
+                    (@t, @r, 'customers.write'), (@t, @r, 'customers.read');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t, @a, @r);
+            ", setupConn))
+            {
+                cmd.Parameters.AddWithValue("t", tenantId);
+                cmd.Parameters.AddWithValue("a", adminId);
+                cmd.Parameters.AddWithValue("r", adminRole);
+                cmd.Parameters.AddWithValue("f", fieldRole);
+                cmd.Parameters.AddWithValue("h", realHash);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (failIntentionally) throw new Exception("Intentional failure after resource creation");
+
+            // 5. BOOT HOST WITH RUNTIME ROLE
+            var appBuilder = new NpgsqlConnectionStringBuilder(superUrl)
+            {
+                Username = appRole,
+                Password = appPassword,
+                SearchPath = schema
+            };
+            var appConnString = appBuilder.ConnectionString;
+
+            using (var factory = new WebApplicationFactory<Program>()
+                .WithWebHostBuilder(webBuilder =>
+                {
+                    webBuilder.UseSetting("ConnectionStrings:LifeDrop", appConnString);
+                }))
+            {
+                using var client = factory.CreateClient();
+
+                // Note on PostGIS Verification: 
+                // This test verifies API routing, isolation, and schema access. It does NOT set or read the PostGIS `geom` field on customers.
+
+                var loginReq = new LoginRequest("dev", "admin@rehearsal.local", "password123");
+                var loginResp = await client.PostAsJsonAsync("/auth/login", loginReq);
+                Assert.Equal(HttpStatusCode.OK, loginResp.StatusCode);
+                var tokens = await loginResp.Content.ReadFromJsonAsync<LoginResponse>();
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens!.AccessToken);
+
+                var refreshReq = new RefreshRequest(tokens.RefreshToken);
+                var refreshResp = await client.PostAsJsonAsync("/auth/refresh", refreshReq);
+                Assert.Equal(HttpStatusCode.OK, refreshResp.StatusCode);
+
+                var regReq = new RegisterDeviceRequest("dev", "admin@rehearsal.local", "password123", "My Phone", "android", "inst123", "1.0.0");
+                var regResp = await client.PostAsJsonAsync("/auth/devices/register", regReq);
+                Assert.Equal(HttpStatusCode.OK, regResp.StatusCode);
+                var deviceData = await regResp.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+
+                var approveResp = await client.PostAsync($"/devices/{deviceData!.DeviceId}/approve", null);
+                Assert.Equal(HttpStatusCode.NoContent, approveResp.StatusCode);
+
+                var assignResp = await client.PostAsync($"/users/{adminId}/roles/{fieldRole}", null);
+                Assert.Equal(HttpStatusCode.NoContent, assignResp.StatusCode);
+
+                var custReq = new CreateCustomerRequest("Clinic", "C999", "Test Clinic");
+                var custResp = await client.PostAsJsonAsync("/customers", custReq);
+                Assert.Equal(HttpStatusCode.Created, custResp.StatusCode);
+                
+                var location = custResp.Headers.Location!.ToString();
+                var custIdString = location.Split('/')[2];
+                var custId = Guid.Parse(custIdString);
+
+                var getResp = await client.GetAsync($"/customers/{custId}");
+                Assert.Equal(HttpStatusCode.OK, getResp.StatusCode);
+                
+                var json = await getResp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                Assert.Equal("C999", doc.RootElement.GetProperty("code").GetString());
+                Assert.Equal("Test Clinic", doc.RootElement.GetProperty("name").GetString());
+            } 
+        }
+        catch (Exception ex)
+        {
+            testException = ex;
+        }
+        finally
+        {
+            try
+            {
+                await using var cleanupConn = new NpgsqlConnection(superUrl);
+                await cleanupConn.OpenAsync();
+
+                // Strict guards for exact names before issuing DROP
+                if (schema == "rehearsal_" + schemaId && appRole == "app_rehearsal_" + schemaId && dbName.StartsWith("lifedrop_test_"))
+                {
+                    await using (var cmd = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {schema} CASCADE;", cleanupConn))
+                        await cmd.ExecuteNonQueryAsync();
+                        
+                    await using (var cmd = new NpgsqlCommand($"REVOKE USAGE ON SCHEMA public FROM {appRole};", cleanupConn))
+                        await cmd.ExecuteNonQueryAsync();
+
+                    await using (var cmd = new NpgsqlCommand($"DROP ROLE IF EXISTS {appRole};", cleanupConn))
+                        await cmd.ExecuteNonQueryAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                cleanupException = ex;
+            }
+            
+            Exception? verifyException = null;
+            try
+            {
+                await using var verifyConn = new NpgsqlConnection(superUrl);
+                await verifyConn.OpenAsync();
+                
+                await using var checkSchemaCmd = new NpgsqlCommand("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = @s", verifyConn);
+                checkSchemaCmd.Parameters.AddWithValue("s", schema);
+                var schemaCount = Convert.ToInt64(await checkSchemaCmd.ExecuteScalarAsync());
+                if (schemaCount != 0) throw new Exception("Schema was not cleaned up.");
+
+                await using var checkRoleCmd = new NpgsqlCommand("SELECT COUNT(*) FROM pg_roles WHERE rolname = @r", verifyConn);
+                checkRoleCmd.Parameters.AddWithValue("r", appRole);
+                var roleCount = Convert.ToInt64(await checkRoleCmd.ExecuteScalarAsync());
+                if (roleCount != 0) throw new Exception("Role was not cleaned up.");
+            }
+            catch (Exception ex)
+            {
+                verifyException = ex;
+            }
+
+            var exceptions = new System.Collections.Generic.List<Exception>();
+            if (testException != null) exceptions.Add(testException);
+            if (cleanupException != null) exceptions.Add(new Exception("Cleanup failed.", cleanupException));
+            if (verifyException != null) exceptions.Add(new Exception("Verification failed.", verifyException));
+
+            if (exceptions.Count == 1 && testException != null)
+            {
+                ExceptionDispatchInfo.Capture(testException).Throw();
+            }
+            else if (exceptions.Count > 0)
+            {
+                throw new AggregateException("Multiple failures occurred.", exceptions);
+            }
+        }
+    }
+}
+
+public class LoginResponse { public string AccessToken { get; set; } = ""; public string RefreshToken { get; set; } = ""; }
+public class RegisterDeviceResponse { public Guid DeviceId { get; set; } }
+
+

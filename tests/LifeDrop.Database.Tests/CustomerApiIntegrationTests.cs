@@ -1,0 +1,1065 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Text;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using LifeDrop.Application.Customers;
+using Npgsql;
+using Xunit;
+
+namespace LifeDrop.Database.Tests;
+
+public class CustomerApiIntegrationTests
+{
+    private class FakeSessionStore : LifeDrop.Application.Auth.ISessionStore
+    {
+        public Task<LifeDrop.Application.Auth.SessionTokens> IssueAsync(LifeDrop.Application.Auth.LoginIdentity identity, Guid? deviceId, System.Threading.CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<LifeDrop.Application.Auth.SessionTokens?> RotateAsync(LifeDrop.Application.Auth.RefreshRequest request, System.Threading.CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<bool> IsAccessActiveAsync(LifeDrop.Application.Auth.SessionIdentity identity, System.Threading.CancellationToken cancellationToken) => Task.FromResult(true);
+        public Task RevokeFamilyAsync(LifeDrop.Application.Auth.SessionIdentity identity, System.Threading.CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private class IsolatedSchema : IAsyncDisposable
+    {
+        public string ConnectionString { get; }
+        public string SchemaName { get; }
+        private readonly string _adminUrl;
+
+        public IsolatedSchema(string connectionString, string schemaName, string adminUrl)
+        {
+            ConnectionString = connectionString;
+            SchemaName = schemaName;
+            _adminUrl = adminUrl;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await using var conn = new NpgsqlConnection(_adminUrl);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {SchemaName} CASCADE;", conn);
+            try
+            {
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"FATAL: Failed to clean up exact generated schema {SchemaName}", ex);
+            }
+        }
+    }
+
+    private async Task<IsolatedSchema> SetupIsolatedSchemaAsync(string url, string overrideMigration = null)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(url);
+        var dbName = builder.Database;
+        if (string.IsNullOrWhiteSpace(dbName) || !dbName.StartsWith("lifedrop_test_"))
+            throw new Exception($"FATAL: Database name '{dbName}' must start with 'lifedrop_test_' for safety.");
+
+        var schema = "customer_api_" + Guid.NewGuid().ToString("N");
+        await using var setup = new NpgsqlConnection(url);
+        await setup.OpenAsync();
+        
+        await using (var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", setup))
+            await create.ExecuteNonQueryAsync();
+
+        builder.SearchPath = schema;
+        var connectionString = builder.ConnectionString;
+
+        try
+        {
+            await using var migrationConnection = new NpgsqlConnection(connectionString);
+            await migrationConnection.OpenAsync();
+
+            string migrations;
+            if (overrideMigration != null)
+            {
+                migrations = overrideMigration;
+            }
+            else
+            {
+                var m1 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0001_role_assignment.sql"));
+                var m2 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0002_login.sql"));
+                var m3 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0003_sessions_devices.sql"));
+                var m4 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0004_customers.sql"));
+                var m5 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0005_dev_admin_customer_permissions.sql"));
+                var m6 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0006_visits.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6;
+            }
+
+            await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
+            {
+                cmd.CommandText = $"SET search_path TO {schema}, public; {cmd.CommandText}";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            return new IsolatedSchema(connectionString, schema, url);
+        }
+        catch (Exception ex)
+        {
+            ex.Data["SchemaName"] = schema;
+            Exception cleanupException = null;
+            try
+            {
+                await using var drop = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {schema} CASCADE;", setup);
+                await drop.ExecuteNonQueryAsync();
+            }
+            catch (Exception dropEx)
+            {
+                cleanupException = dropEx;
+            }
+
+            if (cleanupException != null)
+                throw new AggregateException(ex, new Exception($"Failed to clean up schema {schema} after setup failed", cleanupException));
+            
+            throw; // Preserve original failure
+        }
+    }
+
+    private async Task VerifyRoleAsync(string url, bool expectElevated)
+    {
+        await using var conn = new NpgsqlConnection(url);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user", conn);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            var isSuper = reader.GetBoolean(0);
+            var isBypass = reader.GetBoolean(1);
+            if (expectElevated && !isSuper && !isBypass)
+                throw new Exception("Elevated test requires a SUPERUSER or BYPASSRLS role.");
+            if (!expectElevated && (isSuper || isBypass))
+                throw new Exception("Normal customer test requires a NON-superuser, NON-bypassrls role.");
+        }
+        else
+        {
+            throw new Exception("Could not verify role privileges.");
+        }
+    }
+
+    private string GenerateToken(Guid tenantId, Guid userId, string signingKey, string issuer, string audience)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim("tenant_id", tenantId.ToString()),
+            new Claim("session_family", Guid.NewGuid().ToString())
+        };
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private string GetRequiredEnvVar(string key)
+    {
+        var val = Environment.GetEnvironmentVariable(key);
+        if (string.IsNullOrWhiteSpace(val)) throw new SkipException($"{key} not set. Skipping test.");
+        return val;
+    }
+
+    [SkippableFact]
+    public async Task CustomerApi_VerifiesPermissionsAndIsolation()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var deniedUserId = Guid.NewGuid();
+        var adminRole = Guid.NewGuid();
+        var emptyRole = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @t1, 'DevAdmin'), (@r2, @t1, 'EmptyRole');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t1, @r1, 'customers.read'), (@t1, @r1, 'customers.write');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t1, @a1, @r1), (@t1, @u1, @r2);
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", deniedUserId);
+            cmd.Parameters.AddWithValue("r1", adminRole);
+            cmd.Parameters.AddWithValue("r2", emptyRole);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var deniedToken = GenerateToken(tenantId1, deniedUserId, signingKey!, issuer!, audience!);
+
+        var req = new CreateCustomerRequest("Clinic", "C001", "Test Clinic");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", deniedToken);
+        var respDenied = await client.PostAsJsonAsync("/customers", req);
+        Assert.Equal(HttpStatusCode.Forbidden, respDenied.StatusCode);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respAllowed = await client.PostAsJsonAsync("/customers", req);
+        Assert.Equal(HttpStatusCode.Created, respAllowed.StatusCode);
+        var location = respAllowed.Headers.Location;
+        Assert.NotNull(location);
+        var createdId = location!.ToString().Split('/')[2];
+
+        var respDup = await client.PostAsJsonAsync("/customers", req);
+        Assert.Equal(HttpStatusCode.Conflict, respDup.StatusCode);
+
+        var respGet = await client.GetAsync($"/customers/{createdId}");
+        Assert.Equal(HttpStatusCode.OK, respGet.StatusCode);
+        var cust = await respGet.Content.ReadFromJsonAsync<CustomerDto>();
+        Assert.Equal("Test Clinic", cust!.Name);
+
+        var tenant2Admin = Guid.NewGuid();
+        var t2Role = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO users (id, tenant_id) VALUES (@a2, @t2);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r2, @t2, 'DevAdmin');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t2, @r2, 'customers.read');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t2, @a2, @r2);
+            ", conn);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a2", tenant2Admin);
+            cmd.Parameters.AddWithValue("r2", t2Role);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        var t2AdminToken = GenerateToken(tenantId2, tenant2Admin, signingKey!, issuer!, audience!);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2AdminToken);
+        
+        var respCrossGet = await client.GetAsync($"/customers/{createdId}");
+        Assert.Equal(HttpStatusCode.NotFound, respCrossGet.StatusCode);
+
+        // --- NEW GET /customers TEST BLOCK ---
+        // 1. Unauthenticated -> 401
+        client.DefaultRequestHeaders.Authorization = null;
+        var listUnauth = await client.GetAsync("/customers");
+        Assert.Equal(HttpStatusCode.Unauthorized, listUnauth.StatusCode);
+
+        // 2. User without customers.read -> 403
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", deniedToken);
+        var listDenied = await client.GetAsync("/customers");
+        Assert.Equal(HttpStatusCode.Forbidden, listDenied.StatusCode);
+
+        // 3. Authorized tenant-1 admin -> 200 OK + returns the created customer
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var listT1 = await client.GetAsync("/customers");
+        Assert.Equal(HttpStatusCode.OK, listT1.StatusCode);
+        var t1Customers = await listT1.Content.ReadFromJsonAsync<System.Collections.Generic.List<CustomerDto>>();
+        Assert.NotNull(t1Customers);
+        Assert.Single(t1Customers);
+        Assert.Equal(createdId, t1Customers[0].Id.ToString());
+
+        // 4. Invalid limit=0 -> 400 Bad Request
+        var listInvalid = await client.GetAsync("/customers?limit=0");
+        Assert.Equal(HttpStatusCode.BadRequest, listInvalid.StatusCode);
+
+        // 5. Next page using the returned item's createdAt and id -> 200 OK + empty list
+        var cursorDate = Uri.EscapeDataString(t1Customers[0].CreatedAt.ToString("O"));
+        var cursorIdStr = t1Customers[0].Id.ToString();
+        var listNext = await client.GetAsync($"/customers?cursorCreatedAt={cursorDate}&cursorId={cursorIdStr}");
+        Assert.Equal(HttpStatusCode.OK, listNext.StatusCode);
+        var nextCustomers = await listNext.Content.ReadFromJsonAsync<System.Collections.Generic.List<CustomerDto>>();
+        Assert.NotNull(nextCustomers);
+        Assert.Empty(nextCustomers);
+
+        // 6. Authorized tenant-2 admin -> 200 OK + empty list
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2AdminToken);
+        var listT2 = await client.GetAsync("/customers");
+        Assert.Equal(HttpStatusCode.OK, listT2.StatusCode);
+        var t2Customers = await listT2.Content.ReadFromJsonAsync<System.Collections.Generic.List<CustomerDto>>();
+        Assert.NotNull(t2Customers);
+        Assert.Empty(t2Customers);
+        // --- END NEW TEST BLOCK ---
+
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT count(*) FROM audit_logs WHERE action = 'customer.created'", conn);
+            var count = (long)(await cmd.ExecuteScalarAsync() ?? 0L);
+            Assert.Equal(1, count);
+        }
+    }
+
+    [SkippableFact]
+    public async Task VisitApi_VerifiesPermissionsAndIsolation()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var deniedUserId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @t1, 'DevAdmin'), (@r2, @t1, 'EmptyRole');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t1, @r1, 'visits.write');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t1, @a1, @r1), (@t1, @u1, @r2);
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", deniedUserId);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("r1", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("r2", Guid.NewGuid());
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var deniedToken = GenerateToken(tenantId1, deniedUserId, signingKey!, issuer!, audience!);
+
+        var req = new LifeDrop.Application.Visits.CreateVisitRequest(adminId, customerId, new DateOnly(2026, 10, 3));
+
+        // 1. Missing permission
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", deniedToken);
+        var respDenied = await client.PostAsJsonAsync("/visits", req);
+        Assert.Equal(HttpStatusCode.Forbidden, respDenied.StatusCode);
+
+        // 2. Success
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respAllowed = await client.PostAsJsonAsync("/visits", req);
+        Assert.Equal(HttpStatusCode.Created, respAllowed.StatusCode);
+
+        // 4. Test GET /visits for the scheduled date
+        var respGet = await client.GetAsync("/visits?scheduleDate=2026-10-03");
+        Assert.Equal(HttpStatusCode.OK, respGet.StatusCode);
+        var visits = await respGet.Content.ReadFromJsonAsync<System.Collections.Generic.List<LifeDrop.Application.Visits.VisitDto>>();
+        Assert.NotNull(visits);
+        Assert.Single(visits);
+        Assert.Equal(customerId, visits[0].CustomerId);
+        
+        // 5. Test GET /visits for a day with no visits
+        var respGetEmpty = await client.GetAsync("/visits?scheduleDate=2026-10-04");
+        Assert.Equal(HttpStatusCode.OK, respGetEmpty.StatusCode);
+        var emptyVisits = await respGetEmpty.Content.ReadFromJsonAsync<System.Collections.Generic.List<LifeDrop.Application.Visits.VisitDto>>();
+        Assert.NotNull(emptyVisits);
+        Assert.Empty(emptyVisits);
+
+        // 3. Cross-tenant rejection
+        var t2AdminId = Guid.NewGuid();
+        var t2AdminToken = GenerateToken(tenantId2, t2AdminId, signingKey!, issuer!, audience!);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2AdminToken);
+        // Using T1's user and customer in T2 context -> NotFound
+        var respCross = await client.PostAsJsonAsync("/visits", req);
+        Assert.Equal(HttpStatusCode.Forbidden, respCross.StatusCode); // Wait, no visits.write in T2!
+
+        // Give T2 admin visits.write to test NotFound properly
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO users (id, tenant_id) VALUES (@u, @t);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r, @t, 'T2Admin');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t, @r, 'visits.write');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t, @u, @r);
+            ", conn);
+            cmd.Parameters.AddWithValue("t", tenantId2);
+            cmd.Parameters.AddWithValue("r", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("u", t2AdminId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var respCrossAuth = await client.PostAsJsonAsync("/visits", req);
+        Assert.Equal(HttpStatusCode.NotFound, respCrossAuth.StatusCode);
+
+        // 6. Cross-user read isolation (same tenant, different user)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", deniedToken);
+        var respGetDenied = await client.GetAsync("/visits?scheduleDate=2026-10-03");
+        Assert.Equal(HttpStatusCode.OK, respGetDenied.StatusCode);
+        var deniedVisits = await respGetDenied.Content.ReadFromJsonAsync<System.Collections.Generic.List<LifeDrop.Application.Visits.VisitDto>>();
+        Assert.NotNull(deniedVisits);
+        Assert.Empty(deniedVisits);
+
+        // 7. Cross-tenant read isolation
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2AdminToken);
+        var respGetT2 = await client.GetAsync("/visits?scheduleDate=2026-10-03");
+        Assert.Equal(HttpStatusCode.OK, respGetT2.StatusCode);
+        var t2Visits = await respGetT2.Content.ReadFromJsonAsync<System.Collections.Generic.List<LifeDrop.Application.Visits.VisitDto>>();
+        Assert.NotNull(t2Visits);
+        Assert.Empty(t2Visits);
+    }
+
+    [SkippableFact]
+    public async Task VisitApi_EnRoute_EnforcesPermissionsAndTransitions()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var anotherUser = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var visitId = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
+                VALUES (@v1, @t1, @a1, @c1, 'Planned', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", anotherUser);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var wrongUserToken = GenerateToken(tenantId1, anotherUser, signingKey!, issuer!, audience!);
+        var t2Token = GenerateToken(tenantId2, adminId, signingKey!, issuer!, audience!);
+
+        // 1. Wrong user (another employee)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", wrongUserToken);
+        var respWrong = await client.PostAsync($"/visits/{visitId}/en-route", null);
+        Assert.Equal(HttpStatusCode.Forbidden, respWrong.StatusCode);
+
+        // 2. Wrong tenant (t2 admin)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
+        var respT2 = await client.PostAsync($"/visits/{visitId}/en-route", null);
+        Assert.Equal(HttpStatusCode.NotFound, respT2.StatusCode);
+
+        // 3. Success
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respSuccess = await client.PostAsync($"/visits/{visitId}/en-route", null);
+        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+
+        // 4. Repeated transition (invalid state)
+        var respRepeated = await client.PostAsync($"/visits/{visitId}/en-route", null);
+        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+
+        // Verify it was persisted
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false);", conn);
+            setCmd.Parameters.AddWithValue("t1", tenantId1);
+            await setCmd.ExecuteNonQueryAsync();
+
+            await using var cmd = new NpgsqlCommand("SELECT status FROM visits WHERE id = @v1;", conn);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            var status = (string)await cmd.ExecuteScalarAsync();
+            Assert.Equal("EnRoute", status);
+        }
+        
+        // 5. Test concurrency conflict (try to en-route again while it's already en-route or in a race)
+        // Wait, the previous test made it EnRoute, let's create a new visit for the concurrency test!
+        var concurrentVisitId = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
+                VALUES (@v1, @t1, @a1, @c1, 'Planned', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", concurrentVisitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Send two concurrent requests
+        var req1 = client.PostAsync($"/visits/{concurrentVisitId}/en-route", null);
+        var req2 = client.PostAsync($"/visits/{concurrentVisitId}/en-route", null);
+        var results = await Task.WhenAll(req1, req2);
+
+        var statuses = results.Select(r => r.StatusCode).ToList();
+        
+        // One should succeed, one should get a conflict (409) or bad request (400 depending on race timing, but 409 is our optimistic concurrency)
+        Assert.Contains(HttpStatusCode.NoContent, statuses);
+        Assert.True(statuses.Contains(HttpStatusCode.Conflict) || statuses.Contains(HttpStatusCode.BadRequest));
+    }
+
+    [SkippableFact]
+    public async Task VisitApi_Arrived_EnforcesPermissionsAndTransitions()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var anotherUser = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var visitId = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
+                VALUES (@v1, @t1, @a1, @c1, 'EnRoute', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", anotherUser);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var wrongUserToken = GenerateToken(tenantId1, anotherUser, signingKey!, issuer!, audience!);
+        var t2Token = GenerateToken(tenantId2, adminId, signingKey!, issuer!, audience!);
+
+        // 1. Wrong user (another employee)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", wrongUserToken);
+        var respWrong = await client.PostAsync($"/visits/{visitId}/arrive", null);
+        Assert.Equal(HttpStatusCode.Forbidden, respWrong.StatusCode);
+
+        // 2. Wrong tenant (t2 admin)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
+        var respT2 = await client.PostAsync($"/visits/{visitId}/arrive", null);
+        Assert.Equal(HttpStatusCode.NotFound, respT2.StatusCode);
+
+        // 3. Success
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respSuccess = await client.PostAsync($"/visits/{visitId}/arrive", null);
+        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+
+        // 4. Repeated transition (invalid state)
+        var respRepeated = await client.PostAsync($"/visits/{visitId}/arrive", null);
+        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+
+        // Verify it was persisted
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false);", conn);
+            setCmd.Parameters.AddWithValue("t1", tenantId1);
+            await setCmd.ExecuteNonQueryAsync();
+
+            await using var cmd = new NpgsqlCommand("SELECT status FROM visits WHERE id = @v1;", conn);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            var status = (string)await cmd.ExecuteScalarAsync();
+            Assert.Equal("Arrived", status);
+        }
+    }
+
+    [SkippableFact]
+    public async Task VisitApi_InVisit_EnforcesPermissionsAndTransitions()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var anotherUser = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var visitId = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
+                VALUES (@v1, @t1, @a1, @c1, 'Arrived', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", anotherUser);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var wrongUserToken = GenerateToken(tenantId1, anotherUser, signingKey!, issuer!, audience!);
+        var t2Token = GenerateToken(tenantId2, adminId, signingKey!, issuer!, audience!);
+
+        // 1. Wrong user (another employee)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", wrongUserToken);
+        var respWrong = await client.PostAsync($"/visits/{visitId}/start", null);
+        Assert.Equal(HttpStatusCode.Forbidden, respWrong.StatusCode);
+
+        // 2. Wrong tenant (t2 admin)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
+        var respT2 = await client.PostAsync($"/visits/{visitId}/start", null);
+        Assert.Equal(HttpStatusCode.NotFound, respT2.StatusCode);
+
+        // 3. Success
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respSuccess = await client.PostAsync($"/visits/{visitId}/start", null);
+        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+
+        // 4. Repeated transition (invalid state)
+        var respRepeated = await client.PostAsync($"/visits/{visitId}/start", null);
+        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+
+        // Verify it was persisted
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false);", conn);
+            setCmd.Parameters.AddWithValue("t1", tenantId1);
+            await setCmd.ExecuteNonQueryAsync();
+
+            await using var cmd = new NpgsqlCommand("SELECT status FROM visits WHERE id = @v1;", conn);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            var status = (string)await cmd.ExecuteScalarAsync();
+            Assert.Equal("InVisit", status);
+        }
+    }
+
+    [SkippableFact]
+    public async Task VisitApi_Completed_EnforcesPermissionsAndTransitions()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var signingKey = conf["Jwt:SigningKey"];
+        var issuer = conf["Jwt:Issuer"];
+        var audience = conf["Jwt:Audience"];
+
+        var client = factory.CreateClient();
+
+        var tenantId1 = Guid.NewGuid();
+        var tenantId2 = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var anotherUser = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var visitId = Guid.NewGuid();
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@u1, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) 
+                VALUES (@v1, @t1, @a1, @c1, 'InVisit', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId1);
+            cmd.Parameters.AddWithValue("t2", tenantId2);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("u1", anotherUser);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId1, adminId, signingKey!, issuer!, audience!);
+        var wrongUserToken = GenerateToken(tenantId1, anotherUser, signingKey!, issuer!, audience!);
+        var t2Token = GenerateToken(tenantId2, adminId, signingKey!, issuer!, audience!);
+
+        // 1. Wrong user (another employee)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", wrongUserToken);
+        var respWrong = await client.PostAsync($"/visits/{visitId}/complete", null);
+        Assert.Equal(HttpStatusCode.Forbidden, respWrong.StatusCode);
+
+        // 2. Wrong tenant (t2 admin)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", t2Token);
+        var respT2 = await client.PostAsync($"/visits/{visitId}/complete", null);
+        Assert.Equal(HttpStatusCode.NotFound, respT2.StatusCode);
+
+        // 3. Success
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var respSuccess = await client.PostAsync($"/visits/{visitId}/complete", null);
+        Assert.Equal(HttpStatusCode.NoContent, respSuccess.StatusCode);
+
+        // 4. Repeated transition (invalid state)
+        var respRepeated = await client.PostAsync($"/visits/{visitId}/complete", null);
+        Assert.Equal(HttpStatusCode.BadRequest, respRepeated.StatusCode);
+
+        // Verify it was persisted
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var setCmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false);", conn);
+            setCmd.Parameters.AddWithValue("t1", tenantId1);
+            await setCmd.ExecuteNonQueryAsync();
+
+            await using var cmd = new NpgsqlCommand("SELECT status FROM visits WHERE id = @v1;", conn);
+            cmd.Parameters.AddWithValue("v1", visitId);
+            var status = (string)await cmd.ExecuteScalarAsync();
+            Assert.Equal("Completed", status);
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomerApi_HostsMaintainIndependentSecurityStates()
+    {
+        var normalUrl = GetRequiredEnvVar("TEST_DATABASE_URL");
+        var superUrl = GetRequiredEnvVar("TEST_SUPERUSER_DATABASE_URL");
+        
+        await VerifyRoleAsync(normalUrl, expectElevated: false);
+        await VerifyRoleAsync(superUrl, expectElevated: true);
+
+        await using var schemaBlockNormal = await SetupIsolatedSchemaAsync(normalUrl);
+        await using var schemaBlockSuper = await SetupIsolatedSchemaAsync(superUrl);
+        
+        // Ensure independence by creating them in both orders in separate assertions.
+        // Pass 1: Normal then Super
+        await ExecuteHostIndependenceAssertion(schemaBlockNormal.ConnectionString, schemaBlockSuper.ConnectionString, reverseOrder: false);
+        // Pass 2: Super then Normal
+        await ExecuteHostIndependenceAssertion(schemaBlockNormal.ConnectionString, schemaBlockSuper.ConnectionString, reverseOrder: true);
+    }
+
+    private async Task ExecuteHostIndependenceAssertion(string connectionStringNormal, string connectionStringSuper, bool reverseOrder)
+    {
+        WebApplicationFactory<LifeDrop.API.Program> factoryNormal = null!;
+        WebApplicationFactory<LifeDrop.API.Program> factorySuper = null!;
+
+        try
+        {
+            Action createNormal = () => {
+                factoryNormal = new WebApplicationFactory<LifeDrop.API.Program>()
+                    .WithWebHostBuilder(webBuilder =>
+                    {
+                        webBuilder.UseSetting("ConnectionStrings:LifeDrop", connectionStringNormal);
+                        webBuilder.ConfigureTestServices(services =>
+                        {
+                            var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                            if (descriptor != null) services.Remove(descriptor);
+                            services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                        });
+                    });
+            };
+
+            Action createSuper = () => {
+                factorySuper = new WebApplicationFactory<LifeDrop.API.Program>()
+                    .WithWebHostBuilder(webBuilder =>
+                    {
+                        webBuilder.UseSetting("ConnectionStrings:LifeDrop", connectionStringSuper);
+                        webBuilder.ConfigureTestServices(services =>
+                        {
+                            var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                            if (descriptor != null) services.Remove(descriptor);
+                            services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                        });
+                    });
+            };
+
+            if (reverseOrder) { createSuper(); createNormal(); }
+            else { createNormal(); createSuper(); }
+
+            var conf = factoryNormal.Services.GetRequiredService<IConfiguration>();
+            var signingKey = conf["Jwt:SigningKey"];
+            var issuer = conf["Jwt:Issuer"];
+            var audience = conf["Jwt:Audience"];
+
+            var clientNormal = factoryNormal.CreateClient();
+            var clientSuper = factorySuper.CreateClient();
+
+            var adminId = Guid.NewGuid();
+            var tenantId = Guid.NewGuid();
+
+            // Give adminId roles in normal DB
+            await using (var conn = new NpgsqlConnection(connectionStringNormal))
+            {
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(@"
+                    INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', @t1Code) ON CONFLICT DO NOTHING;
+                    INSERT INTO users (id, tenant_id) VALUES (@a1, @t1) ON CONFLICT DO NOTHING;
+                    INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @t1, 'DevAdmin') ON CONFLICT DO NOTHING;
+                    INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t1, @r1, 'customers.read'), (@t1, @r1, 'customers.write') ON CONFLICT DO NOTHING;
+                    INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t1, @a1, @r1) ON CONFLICT DO NOTHING;
+                ", conn);
+                cmd.Parameters.AddWithValue("t1", tenantId);
+                cmd.Parameters.AddWithValue("t1Code", "T1_" + tenantId.ToString());
+                cmd.Parameters.AddWithValue("a1", adminId);
+                cmd.Parameters.AddWithValue("r1", Guid.NewGuid());
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            var token = GenerateToken(tenantId, adminId, signingKey!, issuer!, audience!);
+            var req = new CreateCustomerRequest("Clinic_" + Guid.NewGuid(), "C0" + Guid.NewGuid().ToString().Substring(0, 4), "Test Clinic");
+
+            // Normal client should execute successfully
+            clientNormal.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var respNormal = await clientNormal.PostAsJsonAsync("/customers", req);
+            Assert.Equal(HttpStatusCode.Created, respNormal.StatusCode);
+
+            // Superuser client should fail closed
+            clientSuper.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var respSuper = await clientSuper.PostAsJsonAsync("/customers", req);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, respSuper.StatusCode);
+        }
+        finally
+        {
+            if (factoryNormal != null) await factoryNormal.DisposeAsync();
+            if (factorySuper != null) await factorySuper.DisposeAsync();
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomerApi_Migration0005_GrantsOnlyToDevTenant()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            var devTenantId = Guid.NewGuid();
+            var devRoleId = Guid.NewGuid();
+            var otherTenantId = Guid.NewGuid();
+            var otherRoleId = Guid.NewGuid();
+
+            // Insert matching role 'DevAdmin' into two different tenants, but only one is 'dev'.
+            await using (var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@d1, 'Dev', 'dev'), (@o1, 'Other', 'other');
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @d1, 'DevAdmin'), (@r2, @o1, 'DevAdmin');
+            ", conn))
+            {
+                cmd.Parameters.AddWithValue("d1", devTenantId);
+                cmd.Parameters.AddWithValue("r1", devRoleId);
+                cmd.Parameters.AddWithValue("o1", otherTenantId);
+                cmd.Parameters.AddWithValue("r2", otherRoleId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Re-apply migration 0005 script explicitly against the populated test tables.
+            var m5 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0005_dev_admin_customer_permissions.sql"));
+            await using (var cmd = new NpgsqlCommand(m5, conn))
+            {
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Verify
+            await using (var cmd = new NpgsqlCommand(@"
+                SELECT tenant_id, COUNT(*) 
+                FROM role_permissions 
+                WHERE permission_key IN ('customers.read', 'customers.write')
+                GROUP BY tenant_id;
+            ", conn))
+            {
+                await using var reader = await cmd.ExecuteReaderAsync();
+                int rows = 0;
+                while (await reader.ReadAsync())
+                {
+                    rows++;
+                    var tid = reader.GetGuid(0);
+                    var count = reader.GetInt64(1);
+                    
+                    if (tid == devTenantId)
+                    {
+                        Assert.Equal(2, count); // 'customers.read' and 'customers.write'
+                    }
+                    else if (tid == otherTenantId)
+                    {
+                        throw new Exception("Migration 0005 incorrectly granted permissions to tenant code 'other'.");
+                    }
+                    else
+                    {
+                        throw new Exception("Unknown tenant found in role_permissions.");
+                    }
+                }
+                Assert.Equal(1, rows); // Only devTenantId should be in the result
+            }
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomerApi_SchemaCleanedUpOnMigrationFailure()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        
+        string expectedSchemaName = null;
+        try
+        {
+            await SetupIsolatedSchemaAsync(url, "CREATE TABLE this_is_invalid_sql ( id ); SYNTAX ERROR!!!");
+            Assert.Fail("SetupIsolatedSchemaAsync should have failed.");
+        }
+        catch (PostgresException ex)
+        {
+            expectedSchemaName = ex.Data["SchemaName"] as string;
+            Assert.NotNull(expectedSchemaName);
+        }
+
+        await using var conn = new NpgsqlConnection(url);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT schema_name FROM information_schema.schemata WHERE schema_name = @schema", conn);
+        cmd.Parameters.AddWithValue("schema", expectedSchemaName);
+        
+        var existingSchema = await cmd.ExecuteScalarAsync();
+        Assert.Null(existingSchema); // Schema should have been dropped
+    }
+}
+
+
+
+
+
+
+
+
+
+
