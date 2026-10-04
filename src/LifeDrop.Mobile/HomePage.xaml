@@ -11,6 +11,12 @@
 
             <Label x:Name="StatusLabel" Text="Session is active." HorizontalOptions="Center" />
 
+            <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                <Label x:Name="ShiftStatusLabel" Text="Shift: off" FontAttributes="Bold" HorizontalOptions="Center" />
+                <Label x:Name="ShiftDetailLabel" IsVisible="False" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                <Button x:Name="ShiftBtn" Text="Start shift" Clicked="OnShiftClicked" HorizontalOptions="Center" WidthRequest="200" />
+            </VerticalStackLayout>
+
             <Button x:Name="PlanBtn" Text="Today's plan" Clicked="OnPlanClicked" HorizontalOptions="Center" WidthRequest="200" />
 
             <Button x:Name="LogoutBtn" Text="Logout" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
