@@ -19,7 +19,7 @@ Updated: 2026-10-04. These rules describe how code in this repository is written
 ## 3. API
 - Minimal API endpoints in `src/LifeDrop.API`. Tenant and actor always come from the validated token, never from the request body.
 - Status codes (PRD §11): 400 invalid input, 401 invalid session, 403 missing permission, 404 not found within the caller's scope (including other tenants), 409 state conflict or duplicate. A predictable error must never return 500. An empty list is 200 with `[]`.
-- Error body: one shared ProblemDetails shape with a stable `code` field (step 0.5). New endpoints must use it once it exists.
+- Error body: every 4xx/5xx is RFC 9457 ProblemDetails (`application/problem+json`) with `type`, `title`, `status`, a stable `code` and `traceId` (step 0.5). Return specific errors with `ApiErrors.Problem(status, ApiErrors.<Code>)` from `src/LifeDrop.API/ApiErrors.cs`; empty-bodied results (`Results.Forbid()`, `NotFound()`, …), authentication challenges, rate limiting and unhandled exceptions get a generic code automatically. Clients branch on `code`, never on `title`. Add new codes as constants in `ApiErrors`, in UPPER_SNAKE_CASE.
 - Permission keys are `resource.action` (`customers.read`, `visits.fail`). Audit actions are `entity.past_tense` (`customer.created`, `device.blocked`).
 - State-changing visit, check-in/out, order and payment endpoints accept an idempotency key; a retried request must not create a second record or transition.
 - Check-in and check-out decisions are made on the server with fresh, valid GPS inside the customer geofence (decision D2).

@@ -974,6 +974,105 @@ public class CustomerApiIntegrationTests
         Assert.Equal(("Failed", (string?)validReason.Reason), await ReadVisitStatusAsync(schemaBlock.ConnectionString, tenantId1, visitId));
     }
 
+    [SkippableFact]
+    public async Task ApiErrors_ReturnProblemDetailsWithStableCodes()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var tenantId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var deniedUserId = Guid.NewGuid();
+        var roleId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var plannedVisitId = Guid.NewGuid();
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                INSERT INTO users (id, tenant_id) VALUES (@a1, @t1), (@d1, @t1);
+                INSERT INTO roles (id, tenant_id, name) VALUES (@r1, @t1, 'Manager');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES (@t1, @r1, 'customers.read'), (@t1, @r1, 'customers.write');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@t1, @a1, @r1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Clinic', 'C001', 'Test Clinic');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at)
+                VALUES (@v1, @t1, @a1, @c1, 'Planned', '2026-10-03', now());
+            ", conn);
+            cmd.Parameters.AddWithValue("t1", tenantId);
+            cmd.Parameters.AddWithValue("a1", adminId);
+            cmd.Parameters.AddWithValue("d1", deniedUserId);
+            cmd.Parameters.AddWithValue("r1", roleId);
+            cmd.Parameters.AddWithValue("c1", customerId);
+            cmd.Parameters.AddWithValue("v1", plannedVisitId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var adminToken = GenerateToken(tenantId, adminId, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!);
+        var deniedToken = GenerateToken(tenantId, deniedUserId, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!);
+
+        // 401: authentication challenge, no token
+        client.DefaultRequestHeaders.Authorization = null;
+        await AssertProblemAsync(await client.GetAsync("/customers"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+
+        // 403: authenticated but missing customers.read
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", deniedToken);
+        await AssertProblemAsync(await client.GetAsync("/customers"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        // 400: invalid query input
+        await AssertProblemAsync(await client.GetAsync("/customers?limit=0"), HttpStatusCode.BadRequest, "BAD_REQUEST");
+
+        // 404: record not in the caller's scope
+        await AssertProblemAsync(await client.GetAsync($"/customers/{Guid.NewGuid()}"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // 409: duplicate customer code
+        await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new CreateCustomerRequest("Clinic", "C001", "Other Clinic")),
+            HttpStatusCode.Conflict, "DUPLICATE_CODE");
+
+        // 400 with a specific code: visit state conflict (Planned cannot be completed)
+        await AssertProblemAsync(await client.PostAsync($"/visits/{plannedVisitId}/complete", null), HttpStatusCode.BadRequest, "INVALID_STATE");
+
+        // Success responses keep their normal JSON shape; an empty page is 200 with []
+        var emptyPage = await client.GetAsync($"/customers?limit=1&cursorCreatedAt={Uri.EscapeDataString(new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero).ToString("O"))}&cursorId={Guid.Empty}");
+        Assert.Equal(HttpStatusCode.OK, emptyPage.StatusCode);
+        Assert.Equal("application/json", emptyPage.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("[]", (await emptyPage.Content.ReadAsStringAsync()).Trim());
+    }
+
+    private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)
+    {
+        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+        var root = body!.RootElement;
+        Assert.Equal((int)expectedStatus, root.GetProperty("status").GetInt32());
+        Assert.Equal(expectedCode, root.GetProperty("code").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("title").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("traceId").GetString()));
+    }
+
     private static async Task<(string Status, string? Reason)> ReadVisitStatusAsync(string connectionString, Guid tenantId, Guid visitId)
     {
         await using var conn = new NpgsqlConnection(connectionString);

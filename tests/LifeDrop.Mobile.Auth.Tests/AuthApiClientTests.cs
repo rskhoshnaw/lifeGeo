@@ -197,6 +197,24 @@ public sealed class AuthApiClientTests
     }
 
     [Fact]
+    public async Task LoginAsync_DeviceNotApprovedProblemDetails_ReturnsDeviceNotApprovedStatus()
+    {
+        // Server error contract (plan step 0.5): RFC 9457 ProblemDetails with a "code" extension.
+        var errorBody = "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.4\",\"title\":\"Forbidden\",\"status\":403,\"code\":\"DEVICE_NOT_APPROVED\",\"traceId\":\"0HN-test\"}";
+        var handler = StubHttpMessageHandler.FromResponse(HttpStatusCode.Forbidden, errorBody, "application/problem+json");
+        var httpClient = new HttpClient(handler) { BaseAddress = TestBaseUri };
+        var client = new AuthApiClient(httpClient);
+
+        var request = new LoginRequest("ACME", "rep@acme.com", "ValidPass", Guid.NewGuid(), "pending_sec");
+        var result = await client.LoginAsync(request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(AuthStatus.DeviceNotApproved, result.Status);
+        Assert.Equal("DEVICE_NOT_APPROVED", result.ErrorCode);
+        Assert.Equal(403, result.HttpStatusCode);
+    }
+
+    [Fact]
     public async Task LoginAsync_ForbiddenWithoutDeviceCode_ReturnsForbiddenStatus()
     {
         var handler = StubHttpMessageHandler.FromResponse(HttpStatusCode.Forbidden, "{}");

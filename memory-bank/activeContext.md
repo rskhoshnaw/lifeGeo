@@ -21,8 +21,12 @@ The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 wit
 - The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
-1. Confirm step 1.1 is green in CI.
-2. Step 0.5 — common error contract.
+1. Step 1.1 is green in CI on PR #5 (`build`, `database-tests`); waiting for the owner to merge it.
+2. Step 0.5 — common error contract: implemented locally (ProblemDetails with stable `code`, `ApiErrors.cs`); 16/16 database tests and 85/85 Mobile.Auth tests pass. Push after PR #5 is merged. Then 0.5b (OpenAPI contract file).
 3. Step 0.6 — permission matrix and region/team model.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
+
+## Working preferences
+- Report times to the user in Iraq local time (`Asia/Baghdad`, UTC+3).
+- Claude opens PRs itself and drives them to green; the owner merges.
