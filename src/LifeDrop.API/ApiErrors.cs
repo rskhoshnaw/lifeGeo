@@ -19,6 +19,7 @@ public static class ApiErrors
     public const string UserNotFound = "USER_NOT_FOUND";
     public const string CustomerNotFound = "CUSTOMER_NOT_FOUND";
     public const string RegionNotFound = "REGION_NOT_FOUND";
+    public const string CustomerNotApproved = "CUSTOMER_NOT_APPROVED";
     public const string DuplicateName = "DUPLICATE_NAME";
     public const string DeviceRequired = "DEVICE_REQUIRED";
     public const string CustomerLocationMissing = "CUSTOMER_LOCATION_MISSING";

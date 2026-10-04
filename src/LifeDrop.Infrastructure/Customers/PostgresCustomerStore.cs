@@ -31,7 +31,11 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         return ReadCustomer(reader);
     }
 
-    public async Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken)
+    public Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken) =>
+        CreateAsync(tenantId, actorId, id, request, null, "approved", cancellationToken);
+
+    public async Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request,
+        Guid? regionId, string approvalStatus, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -44,13 +48,14 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
         const string sql = """
             WITH inserted AS (
-                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id)
-                VALUES (@id, @tenant, @type, @code, @name, 'no_location', @actor)
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status)
+                VALUES (@id, @tenant, @type, @code, @name, 'no_location', @actor, @region, @approval)
                 ON CONFLICT (tenant_id, code) DO NOTHING
                 RETURNING id, tenant_id
             ), audited AS (
                 INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
-                SELECT gen_random_uuid(), tenant_id, @actor, 'customer.created', id::text, now()
+                SELECT gen_random_uuid(), tenant_id, @actor,
+                       CASE WHEN @approval = 'pending' THEN 'customer.created_pending' ELSE 'customer.created' END, id::text, now()
                 FROM inserted
                 RETURNING id
             )
@@ -64,6 +69,15 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         command.Parameters.AddWithValue("type", request.Type);
         command.Parameters.AddWithValue("code", request.Code);
         command.Parameters.AddWithValue("name", request.Name);
+        command.Parameters.AddWithValue("region", (object?)regionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("approval", approvalStatus);
+
+        if (regionId is not null)
+        {
+            await using var regionCheck = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM regions WHERE id = @region)", connection, transaction);
+            regionCheck.Parameters.AddWithValue("region", regionId.Value);
+            if (!(bool)(await regionCheck.ExecuteScalarAsync(cancellationToken) ?? false)) return CreateCustomerResult.RegionNotFound;
+        }
 
         var inserted = (long)(await command.ExecuteScalarAsync(cancellationToken) ?? 0L);
         if (inserted == 0) return CreateCustomerResult.DuplicateCode;
@@ -129,7 +143,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
     private const string SelectColumns = """
         id, tenant_id, type, code, name, status, created_at,
-        ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m
+        ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m,
+        region_id, approval_status
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -139,7 +154,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(8) ? null : reader.GetDouble(8),
         reader.IsDBNull(9) ? null : reader.GetString(9),
         reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10),
-        reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11));
+        reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
+        reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13));
 
     public async Task<bool> SetLocationAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         double latitude, double longitude, string source, double? accuracyMeters, CancellationToken cancellationToken) =>

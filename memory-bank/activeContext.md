@@ -1,32 +1,32 @@
 # Active Context
 
-Updated: 2026-10-04.
+Updated: 2026-10-04 (handoff for a new session).
 
-## Current task
-The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 with numbered steps). The plan and decisions D2, D10, D11 were merged to `main` in PR #3 (`bc70472`). Step **0.4** is done: PR #4 (template removal, rewritten PRD and conventions, all database tests in CI) merged at `49c7244`; CI `database-tests` ran 14/14 with 0 skipped. Next step: **1.1**.
+## Where we are
+Work follows `docs/IMPLEMENTATION-PLAN.md` step by step. Phase 0 is done (exit report `docs/PHASE0-EXIT-REPORT.md`). Phase 1:
+- Backend 1.1–1.9 merged (PRs #5–#13): planning fields, Iraq "today", reassign/cancel, customer location and radius, visit report, server check-in/check-out with GPS + geofence (D2), status history and audit of every transition.
+- Mobile 1.10–1.14 merged (PRs #14–#21): daily plan, visit details, check-in/report/check-out, shifts and Android background tracking, offline outbox. All need a **real-device check** (owner): `docs/TRACKING-DEVICE-TEST.md`.
+- Step **1.15** (customer registration by reps, D11 approval queue, migration 0018) is in its PR on branch `claude/jolly-bardeen-5q93e2`.
+- Next: **1.16** web panel (React + TypeScript + Tailwind v4, D10/D12; Cloudflare Pages, D13). The API host must be decided before 1.16.
 
-## Product decisions recorded 2026-10-04
-- **D2:** Check-out requires fresh, valid GPS inside the customer's geofence radius, with the same anti-fraud checks as check-in. Recording any location is not enough.
-- **D10:** The web panel is React + TypeScript (not Blazor), in a new `src/LifeDrop.Web` project.
-- **D12:** The panel uses Tailwind CSS v4 (Vite plugin) with logical RTL-safe utilities; it is installed when step 1.16 creates `src/LifeDrop.Web`.
-- **D11:** Each team operates in one region; the sales manager defines regions and assigns them to teams. A representative may register an out-of-region customer; it is pending until an authorized manager approves it, then it belongs to that representative.
-- Step 0.6 proposal (regions, teams, permission matrix) and the D11 approval queue were accepted.
-- The inherited JSX/Express template was removed. `docs/PRD.md` was rewritten as the English working PRD with the decision log; `docs/06-CODING-CONVENTIONS.md` now matches current code and the React + TypeScript panel.
-- Still open: D1, D3, D4, D5, D6, D8, D9 (see the plan, section 2).
+## Decisions (details in the plan, section 2)
+D1 explicit shift start/end, test target ≥90 % points and gap ≤5 min. D2 check-out inside the geofence. D5 offline check-in/out up to 24 h, manager review when the monotonic clock disagrees or no tracking point is near the customer. D10/D12/D13 panel stack and hosting. D11 one region per team; out-of-region customers pending until a sales manager or that region's supervisor approves. Open: D3, D4, D6, D8, D9.
 
-## Relevant state
-- GitHub remote `rskhoshnaw/lifeGeo` is connected. PR #1 and PR #2 are merged; `build` and `test-device-block` CI checks are green on `main` (`4cbbd1f`).
-- Backend auth, device, role, customer and visit endpoints exist. `/start` and `/complete` enforce device, GPS and geofence on the server (steps 1.7, 1.8); `/complete` also requires the saved report.
-- Step 1.1: `VisitApi_Failed_EnforcesPermissionsAndTransitions` added (no token 401, owner without `visits.fail` 403, other owner 403, other tenant 404, blank reason 400, success 204 with persisted reason, repeat 400 without overwrite). Local 15/15 database tests; awaiting CI. Visit transitions still write no audit rows (step 1.9).
-- The Android MAUI app has Login/Home only; visit screens are not built.
+## Owner actions pending
+- Apply migrations **0006–0018** and `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+- Real-device tests (mobile steps, tracking, offline).
 
-## Next actions
-1. Steps 1.1 and 0.5 are merged and verified in CI (PR #5).
-2. Step 0.5b — OpenAPI contract file `docs/api/openapi-v1.json` with drift test; local 17/17; awaiting CI on its PR. Next: step 0.6.
-3. Phase 0 complete in code/CI (PR #6, exit report). Owner action: apply migrations 0006–0017 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`. Steps 1.2, 1.3 merged (PR #7). Steps 1.4–1.6 merged (PRs #8–#10). Step 1.7 merged (PR #11). Step 1.8 merged (PR #12). Step 1.9 merged (PR #13). Phase 1 backend (1.1–1.9) done. Step 1.10 merged (PRs #14, #15; CI builds the Android app). Steps 1.11, 1.12 merged (PRs #16, #17); 1.10–1.12 need a real-device check. D1 decided: explicit shift start/end; target ≥90 % points, gap ≤5 min. Step 1.13a merged (PR #18). Step 1.13 merged (PRs #18, #19); real-device test pending (docs/TRACKING-DEVICE-TEST.md). D5 decided: offline check-in/out within 24 h with manager review when unconfirmed. Step 1.14a merged (PR #20). Step 1.14b (mobile offline outbox, persistent points, plan cache) in its PR; real-device offline test in docs/TRACKING-DEVICE-TEST.md. Next: 1.15 (customer registration by rep, D11 approval queue). D13: panel on Cloudflare Pages (private repo, PR previews, Access); API host to decide before 1.16.
+## How to work (agreed with the owner)
+- Reply in **Persian**, short. Times in Iraq local time (`Asia/Baghdad`).
+- Develop on `claude/jolly-bardeen-5q93e2`; after a PR merges, reset that branch to `origin/main` and force-push.
+- Claude opens the PR; the owner merges after CI is green. To save credit, Claude does **not** subscribe to PR events; the owner says "CI قرمز شد" if CI fails. Check the last PR's CI once at the start of each step.
+- Commits end with the Co-Authored-By / Claude-Session lines; no model names in commits or PRs.
 
-Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
-
-## Working preferences
-- Report times to the user in Iraq local time (`Asia/Baghdad`, UTC+3).
-- Claude opens PRs itself and drives them to green; the owner merges.
+## Verification routine (per step)
+- Local DB tests: start PostgreSQL with `pg_ctlcluster 16 main start` if needed; set `TEST_DATABASE_URL` (test_user/test_pass, db `lifedrop_test_ci`) and `TEST_SUPERUSER_DATABASE_URL` (postgres/temp_root); run `dotnet test tests/LifeDrop.Database.Tests` (twice) and `dotnet test LifeDrop.CI.slnf`.
+- New migration: add it to `LifeDrop.Database.Tests.csproj`, the list in `CustomerApiIntegrationTests.SetupIsolatedSchemaAsync` (m1..mN) and `DeploymentRehearsalTests`; update the grants file; never edit merged migrations (change `seed_default_roles` with `CREATE OR REPLACE` in a new migration, copying the latest version, now 0018).
+- API change: regenerate `docs/api/openapi-v1.json` with `UPDATE_OPENAPI_SNAPSHOT=1` and check the diff is intended. New DB test → raise `MIN_EXPECTED_TESTS` in `.github/workflows/database-tests.yml` (now 33).
+- Mutation check: break the new rule briefly, confirm a test fails, restore.
+- Mobile: logic goes in `src/LifeDrop.Mobile.Visits` (tested in CI). MAUI pages: compile check with `dotnet build src/LifeDrop.Mobile/LifeDrop.Mobile.csproj -p:TargetFrameworks=net10.0 -p:TargetFramework=net10.0 -p:OutputType=Library`. Android-only files: compile in a scratch project referencing `~/.dotnet/packs/Microsoft.Android.Ref.36/*/ref/net10.0/Mono.Android.dll` (the Android SDK cannot be downloaded here). CI job `mobile-android` builds the real app.
+- SQL ordering in tests: use `COLLATE "C"` (CI uses en_US).
+- Update the plan row, `docs/phase0-api-access-matrix.md`, and `memory-bank/progress.md` in the same PR.

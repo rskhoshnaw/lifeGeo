@@ -6,7 +6,7 @@ using LifeDrop.Domain.Visits;
 
 namespace LifeDrop.Application.Visits;
 
-public enum CreateVisitResult { Created, Forbidden, InvalidData, UserNotFound, CustomerNotFound }
+public enum CreateVisitResult { Created, Forbidden, InvalidData, UserNotFound, CustomerNotFound, CustomerNotApproved }
 
 // VisitType: pharmacy | doctor | wholesaler | other (default other). Priority: high | normal | low (default normal).
 // PlannedTime: local time of day in Asia/Baghdad, optional.
@@ -90,8 +90,10 @@ public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customer
             if (scope.RegionId is null || assigneeRegion != scope.RegionId) return (CreateVisitResult.Forbidden, null);
         }
 
-        if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken) is null)
-            return (CreateVisitResult.CustomerNotFound, null);
+        var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken);
+        if (customer is null) return (CreateVisitResult.CustomerNotFound, null);
+        // Plan step 1.15 (D11): no visits for a customer still waiting for approval, or rejected.
+        if (customer.ApprovalStatus != "approved") return (CreateVisitResult.CustomerNotApproved, null);
 
         if (!VisitPlanningContract.TryParseType(request.VisitType, out var visitType) ||
             !VisitPlanningContract.TryParsePriority(request.Priority, out var priority))
@@ -135,8 +137,10 @@ public sealed class CreateUnplannedVisit(IVisitStore store, LifeDrop.Application
             return (CreateVisitResult.InvalidData, null);
         }
 
-        if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken) is null)
-            return (CreateVisitResult.CustomerNotFound, null);
+        var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId), scope, cancellationToken);
+        if (customer is null) return (CreateVisitResult.CustomerNotFound, null);
+        // Plan step 1.15 (D11): no visits for a customer still waiting for approval, or rejected.
+        if (customer.ApprovalStatus != "approved") return (CreateVisitResult.CustomerNotApproved, null);
 
         var (result, stored) = await store.CreateAsync(tenantId, actorId, visit, cancellationToken);
         return (result, result == CreateVisitResult.Created ? stored?.Id.Value : null);

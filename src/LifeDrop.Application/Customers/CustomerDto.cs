@@ -14,7 +14,10 @@ public sealed record CustomerDto(
     double? Longitude = null,
     string? LocationSource = null,
     DateTimeOffset? LocationUpdatedAt = null,
-    int GeofenceRadiusMeters = CustomerDto.DefaultGeofenceRadiusMeters
+    int GeofenceRadiusMeters = CustomerDto.DefaultGeofenceRadiusMeters,
+    // Plan step 1.15 (D11): region and approval of customers registered outside the rep's region.
+    Guid? RegionId = null,
+    string ApprovalStatus = "approved"
 )
 {
     // PRD §6.1: default check-in radius when the customer has no own radius.

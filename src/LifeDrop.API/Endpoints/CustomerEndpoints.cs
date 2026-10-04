@@ -30,7 +30,40 @@ public static class CustomerEndpoints
         }).RequireAuthorization()
             .WithName("SetCustomerGeofenceRadius").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Customers registered outside the rep's region, waiting for approval (plan step 1.15, decision D11).
+        app.MapGet("/customer-approvals", async (HttpContext context, CustomerApprovals approvals, DatabaseSecurityState securityState,
+            CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await approvals.ListAsync(tenantId, actorId, cancellationToken);
+            return result == CustomerApprovalResult.Success ? Results.Ok(items) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("ListPendingCustomers").WithTags("Customers").Produces<List<CustomerDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/customers/{customerId:guid}/approval", async (Guid customerId, DecideCustomerApprovalRequest request, HttpContext context,
+            CustomerApprovals approvals, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await approvals.DecideAsync(tenantId, actorId, customerId, request, cancellationToken);
+            return result == CustomerApprovalResult.Success ? Results.NoContent() : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("DecideCustomerApproval").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
     }
+
+    private static IResult ToResult(CustomerApprovalResult result) => result switch
+    {
+        CustomerApprovalResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+        CustomerApprovalResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        CustomerApprovalResult.AlreadyDecided => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.InvalidState),
+        _ => ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.Forbidden)
+    };
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)
     {
