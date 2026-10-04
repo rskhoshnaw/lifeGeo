@@ -34,6 +34,7 @@
     <None Include="../../db/migrations/0016_shifts_tracking.sql" Link="0016_shifts_tracking.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0017_offline_checkpoints.sql" Link="0017_offline_checkpoints.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0018_customer_approval.sql" Link="0018_customer_approval.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0019_live_map.sql" Link="0019_live_map.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
-// Panel calls for users, devices and customers (plan step 1.17), visit planning, regions and teams (step 1.18). The server checks every action again;
+// Panel calls for users, devices and customers (plan step 1.17), visit planning, regions and teams (step 1.18),
+// live map (step 1.19). The server checks every action again;
 // permissions from /me only decide which buttons the panel shows.
 import type { ApiClient } from './client.ts'
 
@@ -88,6 +89,24 @@ export interface Team {
   regionId: string
 }
 
+// One user on shift (plan step 1.19, decision D3). Without tracking.read for that user, precise is false and the
+// coordinates are null; isLive is false when the last point is older than 5 minutes.
+export interface LiveMapEntry {
+  userId: string
+  email: string | null
+  teamName: string | null
+  shiftStartedAt: string
+  lastUpdateAt: string | null
+  isLive: boolean
+  precise: boolean
+  latitude: number | null
+  longitude: number | null
+  accuracyMeters: number | null
+  isMocked: boolean | null
+  lastCustomerName: string | null
+  lastVisitAt: string | null
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly code: string | null
@@ -116,6 +135,7 @@ export const Permissions = {
   manageRegions: ['regions.manage'],
   readTeams: ['teams.read'],
   manageTeams: ['teams.manage'],
+  liveMap: ['tracking.read', 'tracking.summary'],
 } as const
 
 // Iraq local date (Asia/Baghdad) as YYYY-MM-DD, the server's "today" for visit plans.
@@ -172,6 +192,7 @@ export class AdminApi {
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })
+  liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   regions = () => this.get<Region[]>('/regions')
   teams = () => this.get<Team[]>('/teams')
   createRegion = (name: string) => this.post('/regions', { name })

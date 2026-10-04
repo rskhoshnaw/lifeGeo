@@ -2,7 +2,7 @@
 
 ## Backend (.NET 10, raw SQL with Npgsql, PostgreSQL 16 + PostGIS)
 - `src/LifeDrop.Domain/Visits/` — `Visit` state machine, `VisitReport`, `LocationCheck.cs` (GpsFix, LocationCheckPolicy, OfflineCheckPolicy).
-- `src/LifeDrop.Application/` — use cases by area: `Visits/VisitOperations.cs` (create, en-route, arrive, fail, manage, reports, `VisitCheckpoint` check-in/out), `Visits/OfflineReviews.cs`, `Customers/CustomerOperations.cs` (create + `CustomerApprovals`), `Tracking/ShiftTracking.cs`, `Roles/` (`IPermissionStore`, `PermissionKeys`, data scope tenant/region/own), `Auth/`, `Users/UserDirectory.cs` (panel reads: me, users, roles, devices), `Visits/VisitOperations.cs` `VisitPlanBoard` (`/visit-plan`), `Regions/RegionTeamOperations.cs`.
+- `src/LifeDrop.Application/` — use cases by area: `Visits/VisitOperations.cs` (create, en-route, arrive, fail, manage, reports, `VisitCheckpoint` check-in/out), `Visits/OfflineReviews.cs`, `Customers/CustomerOperations.cs` (create + `CustomerApprovals`), `Tracking/ShiftTracking.cs`, `Tracking/LiveMap.cs` (`/live-map`, D3), `Roles/` (`IPermissionStore`, `PermissionKeys`, data scope tenant/region/own), `Auth/`, `Users/UserDirectory.cs` (panel reads: me, users, roles, devices), `Visits/VisitOperations.cs` `VisitPlanBoard` (`/visit-plan`), `Regions/RegionTeamOperations.cs`.
 - `src/LifeDrop.Infrastructure/` — Postgres stores (`Visits/PostgresVisitStore.cs`, `Customers/…`, `Tracking/PostgresShiftStore.cs`). Every write sets `app.current_tenant` (RLS) and writes its audit row in the same transaction; visit writes also set `app.current_actor` (status-history trigger).
 - `src/LifeDrop.API/Program.cs` — DI, auth/JWT, CORS, older routes; `Endpoints/*.cs` — newer routes; `ApiErrors.cs` — ProblemDetails codes.
 - `db/migrations/00NN_*.sql` (never edit merged ones), `db/grants/lifedrop_app_grants.sql`.
@@ -17,7 +17,7 @@
 - `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`), `TrackingHost.cs` (shared services), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
 
 ## Web panel
-- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions), tests `*.test.ts(x)`.
+- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, LiveMap), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
 
 ## CI
 - `.github/workflows/build.yml` (jobs: build, mobile-android, web), `database-tests.yml` (`MIN_EXPECTED_TESTS`).

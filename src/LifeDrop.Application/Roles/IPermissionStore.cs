@@ -9,6 +9,14 @@ public enum DataScope { Own = 0, Region = 1, Tenant = 2 }
 public sealed record AccessScope(DataScope Scope, UserId ActorId, Guid? RegionId)
 {
     public static AccessScope WholeTenant(UserId actorId) => new(DataScope.Tenant, actorId, null);
+
+    // True when this scope reaches the user (userRegion = region of the user's team).
+    public bool Covers(UserId userId, Guid? userRegion) => Scope switch
+    {
+        DataScope.Tenant => true,
+        DataScope.Region => userId == ActorId || (RegionId is not null && userRegion == RegionId),
+        _ => userId == ActorId
+    };
 }
 
 public interface IPermissionStore
