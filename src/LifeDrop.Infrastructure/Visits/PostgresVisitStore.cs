@@ -211,6 +211,44 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             command.Parameters.AddWithValue("expectedStatus", expectedStatus.ToString());
         }, cancellationToken);
 
+    // Upsert limited to a visit that is InVisit and assigned to the actor; the audit row is written in the same
+    // transaction only when a row was written.
+    public Task<bool> TrySaveReportAsync(TenantId tenantId, UserId actorId, VisitId visitId, VisitReport report, CancellationToken cancellationToken) =>
+        UpdateWithAuditAsync(tenantId, actorId, visitId, "visit.report_saved", """
+            INSERT INTO visit_reports (visit_id, tenant_id, outcome, note, contract_version, submitted_by)
+            SELECT v.id, v.tenant_id, @outcome, @note, @version, @actor
+            FROM visits v WHERE v.id = @id AND v.user_id = @actor AND v.status = 'InVisit'
+            ON CONFLICT (visit_id) DO UPDATE
+                SET outcome = EXCLUDED.outcome, note = EXCLUDED.note, contract_version = EXCLUDED.contract_version,
+                    submitted_by = EXCLUDED.submitted_by, updated_at = now()
+                WHERE EXISTS (SELECT 1 FROM visits v WHERE v.id = @id AND v.user_id = @actor AND v.status = 'InVisit')
+            """, command =>
+        {
+            command.Parameters.AddWithValue("outcome", report.OutcomeContract);
+            command.Parameters.AddWithValue("note", report.Note);
+            command.Parameters.AddWithValue("version", (short)VisitReport.ContractVersion);
+            command.Parameters.AddWithValue("actor", actorId.Value);
+        }, cancellationToken);
+
+    public async Task<VisitReportDto?> GetReportAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction))
+        {
+            setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+            await setTenant.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using var command = new NpgsqlCommand(
+            "SELECT visit_id, outcome, note, contract_version, submitted_by, submitted_at, updated_at FROM visit_reports WHERE visit_id = @id",
+            connection, transaction);
+        command.Parameters.AddWithValue("id", visitId.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        return new VisitReportDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetInt16(3), reader.GetGuid(4),
+            reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6));
+    }
+
     // Runs one conditional UPDATE and, only if it changed a row, its audit entry, in one transaction.
     private async Task<bool> UpdateWithAuditAsync(TenantId tenantId, UserId actorId, VisitId visitId, string auditAction, string updateSql,
         Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)

@@ -85,7 +85,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql", "0012_customer_location.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql", "0012_customer_location.sql", "0013_visit_reports.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
@@ -213,6 +213,11 @@ public class DeploymentRehearsalTests
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/visits/{visitId}/fail", new { Reason = "Closed" })).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{custId}/location", new { Latitude = 36.19, Longitude = 44.01, Source = "gps", AccuracyMeters = 8.5 })).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{custId}/geofence", new { RadiusMeters = 50 })).StatusCode);
+                var reportVisit = await CreatedIdAsync(await client.PostAsJsonAsync("/visits", new { AssignedUserId = adminId, CustomerId = custId, ScheduleDate = "2026-10-05" }));
+                foreach (var transition in new[] { "en-route", "arrive", "start" })
+                    Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/visits/{reportVisit}/{transition}", null)).StatusCode);
+                Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/visits/{reportVisit}/report", new { Outcome = "products_presented", Note = "Presented the new range" })).StatusCode);
+                Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/visits/{reportVisit}/report")).StatusCode);
                 Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/audit-logs?limit=5")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/teams/{teamId}/members/{adminId}")).StatusCode);
                 Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/users/{adminId}/sessions/revoke", null)).StatusCode);

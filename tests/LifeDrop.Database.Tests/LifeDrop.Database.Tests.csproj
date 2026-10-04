@@ -27,6 +27,7 @@
     <None Include="../../db/migrations/0010_visit_planning.sql" Link="0010_visit_planning.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0011_visit_cancel_permission.sql" Link="0011_visit_cancel_permission.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0012_customer_location.sql" Link="0012_customer_location.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0013_visit_reports.sql" Link="0013_visit_reports.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

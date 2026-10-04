@@ -55,6 +55,30 @@ public static class VisitEndpoints
         }).RequireAuthorization()
             .WithName("CancelVisit").WithTags("Visits").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        // Visit report (plan step 1.6).
+        app.MapPut("/visits/{visitId:guid}/report", async (Guid visitId, SaveVisitReportRequest request, HttpContext context,
+            VisitReports reports, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await reports.SaveAsync(tenantId, actorId, visitId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SaveVisitReport").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/visits/{visitId:guid}/report", async (Guid visitId, HttpContext context,
+            VisitReports reports, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, report) = await reports.GetAsync(tenantId, actorId, visitId, cancellationToken);
+            return result == ManageVisitResult.Success ? Results.Ok(report) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GetVisitReport").WithTags("Visits").Produces<VisitReportDto>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

@@ -101,7 +101,8 @@ public class CustomerApiIntegrationTests
                 var m10 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0010_visit_planning.sql"));
                 var m11 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0011_visit_cancel_permission.sql"));
                 var m12 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0012_customer_location.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12;
+                var m13 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0013_visit_reports.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2016,6 +2017,98 @@ public class CustomerApiIntegrationTests
                 ("customer.geofence_changed", supervisor, cRep.ToString()),
                 ("customer.location_changed", manager, cBaghdad.ToString())
             }, rows.ToArray());
+        }
+    }
+
+    [SkippableFact]
+    public async Task VisitReport_SavedByAssigneeOnlyInVisitAndAudited()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), otherRep = Guid.NewGuid(), customer = Guid.NewGuid();
+        Guid inVisit = Guid.NewGuid(), arrived = Guid.NewGuid(), completed = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@r, @t1), (@o, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES
+                    (@vi, @t1, @r, @c, 'InVisit', '2026-10-05'), (@va, @t1, @r, @c, 'Arrived', '2026-10-05'), (@vc, @t1, @r, @c, 'Completed', '2026-10-05');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("r", rep), ("o", otherRep), ("c", customer), ("vi", inVisit), ("va", arrived), ("vc", completed) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Save(Guid visit, object body) => client.PutAsJsonAsync($"/visits/{visit}/report", body);
+
+        // Only the assignee, only while InVisit
+        As(otherRep);
+        await AssertProblemAsync(await Save(inVisit, new { Outcome = "other", Note = "Not my visit" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(rep);
+        await AssertProblemAsync(await Save(arrived, new { Outcome = "other", Note = "Too early" }), HttpStatusCode.BadRequest, "INVALID_STATE");
+        await AssertProblemAsync(await Save(completed, new { Outcome = "other", Note = "Too late" }), HttpStatusCode.BadRequest, "INVALID_STATE");
+        await AssertProblemAsync(await Save(Guid.NewGuid(), new { Outcome = "other", Note = "Unknown visit" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Empty, malformed and out-of-list values are rejected by the API (PRD §5.3)
+        foreach (var invalid in new object[]
+        {
+            new { },
+            new { Outcome = "order_placed", Note = "No such outcome" },
+            new { Outcome = "other", Note = " " },
+            new { Outcome = "other", Note = "?!." },
+            new { Outcome = "other", Note = "Valid note", ContractVersion = 2 }
+        })
+            await AssertProblemAsync(await Save(inVisit, invalid), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsync($"/visits/{inVisit}/report",
+            new StringContent("{not json", System.Text.Encoding.UTF8, "application/json"))).StatusCode);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{inVisit}/report"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Save, then edit while still InVisit
+        Assert.Equal(HttpStatusCode.NoContent, (await Save(inVisit, new { Outcome = "products_presented", Note = "Presented the new range" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Save(inVisit, new { Outcome = "order_intent", Note = "  Will order next week  ", ContractVersion = 1 })).StatusCode);
+        var saved = (await (await client.GetAsync($"/visits/{inVisit}/report")).Content.ReadFromJsonAsync<LifeDrop.Application.Visits.VisitReportDto>())!;
+        Assert.Equal(("order_intent", "Will order next week", 1, rep), (saved.Outcome, saved.Note, saved.ContractVersion, saved.SubmittedBy));
+
+        // The manager (tenant scope) can read it; another rep cannot
+        As(manager);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/visits/{inVisit}/report")).StatusCode);
+        As(otherRep);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{inVisit}/report"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Each successful save is audited; rejected ones are not
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT count(*) FROM audit_logs WHERE tenant_id = @t1 AND action = 'visit.report_saved' AND actor_id = @r AND entity_id = @v;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            cmd.Parameters.AddWithValue("r", rep);
+            cmd.Parameters.AddWithValue("v", inVisit.ToString());
+            Assert.Equal(2L, (long)(await cmd.ExecuteScalarAsync())!);
         }
     }
 
