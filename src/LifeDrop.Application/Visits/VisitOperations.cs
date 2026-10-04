@@ -50,7 +50,14 @@ public interface IVisitStore
     // Stores a rejected attempt and its audit row.
     Task RecordRejectedLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, LocationEvent locationEvent, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    // Status history of a visit, oldest first (plan step 1.9).
+    Task<System.Collections.Generic.List<VisitStatusChangeDto>> ListStatusHistoryAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
+
+// FromStatus is null for the creation row; ActorId is null only for rows imported without an actor.
+public sealed record VisitStatusChangeDto(Guid? ActorId, string? FromStatus, string ToStatus, string? Reason, DateTimeOffset OccurredAt);
 
 public sealed record LocationEvent(string Kind, GpsFix Fix, Guid DeviceId, double? DistanceMeters, int? RadiusMeters,
     LocationRejection? Rejection, string? IdempotencyKey);
@@ -347,18 +354,32 @@ public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.I
         var visit = visitId == Guid.Empty ? null : await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
         if (visit is null) return (ManageVisitResult.NotFound, null);
 
-        if (visit.UserId != actorId)
-        {
-            var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
-            if (scope is null) return (ManageVisitResult.NotFound, null);
-            var (_, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, visit.UserId, cancellationToken);
-            var inScope = scope.Scope == LifeDrop.Application.Roles.DataScope.Tenant ||
-                          (scope.Scope == LifeDrop.Application.Roles.DataScope.Region && scope.RegionId is not null && assigneeRegion == scope.RegionId);
-            if (!inScope) return (ManageVisitResult.NotFound, null);
-        }
+        if (!await CanReadAsync(permissions, tenantId, actorId, visit, cancellationToken)) return (ManageVisitResult.NotFound, null);
 
         var report = await store.GetReportAsync(tenantId, visit.Id, cancellationToken);
         return report is null ? (ManageVisitResult.NotFound, null) : (ManageVisitResult.Success, report);
+    }
+
+    // Status history (plan step 1.9): same readers as the report.
+    public async Task<(ManageVisitResult Result, System.Collections.Generic.List<VisitStatusChangeDto>? History)> GetHistoryAsync(
+        TenantId tenantId, UserId actorId, Guid visitId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (ManageVisitResult.Forbidden, null);
+        var visit = visitId == Guid.Empty ? null : await store.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
+        if (visit is null || !await CanReadAsync(permissions, tenantId, actorId, visit, cancellationToken)) return (ManageVisitResult.NotFound, null);
+        return (ManageVisitResult.Success, await store.ListStatusHistoryAsync(tenantId, visit.Id, cancellationToken));
+    }
+
+    // The assignee, or a user whose visits.write scope covers the assignee.
+    private static async Task<bool> CanReadAsync(LifeDrop.Application.Roles.IPermissionStore permissions, TenantId tenantId, UserId actorId,
+        Visit visit, CancellationToken cancellationToken)
+    {
+        if (visit.UserId == actorId) return true;
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, LifeDrop.Application.Roles.PermissionKeys.VisitsWrite, cancellationToken);
+        if (scope is null) return false;
+        var (_, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, visit.UserId, cancellationToken);
+        return scope.Scope == LifeDrop.Application.Roles.DataScope.Tenant ||
+               (scope.Scope == LifeDrop.Application.Roles.DataScope.Region && scope.RegionId is not null && assigneeRegion == scope.RegionId);
     }
 }
 
