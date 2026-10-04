@@ -21,7 +21,7 @@ Use workspace Rules for stable constraints; use a small Agent Skill only if the 
 | 2 — Sales/follow-up | Product/pricing, order, warehouse/delivery, payment/sample, follow-up and reports | Real order-to-delivery and financial flow with role, region, and Tenant checks. |
 | 3 — Scale/automation | Commercial SaaS, advanced forms/reports/routing/AI, performance and backup recovery | Security, capacity, and restore tests in the target environment; iOS runtime requires an Apple environment. |
 
-This order is from PRD section 14. Do not call Phase 1 check-in/check-out complete while `/start` and `/complete` lack server-side device/GPS/geofence checks and a persisted valid report prerequisite.
+This order is from PRD section 14. The detailed step list, acceptance criteria and product decisions (D1–D11) are in `docs/IMPLEMENTATION-PLAN.md`; pick the next step from there. Do not call Phase 1 check-in/check-out complete while `/start` and `/complete` lack server-side device/GPS/geofence checks and a persisted valid report prerequisite. Decision D2: check-out, like check-in, must be inside the customer's geofence radius.
 
 ## Current evidence: Phase 0, Step 0.2
 

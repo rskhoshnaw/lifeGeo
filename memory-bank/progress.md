@@ -1,6 +1,6 @@
 # Progress
 
-Updated: 2026-10-01. This is a repository snapshot plus explicitly identified earlier runtime evidence, not a blanket completion claim.
+Updated: 2026-10-04. This is a repository snapshot plus explicitly identified earlier runtime evidence, not a blanket completion claim.
 
 ## Present in source
 - .NET 10 Domain, Application, Infrastructure, API, DevBootstrap, Mobile.Auth, and Mobile.Auth.Tests projects.
@@ -29,6 +29,8 @@ Updated: 2026-10-01. This is a repository snapshot plus explicitly identified ea
 ## Next milestone
 Shared Android/iOS authentication client with secure storage and focused tests, followed by platform-specific verification. Treat iOS background GPS as a separate milestone.
 
+## CI evidence (2026-10-04)
+- PR #2 merged at `4cbbd1f`: `build` (build + unit tests of `LifeDrop.CI.slnf`) and `test-device-block` (one PostGIS database test) both succeeded on head `b472c5c`. Locally on .NET SDK 10.0.112: Application.Tests 37/37, Domain.Tests 107/107, Mobile.Auth.Tests 84/84. Database tests other than the device-block test are not yet run in CI (step 0.4).
 
-
-
+## Plan
+Remaining work, step order and product decisions: `docs/IMPLEMENTATION-PLAN.md`.

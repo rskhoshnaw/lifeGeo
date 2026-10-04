@@ -9,7 +9,7 @@ Full cycle: Planning → Assignment → Transit → Arrival → Check-in → Vis
 
 ## Product Components
 1. Mobile App (.NET MAUI) – Operational tool for field visitors, medical representatives, warehouse staff, and drivers
-2. Web Panel (Blazor Server) – Management of users, customers, visits, tracking, sales, finance, reporting, and auditing
+2. Web Panel (React + TypeScript) – Management of users, customers, visits, tracking, sales, finance, reporting, and auditing
 3. Backend (ASP.NET Core) – API, access control, location validation, synchronization, live events, and database
 
 ## Initial Scale
