@@ -28,7 +28,8 @@ describe('App', () => {
 
   it('signs in, shows the account and signs out', async () => {
     const user = userEvent.setup()
-    render(<App api={client((url) => (url.endsWith('/auth/login') ? ok() : new Response(null, { status: 204 })))} />)
+    const me = { id: 'm', email: 'manager@t1.iq', roles: [], permissions: [] }
+    render(<App api={client((url) => (url.endsWith('/auth/login') ? ok() : url.endsWith('/me') ? new Response(JSON.stringify(me)) : new Response(null, { status: 204 })))} />)
     await fill(user)
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByText(/Signed in as manager@t1.iq \(T1\)/)).toBeInTheDocument()

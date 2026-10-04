@@ -7,6 +7,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -2118,6 +2119,126 @@ public class CustomerApiIntegrationTests
             while (await reader.ReadAsync()) rows.Add((reader.GetGuid(0), reader.GetString(1)));
             Assert.Equal(new[] { (supervisor, repA.ToString()), (manager, repB.ToString()) }, rows.ToArray());
         }
+    }
+
+    [SkippableFact]
+    public async Task PanelDirectory_ListsUsersDevicesAndRolesWithinScope()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), plainUser = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid(), foreign = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        Guid deviceA = Guid.NewGuid(), deviceB = Guid.NewGuid(), foreignDevice = Guid.NewGuid();
+        var families = new Dictionary<Guid, Guid>
+        {
+            [manager] = Guid.NewGuid(), [supervisor] = Guid.NewGuid(), [plainUser] = Guid.NewGuid(), [repA] = Guid.NewGuid(), [repB] = Guid.NewGuid(), [foreign] = Guid.NewGuid()
+        };
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'manager@t1'), (@sv, @t1, 'supervisor@t1'), (@pu, @t1, 'plain@t1'),
+                    (@ra, @t1, 'rep-a@t1'), (@rb, @t1, 'rep-b@t1'), (@fu, @t2, 'foreign@t2');
+                INSERT INTO roles (id, tenant_id, name) VALUES ('44444444-0000-0000-0000-000000000001', @t1, 'Admin');
+                INSERT INTO roles (id, tenant_id, name, data_scope) VALUES ('44444444-0000-0000-0000-000000000002', @t1, 'Supervisor', 'region'),
+                    ('44444444-0000-0000-0000-000000000003', @t2, 'ForeignAdmin', 'tenant');
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key) VALUES
+                    (@t1, '44444444-0000-0000-0000-000000000001', 'sessions.kill'), (@t1, '44444444-0000-0000-0000-000000000001', 'device.approve'),
+                    (@t1, '44444444-0000-0000-0000-000000000001', 'user.manageroles'),
+                    (@t1, '44444444-0000-0000-0000-000000000002', 'sessions.kill'), (@t1, '44444444-0000-0000-0000-000000000002', 'customers.read'),
+                    (@t2, '44444444-0000-0000-0000-000000000003', 'device.approve');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES
+                    (@t1, @m, '44444444-0000-0000-0000-000000000001'), (@t1, @sv, '44444444-0000-0000-0000-000000000002'),
+                    (@t2, @fu, '44444444-0000-0000-0000-000000000003');
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@da, @t1, @ra, 'Rep A phone', 'android', 'i-a', '1.0', '\x01', 'pending'),
+                    (@db, @t1, @rb, 'Rep B phone', 'android', 'i-b', '1.0', '\x02', 'approved'),
+                    (@fd, @t2, @fu, 'Foreign phone', 'android', 'i-f', '1.0', '\x03', 'pending');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil'), (@bg, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @er, 'Team A'), (@tb, @t1, @bg, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sv, @ta), (@t1, @ra, @ta), (@t1, @rb, @tb);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("sv", supervisor), ("pu", plainUser), ("ra", repA), ("rb", repB),
+                ("fu", foreign), ("er", erbil), ("bg", baghdad), ("ta", teamA), ("tb", teamB), ("da", deviceA), ("db", deviceB), ("fd", foreignDevice) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+
+            foreach (var (user, family) in families)
+            {
+                await using var token = new NpgsqlCommand(@"
+                    INSERT INTO refresh_tokens (id, family_id, tenant_id, user_id, token_hash, expires_at)
+                    VALUES (gen_random_uuid(), @f, @t, @u, @h, now() + interval '1 day');", conn);
+                token.Parameters.AddWithValue("f", family);
+                token.Parameters.AddWithValue("t", user == foreign ? t2 : t1);
+                token.Parameters.AddWithValue("u", user);
+                token.Parameters.AddWithValue("h", Guid.NewGuid().ToByteArray());
+                await token.ExecuteNonQueryAsync();
+            }
+        }
+
+        Task<HttpResponseMessage> GetAsync(Guid actor, string path)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                GenerateToken(actor == foreign ? t2 : t1, actor, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, families[actor]));
+            return client.SendAsync(request);
+        }
+        async Task<JsonElement> JsonAsync(Guid actor, string path)
+        {
+            var response = await GetAsync(actor, path);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+        }
+        static string[] Strings(JsonElement array, string? property = null) =>
+            array.EnumerateArray().Select(e => (property is null ? e : e.GetProperty(property)).GetString()!).ToArray();
+
+        // /me: the panel's view of the caller's own permissions (buttons only; every action is checked again by its route)
+        await AssertProblemAsync(await client.GetAsync("/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        var me = await JsonAsync(manager, "/me");
+        Assert.Equal("manager@t1", me.GetProperty("email").GetString());
+        Assert.Equal(new[] { "Admin" }, Strings(me.GetProperty("roles")));
+        Assert.Equal(new[] { "device.approve", "sessions.kill", "user.manageroles" }, Strings(me.GetProperty("permissions")));
+        Assert.Empty(Strings((await JsonAsync(plainUser, "/me")).GetProperty("permissions")));
+
+        // /users: tenant scope sees every user of the tenant; region scope only users of its region's teams (and self)
+        await AssertProblemAsync(await GetAsync(plainUser, "/users"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        var all = await JsonAsync(manager, "/users");
+        Assert.Equal(new[] { "manager@t1", "plain@t1", "rep-a@t1", "rep-b@t1", "supervisor@t1" }, Strings(all, "email"));
+        var repARow = all.EnumerateArray().Single(u => u.GetProperty("email").GetString() == "rep-a@t1");
+        Assert.Equal("Team A", repARow.GetProperty("teamName").GetString());
+        Assert.Equal(erbil, repARow.GetProperty("regionId").GetGuid());
+        Assert.Equal(1, repARow.GetProperty("activeSessions").GetInt32());
+        Assert.Equal(new[] { "rep-a@t1", "supervisor@t1" }, Strings(await JsonAsync(supervisor, "/users"), "email"));
+        await AssertProblemAsync(await GetAsync(foreign, "/users"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // /roles: only for role managers, own tenant only
+        await AssertProblemAsync(await GetAsync(supervisor, "/roles"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(new[] { "Admin", "Supervisor" }, Strings(await JsonAsync(manager, "/roles"), "name"));
+
+        // /devices: same permissions as approve/block, own tenant only, filter by status, never the secret
+        await AssertProblemAsync(await GetAsync(supervisor, "/devices"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await GetAsync(manager, "/devices?status=lost"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var devices = await JsonAsync(manager, "/devices");
+        Assert.Equal(new[] { deviceA, deviceB }.OrderBy(d => d).ToArray(), devices.EnumerateArray().Select(d => d.GetProperty("id").GetGuid()).OrderBy(d => d).ToArray());
+        Assert.DoesNotContain("secret", devices.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        var pending = await JsonAsync(manager, "/devices?status=pending");
+        Assert.Equal(deviceA, pending.EnumerateArray().Single().GetProperty("id").GetGuid());
+        Assert.Equal("rep-a@t1", pending.EnumerateArray().Single().GetProperty("userEmail").GetString());
+        Assert.Equal(foreignDevice, (await JsonAsync(foreign, "/devices")).EnumerateArray().Single().GetProperty("id").GetGuid());
     }
 
     [SkippableFact]

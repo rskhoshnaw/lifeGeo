@@ -229,3 +229,16 @@ The decision does not change the visit's status; it is recorded for reports and 
 | `POST /customers/{id}/approval` | same | `{decision: approve\|reject, note}`; reject needs a note; outside scope 404; decided 409 `INVALID_STATE` | `customer.approved` / `customer.rejected` |
 
 Migration 0018 adds the approval columns and the `customers.approve` permission (default roles updated). Test: `CustomerApproval_OutOfRegionCustomerWaitsForManagerOrRegionSupervisor`.
+
+## Panel read routes: current user, users, roles, devices (step 1.17)
+
+Read-only routes for the web panel. The panel hides buttons by `/me` permissions for convenience only; every change goes through its own route (`/devices/{id}/approve|block`, `/users/{id}/sessions/revoke`, `/users/{id}/roles/{roleId}`, `/customers/{id}/approval`), which checks permission, scope and tenant again.
+
+| Route | Who | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /me` | any signed-in active user | `{id, email, roles, permissions}` of the caller | — |
+| `GET /users` | `sessions.kill`, `user.manageroles` or `system.admin`; widest scope of these (tenant: all; region: users in teams of the actor's region + self; own: self) | Active users of the tenant (max 500): email, roles, team, region, number of active session families | — |
+| `GET /roles` | `user.manageroles` or `system.admin` | Roles of the tenant: id, name, data scope | — |
+| `GET /devices?status=pending\|approved\|blocked` | `device.approve`, `devices.manage` or `system.admin` (same as approve/block) | Devices of the tenant (max 500, newest first) with owner email; never the secret. Unknown status → 400 `INVALID_DATA` | — |
+
+Test: `PanelDirectory_ListsUsersDevicesAndRolesWithinScope` (scope, foreign tenant, status filter, no secret). Panel tests: `src/LifeDrop.Web/src/pages/Panel.test.tsx`.

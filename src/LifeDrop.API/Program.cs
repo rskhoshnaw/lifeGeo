@@ -84,6 +84,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
+        builder.Services.AddScoped<LifeDrop.Application.Users.IUserDirectoryStore, LifeDrop.Infrastructure.Users.PostgresUserDirectoryStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Users.UserDirectory>();
 
         // Web panel (plan step 1.16): browsers may call the API only from the origins listed in Cors:AllowedOrigins
         // (none by default). Tokens travel in the Authorization header, so no cookies or credentials are allowed.
@@ -603,6 +605,7 @@ public partial class Program
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
+        LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);
         LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
         LifeDrop.API.Endpoints.CustomerEndpoints.MapCustomerEndpoints(app);
         LifeDrop.API.Endpoints.ShiftEndpoints.MapShiftEndpoints(app);
