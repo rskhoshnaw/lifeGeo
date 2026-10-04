@@ -1812,8 +1812,10 @@ public class CustomerApiIntegrationTests
         As(rep);
         var today = await client.GetAsync("/visits");
         Assert.Equal(HttpStatusCode.OK, today.StatusCode);
-        var ids = (await today.Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!.Select(v => v.Id).ToArray();
-        Assert.Equal(new[] { morning, afternoon, highUntimed, lowUntimed }, ids);
+        var todayVisits = (await today.Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        Assert.Equal(new[] { morning, afternoon, highUntimed, lowUntimed }, todayVisits.Select(v => v.Id).ToArray());
+        // The plan carries the customer's name and code for display (step 1.10)
+        Assert.All(todayVisits, v => Assert.Equal(("Customer", "C1"), (v.CustomerName, v.CustomerCode)));
 
         // A day without visits is a successful empty list; a malformed date is rejected
         var empty = await client.GetAsync("/visits?scheduleDate=2026-10-07");

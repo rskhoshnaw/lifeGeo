@@ -6,6 +6,7 @@
     <Project Path="tests/LifeDrop.Application.Tests/LifeDrop.Application.Tests.csproj" />
     <Project Path="tests/LifeDrop.Domain.Tests/LifeDrop.Domain.Tests.csproj" />
     <Project Path="tests/LifeDrop.Mobile.Auth.Tests/LifeDrop.Mobile.Auth.Tests.csproj" />
+    <Project Path="tests/LifeDrop.Mobile.Visits.Tests/LifeDrop.Mobile.Visits.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/LifeDrop.API/LifeDrop.API.csproj" />
@@ -13,6 +14,7 @@
     <Project Path="src/LifeDrop.Domain/LifeDrop.Domain.csproj" />
     <Project Path="src/LifeDrop.Infrastructure/LifeDrop.Infrastructure.csproj" />
     <Project Path="src/LifeDrop.Mobile.Auth/LifeDrop.Mobile.Auth.csproj" />
+    <Project Path="src/LifeDrop.Mobile.Visits/LifeDrop.Mobile.Visits.csproj" />
     <Project Path="src/LifeDrop.Mobile/LifeDrop.Mobile.csproj" />
   </Folder>
 </Solution>

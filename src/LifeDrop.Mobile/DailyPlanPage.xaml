@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:LifeDrop.Mobile"
+             x:Class="LifeDrop.Mobile.DailyPlanPage"
+             Title="Today's plan">
+
+    <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
+
+        <Label x:Name="DateLabel" Grid.Row="0" Style="{StaticResource SubHeadline}" HorizontalOptions="Start" />
+
+        <VerticalStackLayout Grid.Row="1" Spacing="8">
+            <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
+            <Label x:Name="MessageLabel" IsVisible="False" />
+            <Button x:Name="RetryBtn" Text="Try again" Clicked="OnRetryClicked" IsVisible="False" HorizontalOptions="Start" />
+        </VerticalStackLayout>
+
+        <RefreshView x:Name="Refresher" Grid.Row="2" Refreshing="OnRefreshing">
+            <CollectionView x:Name="VisitList" SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="local:VisitRow">
+                        <Border Padding="12" Margin="0,0,0,8" StrokeThickness="1">
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                                <Label Grid.Row="0" Grid.Column="0" Text="{Binding Customer}" FontAttributes="Bold" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Time}" />
+                                <Label Grid.Row="1" Grid.Column="0" Text="{Binding Details}" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Status}" FontAttributes="Bold" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+
+</ContentPage>

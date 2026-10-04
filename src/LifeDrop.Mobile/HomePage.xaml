@@ -11,6 +11,8 @@
 
             <Label x:Name="StatusLabel" Text="Session is active." HorizontalOptions="Center" />
 
+            <Button x:Name="PlanBtn" Text="Today's plan" Clicked="OnPlanClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Text="Logout" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

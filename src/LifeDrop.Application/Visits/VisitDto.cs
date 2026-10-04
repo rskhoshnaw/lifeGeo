@@ -15,5 +15,8 @@ public sealed record VisitDto(
     string Priority,
     TimeOnly? PlannedTime,
     bool IsUnplanned,
-    string? UnplannedReason
+    string? UnplannedReason,
+    // Customer display fields for the daily plan (plan step 1.10).
+    string? CustomerName = null,
+    string? CustomerCode = null
 );
