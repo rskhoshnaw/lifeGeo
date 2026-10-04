@@ -20,7 +20,10 @@ public partial class HomePage : ContentPage
     private void SetBusy(bool isBusy)
     {
         LogoutBtn.IsEnabled = !isBusy;
+        PlanBtn.IsEnabled = !isBusy;
     }
+
+    private async void OnPlanClicked(object sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 
     private async void OnLogoutClicked(object sender, EventArgs e)
     {

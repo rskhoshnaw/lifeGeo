@@ -3703,6 +3703,18 @@
               "null",
               "string"
             ]
+          },
+          "customerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

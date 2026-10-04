@@ -1,0 +1,117 @@
+namespace LifeDrop.Mobile.Visits;
+
+// Iraq has one time zone (UTC+3, no daylight saving). The fixed offset is the fallback when the device lacks
+// time zone data.
+public static class IraqTime
+{
+    private static readonly TimeZoneInfo Zone = Find();
+
+    public static DateOnly Today(TimeProvider clock) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Zone).DateTime);
+
+    private static TimeZoneInfo Find()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Baghdad"); }
+        catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.CreateCustomTimeZone("Iraq", TimeSpan.FromHours(3), "Iraq", "Iraq");
+        }
+    }
+}
+
+public enum DailyPlanState { Idle, Loading, Loaded, Empty, Error }
+
+// Screen state of the daily plan (plan step 1.10, PRD §5.1), kept free of UI types so it can be tested.
+// A failed refresh keeps the visits already shown and marks them as possibly out of date.
+public sealed class DailyPlan
+{
+    private readonly IVisitsApiClient _api;
+    private readonly TimeProvider _clock;
+
+    public DailyPlan(IVisitsApiClient api, TimeProvider clock)
+    {
+        _api = api ?? throw new ArgumentNullException(nameof(api));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    public DailyPlanState State { get; private set; } = DailyPlanState.Idle;
+    public IReadOnlyList<PlannedVisit> Visits { get; private set; } = Array.Empty<PlannedVisit>();
+    public DateOnly Date { get; private set; }
+    public PlanLoadStatus? Error { get; private set; }
+    // True when an error is shown over visits from an earlier successful load.
+    public bool IsStale => State == DailyPlanState.Error && Visits.Count > 0;
+    public bool IsLoading => State == DailyPlanState.Loading;
+
+    public string? Message => State switch
+    {
+        DailyPlanState.Empty => "No visits planned for today.",
+        DailyPlanState.Error => Error switch
+        {
+            PlanLoadStatus.NetworkError => "No connection to the server. Check your internet and try again.",
+            PlanLoadStatus.SessionExpired => "Your session has ended. Please log in again.",
+            _ => "The server could not load your plan. Try again later."
+        } + (IsStale ? " The list below may be out of date." : ""),
+        _ => null
+    };
+
+    // Loads today's plan (Iraq date). A call while a load is running is ignored, so a double tap sends one request.
+    public async Task<bool> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        if (State == DailyPlanState.Loading) return false;
+        var previous = State;
+        State = DailyPlanState.Loading;
+        var today = IraqTime.Today(_clock);
+        try
+        {
+            var result = await _api.GetDailyPlanAsync(today, cancellationToken);
+            if (result.Status == PlanLoadStatus.Success)
+            {
+                Date = today;
+                Visits = result.Visits;
+                Error = null;
+                State = Visits.Count == 0 ? DailyPlanState.Empty : DailyPlanState.Loaded;
+            }
+            else
+            {
+                // A new day must not show yesterday's visits as today's.
+                if (Date != today) Visits = Array.Empty<PlannedVisit>();
+                Error = result.Status;
+                State = DailyPlanState.Error;
+            }
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            State = previous;
+            throw;
+        }
+        catch (Exception)
+        {
+            // Never leave the screen stuck in Loading.
+            if (Date != today) Visits = Array.Empty<PlannedVisit>();
+            Error = PlanLoadStatus.ServerError;
+            State = DailyPlanState.Error;
+            return true;
+        }
+    }
+
+    public static string StatusLabel(string status) => status switch
+    {
+        "Planned" => "Planned",
+        "EnRoute" => "On the way",
+        "Arrived" => "Arrived",
+        "InVisit" => "In visit",
+        "Completed" => "Completed",
+        "Failed" => "Failed",
+        "Cancelled" => "Cancelled",
+        _ => status
+    };
+
+    public static string TypeLabel(string visitType) => visitType switch
+    {
+        "pharmacy" => "Pharmacy",
+        "doctor" => "Doctor",
+        "wholesaler" => "Wholesaler",
+        _ => "Other"
+    };
+}

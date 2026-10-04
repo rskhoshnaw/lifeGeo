@@ -80,13 +80,14 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         }
 
         const string sql = @"
-            SELECT id, user_id, customer_id, status, exception_reason, schedule_date, created_at,
-                visit_type, priority, planned_time, is_unplanned, unplanned_reason 
-            FROM visits 
-            WHERE user_id = @userId AND schedule_date = @scheduleDate
-            ORDER BY planned_time ASC NULLS LAST,
-                     CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
-                     created_at ASC, id ASC;
+            SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
+                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code
+            FROM visits v
+            LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
+            WHERE v.user_id = @userId AND v.schedule_date = @scheduleDate
+            ORDER BY v.planned_time ASC NULLS LAST,
+                     CASE v.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+                     v.created_at ASC, v.id ASC;
         ";
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("userId", assignedUserId.Value);
@@ -109,7 +110,9 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 Priority: reader.GetString(8),
                 PlannedTime: reader.IsDBNull(9) ? null : reader.GetFieldValue<System.TimeOnly>(9),
                 IsUnplanned: reader.GetBoolean(10),
-                UnplannedReason: reader.IsDBNull(11) ? null : reader.GetString(11)
+                UnplannedReason: reader.IsDBNull(11) ? null : reader.GetString(11),
+                CustomerName: reader.IsDBNull(12) ? null : reader.GetString(12),
+                CustomerCode: reader.IsDBNull(13) ? null : reader.GetString(13)
             ));
         }
 

@@ -185,3 +185,7 @@ Test: `CheckOut_RequiresReportDeviceAndGpsInsideGeofence`; the deployment rehear
 - The runtime grants file adds `SELECT, INSERT` on `visit_status_history`.
 
 Test: `VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope`.
+
+## Daily plan data for mobile (step 1.10)
+
+`GET /visits` items now also carry `customerName` and `customerCode` (additive, nullable) so the mobile plan can show the customer without another request. Visibility is unchanged: only the caller's own visits for the day.
