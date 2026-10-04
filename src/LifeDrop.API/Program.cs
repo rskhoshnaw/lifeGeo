@@ -75,6 +75,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.IOfflineReviewStore, LifeDrop.Infrastructure.Visits.PostgresOfflineReviewStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.OfflineReviews>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.IShiftStore, LifeDrop.Infrastructure.Tracking.PostgresShiftStore>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.ShiftTracking>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();

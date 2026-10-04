@@ -50,6 +50,11 @@ public interface IVisitStore
     // Stores a rejected attempt and its audit row.
     Task RecordRejectedLocationEventAsync(TenantId tenantId, UserId actorId, VisitId visitId, LocationEvent locationEvent, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+    // Offline check (decision D5): does the user's tracking path have a point within maxDistance of the customer
+    // between from and to?
+    Task<bool> HasTrackingPointNearCustomerAsync(TenantId tenantId, UserId userId, CustomerId customerId, DateTimeOffset from, DateTimeOffset to,
+        double maxDistanceMeters, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 
     // Status history of a visit, oldest first (plan step 1.9).
     Task<System.Collections.Generic.List<VisitStatusChangeDto>> ListStatusHistoryAsync(TenantId tenantId, VisitId visitId, CancellationToken cancellationToken) =>
@@ -60,7 +65,8 @@ public interface IVisitStore
 public sealed record VisitStatusChangeDto(Guid? ActorId, string? FromStatus, string ToStatus, string? Reason, DateTimeOffset OccurredAt);
 
 public sealed record LocationEvent(string Kind, GpsFix Fix, Guid DeviceId, double? DistanceMeters, int? RadiusMeters,
-    LocationRejection? Rejection, string? IdempotencyKey);
+    LocationRejection? Rejection, string? IdempotencyKey, bool Offline = false, long? ElapsedMs = null,
+    IReadOnlyList<string>? ReviewReasons = null);
 
 public sealed class CreateVisit(IVisitStore store, LifeDrop.Application.Customers.ICustomerStore customers, LifeDrop.Application.Roles.IPermissionStore permissions)
 {
@@ -383,7 +389,13 @@ public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.I
     }
 }
 
-public sealed record CheckInRequest(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked = false);
+// IsOffline: saved on the phone without internet and sent later (decision D5); ElapsedSinceCaptureMs is the time
+// since capture measured by the phone's monotonic clock, sent with offline attempts.
+public sealed record CheckInRequest(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked = false,
+    bool IsOffline = false, long? ElapsedSinceCaptureMs = null);
+
+// Body of a successful offline check-in/out: whether a manager must review it, and why.
+public sealed record OfflineCheckpointResponse(bool ReviewRequired, IReadOnlyList<string> ReviewReasons);
 
 public enum LocationCheckResult { Success, NotFound, Forbidden, DeviceRequired, InvalidState, InvalidData, CustomerLocationMissing, ReportRequired, Rejected, Conflict }
 
@@ -395,6 +407,9 @@ public sealed class VisitCheckpoint(IVisitStore store, TimeProvider clock)
     public const string CheckInKind = "check_in";
     public const string CheckOutKind = "check_out";
     public const int MaxIdempotencyKeyLength = 100;
+
+    // Offline attempts that were accepted: whether review is needed (null for online attempts and replays).
+    public OfflineCheckpointResponse? LastOfflineOutcome { get; private set; }
 
     public Task<(LocationCheckResult Result, LocationRejection? Rejection)> CheckInAsync(TenantId tenantId, UserId actorId, Guid? deviceId,
         Guid visitId, CheckInRequest request, string? idempotencyKey, CancellationToken cancellationToken) =>
@@ -430,16 +445,36 @@ public sealed class VisitCheckpoint(IVisitStore store, TimeProvider clock)
         if (measured is null) return (LocationCheckResult.CustomerLocationMissing, null);
 
         var (distance, radius) = measured.Value;
-        var rejection = LocationCheckPolicy.Evaluate(fix, clock.GetUtcNow(), distance, radius);
-        var locationEvent = new LocationEvent(kind, fix, deviceId.Value, distance, radius, rejection, idempotencyKey);
+        var now = clock.GetUtcNow();
+        if (request.ElapsedSinceCaptureMs is < 0) return (LocationCheckResult.InvalidData, null);
+        var rejection = request.IsOffline
+            ? OfflineCheckPolicy.Evaluate(fix, now, distance, radius)
+            : LocationCheckPolicy.Evaluate(fix, now, distance, radius);
+
+        List<string>? reviewReasons = null;
+        if (request.IsOffline && rejection is null)
+        {
+            reviewReasons = new List<string>();
+            var elapsed = request.ElapsedSinceCaptureMs is { } ms ? TimeSpan.FromMilliseconds(ms) : (TimeSpan?)null;
+            if (!OfflineCheckPolicy.ClockAgrees(fix.CapturedAt, now, elapsed))
+                reviewReasons.Add(OfflineReviewReason.ClockMismatch.ToContract());
+            if (!await store.HasTrackingPointNearCustomerAsync(tenantId, actorId, visit.CustomerId,
+                    fix.CapturedAt - OfflineCheckPolicy.TrackingWindow, fix.CapturedAt + OfflineCheckPolicy.TrackingWindow,
+                    radius + fix.AccuracyMeters + OfflineCheckPolicy.TrackingMarginMeters, cancellationToken))
+                reviewReasons.Add(OfflineReviewReason.NoTrackingNearby.ToContract());
+        }
+
+        var locationEvent = new LocationEvent(kind, fix, deviceId.Value, distance, radius, rejection, idempotencyKey,
+            request.IsOffline, request.ElapsedSinceCaptureMs, reviewReasons);
         if (rejection is not null)
         {
             await store.RecordRejectedLocationEventAsync(tenantId, actorId, visit.Id, locationEvent, cancellationToken);
             return (LocationCheckResult.Rejected, rejection);
         }
 
-        return await store.TryAcceptLocationEventAsync(tenantId, actorId, visit.Id, from, to, locationEvent, cancellationToken)
-            ? (LocationCheckResult.Success, null)
-            : (LocationCheckResult.Conflict, null);
+        if (!await store.TryAcceptLocationEventAsync(tenantId, actorId, visit.Id, from, to, locationEvent, cancellationToken))
+            return (LocationCheckResult.Conflict, null);
+        if (reviewReasons is not null) LastOfflineOutcome = new OfflineCheckpointResponse(reviewReasons.Count > 0, reviewReasons);
+        return (LocationCheckResult.Success, null);
     }
 }

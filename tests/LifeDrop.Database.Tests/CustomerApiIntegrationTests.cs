@@ -105,7 +105,8 @@ public class CustomerApiIntegrationTests
                 var m14 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0014_visit_location_events.sql"));
                 var m15 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0015_visit_status_history.sql"));
                 var m16 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0016_shifts_tracking.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16;
+                var m17 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0017_offline_checkpoints.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1150,6 +1151,146 @@ public class CustomerApiIntegrationTests
             dup.Parameters.AddWithValue("o", other);
             dup.Parameters.AddWithValue("od", otherDevice);
             Assert.Equal("23505", (await Assert.ThrowsAsync<PostgresException>(() => dup.ExecuteNonQueryAsync())).SqlState);
+        }
+    }
+
+    [SkippableFact]
+    public async Task OfflineCheckpoints_AutoAcceptReviewOrRejectAndManagerDecides()
+    {
+        // Plan step 1.14, decision D5: offline check-in/out up to 24 h late; unconfirmed ones go to a manager.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        var now = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    services.AddSingleton<TimeProvider>(new FixedClock(now));
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), manager = Guid.NewGuid(), supervisorB = Guid.NewGuid(), rep = Guid.NewGuid(), device = Guid.NewGuid(), customer = Guid.NewGuid();
+        Guid vTracked = Guid.NewGuid(), vUntracked = Guid.NewGuid(), vOld = Guid.NewGuid(), vOutside = Guid.NewGuid(), vOnline = Guid.NewGuid(), shift = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sb, @t1), (@r, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sb, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status)
+                VALUES (@d, @t1, @r, 'Phone', 'android', 'install-1', '1.0', '\x00', 'approved');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('77777777-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('77777777-0000-0000-0000-0000000000b1', @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('77777777-0000-0000-0000-0000000000a1', @t1, '77777777-0000-0000-0000-0000000000e1', 'Team A'),
+                    ('77777777-0000-0000-0000-0000000000a2', @t1, '77777777-0000-0000-0000-0000000000b1', 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @r, '77777777-0000-0000-0000-0000000000a1'), (@t1, @sb, '77777777-0000-0000-0000-0000000000a2');
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, geofence_radius_m, status)
+                VALUES (@c, @t1, 'Pharmacy', 'C-O', 'Offline', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 30, 'located');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date) VALUES
+                    (@v1, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v2, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v3, @t1, @r, @c, 'Arrived', '2026-10-05'),
+                    (@v4, @t1, @r, @c, 'Arrived', '2026-10-05'), (@v5, @t1, @r, @c, 'Arrived', '2026-10-05');
+                -- The shift's tracking path passed the customer about an hour ago
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES (@s, @t1, @r, @d, @start);
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at)
+                VALUES (@t1, @s, @r, @d, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0093, 36.1912), 4326)::geography, 12, @tp);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sb", supervisorB), ("r", rep), ("d", device), ("c", customer),
+                ("v1", vTracked), ("v2", vUntracked), ("v3", vOld), ("v4", vOutside), ("v5", vOnline), ("s", shift) })
+                cmd.Parameters.AddWithValue(name, value);
+            cmd.Parameters.AddWithValue("start", now.AddHours(-3));
+            cmd.Parameters.AddWithValue("tp", now.AddMinutes(-62));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var repToken = GenerateToken(t1, rep, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: device);
+        async Task<HttpResponseMessage> CheckIn(Guid visit, DateTimeOffset capturedAt, bool offline, long? elapsedMs, double lat = 36.1912, double lon = 44.0093)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/visits/{visit}/start")
+            {
+                Content = JsonContent.Create(new { Latitude = lat, Longitude = lon, AccuracyMeters = 10, CapturedAt = capturedAt, IsMocked = false,
+                    IsOffline = offline, ElapsedSinceCaptureMs = elapsedMs })
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", repToken);
+            request.Headers.Add("Idempotency-Key", $"k-{visit}");
+            return await client.SendAsync(request);
+        }
+        async Task<LifeDrop.Application.Visits.OfflineCheckpointResponse> Ok(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.OfflineCheckpointResponse>())!;
+        }
+
+        // Tracking confirms it and the phone's monotonic clock agrees: accepted, no review
+        var tracked = await Ok(await CheckIn(vTracked, now.AddMinutes(-60), true, 60 * 60_000));
+        Assert.Equal((false, 0), (tracked.ReviewRequired, tracked.ReviewReasons.Count));
+        // No tracking nearby and no monotonic time: accepted, but a manager must review it
+        var untracked = await Ok(await CheckIn(vUntracked, now.AddHours(-3), true, null));
+        Assert.True(untracked.ReviewRequired);
+        Assert.Equal(new[] { "clock_mismatch", "no_tracking_nearby" }, untracked.ReviewReasons);
+        // Older than 24 hours, or outside the radius: refused
+        await AssertProblemAsync(await CheckIn(vOld, now.AddHours(-25), true, 25 * 3600_000L), (HttpStatusCode)422, "OFFLINE_EXPIRED");
+        await AssertProblemAsync(await CheckIn(vOutside, now.AddMinutes(-60), true, 60 * 60_000, lat: 36.1916, lon: 44.0092), (HttpStatusCode)422, "OUTSIDE_GEOFENCE");
+        // Online attempts keep the 2-minute freshness rule
+        await AssertProblemAsync(await CheckIn(vOnline, now.AddMinutes(-60), false, null), (HttpStatusCode)422, "GPS_STALE");
+        // A replay of an accepted offline check-in is a plain success
+        Assert.Equal(HttpStatusCode.NoContent, (await CheckIn(vTracked, now.AddMinutes(-60), true, 60 * 60_000)).StatusCode);
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+
+        // The rep cannot review; a supervisor of another region sees nothing; the manager sees the pending one
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync("/offline-reviews"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(supervisorB);
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Visits.OfflineReviewDto>>("/offline-reviews"))!);
+        As(manager);
+        var pending = Assert.Single((await client.GetFromJsonAsync<List<LifeDrop.Application.Visits.OfflineReviewDto>>("/offline-reviews"))!);
+        Assert.Equal((vUntracked, rep, "check_in", "pending"), (pending.VisitId, pending.UserId, pending.Kind, pending.State));
+        await AssertProblemAsync(await client.GetAsync("/offline-reviews?state=unknown"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Supervisor of another region cannot decide; rejecting needs a note; a decision is final
+        As(supervisorB);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/offline-reviews/{pending.EventId}", new { Decision = "approve" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/offline-reviews/{pending.EventId}", new { Decision = "reject" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/offline-reviews/{pending.EventId}", new { Decision = "maybe" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/offline-reviews/{pending.EventId}", new { Decision = "approve", Note = "Confirmed by phone call" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/offline-reviews/{pending.EventId}", new { Decision = "reject", Note = "Changed mind" }), HttpStatusCode.Conflict, "INVALID_STATE");
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Visits.OfflineReviewDto>>("/offline-reviews"))!);
+        var approved = Assert.Single((await client.GetFromJsonAsync<List<LifeDrop.Application.Visits.OfflineReviewDto>>("/offline-reviews?state=approved"))!);
+        Assert.Equal((manager, "Confirmed by phone call"), (approved.ReviewedBy, approved.Note));
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                SELECT (SELECT string_agg(status, ',' ORDER BY status COLLATE ""C"") FROM visits WHERE id IN (@v1, @v2, @v3, @v4, @v5)),
+                       (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                        FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'visit.%' GROUP BY action) a);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("v1", vTracked), ("v2", vUntracked), ("v3", vOld), ("v4", vOutside), ("v5", vOnline) })
+                cmd.Parameters.AddWithValue(name, value);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("Arrived,Arrived,Arrived,InVisit,InVisit", reader.GetString(0));
+            Assert.Equal("visit.check_in_rejected=3,visit.checked_in=2,visit.offline_review_approved=1,visit.offline_review_required=1", reader.GetString(1));
         }
     }
 

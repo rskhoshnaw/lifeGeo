@@ -65,9 +65,11 @@ public static class VisitEndpoints
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
             var (result, rejection) = await checkpoint.CheckInAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
                 context.Request.Headers["Idempotency-Key"].FirstOrDefault(), cancellationToken);
-            return ToResult(result, rejection);
+            // An accepted offline attempt answers 200 with whether a manager must review it (decision D5).
+            return result == LocationCheckResult.Success && checkpoint.LastOfflineOutcome is { } offline
+                ? Results.Ok(offline) : ToResult(result, rejection);
         }).RequireAuthorization()
-            .WithName("StartVisit").WithTags("Visits").Produces(204)
+            .WithName("StartVisit").WithTags("Visits").Produces(204).Produces<OfflineCheckpointResponse>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409)
             .ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
 
@@ -80,9 +82,11 @@ public static class VisitEndpoints
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
             var (result, rejection) = await checkpoint.CheckOutAsync(tenantId, actorId, ReadDeviceId(context), visitId, request,
                 context.Request.Headers["Idempotency-Key"].FirstOrDefault(), cancellationToken);
-            return ToResult(result, rejection);
+            // An accepted offline attempt answers 200 with whether a manager must review it (decision D5).
+            return result == LocationCheckResult.Success && checkpoint.LastOfflineOutcome is { } offline
+                ? Results.Ok(offline) : ToResult(result, rejection);
         }).RequireAuthorization()
-            .WithName("CompleteVisit").WithTags("Visits").Produces(204)
+            .WithName("CompleteVisit").WithTags("Visits").Produces(204).Produces<OfflineCheckpointResponse>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409)
             .ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
 
@@ -109,6 +113,31 @@ public static class VisitEndpoints
         }).RequireAuthorization()
             .WithName("GetVisitReport").WithTags("Visits").Produces<VisitReportDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Offline check-ins/outs awaiting a manager's review (plan step 1.14, decision D5).
+        app.MapGet("/offline-reviews", async (string? state, int? limit, HttpContext context, OfflineReviews reviews,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await reviews.ListAsync(tenantId, actorId, state, limit, cancellationToken);
+            return result == OfflineReviewResult.Success ? Results.Ok(items) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("ListOfflineReviews").WithTags("Visits").Produces<List<OfflineReviewDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/offline-reviews/{eventId:guid}", async (Guid eventId, DecideOfflineReviewRequest request, HttpContext context,
+            OfflineReviews reviews, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await reviews.DecideAsync(tenantId, actorId, eventId, request, cancellationToken);
+            return result == OfflineReviewResult.Success ? Results.NoContent() : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("DecideOfflineReview").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         // Visit status history (plan step 1.9): same readers as the report.
         app.MapGet("/visits/{visitId:guid}/history", async (Guid visitId, HttpContext context,
@@ -146,6 +175,14 @@ public static class VisitEndpoints
         _ => Results.Forbid()
     };
 
+    private static IResult ToResult(OfflineReviewResult result) => result switch
+    {
+        OfflineReviewResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+        OfflineReviewResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        OfflineReviewResult.AlreadyDecided => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.InvalidState),
+        _ => ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.Forbidden)
+    };
+
     private static Guid? ReadDeviceId(HttpContext context) =>
         Guid.TryParse(context.User.FindFirst("device_id")?.Value, out var deviceId) ? deviceId : null;
 
@@ -165,6 +202,7 @@ public static class VisitEndpoints
             LifeDrop.Domain.Visits.LocationRejection.LowAccuracy => ApiErrors.GpsLowAccuracy,
             LifeDrop.Domain.Visits.LocationRejection.StaleFix => ApiErrors.GpsStale,
             LifeDrop.Domain.Visits.LocationRejection.ClockSkew => ApiErrors.GpsClockSkew,
+            LifeDrop.Domain.Visits.LocationRejection.OfflineExpired => ApiErrors.OfflineExpired,
             _ => ApiErrors.GpsMocked
         }),
         _ => Results.Forbid()

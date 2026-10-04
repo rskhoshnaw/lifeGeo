@@ -30,6 +30,7 @@ public static class ApiErrors
     public const string GpsStale = "GPS_STALE";
     public const string GpsClockSkew = "GPS_CLOCK_SKEW";
     public const string GpsMocked = "GPS_MOCKED";
+    public const string OfflineExpired = "OFFLINE_EXPIRED";
 
     // Generic codes for responses produced without a specific code
     // (empty-bodied results, authentication challenges, rate limiting, unhandled exceptions).
