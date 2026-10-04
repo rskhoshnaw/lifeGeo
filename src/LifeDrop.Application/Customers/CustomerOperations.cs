@@ -4,15 +4,20 @@ using LifeDrop.Domain.Common;
 
 namespace LifeDrop.Application.Customers;
 
-public enum CreateCustomerResult { Created, DuplicateCode, Forbidden, InvalidData }
+public enum CreateCustomerResult { Created, DuplicateCode, Forbidden, InvalidData, RegionNotFound }
 
-public sealed record CreateCustomerRequest(string Type, string Code, string Name);
+// RegionId: optional; defaults to the creator's region (plan step 1.15).
+public sealed record CreateCustomerRequest(string Type, string Code, string Name, Guid? RegionId = null);
 
 public interface ICustomerStore
 {
     // scope limits rows to the caller's data scope (plan step 0.6b); out-of-scope rows behave as not found.
     Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken);
     Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken);
+    // With region and approval status (plan step 1.15); RegionNotFound when the region is not in the tenant.
+    Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, Guid? regionId,
+        string approvalStatus, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken);
 
     // Location and geofence updates (plan step 1.5); false when the customer is not in the actor's scope.
@@ -25,17 +30,82 @@ public interface ICustomerStore
         throw new NotSupportedException();
 }
 
-public sealed class CreateCustomer(ICustomerStore store)
+// Customer registration (plan step 1.15, PRD §8, decision D11). The customer is placed in the requested region,
+// or the creator's region. A user without tenant-wide scope who registers a customer in another region creates it
+// as 'pending'; it waits for a sales manager or that region's supervisor and stays owned by the creator.
+public sealed class CreateCustomer(ICustomerStore store, IPermissionStore permissions)
 {
     public async Task<(CreateCustomerResult Result, CustomerId Id)> ExecuteAsync(TenantId tenantId, UserId actorId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
-        if (string.IsNullOrWhiteSpace(request.Type) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
+        if (string.IsNullOrWhiteSpace(request.Type) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name) ||
+            request.RegionId == Guid.Empty)
             return (CreateCustomerResult.InvalidData, CustomerId.Empty);
 
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
+        var (_, creatorRegion) = await permissions.GetUserRegionAsync(tenantId, actorId, cancellationToken);
+        var region = request.RegionId ?? creatorRegion;
+        var pending = scope.Scope != DataScope.Tenant && region is not null && region != creatorRegion;
+
         var id = CustomerId.New();
-        var result = await store.CreateAsync(tenantId, actorId, id, request, cancellationToken);
+        var result = await store.CreateAsync(tenantId, actorId, id, request, region, pending ? "pending" : "approved", cancellationToken);
         return (result, id);
+    }
+}
+
+public sealed record DecideCustomerApprovalRequest(string? Decision, string? Note);
+public enum CustomerApprovalResult { Success, Forbidden, NotFound, InvalidData, AlreadyDecided }
+
+public interface ICustomerApprovalStore
+{
+    // Pending customers, optionally only in one region.
+    Task<IReadOnlyList<CustomerDto>> ListPendingAsync(TenantId tenantId, Guid? regionId, int limit, CancellationToken cancellationToken);
+    Task<(Guid? RegionId, string Status)?> GetApprovalAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken);
+    // Decides only while still pending; audited in the same transaction.
+    Task<bool> TryDecideAsync(TenantId tenantId, UserId actorId, CustomerId id, string decision, string? note, CancellationToken cancellationToken);
+}
+
+// Approval of customers registered outside the rep's region (plan step 1.15, D11): customers.approve with tenant
+// scope (sales manager) for every region, with region scope (supervisor) only for the supervisor's region.
+public sealed class CustomerApprovals(ICustomerApprovalStore store, IPermissionStore permissions)
+{
+    public const int MaxNoteLength = 500;
+
+    public async Task<(CustomerApprovalResult Result, IReadOnlyList<CustomerDto>? Items)> ListAsync(TenantId tenantId, UserId actorId,
+        CancellationToken cancellationToken)
+    {
+        var scope = await ApproverScopeAsync(tenantId, actorId, cancellationToken);
+        if (scope is null) return (CustomerApprovalResult.Forbidden, null);
+        if (scope.Scope == DataScope.Region && scope.RegionId is null) return (CustomerApprovalResult.Success, Array.Empty<CustomerDto>());
+        return (CustomerApprovalResult.Success,
+            await store.ListPendingAsync(tenantId, scope.Scope == DataScope.Tenant ? null : scope.RegionId, 200, cancellationToken));
+    }
+
+    public async Task<CustomerApprovalResult> DecideAsync(TenantId tenantId, UserId actorId, Guid customerId, DecideCustomerApprovalRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await ApproverScopeAsync(tenantId, actorId, cancellationToken);
+        if (scope is null) return CustomerApprovalResult.Forbidden;
+        var decision = request.Decision switch { "approve" => "approved", "reject" => "rejected", _ => null };
+        var note = request.Note?.Trim();
+        if (decision is null || note is { Length: > MaxNoteLength } || (decision == "rejected" && string.IsNullOrEmpty(note)))
+            return CustomerApprovalResult.InvalidData;
+
+        var found = customerId == Guid.Empty ? null : await store.GetApprovalAsync(tenantId, new CustomerId(customerId), cancellationToken);
+        if (found is not { } customer ||
+            (scope.Scope == DataScope.Region && (scope.RegionId is null || customer.RegionId != scope.RegionId)))
+            return CustomerApprovalResult.NotFound;
+        if (customer.Status != "pending") return CustomerApprovalResult.AlreadyDecided;
+        return await store.TryDecideAsync(tenantId, actorId, new CustomerId(customerId), decision, string.IsNullOrEmpty(note) ? null : note, cancellationToken)
+            ? CustomerApprovalResult.Success : CustomerApprovalResult.AlreadyDecided;
+    }
+
+    private async Task<AccessScope?> ApproverScopeAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return null;
+        var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersApprove, cancellationToken);
+        return scope is { Scope: DataScope.Tenant or DataScope.Region } ? scope : null;
     }
 }
 

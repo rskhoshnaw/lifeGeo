@@ -75,6 +75,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerApprovalStore, LifeDrop.Infrastructure.Customers.PostgresCustomerApprovalStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerApprovals>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.IOfflineReviewStore, LifeDrop.Infrastructure.Visits.PostgresOfflineReviewStore>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.OfflineReviews>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.IShiftStore, LifeDrop.Infrastructure.Tracking.PostgresShiftStore>();
@@ -367,11 +369,12 @@ public partial class Program
             {
                 LifeDrop.Application.Customers.CreateCustomerResult.Created => Results.Created($"/customers/{result.Id.Value}", result.Id.Value),
                 LifeDrop.Application.Customers.CreateCustomerResult.DuplicateCode => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DuplicateCode),
+                LifeDrop.Application.Customers.CreateCustomerResult.RegionNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.RegionNotFound),
                 LifeDrop.Application.Customers.CreateCustomerResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Customers.CreateCustomerResult.InvalidData => Results.BadRequest(),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };}).RequireAuthorization()
-            .WithName("CreateCustomer").WithTags("Customers").Produces<Guid>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+            .WithName("CreateCustomer").WithTags("Customers").Produces<Guid>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapPost("/visits", async (
             LifeDrop.Application.Visits.CreateVisitRequest request, 
@@ -397,6 +400,7 @@ public partial class Program
                 LifeDrop.Application.Visits.CreateVisitResult.Forbidden => Results.Forbid(),
                 LifeDrop.Application.Visits.CreateVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
                 LifeDrop.Application.Visits.CreateVisitResult.CustomerNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.CustomerNotFound),
+                LifeDrop.Application.Visits.CreateVisitResult.CustomerNotApproved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerNotApproved),
                 LifeDrop.Application.Visits.CreateVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
                 _ => ApiErrors.Problem(StatusCodes.Status500InternalServerError, ApiErrors.Unexpected)
             };}).RequireAuthorization()

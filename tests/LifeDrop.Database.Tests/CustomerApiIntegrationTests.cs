@@ -106,7 +106,8 @@ public class CustomerApiIntegrationTests
                 var m15 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0015_visit_status_history.sql"));
                 var m16 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0016_shifts_tracking.sql"));
                 var m17 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0017_offline_checkpoints.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17;
+                var m18 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0018_customer_approval.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1313,6 +1314,112 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task CustomerApproval_OutOfRegionCustomerWaitsForManagerOrRegionSupervisor()
+    {
+        // Plan step 1.15, decision D11.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), manager = Guid.NewGuid(), supA = Guid.NewGuid(), supB = Guid.NewGuid(), rep = Guid.NewGuid();
+        Guid regionA = Guid.Parse("88888888-0000-0000-0000-0000000000e1"), regionB = Guid.Parse("88888888-0000-0000-0000-0000000000b1");
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sa, @t1), (@sb, @t1), (@r, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sa, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @sb, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@ra, @t1, 'Erbil'), (@rb, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('88888888-0000-0000-0000-0000000000a1', @t1, @ra, 'Team A'), ('88888888-0000-0000-0000-0000000000a2', @t1, @rb, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sa, '88888888-0000-0000-0000-0000000000a1'), (@t1, @r, '88888888-0000-0000-0000-0000000000a1'),
+                    (@t1, @sb, '88888888-0000-0000-0000-0000000000a2');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sa", supA), ("sb", supB), ("r", rep), ("ra", regionA), ("rb", regionB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<Guid> Create(object body)
+        {
+            var response = await client.PostAsJsonAsync("/customers", body);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return await response.Content.ReadFromJsonAsync<Guid>();
+        }
+        async Task<LifeDrop.Application.Customers.CustomerDto> Get(Guid id) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{id}"))!;
+        Task<HttpResponseMessage> Unplanned(Guid customer) => client.PostAsJsonAsync("/visits/unplanned", new { CustomerId = customer, Reason = "Passing by" });
+        List<LifeDrop.Application.Customers.CustomerDto> Pending(HttpResponseMessage r) => r.Content.ReadFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>().Result!;
+
+        // The rep registers one customer in their own region and one in another region
+        As(rep);
+        var own = await Create(new { Type = "Pharmacy", Code = "P-OWN", Name = "Own region" });
+        var outside = await Create(new { Type = "Pharmacy", Code = "P-OUT", Name = "Other region", RegionId = regionB });
+        await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new { Type = "Pharmacy", Code = "P-X", Name = "X", RegionId = Guid.NewGuid() }),
+            HttpStatusCode.NotFound, "REGION_NOT_FOUND");
+        Assert.Equal((regionA, "approved"), ((await Get(own)).RegionId, (await Get(own)).ApprovalStatus));
+        Assert.Equal((regionB, "pending"), ((await Get(outside)).RegionId, (await Get(outside)).ApprovalStatus));
+        // No visit for a customer waiting for approval
+        await AssertProblemAsync(await Unplanned(outside), HttpStatusCode.Conflict, "CUSTOMER_NOT_APPROVED");
+        Assert.Equal(HttpStatusCode.Created, (await Unplanned(own)).StatusCode);
+        // The rep cannot approve
+        await AssertProblemAsync(await client.GetAsync("/customer-approvals"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/customers/{outside}/approval", new { Decision = "approve" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Only the supervisor of the target region (and the sales manager) see and decide it
+        As(supA);
+        Assert.Empty(Pending(await client.GetAsync("/customer-approvals")));
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/customers/{outside}/approval", new { Decision = "approve" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(manager);
+        Assert.Equal(outside, Assert.Single(Pending(await client.GetAsync("/customer-approvals"))).Id);
+        As(supB);
+        Assert.Equal(outside, Assert.Single(Pending(await client.GetAsync("/customer-approvals"))).Id);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/customers/{outside}/approval", new { Decision = "reject" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/customers/{outside}/approval", new { Decision = "approve" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/customers/{outside}/approval", new { Decision = "reject", Note = "Late" }), HttpStatusCode.Conflict, "INVALID_STATE");
+        Assert.Empty(Pending(await client.GetAsync("/customer-approvals")));
+
+        // Approved: still the rep's customer, and visits are allowed
+        As(rep);
+        Assert.Equal("approved", (await Get(outside)).ApprovalStatus);
+        Assert.Equal(HttpStatusCode.Created, (await Unplanned(outside)).StatusCode);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'customer.%' GROUP BY action) a;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            Assert.Equal("customer.approved=1,customer.created=1,customer.created_pending=1", (string?)await cmd.ExecuteScalarAsync());
+        }
+    }
+
+    [SkippableFact]
     public async Task VisitApi_Failed_EnforcesPermissionsAndTransitions()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
@@ -1847,7 +1954,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "36" }, grantsBefore);
+        Assert.Equal(new[] { "38" }, grantsBefore);
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");

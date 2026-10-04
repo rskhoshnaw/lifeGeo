@@ -16,9 +16,19 @@ public class CustomerOperationsTests
         public bool CreateCalled;
         public bool GetCalled;
 
+        public (Guid? Region, string Approval)? Created;
+
         public Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken)
         {
             CreateCalled = true;
+            return Task.FromResult(CreateCustomerResult.Created);
+        }
+
+        public Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, Guid? regionId,
+            string approvalStatus, CancellationToken cancellationToken)
+        {
+            CreateCalled = true;
+            Created = (regionId, approvalStatus);
             return Task.FromResult(CreateCustomerResult.Created);
         }
 
@@ -31,11 +41,49 @@ public class CustomerOperationsTests
         public Task<System.Collections.Generic.IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
+    private sealed class FakePermissions(LifeDrop.Application.Roles.DataScope? scope, Guid? region) : LifeDrop.Application.Roles.IPermissionStore
+    {
+        public Task<bool> HasPermissionAsync(TenantId tenantId, UserId userId, string permissionKey, CancellationToken cancellationToken) =>
+            Task.FromResult(scope is not null);
+        public Task<LifeDrop.Application.Roles.AccessScope?> GetAccessScopeAsync(TenantId tenantId, UserId userId, string permissionKey, CancellationToken cancellationToken) =>
+            Task.FromResult(scope is { } s ? new LifeDrop.Application.Roles.AccessScope(s, userId, region) : null);
+        public Task<(bool Exists, Guid? RegionId)> GetUserRegionAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken) =>
+            Task.FromResult((true, region));
+    }
+
+    private static readonly Guid RegionA = Guid.NewGuid(), RegionB = Guid.NewGuid();
+    private static CreateCustomer Sut(FakeCustomerStore store, LifeDrop.Application.Roles.DataScope? scope = LifeDrop.Application.Roles.DataScope.Own, Guid? region = null) =>
+        new(store, new FakePermissions(scope, region ?? RegionA));
+
+    // Plan step 1.15 (D11): outside the creator's region a rep's customer waits for approval; managers' do not.
+    [Theory]
+    [InlineData(LifeDrop.Application.Roles.DataScope.Own, null, "A", "approved")]
+    [InlineData(LifeDrop.Application.Roles.DataScope.Own, "A", "A", "approved")]
+    [InlineData(LifeDrop.Application.Roles.DataScope.Own, "B", "B", "pending")]
+    [InlineData(LifeDrop.Application.Roles.DataScope.Region, "B", "B", "pending")]
+    [InlineData(LifeDrop.Application.Roles.DataScope.Tenant, "B", "B", "approved")]
+    public async Task CreateCustomer_OutsideOwnRegionIsPending(LifeDrop.Application.Roles.DataScope scope, string? requested, string expectedRegion, string expectedApproval)
+    {
+        Guid? Region(string? name) => name switch { "A" => RegionA, "B" => RegionB, _ => null };
+        var store = new FakeCustomerStore();
+        await Sut(store, scope).ExecuteAsync(TenantId.New(), UserId.New(), new CreateCustomerRequest("Pharmacy", "C01", "Name", Region(requested)), CancellationToken.None);
+        Assert.Equal((Region(expectedRegion), expectedApproval), store.Created);
+    }
+
+    [Fact]
+    public async Task CreateCustomer_WithoutPermissionIsForbidden()
+    {
+        var store = new FakeCustomerStore();
+        var result = await Sut(store, scope: null).ExecuteAsync(TenantId.New(), UserId.New(), new CreateCustomerRequest("Pharmacy", "C01", "Name"), CancellationToken.None);
+        Assert.Equal(CreateCustomerResult.Forbidden, result.Result);
+        Assert.False(store.CreateCalled);
+    }
+
     [Fact]
     public async Task CreateCustomer_ValidRequest_CallsStore()
     {
         var store = new FakeCustomerStore();
-        var sut = new CreateCustomer(store);
+        var sut = Sut(store);
         
         var result = await sut.ExecuteAsync(TenantId.New(), UserId.New(), new CreateCustomerRequest("Clinic", "C01", "Test Clinic"), CancellationToken.None);
         
@@ -52,7 +100,7 @@ public class CustomerOperationsTests
     public async Task CreateCustomer_MissingData_ReturnsInvalidData(string? type, string? code, string? name)
     {
         var store = new FakeCustomerStore();
-        var sut = new CreateCustomer(store);
+        var sut = Sut(store);
         
         var result = await sut.ExecuteAsync(TenantId.New(), UserId.New(), new CreateCustomerRequest(type!, code!, name!), CancellationToken.None);
         
@@ -64,7 +112,7 @@ public class CustomerOperationsTests
     public async Task CreateCustomer_EmptyTenantOrActor_ReturnsForbidden()
     {
         var store = new FakeCustomerStore();
-        var sut = new CreateCustomer(store);
+        var sut = Sut(store);
         
         var result = await sut.ExecuteAsync(TenantId.Empty, UserId.Empty, new CreateCustomerRequest("Clinic", "C01", "Test Clinic"), CancellationToken.None);
         

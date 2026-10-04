@@ -217,3 +217,15 @@ Migration 0016 adds `shifts` and `tracking_points` (tenant RLS). Coordinates are
 | `POST /offline-reviews/{eventId}` | same; never one's own event | `{decision: approve\|reject, note}`; reject needs a note (≤ 500). 404 outside scope, 409 `INVALID_STATE` when already decided | `visit.offline_review_approved` / `_rejected` |
 
 The decision does not change the visit's status; it is recorded for reports and follow-up. Migration 0017 adds the offline and review columns to `visit_location_events` (grant `UPDATE` added). Tests: `OfflineCheckpoints_AutoAcceptReviewOrRejectAndManagerDecides`, `OfflineCheckPolicyTests`.
+
+## Customer registration and approval (step 1.15, decision D11)
+
+- `POST /customers` takes an optional `regionId` (default: the creator's team region; unknown region → 404 `REGION_NOT_FOUND`). A creator without tenant-wide `customers.write` scope who registers a customer in another region creates it as `pending` (audit `customer.created_pending`); otherwise `approved` (`customer.created`). The customer stays owned by the creator. Customer reads now include `regionId` and `approvalStatus`.
+- Visits (`POST /visits`, `/visits/unplanned`) for a `pending` or `rejected` customer → 409 `CUSTOMER_NOT_APPROVED`.
+
+| Route | Who | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /customer-approvals` | `customers.approve` (SalesManager: tenant; Supervisor: own region) | Pending customers in scope | — |
+| `POST /customers/{id}/approval` | same | `{decision: approve\|reject, note}`; reject needs a note; outside scope 404; decided 409 `INVALID_STATE` | `customer.approved` / `customer.rejected` |
+
+Migration 0018 adds the approval columns and the `customers.approve` permission (default roles updated). Test: `CustomerApproval_OutOfRegionCustomerWaitsForManagerOrRegionSupervisor`.

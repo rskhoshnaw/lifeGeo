@@ -26,6 +26,7 @@ public static class VisitEndpoints
                 CreateVisitResult.Created => Results.Created($"/visits/{visitId}", new CreatedResponse(visitId!.Value)),
                 CreateVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
                 CreateVisitResult.CustomerNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.CustomerNotFound),
+                CreateVisitResult.CustomerNotApproved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerNotApproved),
                 CreateVisitResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
                 _ => Results.Forbid()
             };
