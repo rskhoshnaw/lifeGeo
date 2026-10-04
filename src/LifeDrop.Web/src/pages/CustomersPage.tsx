@@ -1,5 +1,9 @@
 import { useCallback, useState } from 'react'
 import { AdminApi, can, errorMessage, Permissions, type Customer, type Me } from '../api/admin.ts'
+import { t, type TextKey } from '../i18n.ts'
+
+const approvalText = (status: string) =>
+  ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
@@ -21,7 +25,7 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   function decide(customer: Customer, decision: 'approve' | 'reject') {
     const note = (notes[customer.id] ?? '').trim()
     if (decision === 'reject' && !note) {
-      setNoteError('Write a reason before rejecting.')
+      setNoteError(t('web.customers.rejectNeedsNote'))
       return
     }
     setNoteError(null)
@@ -31,26 +35,26 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   const error = noteError ?? action.error ?? pending.error
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Customers waiting for approval</h2>
+      <h2 className="mb-4 text-xl font-semibold">{t('web.customers.pendingTitle')}</h2>
       {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
-      {pending.data?.length === 0 && <p className="text-slate-600">Nothing waiting.</p>}
+      {pending.data?.length === 0 && <p className="text-slate-600">{t('web.customers.nothingWaiting')}</p>}
       {pending.data?.map((customer) => (
         <div key={customer.id} className="mb-2 flex flex-wrap items-center gap-2 border-b pb-2 text-sm">
           <span className="min-w-48">
             {customer.code} · {customer.name} ({customer.type})
           </span>
           <input
-            aria-label={`Note for ${customer.code}`}
+            aria-label={t('web.customers.noteFor', { code: customer.code })}
             className="flex-1 rounded border px-2 py-1"
-            placeholder="Note (required to reject)"
+            placeholder={t('web.customers.notePlaceholder')}
             value={notes[customer.id] ?? ''}
             onChange={(e) => setNotes({ ...notes, [customer.id]: e.target.value })}
           />
           <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => decide(customer, 'approve')}>
-            Approve
+            {t('web.action.approve')}
           </button>
           <button className="rounded border px-2 py-1 text-red-700" disabled={action.busy} onClick={() => decide(customer, 'reject')}>
-            Reject
+            {t('web.action.reject')}
           </button>
         </div>
       ))}
@@ -77,16 +81,16 @@ function CustomerList({ admin }: { admin: AdminApi }) {
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Customers</h2>
+      <h2 className="mb-4 text-xl font-semibold">{t('web.customers.title')}</h2>
       {(error ?? first.error) && <p role="alert" className="mb-3 text-sm text-red-700">{error ?? first.error}</p>}
       {first.data && (
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
-              <th className="py-2">Code</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Approval</th>
+              <th className="py-2">{t('web.customers.code')}</th>
+              <th>{t('web.customers.name')}</th>
+              <th>{t('web.customers.type')}</th>
+              <th>{t('web.customers.approval')}</th>
             </tr>
           </thead>
           <tbody>
@@ -95,7 +99,7 @@ function CustomerList({ admin }: { admin: AdminApi }) {
                 <td className="py-2">{customer.code}</td>
                 <td>{customer.name}</td>
                 <td>{customer.type}</td>
-                <td>{customer.approvalStatus}</td>
+                <td>{approvalText(customer.approvalStatus)}</td>
               </tr>
             ))}
           </tbody>
@@ -103,7 +107,7 @@ function CustomerList({ admin }: { admin: AdminApi }) {
       )}
       {first.data && first.data.length === 100 && !done && (
         <button className="mt-3 rounded border px-3 py-1 text-sm" onClick={() => void loadMore()}>
-          Load more
+          {t('web.action.loadMore')}
         </button>
       )}
     </div>

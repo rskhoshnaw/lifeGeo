@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="LifeDrop.Mobile.VisitDetailsPage"
-             Title="Visit">
+             x:Class="LifeDrop.Mobile.VisitDetailsPage">
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
@@ -18,12 +17,12 @@
 
             <!-- Report and check-out (InVisit) -->
             <VerticalStackLayout x:Name="ReportForm" Spacing="8" IsVisible="False">
-                <Label Text="Visit report" FontAttributes="Bold" />
-                <Picker x:Name="OutcomePicker" Title="Result of the visit" />
-                <Editor x:Name="NoteEditor" Placeholder="What happened in this visit?" AutoSize="TextChanges" MaxLength="2000" HeightRequest="120" />
-                <Label x:Name="ReportSavedLabel" Text="Report saved on the server." IsVisible="False" />
-                <Button x:Name="SubmitBtn" Text="Save report and check out" Clicked="OnSubmitClicked" />
-                <Button x:Name="RetryCheckOutBtn" Text="Try check-out again" Clicked="OnRetryCheckOutClicked" IsVisible="False" />
+                <Label x:Name="ReportTitleLabel" FontAttributes="Bold" />
+                <Picker x:Name="OutcomePicker" />
+                <Editor x:Name="NoteEditor" AutoSize="TextChanges" MaxLength="2000" HeightRequest="120" />
+                <Label x:Name="ReportSavedLabel" IsVisible="False" />
+                <Button x:Name="SubmitBtn" Clicked="OnSubmitClicked" />
+                <Button x:Name="RetryCheckOutBtn" Clicked="OnRetryCheckOutClicked" IsVisible="False" />
             </VerticalStackLayout>
 
             <!-- Steps saved on the phone and their state (plan step 1.14) -->

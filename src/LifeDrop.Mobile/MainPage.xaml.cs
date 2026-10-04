@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Auth;
 using LifeDrop.Mobile.Auth.Models;
 using System.Net.Http;
@@ -16,6 +17,16 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+        FlowDirection = AppLanguage.Direction;
+        LanguageItem.Text = AppLanguage.CurrentName;
+        ApiUrlEntry.Placeholder = Texts.Get("app.login.apiUrl");
+        TenantEntry.Placeholder = Texts.Get("app.login.tenant");
+        EmailEntry.Placeholder = Texts.Get("app.login.email");
+        PasswordEntry.Placeholder = Texts.Get("app.login.password");
+        DeviceLabelEntry.Placeholder = Texts.Get("app.login.deviceLabel");
+        RegisterBtn.Text = Texts.Get("app.login.register");
+        LoginBtn.Text = Texts.Get("app.login.submit");
+        StatusLabel.Text = Texts.Get("app.login.checking");
 
 #if !DEBUG
         // Completely hide the URL field in Release
@@ -25,6 +36,12 @@ public partial class MainPage : ContentPage
         ApiUrlEntry.Text = Preferences.Get("ApiUrl", "http://127.0.0.1:5256");
 #endif
     }
+
+    private async void OnLanguageClicked(object? sender, EventArgs e) => await AppLanguage.ChooseAsync(this, () => new MainPage());
+
+    // Login and registration results in the user's language.
+    private static string Describe(AuthStatus status) =>
+        status == AuthStatus.Success ? "" : Texts.Get("app.auth." + status);
 
     protected override async void OnAppearing()
     {
@@ -55,29 +72,19 @@ public partial class MainPage : ContentPage
 
             if (store == null)
             {
-                StatusLabel.Text = "Platform storage not configured.";
+                StatusLabel.Text = Texts.Get("app.login.storageMissing");
                 return;
             }
 
             var device = await store.LoadDeviceAsync();
             var session = await store.LoadSessionAsync();
 
-            string status = "";
-            if (device != null)
-                status += $"Registered. ID: {device.DeviceId}\n";
-            else
-                status += "Not Registered.\n";
-
-            if (session != null)
-                status += $"Session: {session.Status} (Bound: {session.IsDeviceBound})";
-            else
-                status += "Session: None";
-
-            StatusLabel.Text = status;
+            StatusLabel.Text = (device != null ? Texts.Get("app.login.registered", ("id", device.DeviceId)) : Texts.Get("app.login.notRegistered"))
+                + "\n" + Texts.Get(session != null ? "app.login.signedIn" : "app.login.notSignedIn");
         }
         catch
         {
-            StatusLabel.Text = "Status: Storage error.";
+            StatusLabel.Text = Texts.Get("app.login.storageError");
         }
     }
 
@@ -92,14 +99,14 @@ public partial class MainPage : ContentPage
         var url = ApiUrlEntry.Text;
         if (string.IsNullOrWhiteSpace(url))
         {
-            StatusLabel.Text = "API URL required.";
+            StatusLabel.Text = Texts.Get("app.login.urlRequired");
             return (null, null);
         }
 
 #if !DEBUG
         if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
         {
-            StatusLabel.Text = "HTTP is not allowed in Release.";
+            StatusLabel.Text = Texts.Get("app.login.httpNotAllowed");
             return (null, null);
         }
 #endif
@@ -121,7 +128,7 @@ public partial class MainPage : ContentPage
     private async void OnRegisterClicked(object sender, EventArgs e)
     {
         SetBusy(true);
-        StatusLabel.Text = "Registering...";
+        StatusLabel.Text = Texts.Get("app.login.registering");
 
         try
         {
@@ -144,20 +151,20 @@ public partial class MainPage : ContentPage
             var result = await coord.RegisterDeviceAsync(req, cts.Token);
             if (result.Status == AuthStatus.Success)
             {
-                StatusLabel.Text = $"REGISTER SUCCESS!\nNew Device ID: {result.Data!.DeviceId}\nPending Admin Approval.";
+                StatusLabel.Text = Texts.Get("app.login.registerDone");
             }
             else
             {
-                StatusLabel.Text = $"REGISTER FAILED: {result.Status}";
+                StatusLabel.Text = Describe(result.Status);
             }
         }
         catch (OperationCanceledException)
         {
-            StatusLabel.Text = "Timeout or canceled.";
+            StatusLabel.Text = Texts.Get("app.timeout");
         }
         catch
         {
-            StatusLabel.Text = "Unexpected error.";
+            StatusLabel.Text = Texts.Get("app.unexpected");
         }
         finally
         {
@@ -169,7 +176,7 @@ public partial class MainPage : ContentPage
     private async void OnLoginClicked(object sender, EventArgs e)
     {
         SetBusy(true);
-        StatusLabel.Text = "Logging in...";
+        StatusLabel.Text = Texts.Get("app.login.loggingIn");
 
         try
         {
@@ -187,22 +194,21 @@ public partial class MainPage : ContentPage
 
             if (result.Status == AuthStatus.Success)
             {
-                StatusLabel.Text = $"LOGIN SUCCESS!\nDevice Bound: {result.Data!.IsDeviceBound}";
                 // Navigate to HomePage
-                Application.Current!.Windows[0].Page = new NavigationPage(new HomePage());
+                AppLanguage.ShowRoot(new HomePage());
             }
             else
             {
-                StatusLabel.Text = $"LOGIN FAILED: {result.Status}";
+                StatusLabel.Text = Describe(result.Status);
             }
         }
         catch (OperationCanceledException)
         {
-            StatusLabel.Text = "Timeout or canceled.";
+            StatusLabel.Text = Texts.Get("app.timeout");
         }
         catch
         {
-            StatusLabel.Text = "Unexpected error.";
+            StatusLabel.Text = Texts.Get("app.unexpected");
         }
         finally
         {

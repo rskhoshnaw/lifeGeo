@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 namespace LifeDrop.Mobile.Visits;
 
 // Iraq has one time zone (UTC+3, no daylight saving). The fixed offset is the fallback when the device lacks
@@ -50,13 +51,13 @@ public sealed class DailyPlan
 
     public string? Message => State switch
     {
-        DailyPlanState.Empty => "No visits planned for today.",
-        DailyPlanState.Error => Error switch
+        DailyPlanState.Empty => Texts.Get("app.plan.empty"),
+        DailyPlanState.Error => Texts.Get(Error switch
         {
-            PlanLoadStatus.NetworkError => "No connection to the server. Check your internet and try again.",
-            PlanLoadStatus.SessionExpired => "Your session has ended. Please log in again.",
-            _ => "The server could not load your plan. Try again later."
-        } + (IsStale ? " The list below may be out of date." : ""),
+            PlanLoadStatus.NetworkError => "app.plan.network",
+            PlanLoadStatus.SessionExpired => "app.sessionEnded",
+            _ => "app.plan.server"
+        }) + (IsStale ? " " + Texts.Get("app.plan.stale") : ""),
         _ => null
     };
 
@@ -124,23 +125,8 @@ public sealed class DailyPlan
 
     private sealed record CachedPlan(DateOnly Date, List<PlannedVisit>? Visits);
 
-    public static string StatusLabel(string status) => status switch
-    {
-        "Planned" => "Planned",
-        "EnRoute" => "On the way",
-        "Arrived" => "Arrived",
-        "InVisit" => "In visit",
-        "Completed" => "Completed",
-        "Failed" => "Failed",
-        "Cancelled" => "Cancelled",
-        _ => status
-    };
+    public static string StatusLabel(string status) => Texts.Has("app.status." + status) ? Texts.Get("app.status." + status) : status;
 
-    public static string TypeLabel(string visitType) => visitType switch
-    {
-        "pharmacy" => "Pharmacy",
-        "doctor" => "Doctor",
-        "wholesaler" => "Wholesaler",
-        _ => "Other"
-    };
+    public static string TypeLabel(string visitType) =>
+        Texts.Get(visitType is "pharmacy" or "doctor" or "wholesaler" ? "app.type." + visitType : "app.type.other");
 }

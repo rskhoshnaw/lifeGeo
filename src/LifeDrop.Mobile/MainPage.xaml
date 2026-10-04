@@ -3,23 +3,27 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="LifeDrop.Mobile.MainPage">
 
+    <ContentPage.ToolbarItems>
+        <ToolbarItem x:Name="LanguageItem" Clicked="OnLanguageClicked" />
+    </ContentPage.ToolbarItems>
+
     <ScrollView>
         <VerticalStackLayout Padding="30,0" Spacing="15" VerticalOptions="Center">
 
-            <Label Text="LifeDrop Auth" Style="{StaticResource Headline}" HorizontalOptions="Center" />
+            <Label Text="LifeDrop" Style="{StaticResource Headline}" HorizontalOptions="Center" />
 
             <!-- Development-only setting -->
-            <Entry x:Name="ApiUrlEntry" Placeholder="API Address" Text="http://127.0.0.1:5256" IsVisible="True" />
+            <Entry x:Name="ApiUrlEntry" Text="http://127.0.0.1:5256" IsVisible="True" FlowDirection="LeftToRight" />
             
-            <Entry x:Name="TenantEntry" Placeholder="Tenant Code" />
-            <Entry x:Name="EmailEntry" Placeholder="Email" Keyboard="Email" />
-            <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" />
-            <Entry x:Name="DeviceLabelEntry" Placeholder="Device Label" Text="My Test Device" />
+            <Entry x:Name="TenantEntry" FlowDirection="LeftToRight" />
+            <Entry x:Name="EmailEntry" Keyboard="Email" FlowDirection="LeftToRight" />
+            <Entry x:Name="PasswordEntry" IsPassword="True" FlowDirection="LeftToRight" />
+            <Entry x:Name="DeviceLabelEntry" />
 
-            <Button x:Name="RegisterBtn" Text="Register Device" Clicked="OnRegisterClicked" />
-            <Button x:Name="LoginBtn" Text="Login" Clicked="OnLoginClicked" />
+            <Button x:Name="RegisterBtn" Clicked="OnRegisterClicked" />
+            <Button x:Name="LoginBtn" Clicked="OnLoginClicked" />
 
-            <Label x:Name="StatusLabel" Text="Checking status..." TextColor="Gray" Margin="0,20,0,0" />
+            <Label x:Name="StatusLabel" TextColor="Gray" Margin="0,20,0,0" />
 
         </VerticalStackLayout>
     </ScrollView>

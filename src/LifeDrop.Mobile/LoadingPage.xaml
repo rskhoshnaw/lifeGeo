@@ -4,6 +4,6 @@
              x:Class="LifeDrop.Mobile.LoadingPage">
     <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center">
         <ActivityIndicator IsRunning="True" />
-        <Label Text="Loading..." Margin="0,10,0,0" />
+        <Label x:Name="LoadingLabel" Margin="0,10,0,0" />
     </VerticalStackLayout>
 </ContentPage>

@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Auth;
 using LifeDrop.Mobile.Auth.Models;
 using LifeDrop.Mobile.Tracking;
@@ -17,7 +18,17 @@ public partial class HomePage : ContentPage
     public HomePage()
     {
         InitializeComponent();
+        FlowDirection = AppLanguage.Direction;
+        Title = Texts.Get("app.home.title");
+        LanguageItem.Text = AppLanguage.CurrentName;
+        WelcomeLabel.Text = Texts.Get("app.home.welcome");
+        StatusLabel.Text = Texts.Get("app.login.signedIn");
+        PlanBtn.Text = Texts.Get("app.home.plan");
+        LogoutBtn.Text = Texts.Get("app.home.logout");
+        RenderShift();
     }
+
+    private async void OnLanguageClicked(object? sender, EventArgs e) => await AppLanguage.ChooseAsync(this, () => new HomePage());
 
     private void SetBusy(bool isBusy)
     {
@@ -52,7 +63,7 @@ public partial class HomePage : ContentPage
         var tracker = TrackingHost.GetOrCreate();
         if (tracker is null)
         {
-            ShiftDetailLabel.Text = "Tracking is not available on this device.";
+            ShiftDetailLabel.Text = Texts.Get("app.home.trackingUnavailable");
             ShiftDetailLabel.IsVisible = true;
             return;
         }
@@ -65,7 +76,7 @@ public partial class HomePage : ContentPage
             {
                 if (!await EnsureTrackingPermissionsAsync())
                 {
-                    ShiftDetailLabel.Text = "Location permission is needed to start a shift.";
+                    ShiftDetailLabel.Text = Texts.Get("app.home.locationNeeded");
                     ShiftDetailLabel.IsVisible = true;
                     return;
                 }
@@ -75,7 +86,7 @@ public partial class HomePage : ContentPage
             }
             else
             {
-                if (!await DisplayAlertAsync("End shift", "Stop tracking and end your shift?", "End shift", "Cancel")) return;
+                if (!await DisplayAlertAsync(Texts.Get("app.home.endShift"), Texts.Get("app.home.endShiftQuestion"), Texts.Get("app.home.endShift"), Texts.Get("app.cancel"))) return;
                 var status = await tracker.EndAsync(cts.Token);
                 if (status == ShiftCallStatus.Success) StopTrackingService();
                 else ShowShiftError(status);
@@ -96,33 +107,33 @@ public partial class HomePage : ContentPage
     {
         var tracker = TrackingHost.Tracker;
         var on = tracker?.State == ShiftState.On;
-        ShiftStatusLabel.Text = on ? $"Shift: on since {tracker!.Shift!.StartedAt.ToOffset(TimeSpan.FromHours(3)):HH:mm}" : "Shift: off";
-        ShiftBtn.Text = on ? "End shift" : "Start shift";
+        ShiftStatusLabel.Text = on ? Texts.Get("app.home.shiftOn", ("time", tracker!.Shift!.StartedAt.ToOffset(TimeSpan.FromHours(3)).ToString("HH:mm"))) : Texts.Get("app.home.shiftOff");
+        ShiftBtn.Text = Texts.Get(on ? "app.home.endShift" : "app.home.startShift");
         if (tracker is not null && (on || tracker.QueuedPoints > 0))
         {
             // The four states are shown separately (plan step 1.14).
             var p = tracker.Counts;
-            ShiftDetailLabel.Text = $"Points — on the phone: {p.Local} · sent: {p.Sent} · accepted: {p.Accepted} · rejected: {p.Rejected}";
+            ShiftDetailLabel.Text = Texts.Get("app.home.points", ("local", p.Local), ("sent", p.Sent), ("accepted", p.Accepted), ("rejected", p.Rejected));
             ShiftDetailLabel.IsVisible = true;
         }
         if (TrackingHost.Outbox is { } outbox && outbox.Items.Count > 0)
         {
             var v = outbox.Counts;
             ShiftDetailLabel.Text = (ShiftDetailLabel.IsVisible ? ShiftDetailLabel.Text + "\n" : "") +
-                $"Visit steps — on the phone: {v.Local} · sent: {v.Sent} · accepted: {v.Accepted} · rejected: {v.Rejected}";
+                Texts.Get("app.home.steps", ("local", v.Local), ("sent", v.Sent), ("accepted", v.Accepted), ("rejected", v.Rejected));
             ShiftDetailLabel.IsVisible = true;
         }
     }
 
     private void ShowShiftError(ShiftCallStatus status)
     {
-        ShiftDetailLabel.Text = status switch
+        ShiftDetailLabel.Text = Texts.Get(status switch
         {
-            ShiftCallStatus.DeviceRequired => "This phone is not an approved device for your account.",
-            ShiftCallStatus.SessionExpired => "Your session has ended. Please log in again.",
-            ShiftCallStatus.NetworkError => "No connection to the server. Try again.",
-            _ => "The server could not change the shift. Try again later."
-        };
+            ShiftCallStatus.DeviceRequired => "app.shift.deviceRequired",
+            ShiftCallStatus.SessionExpired => "app.sessionEnded",
+            ShiftCallStatus.NetworkError => "app.shift.network",
+            _ => "app.shift.server"
+        });
         ShiftDetailLabel.IsVisible = true;
     }
 
@@ -161,9 +172,9 @@ public partial class HomePage : ContentPage
         // Steps or points not yet sent are lost at logout; say so first.
         var unsent = (TrackingHost.Outbox?.Counts is { } c ? c.Local + c.Sent : 0) + (TrackingHost.Tracker?.QueuedPoints ?? 0);
         var question = unsent > 0
-            ? $"{unsent} items saved on this phone have not reached the server yet and will be lost. Log out anyway?"
-            : "Are you sure you want to log out?";
-        bool confirm = await DisplayAlert("Logout", question, "Yes", "No");
+            ? Texts.Get("app.home.logoutUnsent", ("count", unsent))
+            : Texts.Get("app.home.logoutQuestion");
+        bool confirm = await DisplayAlertAsync(Texts.Get("app.home.logout"), question, Texts.Get("app.yes"), Texts.Get("app.no"));
         if (!confirm) return;
 
         SetBusy(true);
@@ -175,14 +186,14 @@ public partial class HomePage : ContentPage
         }
         StopTrackingService();
         TrackingHost.Reset();
-        StatusLabel.Text = "Logging out...";
+        StatusLabel.Text = Texts.Get("app.home.loggingOut");
 
         try
         {
             var url = Preferences.Get("ApiUrl", "");
             if (string.IsNullOrEmpty(url))
             {
-                StatusLabel.Text = "API URL not found.";
+                StatusLabel.Text = Texts.Get("app.home.urlMissing");
                 SetBusy(false);
                 return;
             }
@@ -202,20 +213,20 @@ public partial class HomePage : ContentPage
             if (result.Status == AuthStatus.Success)
             {
                 // Return to login screen
-                Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+                AppLanguage.ShowRoot(new MainPage());
             }
             else
             {
-                StatusLabel.Text = $"LOGOUT FAILED: {result.Status}";
+                StatusLabel.Text = Texts.Get("app.home.logoutFailed");
             }
         }
         catch (OperationCanceledException)
         {
-            StatusLabel.Text = "Timeout or canceled.";
+            StatusLabel.Text = Texts.Get("app.timeout");
         }
         catch
         {
-            StatusLabel.Text = "Unexpected error during logout.";
+            StatusLabel.Text = Texts.Get("app.home.logoutFailed");
         }
         finally
         {

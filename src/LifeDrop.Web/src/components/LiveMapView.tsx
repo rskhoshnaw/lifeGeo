@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type { LiveMapEntry } from '../api/admin.ts'
+import { t } from '../i18n.ts'
 
 // OpenStreetMap raster tiles (decision D12/D13 stack: MapLibre + OSM). The public OSM tile server is for light use;
 // a production tile provider can replace this URL without other changes.
@@ -48,7 +49,7 @@ export function LiveMapView({ entries }: { entries: LiveMapEntry[] }) {
     markers.current = located.map((e) =>
       new lib.Marker({ color: e.isLive ? '#16a34a' : '#94a3b8' })
         .setLngLat([e.longitude!, e.latitude!])
-        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.isLive ? '' : ' (not live)'}`))
+        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.isLive ? '' : t('web.map.notLive')}`))
         .addTo(map),
     )
     if (located.length > 0) {
@@ -58,5 +59,5 @@ export function LiveMapView({ entries }: { entries: LiveMapEntry[] }) {
     }
   }, [loaded, entries])
 
-  return <div ref={container} className="h-96 w-full rounded border" aria-label="Live map" />
+  return <div ref={container} className="h-96 w-full rounded border" aria-label={t('web.map.title')} />
 }

@@ -2,8 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:LifeDrop.Mobile"
-             x:Class="LifeDrop.Mobile.DailyPlanPage"
-             Title="Today's plan">
+             x:Class="LifeDrop.Mobile.DailyPlanPage">
 
     <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
 
@@ -12,7 +11,7 @@
         <VerticalStackLayout Grid.Row="1" Spacing="8">
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
             <Label x:Name="MessageLabel" IsVisible="False" />
-            <Button x:Name="RetryBtn" Text="Try again" Clicked="OnRetryClicked" IsVisible="False" HorizontalOptions="Start" />
+            <Button x:Name="RetryBtn" Clicked="OnRetryClicked" IsVisible="False" HorizontalOptions="Start" />
         </VerticalStackLayout>
 
         <RefreshView x:Name="Refresher" Grid.Row="2" Refreshing="OnRefreshing">

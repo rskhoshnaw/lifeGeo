@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Visits;
 using System;
 using System.Linq;
@@ -19,6 +20,9 @@ public partial class DailyPlanPage : ContentPage
     public DailyPlanPage()
     {
         InitializeComponent();
+        FlowDirection = AppLanguage.Direction;
+        Title = Texts.Get("app.plan.title");
+        RetryBtn.Text = Texts.Get("app.tryAgain");
     }
 
     protected override async void OnAppearing()
@@ -81,7 +85,7 @@ public partial class DailyPlanPage : ContentPage
     private void Render()
     {
         var plan = _plan!;
-        if (plan.Date != default) DateLabel.Text = $"Today, {plan.Date:dddd d MMMM yyyy}";
+        if (plan.Date != default) DateLabel.Text = Texts.Get("app.plan.today", ("date", plan.Date.ToString("dddd d MMMM yyyy", Texts.Culture)));
         VisitList.ItemsSource = plan.Visits.Select(ToRow).ToList();
         MessageLabel.Text = plan.Message;
         MessageLabel.IsVisible = plan.Message is not null;
@@ -92,24 +96,24 @@ public partial class DailyPlanPage : ContentPage
 
     private void ShowSessionEnded()
     {
-        MessageLabel.Text = "Your session has ended. Please log in again.";
+        MessageLabel.Text = Texts.Get("app.sessionEnded");
         MessageLabel.IsVisible = true;
         RetryBtn.IsVisible = false;
-        Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+        AppLanguage.ShowRoot(new MainPage());
     }
 
     private static VisitRow ToRow(PlannedVisit v)
     {
-        var customer = string.IsNullOrWhiteSpace(v.CustomerName) ? "Customer" : v.CustomerName!;
+        var customer = string.IsNullOrWhiteSpace(v.CustomerName) ? Texts.Get("app.customer") : v.CustomerName!;
         if (!string.IsNullOrWhiteSpace(v.CustomerCode)) customer += $" ({v.CustomerCode})";
         var details = DailyPlan.TypeLabel(v.VisitType);
-        if (v.Priority == "high") details += " · High priority";
-        if (v.IsUnplanned) details += " · Unplanned";
+        if (v.Priority == "high") details += " · " + Texts.Get("app.plan.highPriority");
+        if (v.IsUnplanned) details += " · " + Texts.Get("app.plan.unplanned");
         // Steps saved on the phone move the status forward until the server has them.
         var outbox = TrackingHost.Outbox;
         var waiting = outbox?.HasPending(v.Id) == true;
         var status = waiting ? VisitLifecycle.LocalStatus(outbox!, v) : v.Status;
-        return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? "Any time", details,
-            DailyPlan.StatusLabel(status) + (waiting ? " · waiting to send" : ""));
+        return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? Texts.Get("app.plan.anyTime"), details,
+            DailyPlan.StatusLabel(status) + (waiting ? " · " + Texts.Get("app.plan.waiting") : ""));
     }
 }

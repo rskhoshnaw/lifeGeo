@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 namespace LifeDrop.Mobile.Visits;
 
 public enum VisitStep { None, StartTrip, MarkArrived, CheckIn, ReportAndCheckOut }
@@ -88,7 +89,7 @@ public sealed class VisitLifecycle
         Message = OfflineMessage;
     }
 
-    public const string OfflineMessage = "No internet: saved on the phone. It will be sent automatically when the connection is back.";
+    public static string OfflineMessage => Texts.Get("app.offline");
 
     // An earlier step still waits, or the server could not be reached: either way the step goes to the phone.
     private bool GoesOffline(VisitActionResult? result = null) =>
@@ -117,24 +118,17 @@ public sealed class VisitLifecycle
     public bool CanSubmitReport => !IsBusy && NextStep == VisitStep.ReportAndCheckOut && _location is not null;
     public bool CanRetryCheckOut => CanSubmitReport && ReportSaved;
 
-    public string? NextStepLabel => NextStep switch
-    {
-        VisitStep.StartTrip => "Start trip",
-        VisitStep.MarkArrived => "I have arrived",
-        VisitStep.CheckIn => "Check in here",
-        VisitStep.ReportAndCheckOut => "Save report and check out",
-        _ => null
-    };
+    public string? NextStepLabel => NextStep == VisitStep.None ? null : Texts.Get("app.next." + NextStep);
 
     public bool IsFinished => Visit.Status is "Completed" or "Failed" or "Cancelled";
 
     // Client-side copy of the server rules (contract version 1), so obvious mistakes are caught before sending.
     public static string? ValidateReport(string? outcome, string? note)
     {
-        if (outcome is null || !Outcomes.Contains(outcome)) return "Choose the result of the visit.";
+        if (outcome is null || !Outcomes.Contains(outcome)) return Texts.Get("app.report.chooseOutcome");
         var trimmed = note?.Trim() ?? "";
-        if (trimmed.Length < MinNoteLength || !trimmed.Any(char.IsLetterOrDigit)) return "Write a short note about the visit (at least 3 characters).";
-        if (trimmed.Length > MaxNoteLength) return $"The note is too long (at most {MaxNoteLength} characters).";
+        if (trimmed.Length < MinNoteLength || !trimmed.Any(char.IsLetterOrDigit)) return Texts.Get("app.report.noteShort", ("min", MinNoteLength));
+        if (trimmed.Length > MaxNoteLength) return Texts.Get("app.report.noteLong", ("max", MaxNoteLength));
         return null;
     }
 
@@ -211,7 +205,7 @@ public sealed class VisitLifecycle
                 if (saved != VisitActionResult.Success)
                 {
                     // Check-out is not attempted.
-                    Message = "The report was not saved, so check-out was not started. " + Describe(saved);
+                    Message = Texts.Get("app.report.notSaved") + " " + Describe(saved);
                     await HandleCommonAsync(saved, cancellationToken);
                     return;
                 }
@@ -240,7 +234,7 @@ public sealed class VisitLifecycle
         var fix = await GetFixAsync(cancellationToken);
         if (fix is null)
         {
-            Message = "Report saved on the phone. " + Message;
+            Message = Texts.Get("app.report.savedOnPhone") + " " + Message;
             return;
         }
         _checkOutKey ??= _newKey();
@@ -252,7 +246,7 @@ public sealed class VisitLifecycle
         var fix = await GetFixAsync(cancellationToken);
         if (fix is null)
         {
-            Message = "Report saved. " + Message;
+            Message = Texts.Get("app.report.saved") + " " + Message;
             return;
         }
         _checkOutKey ??= _newKey();
@@ -262,11 +256,11 @@ public sealed class VisitLifecycle
         if (result == VisitActionResult.Success)
         {
             Visit = Visit with { Status = "Completed" };
-            Message = "Report saved and visit completed.";
+            Message = Texts.Get("app.report.completed");
             return;
         }
         if (result == VisitActionResult.ReportRequired) SavedReport = null; // the server has no report; save it again
-        Message = (ReportSaved ? "Report saved, but check-out was not accepted. " : "") + Describe(result);
+        Message = (ReportSaved ? Texts.Get("app.report.checkOutRefused") + " " : "") + Describe(result);
         await HandleCommonAsync(result, cancellationToken);
     }
 
@@ -274,12 +268,12 @@ public sealed class VisitLifecycle
     {
         var result = await _location!.GetFixAsync(cancellationToken);
         if (result.Fix is not null) return result.Fix;
-        Message = result.Failure switch
+        Message = Texts.Get(result.Failure switch
         {
-            FixFailure.PermissionDenied => "Location permission is needed. Allow it in the phone settings and try again.",
-            FixFailure.TimedOut => "Your position could not be found in time. Go outside or near a window and try again.",
-            _ => "Location is off or unavailable. Turn on location and try again."
-        };
+            FixFailure.PermissionDenied => "app.gps.permission",
+            FixFailure.TimedOut => "app.gps.timeout",
+            _ => "app.gps.off"
+        });
         return null;
     }
 
@@ -300,9 +294,7 @@ public sealed class VisitLifecycle
         if (result == VisitActionResult.SessionExpired) SessionExpired = true;
         if (result is VisitActionResult.InvalidState or VisitActionResult.Conflict)
         {
-            Message = await ReloadAsync(cancellationToken)
-                ? "This visit was changed elsewhere. Its current status is shown."
-                : "This visit was changed elsewhere and could not be reloaded. Go back to the plan.";
+            Message = Texts.Get(await ReloadAsync(cancellationToken) ? "app.changed.reloaded" : "app.changed.notReloaded");
         }
     }
 
@@ -321,7 +313,7 @@ public sealed class VisitLifecycle
         }
         catch (Exception)
         {
-            Message = "Something went wrong. Nothing was changed on this screen; try again.";
+            Message = Texts.Get("app.lifecycle.unexpected");
             return true;
         }
         finally
@@ -339,22 +331,22 @@ public sealed class VisitLifecycle
         return true;
     }
 
-    public static string Describe(VisitActionResult result) => result switch
+    public static string Describe(VisitActionResult result) => Texts.Get(result switch
     {
-        VisitActionResult.NetworkError => "No connection to the server. Nothing was changed on this screen; try again.",
-        VisitActionResult.SessionExpired => "Your session has ended. Please log in again.",
-        VisitActionResult.Forbidden or VisitActionResult.NotFound => "This visit is no longer assigned to you.",
-        VisitActionResult.DeviceRequired => "This phone is not an approved device for your account. Contact your manager.",
-        VisitActionResult.CustomerLocationMissing => "The customer has no saved location yet. Ask your manager to set it.",
-        VisitActionResult.ReportRequired => "The report is missing on the server. Save it again.",
-        VisitActionResult.InvalidData => "The server did not accept the data. Check the report and try again.",
-        VisitActionResult.OutsideGeofence => "You are not at the customer's location. Go to the customer and try again.",
-        VisitActionResult.GpsLowAccuracy => "Your position is not accurate enough. Wait a moment outdoors and try again.",
-        VisitActionResult.GpsStale => "Your position was too old. Try again.",
-        VisitActionResult.GpsClockSkew => "The phone's clock is wrong. Set the time automatically and try again.",
-        VisitActionResult.GpsMocked => "A fake location app was detected. Turn it off to continue.",
-        VisitActionResult.OfflineExpired => "This step was saved on the phone more than 24 hours ago and can no longer be accepted.",
-        VisitActionResult.InvalidState or VisitActionResult.Conflict => "This visit was changed elsewhere.",
-        _ => "The server could not record this step. Try again later."
-    };
+        VisitActionResult.NetworkError => "app.result.NetworkError",
+        VisitActionResult.SessionExpired => "app.result.SessionExpired",
+        VisitActionResult.Forbidden or VisitActionResult.NotFound => "app.result.NotAssigned",
+        VisitActionResult.DeviceRequired => "app.result.DeviceRequired",
+        VisitActionResult.CustomerLocationMissing => "app.result.CustomerLocationMissing",
+        VisitActionResult.ReportRequired => "app.result.ReportRequired",
+        VisitActionResult.InvalidData => "app.result.InvalidData",
+        VisitActionResult.OutsideGeofence => "app.result.OutsideGeofence",
+        VisitActionResult.GpsLowAccuracy => "app.result.GpsLowAccuracy",
+        VisitActionResult.GpsStale => "app.result.GpsStale",
+        VisitActionResult.GpsClockSkew => "app.result.GpsClockSkew",
+        VisitActionResult.GpsMocked => "app.result.GpsMocked",
+        VisitActionResult.OfflineExpired => "app.result.OfflineExpired",
+        VisitActionResult.InvalidState or VisitActionResult.Conflict => "app.result.Changed",
+        _ => "app.result.ServerError"
+    });
 }

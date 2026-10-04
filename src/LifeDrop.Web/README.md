@@ -19,6 +19,7 @@ and rotates on each refresh.
 ## Cloudflare Pages (decision D13) — owner setup
 1. Cloudflare dashboard → Workers & Pages → Create → Pages → connect the private GitHub repo.
 2. Build settings: root directory `src/LifeDrop.Web`, build command `npm ci && npm run build`, output `dist`.
+   The build also reads `i18n/strings.json` at the repository root (texts shared with the app); Cloudflare clones the whole repo, so nothing extra is needed.
 3. Environment variable `VITE_API_BASE_URL` = the API address (production and preview).
 4. Zero Trust → Access → add an application for the Pages domain (and `*.pages.dev` previews) so only staff can open it.
 5. Add the Pages domain to the API's `Cors:AllowedOrigins`.
