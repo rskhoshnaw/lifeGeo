@@ -10,23 +10,25 @@ public class VisitStateMachineTests
     private readonly TenantId _tenantId = TenantId.New();
     private readonly UserId _userId = UserId.New();
     private readonly CustomerId _customerId = CustomerId.New();
+    private readonly DateOnly _scheduleDate = new(2026, 1, 15);
 
     [Fact]
     public void Create_ValidInputs_ReturnsPlannedVisit()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
 
         Assert.Equal(VisitStatus.Planned, visit.Status);
         Assert.Equal(_tenantId, visit.TenantId);
         Assert.Equal(_userId, visit.UserId);
         Assert.Equal(_customerId, visit.CustomerId);
+        Assert.Equal(_scheduleDate, visit.ScheduleDate);
         Assert.Null(visit.ExceptionReason);
     }
 
     [Fact]
     public void FullHappyPath_TransitionsCorrectly()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         
         visit.MarkEnRoute();
         Assert.Equal(VisitStatus.EnRoute, visit.Status);
@@ -51,7 +53,7 @@ public class VisitStateMachineTests
     public void InvalidJumps_ThrowInvalidOperationException(VisitStatus startStatus, string action)
     {
         // Arrange
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         
         if (startStatus >= VisitStatus.EnRoute) visit.MarkEnRoute();
         if (startStatus >= VisitStatus.Arrived) visit.MarkArrived();
@@ -73,7 +75,7 @@ public class VisitStateMachineTests
     [Fact]
     public void Cancel_WithValidReason_SetsStatusToCancelled()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         
         visit.Cancel("Doctor unavailable");
         
@@ -87,7 +89,7 @@ public class VisitStateMachineTests
     [InlineData(null)]
     public void Cancel_WithMissingReason_ThrowsArgumentException(string? reason)
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         
         Action act = () => visit.Cancel(reason);
         Assert.Throws<ArgumentException>(act);
@@ -96,7 +98,7 @@ public class VisitStateMachineTests
     [Fact]
     public void Fail_WithValidReason_SetsStatusToFailed()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         visit.MarkEnRoute();
         
         visit.Fail("Car broke down");
@@ -137,7 +139,7 @@ public class VisitStateMachineTests
 
     private Visit VisitAt(VisitStatus origin)
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         if (origin is VisitStatus.EnRoute or VisitStatus.Arrived or VisitStatus.InVisit)
             visit.MarkEnRoute();
         if (origin is VisitStatus.Arrived or VisitStatus.InVisit)
@@ -153,7 +155,7 @@ public class VisitStateMachineTests
     [InlineData(null)]
     public void Fail_WithMissingReason_ThrowsArgumentException(string? reason)
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         
         Action act = () => visit.Fail(reason);
         Assert.Throws<ArgumentException>(act);
@@ -162,7 +164,7 @@ public class VisitStateMachineTests
     [Fact]
     public void Cancel_WhenAlreadyCompleted_ThrowsInvalidOperationException()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         visit.MarkEnRoute();
         visit.MarkArrived();
         visit.StartVisit();
@@ -175,7 +177,7 @@ public class VisitStateMachineTests
     [Fact]
     public void Fail_WhenAlreadyCancelled_ThrowsInvalidOperationException()
     {
-        var visit = Visit.Create(_tenantId, _userId, _customerId);
+        var visit = Visit.Create(_tenantId, _userId, _customerId, _scheduleDate);
         visit.Cancel("Patient postponed");
 
         Action act = () => visit.Fail("Could not reach");
