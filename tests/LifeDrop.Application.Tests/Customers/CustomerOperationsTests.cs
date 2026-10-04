@@ -9,6 +9,8 @@ namespace LifeDrop.Application.Tests.Customers;
 
 public class CustomerOperationsTests
 {
+    private static readonly LifeDrop.Application.Roles.AccessScope AnyScope = LifeDrop.Application.Roles.AccessScope.WholeTenant(UserId.New());
+
     private sealed class FakeCustomerStore : ICustomerStore
     {
         public bool CreateCalled;
@@ -20,13 +22,13 @@ public class CustomerOperationsTests
             return Task.FromResult(CreateCustomerResult.Created);
         }
 
-        public Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken)
+        public Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, LifeDrop.Application.Roles.AccessScope scope, CancellationToken cancellationToken)
         {
             GetCalled = true;
             return Task.FromResult<CustomerDto?>(new CustomerDto(id.Value, tenantId.Value, "Clinic", "C01", "Test Clinic", "no_location", DateTimeOffset.UtcNow));
         }
 
-        public Task<System.Collections.Generic.IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<System.Collections.Generic.IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     [Fact]
@@ -76,7 +78,7 @@ public class CustomerOperationsTests
         var store = new FakeCustomerStore();
         var sut = new GetCustomer(store);
 
-        var result = await sut.ExecuteAsync(TenantId.New(), CustomerId.New(), CancellationToken.None);
+        var result = await sut.ExecuteAsync(TenantId.New(), CustomerId.New(), AnyScope, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.True(store.GetCalled);
@@ -88,7 +90,7 @@ public class CustomerOperationsTests
         var store = new FakeCustomerStore();
         var sut = new GetCustomer(store);
 
-        var result = await sut.ExecuteAsync(TenantId.Empty, CustomerId.Empty, CancellationToken.None);
+        var result = await sut.ExecuteAsync(TenantId.Empty, CustomerId.Empty, AnyScope, CancellationToken.None);
 
         Assert.Null(result);
         Assert.False(store.GetCalled);
@@ -102,9 +104,9 @@ public class CustomerOperationsTests
         public bool ListCalled;
 
         public Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken) => throw new NotImplementedException();
-        public Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, LifeDrop.Application.Roles.AccessScope scope, CancellationToken cancellationToken) => throw new NotImplementedException();
         
-        public Task<System.Collections.Generic.IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
+        public Task<System.Collections.Generic.IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
         {
             ListCalled = true;
             LimitPassed = limit;
@@ -120,7 +122,7 @@ public class CustomerOperationsTests
         var store = new FakeListStore();
         var sut = new ListCustomers(store);
 
-        var result = await sut.ExecuteAsync(TenantId.New(), null, null, null, CancellationToken.None);
+        var result = await sut.ExecuteAsync(TenantId.New(), AnyScope, null, null, null, CancellationToken.None);
 
         Assert.True(result.IsValid);
         Assert.True(store.ListCalled);
@@ -136,7 +138,7 @@ public class CustomerOperationsTests
         var store = new FakeListStore();
         var sut = new ListCustomers(store);
 
-        var result = await sut.ExecuteAsync(TenantId.New(), limit, null, null, CancellationToken.None);
+        var result = await sut.ExecuteAsync(TenantId.New(), AnyScope, limit, null, null, CancellationToken.None);
 
         Assert.False(result.IsValid);
         Assert.False(store.ListCalled);
@@ -148,8 +150,8 @@ public class CustomerOperationsTests
         var store = new FakeListStore();
         var sut = new ListCustomers(store);
 
-        var result1 = await sut.ExecuteAsync(TenantId.New(), 20, DateTimeOffset.UtcNow, null, CancellationToken.None);
-        var result2 = await sut.ExecuteAsync(TenantId.New(), 20, null, Guid.NewGuid(), CancellationToken.None);
+        var result1 = await sut.ExecuteAsync(TenantId.New(), AnyScope, 20, DateTimeOffset.UtcNow, null, CancellationToken.None);
+        var result2 = await sut.ExecuteAsync(TenantId.New(), AnyScope, 20, null, Guid.NewGuid(), CancellationToken.None);
 
         Assert.False(result1.IsValid);
         Assert.False(result2.IsValid);
@@ -162,7 +164,7 @@ public class CustomerOperationsTests
         var store = new FakeListStore();
         var sut = new ListCustomers(store);
 
-        var result = await sut.ExecuteAsync(TenantId.Empty, 20, null, null, CancellationToken.None);
+        var result = await sut.ExecuteAsync(TenantId.Empty, AnyScope, 20, null, null, CancellationToken.None);
 
         Assert.False(result.IsValid);
         Assert.False(store.ListCalled);

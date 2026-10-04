@@ -67,3 +67,14 @@ Changed in step 0.5: the visit endpoints previously returned `{ "error": "Invali
 | `DELETE /teams/{teamId}/members/{userId}` | `teams.manage` | 204; 404 if the user is not in that team | `team.member_removed` |
 
 All tables use tenant RLS. Test: `CustomerApiIntegrationTests.RegionTeamApi_EnforcesPermissionsTenantIsolationAndAudit`. Region scope on customers and visits is step 0.6b. Deployment note: the production `lifedrop_app` role needs `SELECT, INSERT` on `regions`, `teams`, `team_members`, `UPDATE` on `teams`, `team_members` and `DELETE` on `team_members` (as in `DeploymentRehearsalTests`); this is part of step 0.9.
+
+## Data scope (step 0.6b)
+
+`roles.data_scope` (migration 0008): `tenant` (default, all rows), `region` (region of the user's team), `own` (owned/assigned only). A user's scope for a permission is the widest among roles granting it.
+
+| Route | `tenant` | `region` | `own` |
+| --- | --- | --- | --- |
+| `GET /customers`, `GET /customers/{id}` | all customers | customers in the team's region + customers owned by the user | customers owned by the user |
+| `POST /visits` | any user, any customer | assignee in the same region (or self); customer visible in region scope | only self; only owned customers |
+
+Out-of-scope customers return 404 `NOT_FOUND` / `CUSTOMER_NOT_FOUND`; an out-of-region assignee returns 403. Test: `DataScope_LimitsCustomerReadsAndVisitAssignment`.

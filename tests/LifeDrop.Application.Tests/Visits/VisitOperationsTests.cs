@@ -45,7 +45,7 @@ public class VisitOperationsTests
     public async Task CreateVisit_ValidRequest_CallsStore()
     {
         var store = new FakeVisitStore();
-        var sut = new CreateVisit(store);
+        var sut = new CreateVisit(store, new FakeCustomerLookup(), new FakePermissionStore());
         
         var result = await sut.ExecuteAsync(TenantId.New(), UserId.New(), new CreateVisitRequest(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 3)), CancellationToken.None);
         
@@ -57,7 +57,7 @@ public class VisitOperationsTests
     public async Task CreateVisit_EmptyTenantOrActor_ReturnsForbidden()
     {
         var store = new FakeVisitStore();
-        var sut = new CreateVisit(store);
+        var sut = new CreateVisit(store, new FakeCustomerLookup(), new FakePermissionStore());
         
         var result = await sut.ExecuteAsync(TenantId.Empty, UserId.Empty, new CreateVisitRequest(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 3)), CancellationToken.None);
         
@@ -69,7 +69,7 @@ public class VisitOperationsTests
     public async Task CreateVisit_EmptyUserOrCustomer_ReturnsInvalidData()
     {
         var store = new FakeVisitStore();
-        var sut = new CreateVisit(store);
+        var sut = new CreateVisit(store, new FakeCustomerLookup(), new FakePermissionStore());
         
         var result = await sut.ExecuteAsync(TenantId.New(), UserId.New(), new CreateVisitRequest(Guid.Empty, Guid.Empty, new DateOnly(2026, 10, 3)), CancellationToken.None);
         
@@ -279,6 +279,14 @@ public class VisitOperationsTests
 
         Assert.Equal(MarkVisitResult.InvalidState, result);
         Assert.False(store.UpdateCalled);
+    }
+
+    private sealed class FakeCustomerLookup : LifeDrop.Application.Customers.ICustomerStore
+    {
+        public Task<LifeDrop.Application.Customers.CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, LifeDrop.Application.Roles.AccessScope scope, CancellationToken cancellationToken) =>
+            Task.FromResult<LifeDrop.Application.Customers.CustomerDto?>(new LifeDrop.Application.Customers.CustomerDto(id.Value, tenantId.Value, "Clinic", "C01", "Test Clinic", "no_location", DateTimeOffset.UnixEpoch));
+        public Task<LifeDrop.Application.Customers.CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, LifeDrop.Application.Customers.CreateCustomerRequest request, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<System.Collections.Generic.IReadOnlyList<LifeDrop.Application.Customers.CustomerDto>> ListAsync(TenantId tenantId, LifeDrop.Application.Roles.AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     private sealed class FakePermissionStore : LifeDrop.Application.Roles.IPermissionStore

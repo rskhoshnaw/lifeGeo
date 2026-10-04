@@ -377,9 +377,6 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "visits.write", cancellationToken))
-                return Results.Forbid();
-
             var result = await createVisit.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), request, cancellationToken);
             return result.Result switch
             {
@@ -580,10 +577,10 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken))
-                return Results.Forbid();
+            var readScope = await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken);
+            if (readScope is null) return Results.Forbid();
 
-            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), limit, cursorCreatedAt, cursorId, cancellationToken);
+            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, cancellationToken);
             return result.IsValid ? Results.Ok(result.Items) : Results.BadRequest();
         }).RequireAuthorization()
             .WithName("ListCustomers").WithTags("Customers").Produces<List<LifeDrop.Application.Customers.CustomerDto>>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
@@ -605,10 +602,10 @@ public partial class Program
                 !Guid.TryParse(tenant, out var tenantId) || tenantId == Guid.Empty)
                 return Results.Forbid();
 
-            if (!await permissionStore.HasPermissionAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken))
-                return Results.Forbid();
+            var readScope = await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken);
+            if (readScope is null) return Results.Forbid();
 
-            var result = await getCustomer.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.CustomerId(id), cancellationToken);
+            var result = await getCustomer.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.CustomerId(id), readScope, cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);}).RequireAuthorization()
             .WithName("GetCustomer").WithTags("Customers").Produces<LifeDrop.Application.Customers.CustomerDto>(200).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
