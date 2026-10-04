@@ -1119,6 +1119,19 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.Created, next.StatusCode);
         Assert.NotEqual(shift.Id, (await next.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.ShiftDto>())!.Id);
 
+        // The mobile tracker continues that shift, uploads its points and ends it through the real API (step 1.13b)
+        var tracker = new LifeDrop.Mobile.Tracking.ShiftTracker(new LifeDrop.Mobile.Tracking.ShiftApiClient(factory.CreateClient(),
+            new StaticMobileSession(GenerateToken(t1, rep, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: device))),
+            TimeProvider.System);
+        Assert.Equal(LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, await tracker.ResumeAsync());
+        var mobileShift = tracker.Shift!.Id;
+        for (var i = 0; i < 3; i++) tracker.AddFix(36.19 + i * 0.0001, 44.01, 9, DateTimeOffset.UtcNow, false);
+        Assert.Equal(LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, await tracker.EndAsync());
+        Assert.Equal((0, 3), (tracker.QueuedPoints, tracker.SentPoints));
+        var mobileSummary = (await client.GetFromJsonAsync<LifeDrop.Application.Tracking.ShiftSummaryDto>($"/shifts/{mobileShift}/summary"))!;
+        Assert.Equal(3, mobileSummary.PointCount);
+        Assert.NotNull(mobileSummary.EndedAt);
+
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
@@ -1126,15 +1139,16 @@ public class CustomerApiIntegrationTests
                 SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
                 FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'shift.%' GROUP BY action) a;", conn);
             cmd.Parameters.AddWithValue("t1", t1);
-            Assert.Equal("shift.ended=1,shift.started=2", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("shift.ended=2,shift.started=2", (string?)await cmd.ExecuteScalarAsync());
 
             // At most one open shift per user, enforced by the database
             await using var dup = new NpgsqlCommand(@"
                 SELECT set_config('app.current_tenant', @t1::text, false);
-                INSERT INTO shifts (id, tenant_id, user_id, device_id) VALUES (gen_random_uuid(), @t1, @r, @d);", conn);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id) VALUES (gen_random_uuid(), @t1, @o, @od);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id) VALUES (gen_random_uuid(), @t1, @o, @od);", conn);
             dup.Parameters.AddWithValue("t1", t1);
-            dup.Parameters.AddWithValue("r", rep);
-            dup.Parameters.AddWithValue("d", device);
+            dup.Parameters.AddWithValue("o", other);
+            dup.Parameters.AddWithValue("od", otherDevice);
             Assert.Equal("23505", (await Assert.ThrowsAsync<PostgresException>(() => dup.ExecuteNonQueryAsync())).SqlState);
         }
     }

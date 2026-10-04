@@ -1,5 +1,7 @@
 using LifeDrop.Mobile.Auth;
 using LifeDrop.Mobile.Auth.Models;
+using LifeDrop.Mobile.Tracking;
+using System.Threading.Tasks;
 using System.Net.Http;
 using System.Threading;
 using System;
@@ -21,6 +23,125 @@ public partial class HomePage : ContentPage
     {
         LogoutBtn.IsEnabled = !isBusy;
         PlanBtn.IsEnabled = !isBusy;
+        ShiftBtn.IsEnabled = !isBusy;
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        // Continue a shift that is still open on the server (app restarted).
+        var tracker = TrackingHost.GetOrCreate();
+        if (tracker is not null && tracker.State == ShiftState.Off)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                if (await tracker.ResumeAsync(cts.Token) == ShiftCallStatus.Success && tracker.State == ShiftState.On) StartTrackingService();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        RenderShift();
+    }
+
+    // Start and end of the shift (plan step 1.13, decision D1): tracking runs only between the two.
+    private async void OnShiftClicked(object? sender, EventArgs e)
+    {
+        var tracker = TrackingHost.GetOrCreate();
+        if (tracker is null)
+        {
+            ShiftDetailLabel.Text = "Tracking is not available on this device.";
+            ShiftDetailLabel.IsVisible = true;
+            return;
+        }
+
+        SetBusy(true);
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            if (tracker.State == ShiftState.Off)
+            {
+                if (!await EnsureTrackingPermissionsAsync())
+                {
+                    ShiftDetailLabel.Text = "Location permission is needed to start a shift.";
+                    ShiftDetailLabel.IsVisible = true;
+                    return;
+                }
+                var status = await tracker.StartAsync(cts.Token);
+                if (status == ShiftCallStatus.Success) StartTrackingService();
+                else ShowShiftError(status);
+            }
+            else
+            {
+                if (!await DisplayAlertAsync("End shift", "Stop tracking and end your shift?", "End shift", "Cancel")) return;
+                var status = await tracker.EndAsync(cts.Token);
+                if (status == ShiftCallStatus.Success) StopTrackingService();
+                else ShowShiftError(status);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ShowShiftError(ShiftCallStatus.NetworkError);
+        }
+        finally
+        {
+            SetBusy(false);
+            RenderShift();
+        }
+    }
+
+    private void RenderShift()
+    {
+        var tracker = TrackingHost.Tracker;
+        var on = tracker?.State == ShiftState.On;
+        ShiftStatusLabel.Text = on ? $"Shift: on since {tracker!.Shift!.StartedAt.ToOffset(TimeSpan.FromHours(3)):HH:mm}" : "Shift: off";
+        ShiftBtn.Text = on ? "End shift" : "Start shift";
+        if (tracker is not null && (on || tracker.QueuedPoints > 0))
+        {
+            ShiftDetailLabel.Text = $"Points sent: {tracker.SentPoints} · waiting: {tracker.QueuedPoints}";
+            ShiftDetailLabel.IsVisible = true;
+        }
+    }
+
+    private void ShowShiftError(ShiftCallStatus status)
+    {
+        ShiftDetailLabel.Text = status switch
+        {
+            ShiftCallStatus.DeviceRequired => "This phone is not an approved device for your account.",
+            ShiftCallStatus.SessionExpired => "Your session has ended. Please log in again.",
+            ShiftCallStatus.NetworkError => "No connection to the server. Try again.",
+            _ => "The server could not change the shift. Try again later."
+        };
+        ShiftDetailLabel.IsVisible = true;
+    }
+
+    private static async Task<bool> EnsureTrackingPermissionsAsync()
+    {
+        var location = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+        if (location != PermissionStatus.Granted) location = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+        if (location != PermissionStatus.Granted) return false;
+#if ANDROID
+        // Android 13+: the tracking notification needs this; tracking itself works without it.
+        if (OperatingSystem.IsAndroidVersionAtLeast(33) &&
+            await Permissions.CheckStatusAsync<Permissions.PostNotifications>() != PermissionStatus.Granted)
+            await Permissions.RequestAsync<Permissions.PostNotifications>();
+#endif
+        return true;
+    }
+
+    private static void StartTrackingService()
+    {
+#if ANDROID
+        TrackingService.Start(Android.App.Application.Context);
+#endif
+    }
+
+    private static void StopTrackingService()
+    {
+#if ANDROID
+        TrackingService.Stop(Android.App.Application.Context);
+#endif
     }
 
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
@@ -31,6 +152,14 @@ public partial class HomePage : ContentPage
         if (!confirm) return;
 
         SetBusy(true);
+        // An open shift is ended before logout; tracking never continues without a signed-in user.
+        if (TrackingHost.Tracker is { State: ShiftState.On } tracker)
+        {
+            using var endCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            try { await tracker.EndAsync(endCts.Token); } catch (OperationCanceledException) { }
+        }
+        StopTrackingService();
+        TrackingHost.Reset();
         StatusLabel.Text = "Logging out...";
 
         try

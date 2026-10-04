@@ -222,6 +222,57 @@ public class VisitsApiClientTests
         Assert.Equal(ReportLoadStatus.NetworkError, (await offline.GetReportAsync(Guid.NewGuid())).Status);
     }
 
+    [Fact]
+    public async Task ShiftClientStartsUploadsAndEnds()
+    {
+        var shiftId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var bodies = new List<string>();
+        var (client, handler) = Create(request =>
+        {
+            if (request.Content is not null) bodies.Add(request.Content.ReadAsStringAsync().Result);
+            return request.RequestUri!.AbsolutePath switch
+            {
+                "/shifts" => Json(HttpStatusCode.Created, $$"""{"id":"{{shiftId}}","deviceId":"66666666-6666-6666-6666-666666666666","startedAt":"2026-10-05T05:00:00+00:00","endedAt":null}"""),
+                var p when p.EndsWith("/points") => Json(HttpStatusCode.OK, """{"accepted":1,"duplicates":0,"rejected":0}"""),
+                _ => new HttpResponseMessage(HttpStatusCode.NoContent)
+            };
+        });
+        var shifts = new LifeDrop.Mobile.Tracking.ShiftApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.test") }, new FixedSession(AuthResult<string>.Ok("access-1")));
+
+        var (status, shift) = await shifts.StartShiftAsync();
+        Assert.Equal((LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, shiftId), (status, shift!.Id));
+
+        var point = new LifeDrop.Mobile.Tracking.TrackedPoint(Guid.Parse("77777777-7777-7777-7777-777777777777"), 36.19, 44.01, 9.5,
+            new DateTimeOffset(2026, 10, 5, 5, 0, 30, TimeSpan.Zero), false);
+        var (uploadStatus, result) = await shifts.UploadPointsAsync(shiftId, [point]);
+        Assert.Equal((LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, 1), (uploadStatus, result!.Accepted));
+        Assert.Equal($"/shifts/{shiftId}/points", handler.LastRequest!.RequestUri!.AbsolutePath);
+        using (var body = System.Text.Json.JsonDocument.Parse(bodies.Last()))
+        {
+            var p = body.RootElement.GetProperty("points")[0];
+            Assert.Equal(point.ClientPointId, p.GetProperty("clientPointId").GetGuid());
+            Assert.Equal(9.5, p.GetProperty("accuracyMeters").GetDouble());
+            Assert.Equal(point.CapturedAt, p.GetProperty("capturedAt").GetDateTimeOffset());
+        }
+
+        Assert.Equal(LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, await shifts.EndShiftAsync(shiftId));
+        Assert.Equal($"/shifts/{shiftId}/end", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, """{"code":"DEVICE_REQUIRED"}""", LifeDrop.Mobile.Tracking.ShiftCallStatus.DeviceRequired)]
+    [InlineData(HttpStatusCode.Forbidden, """{"code":"DEVICE_MISMATCH"}""", LifeDrop.Mobile.Tracking.ShiftCallStatus.DeviceMismatch)]
+    [InlineData(HttpStatusCode.NotFound, """{"code":"NOT_FOUND"}""", LifeDrop.Mobile.Tracking.ShiftCallStatus.NotFound)]
+    [InlineData(HttpStatusCode.Unauthorized, "", LifeDrop.Mobile.Tracking.ShiftCallStatus.SessionExpired)]
+    [InlineData(HttpStatusCode.BadRequest, """{"code":"INVALID_DATA"}""", LifeDrop.Mobile.Tracking.ShiftCallStatus.InvalidData)]
+    [InlineData(HttpStatusCode.InternalServerError, "", LifeDrop.Mobile.Tracking.ShiftCallStatus.ServerError)]
+    public async Task ShiftClientMapsErrors(HttpStatusCode status, string body, LifeDrop.Mobile.Tracking.ShiftCallStatus expected)
+    {
+        var handler = new Handler(_ => Json(status, body));
+        var shifts = new LifeDrop.Mobile.Tracking.ShiftApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.test") }, new FixedSession(AuthResult<string>.Ok("a")));
+        Assert.Equal(expected, (await shifts.UploadPointsAsync(Guid.NewGuid(), [])).Status);
+    }
+
     private sealed class FixedSession(AuthResult<string> token) : IAuthSession
     {
         public Task<AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) => Task.FromResult(token);
