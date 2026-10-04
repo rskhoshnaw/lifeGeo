@@ -104,7 +104,8 @@ public class CustomerApiIntegrationTests
                 var m13 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0013_visit_reports.sql"));
                 var m14 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0014_visit_location_events.sql"));
                 var m15 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0015_visit_status_history.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15;
+                var m16 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0016_shifts_tracking.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1000,6 +1001,142 @@ public class CustomerApiIntegrationTests
         public LifeDrop.Mobile.Visits.DeviceFix Fix { get; set; } = fix;
         public Task<LifeDrop.Mobile.Visits.FixResult> GetFixAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(LifeDrop.Mobile.Visits.FixResult.Ok(Fix));
+    }
+
+    [SkippableFact]
+    public async Task Shift_StartTrackEndWithDeviceDedupAndSummary()
+    {
+        // Plan step 1.13, decision D1: tracking only inside an explicit shift, from the bound device.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), rep = Guid.NewGuid(), other = Guid.NewGuid(), foreign = Guid.NewGuid();
+        Guid device = Guid.NewGuid(), device2 = Guid.NewGuid(), otherDevice = Guid.NewGuid(), foreignDevice = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id) VALUES (@r, @t1), (@o, @t1), (@f, @t2);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@d, @t1, @r, 'Phone', 'android', 'install-1', '1.0', '\x00', 'approved'),
+                    (@d2, @t1, @r, 'Phone 2', 'android', 'install-2', '1.0', '\x00', 'approved'),
+                    (@od, @t1, @o, 'Other', 'android', 'install-3', '1.0', '\x00', 'approved'),
+                    (@fd, @t2, @f, 'Foreign', 'android', 'install-4', '1.0', '\x00', 'approved');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("r", rep), ("o", other), ("f", foreign), ("d", device), ("d2", device2), ("od", otherDevice), ("fd", foreignDevice) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid tenant, Guid user, Guid? dev) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: dev));
+        object Point(Guid id, DateTimeOffset at, double lat = 36.19, double lon = 44.01, double accuracy = 12) =>
+            new { ClientPointId = id, Latitude = lat, Longitude = lon, AccuracyMeters = accuracy, CapturedAt = at, IsMocked = false };
+        async Task<LifeDrop.Application.Tracking.UploadPointsResponse> Upload(Guid shift, params object[] points)
+        {
+            var response = await client.PostAsJsonAsync($"/shifts/{shift}/points", new { Points = points });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.UploadPointsResponse>())!;
+        }
+
+        // A token without a bound device cannot start a shift
+        As(t1, rep, null);
+        await AssertProblemAsync(await client.PostAsync("/shifts", null), HttpStatusCode.Forbidden, "DEVICE_REQUIRED");
+
+        // Start, and a repeated start returns the same open shift
+        As(t1, rep, device);
+        await AssertProblemAsync(await client.GetAsync("/shifts/current"), HttpStatusCode.NotFound, "NOT_FOUND");
+        var started = await client.PostAsync("/shifts", null);
+        Assert.Equal(HttpStatusCode.Created, started.StatusCode);
+        var shift = (await started.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.ShiftDto>())!;
+        Assert.Equal(device, shift.DeviceId);
+        var again = await client.PostAsync("/shifts", null);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(shift.Id, (await again.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.ShiftDto>())!.Id);
+        Assert.Equal(shift.Id, (await client.GetFromJsonAsync<LifeDrop.Application.Tracking.ShiftDto>("/shifts/current"))!.Id);
+
+        // Upload: valid points stored once; malformed or outside the shift are counted as rejected
+        Guid p1 = Guid.NewGuid(), p2 = Guid.NewGuid(), p3 = Guid.NewGuid();
+        var t0 = shift.StartedAt;
+        var first = await Upload(shift.Id,
+            Point(p1, t0.AddSeconds(1)), Point(p2, t0.AddSeconds(2)), Point(p2, t0.AddSeconds(2)),  // duplicate in the batch
+            Point(Guid.NewGuid(), t0.AddSeconds(-60)),                                              // before the shift
+            Point(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(5)),                            // in the future
+            Point(Guid.NewGuid(), t0.AddSeconds(3), lat: 0, lon: 0),                               // 0,0
+            Point(Guid.NewGuid(), t0.AddSeconds(3), accuracy: 0),                                  // no accuracy
+            Point(Guid.Empty, t0.AddSeconds(3)));                                                  // no client id
+        Assert.Equal(new LifeDrop.Application.Tracking.UploadPointsResponse(2, 1, 5), first);
+        // A retried batch is not stored twice
+        Assert.Equal(new LifeDrop.Application.Tracking.UploadPointsResponse(1, 2, 0), await Upload(shift.Id, Point(p1, t0.AddSeconds(1)), Point(p2, t0.AddSeconds(2)), Point(p3, t0.AddSeconds(4))));
+
+        // Batch limits
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/shifts/{shift.Id}/points", new { Points = Array.Empty<object>() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/shifts/{shift.Id}/points",
+            new { Points = Enumerable.Range(0, 201).Select(i => Point(Guid.NewGuid(), t0.AddSeconds(1))).ToArray() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Another device of the same user, another user, another tenant
+        As(t1, rep, device2);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/shifts/{shift.Id}/points", new { Points = new[] { Point(Guid.NewGuid(), t0.AddSeconds(5)) } }),
+            HttpStatusCode.Forbidden, "DEVICE_MISMATCH");
+        As(t1, other, otherDevice);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/shifts/{shift.Id}/points", new { Points = new[] { Point(Guid.NewGuid(), t0.AddSeconds(5)) } }),
+            HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/shifts/{shift.Id}/summary"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PostAsync($"/shifts/{shift.Id}/end", null), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(t2, foreign, foreignDevice);
+        await AssertProblemAsync(await client.GetAsync($"/shifts/{shift.Id}/summary"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Summary and end; ending twice succeeds; points after the end are rejected
+        As(t1, rep, device);
+        var summary = (await client.GetFromJsonAsync<LifeDrop.Application.Tracking.ShiftSummaryDto>($"/shifts/{shift.Id}/summary"))!;
+        Assert.Equal((shift.Id, 3), (summary.ShiftId, summary.PointCount));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/shifts/{shift.Id}/end", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/shifts/{shift.Id}/end", null)).StatusCode);
+        await AssertProblemAsync(await client.GetAsync("/shifts/current"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(new LifeDrop.Application.Tracking.UploadPointsResponse(0, 0, 1),
+            await Upload(shift.Id, Point(Guid.NewGuid(), DateTimeOffset.UtcNow.AddSeconds(20))));
+        var ended = (await client.GetFromJsonAsync<LifeDrop.Application.Tracking.ShiftSummaryDto>($"/shifts/{shift.Id}/summary"))!;
+        Assert.NotNull(ended.EndedAt);
+
+        // A new shift can start after the end
+        var next = await client.PostAsync("/shifts", null);
+        Assert.Equal(HttpStatusCode.Created, next.StatusCode);
+        Assert.NotEqual(shift.Id, (await next.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.ShiftDto>())!.Id);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'shift.%' GROUP BY action) a;", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            Assert.Equal("shift.ended=1,shift.started=2", (string?)await cmd.ExecuteScalarAsync());
+
+            // At most one open shift per user, enforced by the database
+            await using var dup = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id) VALUES (gen_random_uuid(), @t1, @r, @d);", conn);
+            dup.Parameters.AddWithValue("t1", t1);
+            dup.Parameters.AddWithValue("r", rep);
+            dup.Parameters.AddWithValue("d", device);
+            Assert.Equal("23505", (await Assert.ThrowsAsync<PostgresException>(() => dup.ExecuteNonQueryAsync())).SqlState);
+        }
     }
 
     [SkippableFact]

@@ -189,3 +189,17 @@ Test: `VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope`.
 ## Daily plan data for mobile (step 1.10)
 
 `GET /visits` items now also carry `customerName` and `customerCode` (additive, nullable) so the mobile plan can show the customer without another request. Visibility is unchanged: only the caller's own visits for the day.
+
+## Shifts and tracking (step 1.13a, decision D1)
+
+All routes act on the caller's own shift only (another user's or tenant's shift reads as 404) and, except `GET /shifts/current`, need an access token bound to an approved device (403 `DEVICE_REQUIRED`).
+
+| Route | Behaviour | Audit |
+| --- | --- | --- |
+| `POST /shifts` | Starts a shift on the token's device (201); if one is open, returns it (200). At most one open shift per user (unique index) | `shift.started` |
+| `GET /shifts/current` | The open shift, or 404 | — |
+| `POST /shifts/{id}/end` | Ends it (204); ending again also returns 204 | `shift.ended` |
+| `POST /shifts/{id}/points` | 1–200 points `{clientPointId, latitude, longitude, accuracyMeters, capturedAt, isMocked}` from the shift's device (else 403 `DEVICE_MISMATCH`). Points that are malformed, before the start, after the end or more than 30 s in the future are counted as `rejected`; a `clientPointId` already stored (or repeated in the batch) counts as `duplicate`. Returns `{accepted, duplicates, rejected}` | — (points are the record) |
+| `GET /shifts/{id}/summary` | `pointCount`, `expectedPoints` (one per 30 s), `coveragePercent`, `maxGapSeconds` (including start→first and last→end/now), `meetsTarget` (≥ 90 % and ≤ 5 min) — for the real-device test | — |
+
+Migration 0016 adds `shifts` and `tracking_points` (tenant RLS). Coordinates are never written to audit or logs. Viewing other users' points is for the live map (step 1.19, D3). Retention (D6) is still open. Tests: `Shift_StartTrackEndWithDeviceDedupAndSummary`, `ShiftSummaryTests`, and the deployment rehearsal.

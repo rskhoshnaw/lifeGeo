@@ -75,6 +75,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.IShiftStore, LifeDrop.Infrastructure.Tracking.PostgresShiftStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.ShiftTracking>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
@@ -589,6 +591,7 @@ public partial class Program
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
         LifeDrop.API.Endpoints.CustomerEndpoints.MapCustomerEndpoints(app);
+        LifeDrop.API.Endpoints.ShiftEndpoints.MapShiftEndpoints(app);
 
         app.Run();
     }
