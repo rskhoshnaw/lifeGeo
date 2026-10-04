@@ -13,13 +13,14 @@ using LifeDrop.Mobile.Auth.Android;
 namespace LifeDrop.Mobile;
 
 // One row of the plan, already formatted for display.
-public sealed record VisitRow(string Customer, string Time, string Details, string Status);
+public sealed record VisitRow(PlannedVisit Visit, string Customer, string Time, string Details, string Status);
 
 // Daily plan (plan step 1.10, PRD §5.1): today's visits (Iraq date) from GET /visits. Loading, empty and
 // error states come from DailyPlan; a failed refresh keeps the last list and says it may be out of date.
 public partial class DailyPlanPage : ContentPage
 {
     private DailyPlan? _plan;
+    private IVisitsApiClient? _api;
 
     public DailyPlanPage()
     {
@@ -29,7 +30,8 @@ public partial class DailyPlanPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        if (_plan is null) await LoadAsync();
+        // Also after returning from a visit, so its new status shows.
+        await LoadAsync();
     }
 
     private async void OnRefreshing(object? sender, EventArgs e)
@@ -40,9 +42,20 @@ public partial class DailyPlanPage : ContentPage
 
     private async void OnRetryClicked(object? sender, EventArgs e) => await LoadAsync();
 
+    private async void OnVisitSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not VisitRow row || _api is null) return;
+        VisitList.SelectedItem = null;
+        await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit)));
+    }
+
     private async Task LoadAsync()
     {
-        _plan ??= CreatePlan();
+        if (_plan is null)
+        {
+            _api = CreateApi();
+            _plan = _api is null ? null : new DailyPlan(_api, TimeProvider.System);
+        }
         if (_plan is null)
         {
             ShowSessionEnded();
@@ -95,10 +108,10 @@ public partial class DailyPlanPage : ContentPage
         var details = DailyPlan.TypeLabel(v.VisitType);
         if (v.Priority == "high") details += " · High priority";
         if (v.IsUnplanned) details += " · Unplanned";
-        return new VisitRow(customer, v.PlannedTime?.ToString("HH:mm") ?? "Any time", details, DailyPlan.StatusLabel(v.Status));
+        return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? "Any time", details, DailyPlan.StatusLabel(v.Status));
     }
 
-    private static DailyPlan? CreatePlan()
+    private static IVisitsApiClient? CreateApi()
     {
         var url = Preferences.Get("ApiUrl", "");
         if (string.IsNullOrEmpty(url)) return null;
@@ -106,7 +119,7 @@ public partial class DailyPlanPage : ContentPage
         var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
         var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(15) };
         var session = new AuthSession(store, new AuthApiClient(http), TimeProvider.System);
-        return new DailyPlan(new VisitsApiClient(http, session), TimeProvider.System);
+        return new VisitsApiClient(http, session);
 #else
         return null;
 #endif
