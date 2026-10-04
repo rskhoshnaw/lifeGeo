@@ -3,27 +3,23 @@
 Updated: 2026-10-04.
 
 ## Current task
-Phase 0 Step 0.3 has a CI workflow draft in `.github/workflows/device-block-test.yml`, but GitHub Actions has not run it. The user chose a new repository. On 2026-10-04, `F:/Projects/lifeGeo` became an independent local Git root; its remote GitHub repository is still pending. See `phaseStatus.md` and `docs/ANTIGRAVITY-EXECUTION.md`.
+The remaining work is planned in `docs/IMPLEMENTATION-PLAN.md` (phases 0–3 with numbered steps). The plan and the decisions below are on branch `claude/jolly-bardeen-5q93e2`, PR #3. The next recommended step is **0.4**: run all `LifeDrop.Database.Tests` in CI on a disposable PostGIS database from an empty schema.
+
+## Product decisions recorded 2026-10-04
+- **D2:** Check-out requires fresh, valid GPS inside the customer's geofence radius, with the same anti-fraud checks as check-in. Recording any location is not enough.
+- **D10:** The web panel is React + TypeScript (not Blazor), in a new `src/LifeDrop.Web` project.
+- **D11:** Each team operates in one region; the sales manager defines regions and assigns them to teams. A representative may register an out-of-region customer; it is pending until an authorized manager approves it, then it belongs to that representative.
+- Still open: D1, D3, D4, D5, D6, D8, D9 (see the plan, section 2).
 
 ## Relevant state
-- Backend auth/device endpoints exist.
-- `LifeDrop.Domain` models `Planned` -> `EnRoute` -> `Arrived` -> `InVisit` -> `Completed` with strongly typed `VisitId` and `CustomerId`. Product decision: `Cancelled` and `Failed` are each allowed from all four active states with a meaningful reason; role authorization remains a server-side task.
-- `db/migrations/0004_customers.sql` and its repeatable RLS smoke test passed on a disposable PostGIS 16 database. The customer migration and role separation have now been successfully applied to the development database (`lifedrop_dev`). The API currently runs securely using a non-BYPASSRLS role (`lifedrop_app`) and enforces transaction-local tenant context for customer access.
-- `LifeDrop.Mobile.Auth` (shared library) and `LifeDrop.Mobile.Auth.Android` (platform secure storage adapter) are fully implemented, hardened, and unit-tested in `net10.0` and `net10.0-android`.
-- A standalone development harness `LifeDrop.Mobile.Auth.Android.RegistrationHarness` successfully verified the physical device registration, login, refresh, and logout workflows against the live backend API directly on an attached Android device.
-- The production MAUI app (`src/LifeDrop.Mobile`) utilizes minimal Dependency Injection, successfully routing authenticated users directly to a native `HomePage` bypassing the login screen on launch via `AuthSession` validation. It natively handles device registration, login, and secure server logout routing.
-- The root `README.md` is still template text; `docs/05-FOLDER-STRUCTURE.md` is planned layout, not a current inventory.
+- GitHub remote `rskhoshnaw/lifeGeo` is connected. PR #1 and PR #2 are merged; `build` and `test-device-block` CI checks are green on `main` (`4cbbd1f`).
+- Backend auth, device, role, customer and visit endpoints exist. `/start` and `/complete` change status only; server GPS/geofence and report checks are not implemented (steps 1.7, 1.8).
+- `VisitApi_Failed_EnforcesPermissionsAndTransitions` is still absent (step 1.1).
+- The Android MAUI app has Login/Home only; visit screens are not built.
 
 ## Next actions
-1. Connect the independent `lifeGeo` Git root to a new private LifeDrop GitHub repository, publish reviewed files, and verify a real workflow run. Do not publish into the unrelated parent repository.
-2. Continue the remaining Phase 0 access/API/migration/security gates after CI evidence; track the earlier local build failure separately as environment-specific and undiagnosed.
-3. Follow the Phase 0/1 dependency order in `docs/ANTIGRAVITY-EXECUTION.md`.
+1. Step 0.4 — all database tests in CI.
+2. Step 1.1 — missing `fail` integration test.
+3. Step 0.5 — common error contract.
 
 Update this file after each meaningful change, and move durable facts to progress.md, systemPatterns.md, or techContext.md.
-
-## Recent Changes
-- Implemented server-side DB permission checks for customer endpoints instead of relying on missing JWT claims.
-- POST /customers now returns a created ID and Location header.
-- Fixed database test project to dynamically skip if TEST_DATABASE_URL is missing, rather than reporting a false PASS.
-- Successfully ran isolated database tests (migration 0004) under a non-superuser role.
-- Verified human-run customer API deployment on `lifedrop_dev`: `lifedrop_app` created securely, API started without SUPERUSER/BYPASSRLS, synthetic POST/GET customer endpoints verified, and DevBootstrap config strictly separated to `ConnectionStrings:Bootstrap`.

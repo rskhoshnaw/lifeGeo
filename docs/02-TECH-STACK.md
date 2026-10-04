@@ -18,7 +18,8 @@
 - Redis
 
 ## Web Panel
-- Blazor Server
+- React + TypeScript (strict), built with Vite (product decision D10, 2026-10-04)
+- Calls the ASP.NET Core API directly; server-side permission checks remain authoritative
 
 ## Mobile
 - .NET MAUI
@@ -37,6 +38,9 @@
 - RabbitMQ (for future phases)
 
 ## Technology Selection Principles
-- Focus on C# across all layers
+- C# for backend and mobile; TypeScript for the web panel
 - Minimal dependency on non-essential technologies
 - Scalability to support up to 150 field users
+
+## Status
+This file lists target technology. Installed and verified components are tracked in `memory-bank/techContext.md`; MediatR, FluentValidation, EF Core, Redis, Serilog and RabbitMQ are not yet in use.

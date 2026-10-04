@@ -25,7 +25,8 @@ Product catalog/pricing; order; warehouse/delivery; payment/sample distribution;
 ## Phase 3 — Scale and automation (open)
 Commercial SaaS, advanced forms/reporting, routing/AI/integrations, performance and backup-restore gates. iOS runtime verification needs an Apple environment; plan it separately from Android proof.
 
-## Next safe step
-Phase 0 Step 0.3 is **CI GREEN (Device Block Test)**. GitHub shows run 37203708371 successful on `main` at commit `2f59064`; detailed logs and TRX contents not independently inspected. The inherited template workflows have been cleaned up (PR ci/step-0.3-cleanup): `test-templates.yml` deleted, CodeQL automatic triggers removed. Do not push into the unrelated `F:/Projects` parent. Keep the earlier local build failure as an environment-specific unresolved observation; do not attribute it to CS8605 without evidence. The Phase 1 `Failed` integration-test gap remains queued. Preserve existing work. Prompt method and phase order: `docs/ANTIGRAVITY-EXECUTION.md`.
+## Product decisions (2026-10-04)
+D2: check-out must be inside the customer geofence with fresh valid GPS. D10: web panel is React + TypeScript. D11: one region per team, regions set by the sales manager; out-of-region customers registered by a representative need manager approval. Details and open decisions: `docs/IMPLEMENTATION-PLAN.md` section 2.
 
-Remaining phases and steps (2026-10-04): `docs/IMPLEMENTATION-PLAN.md`. PR #2 merged at `4cbbd1f` with `build` and `test-device-block` green; next recommended step is 0.4 (run all database tests in CI).
+## Next safe step
+Phase 0 Steps 0.1–0.3 are done: PR #2 merged at `4cbbd1f` with `build` and `test-device-block` green. Follow the step order in `docs/IMPLEMENTATION-PLAN.md` section 7; the next step is **0.4** (run all database tests in CI from an empty PostGIS schema). Keep the earlier local build failure as an environment-specific unresolved observation. Preserve existing work. Prompt method: `docs/ANTIGRAVITY-EXECUTION.md`.

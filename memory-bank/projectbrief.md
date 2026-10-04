@@ -31,7 +31,7 @@ A comprehensive system managing the full cycle of field operations:
 
 ## Product Components
 1. **Mobile App (.NET MAUI)** - Operational tool for field staff
-2. **Web Panel (Blazor Server)** - Management dashboard
+2. **Web Panel (React + TypeScript)** - Management dashboard
 3. **Backend (ASP.NET Core)** - API, access control, location validation, synchronization, live events, database
 
 ## Core Principles
