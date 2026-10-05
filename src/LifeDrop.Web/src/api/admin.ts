@@ -49,6 +49,65 @@ export interface Customer {
   createdAt: string
   regionId: string | null
   approvalStatus: string
+  // Profile (plan step 1.23-b): contact details and the most precise place; placePath lists it and the ones above it.
+  phone: string | null
+  address: string | null
+  placeId: string | null
+  placePath: PlacePathItem[] | null
+}
+
+export interface PlacePathItem {
+  id: string
+  kind: PlaceKind
+  name: string
+}
+
+// Places tree: city -> neighbourhood -> street -> alley; childCount counts the active places directly below.
+export type PlaceKind = 'city' | 'neighbourhood' | 'street' | 'alley'
+
+export interface Place {
+  id: string
+  parentId: string | null
+  kind: PlaceKind
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  status: 'active' | 'inactive'
+  mergedInto: string | null
+  childCount: number
+}
+
+// Names of one place: the main name and the optional Kurdish, Arabic and English names.
+export interface PlaceNames {
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+}
+
+// One row of an import file: the levels above are named, missing ones are created.
+export interface ImportRow {
+  kind: PlaceKind
+  name: string
+  city: string | null
+  neighbourhood: string | null
+  street: string | null
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  active: boolean
+}
+
+export interface ImportSummary {
+  created: number
+  skipped: number
+}
+
+export interface CustomerProfile {
+  phone: string | null
+  address: string | null
+  placeId: string | null
 }
 
 export type VisitType = 'pharmacy' | 'doctor' | 'wholesaler' | 'other'
@@ -177,6 +236,7 @@ export const Permissions = {
   devices: ['device.approve', 'devices.manage', 'system.admin'],
   customers: ['customers.read'],
   editCustomers: ['customers.write'],
+  places: ['places.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
   cancelVisits: ['visits.cancel'],
@@ -249,6 +309,27 @@ export class AdminApi {
     this.post(`/visits/${id}/postpone`, { scheduleDate, reason: reason || null })
   visitWindows = (customerId: string) => this.get<VisitWindow[]>(`/customers/${customerId}/visit-windows`)
   setVisitWindows = (customerId: string, windows: VisitWindow[]) => this.send('PUT', `/customers/${customerId}/visit-windows`, { windows })
+  // Places tree and customer profile (step 1.23-b). parentId null lists the cities.
+  places = (parentId: string | null, includeInactive = false, search = '') =>
+    this.get<Place[]>(
+      `/places?limit=2000${parentId ? `&parentId=${parentId}` : '&kind=city'}${search ? `&q=${encodeURIComponent(search)}` : ''}${includeInactive ? '&includeInactive=true' : ''}`,
+    )
+  createPlace = (parentId: string | null, kind: PlaceKind, names: PlaceNames) => this.post('/places', { parentId, kind, ...names })
+  updatePlace = (id: string, names: PlaceNames, status: 'active' | 'inactive', parentId: string | null = null) =>
+    this.send('PUT', `/places/${id}`, { ...names, status, parentId })
+  mergePlace = (id: string, intoPlaceId: string) => this.post(`/places/${id}/merge`, { intoPlaceId })
+  importPlaces = async (rows: ImportRow[]): Promise<ImportSummary> => {
+    const response = await this.api.request('/places/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) })
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as ImportSummary
+  }
+  // The whole tree as text (CSV or JSON) for other projects.
+  exportPlaces = async (format: 'csv' | 'json', includeInactive = false): Promise<string> => {
+    const response = await this.api.request(`/places/export?format=${format}${includeInactive ? '&includeInactive=true' : ''}`)
+    if (!response.ok) throw await toError(response)
+    return response.text()
+  }
+  setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')

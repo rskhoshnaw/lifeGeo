@@ -30,6 +30,13 @@ public interface ICustomerStore
         int? radiusMeters, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
+    // Customer profile (plan step 1.23-b): contact details and the place in the reference list. Replaces the five
+    // fields (null clears). NotFound when the customer is not in the actor's scope; InvalidData when the place is missing,
+    // inactive or merged away. One audit row in the same transaction.
+    Task<CustomerProfileResult> SetProfileAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        CustomerProfileRequest profile, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     // Accepted visit days and hours (plan step 1.23). Get: null when the customer is not in the actor's scope.
     // Replace: swaps the whole list in one transaction with its audit row; false when not in scope.
     Task<IReadOnlyList<VisitWindowDto>?> GetVisitWindowsAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken) =>
@@ -242,4 +249,38 @@ public sealed class CustomerVisitWindows(ICustomerStore store, IPermissionStore 
 
     private async Task<AccessScope?> ScopeAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>
         tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, permission, cancellationToken);
+}
+
+// PlaceId: the most precise place known (a city, neighbourhood, street or alley), or null.
+public sealed record CustomerProfileRequest(string? Phone, string? Address, Guid? PlaceId);
+
+public enum CustomerProfileResult { Success, NotFound, InvalidData }
+
+// Phone and address of a customer and where it is (plan step 1.23-b). Needs customers.write within the actor's data scope.
+public sealed class CustomerProfileService(ICustomerStore store, IPermissionStore permissions)
+{
+    public const int MaxPhoneLength = 40;
+    public const int MaxAddressLength = 300;
+
+    public async Task<(CustomerUpdateResult Result, CustomerProfileResult Detail)> SetAsync(TenantId tenantId, UserId actorId, Guid customerId,
+        CustomerProfileRequest request, CancellationToken cancellationToken)
+    {
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return (CustomerUpdateResult.Forbidden, CustomerProfileResult.NotFound);
+
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+        if (phone is { Length: > MaxPhoneLength } || address is { Length: > MaxAddressLength } ||
+            request.PlaceId == Guid.Empty)
+            return (CustomerUpdateResult.InvalidData, CustomerProfileResult.InvalidData);
+
+        var result = await store.SetProfileAsync(tenantId, actorId, new CustomerId(customerId), scope,
+            request with { Phone = phone, Address = address }, cancellationToken);
+        return result switch
+        {
+            CustomerProfileResult.Success => (CustomerUpdateResult.Success, result),
+            CustomerProfileResult.NotFound => (CustomerUpdateResult.NotFound, result),
+            _ => (CustomerUpdateResult.InvalidData, result)
+        };
+    }
 }

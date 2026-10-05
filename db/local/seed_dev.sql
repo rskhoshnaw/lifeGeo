@@ -45,3 +45,12 @@ INSERT INTO customers (id, tenant_id, type, code, name, city, region_id, geom, l
         ST_GeogFromText('SRID=4326;POINT(44.0210 36.1990)'), 'manual', now(), 'located', '00000000-0000-0000-0000-000000000104'),
     ('00000000-0000-0000-0000-0000000004c3', '00000000-0000-0000-0000-00000000d001', 'Wholesaler', 'W-001', 'Slemani Medical Store', 'Sulaymaniyah', '00000000-0000-0000-0000-0000000002e2',
         ST_GeogFromText('SRID=4326;POINT(45.4329 35.5613)'), 'manual', now(), 'located', '00000000-0000-0000-0000-000000000105');
+
+-- Sample places tree (plan step 1.23-b): the cities and a few Erbil neighbourhoods so the pickers are not empty. The same
+-- names are in docs/places-starter.csv, which a manager imports in the panel's Places tab (Import CSV).
+INSERT INTO places (id, tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en) VALUES
+    ('00000000-0000-0000-0000-0000000005c1', '00000000-0000-0000-0000-00000000d001', NULL, 'city', 'Erbil', 'هەولێر', 'أربيل', 'Erbil'),
+    ('00000000-0000-0000-0000-0000000005c2', '00000000-0000-0000-0000-00000000d001', NULL, 'city', 'Sulaymaniyah', 'سلێمانی', 'السليمانية', 'Sulaymaniyah');
+INSERT INTO places (tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en) VALUES
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Ankawa', 'عەنکاوە', 'عنكاوا', 'Ankawa'),
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Bakhtiari', 'بەختیاری', 'بختياري', 'Bakhtiari');

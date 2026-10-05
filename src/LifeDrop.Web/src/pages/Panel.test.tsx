@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.tsx'
 import { ApiClient } from '../api/client.ts'
-import { iraqToday, type Customer, type Device, type Me, type PlannedVisit, type UserSummary } from '../api/admin.ts'
+import { iraqToday, type Customer, type Place, type Device, type Me, type PlannedVisit, type UserSummary } from '../api/admin.ts'
 
 type Call = { method: string; path: string; body: unknown }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -28,9 +28,12 @@ function server(me: Me, data: Record<string, unknown>, posts: Record<string, Res
 const manager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['customers.approve', 'customers.read', 'device.approve', 'sessions.kill', 'user.manageroles'] }
 const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamId: 't', teamName: 'Team A', regionId: 'r', activeSessions: 2 }
 const device = (id: string, status: Device['status']): Device => ({ id, userId: 'u1', userEmail: 'rep@t1', label: `Phone ${id}`, platform: 'android', appVersion: '1.0', status, registeredAt: '2026-10-04T08:00:00Z' })
-const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending' }
+const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending', phone: null, address: null, placeId: null, placePath: null }
 
 const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1', sortOrder: null, postponeCount: 0, postponeReason: null, windowStatus: 'none' })
+
+const place = (id: string, kind: Place['kind'], name: string, parentId: string | null = null, status: Place['status'] = 'active', mergedInto: string | null = null, childCount = 0): Place =>
+  ({ id, parentId, kind, name, nameCkb: null, nameAr: null, nameEn: null, status, mergedInto, childCount })
 
 const posts = (calls: Call[]) => calls.filter((c) => c.method !== 'GET' && c.path !== '/auth/refresh')
 
@@ -232,6 +235,188 @@ describe('panel management screens', () => {
     await user.click(await screen.findByRole('button', { name: 'Visit hours' }))
     expect(await screen.findByLabelText('From')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Add hours' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('browses the places tree and adds, renames, moves, merges and deactivates without approval', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const manager2: Me = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['customers.read', 'places.manage'] }
+    const none = { nameCkb: null, nameAr: null, nameEn: null }
+    const erbil = place('ci', 'city', 'Erbil', null, 'active', null, 2)
+    const duhok = place('du', 'city', 'Duhok')
+    const ankawa = place('an', 'neighbourhood', 'Ankawa', 'ci', 'active', null, 2)
+    const bakhtiari = place('bk', 'neighbourhood', 'Bakhtiari', 'ci')
+    const main = place('ms', 'street', 'Main Street', 'an', 'active', null, 1)
+    const alley2 = place('a2', 'alley', 'Alley 2', 'an')
+    const { api, calls } = server(manager2, {
+      '/places?limit=2000&kind=city': [erbil, duhok],
+      '/places?limit=2000&parentId=ci': [ankawa, bakhtiari],
+      '/places?limit=2000&parentId=an': [main, alley2],
+      '/places?limit=2000&parentId=an&includeInactive=true': [main, alley2, place('old', 'street', 'Old Street', 'an', 'inactive'), place('gone', 'street', 'Gone Street', 'an', 'inactive', 'ms')],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Places' }))
+    await screen.findByRole('button', { name: 'Open Erbil' })
+
+    // Cities: duplicates are merged into the kept one (customers and everything below move along); a city cannot be moved
+    expect(screen.queryByRole('combobox', { name: 'Move Duhok to' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Merge Duhok into' }), 'ci')
+    await user.click(screen.getByRole('button', { name: 'Merge Duhok' }))
+
+    // Below a city: neighbourhoods, and the form adds one under it
+    await user.click(screen.getByRole('button', { name: 'Open Erbil' }))
+    await screen.findByRole('button', { name: 'Open Ankawa' })
+    expect(screen.getByRole('heading', { name: 'Add under Erbil' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Kind' })).not.toBeInTheDocument()   // only a neighbourhood can go under a city
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Nishtiman')
+    await user.click(screen.getByRole('button', { name: 'Add place' }))
+
+    // Below a neighbourhood: streets and alleys; the kind is chosen
+    await user.click(screen.getByRole('button', { name: 'Open Ankawa' }))
+    await screen.findByRole('button', { name: 'Open Main Street' })
+    expect(screen.queryByRole('button', { name: 'Open Alley 2' })).not.toBeInTheDocument()   // nothing is below an alley
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Kind' }), 'alley')
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Alley 9')
+    await user.click(screen.getByRole('button', { name: 'Add place' }))
+
+    // Fixing a spelling, moving a street to another neighbourhood, deactivating an alley
+    await user.click(screen.getByRole('button', { name: 'Edit Main Street' }))
+    await user.type(screen.getAllByRole('textbox', { name: 'Kurdish name' })[0]!, 'شەقامی سەرەکی')   // the edit row comes before the add form
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(within(screen.getByRole('combobox', { name: 'Move Main Street to' })).getAllByRole('option').map((o) => o.textContent)).toEqual(['', 'Bakhtiari'])   // the other neighbourhoods of the city
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Move Main Street to' }), 'bk')
+    await user.click(screen.getByRole('button', { name: 'Move Main Street' }))
+    await user.click(screen.getByRole('button', { name: 'Deactivate Alley 2' }))
+
+    // Inactive and merged places are shown only on request; a merged one has no actions
+    await user.click(screen.getByRole('checkbox', { name: 'Show inactive' }))
+    expect(await screen.findByRole('cell', { name: 'Old Street' })).toBeInTheDocument()
+    expect(screen.getByText('Merged')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Gone Street' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Activate Old Street' }))
+
+    expect(posts(calls)).toEqual([
+      { method: 'POST', path: '/places/du/merge', body: { intoPlaceId: 'ci' } },
+      { method: 'POST', path: '/places', body: { parentId: 'ci', kind: 'neighbourhood', name: 'Nishtiman', ...none } },
+      { method: 'POST', path: '/places', body: { parentId: 'an', kind: 'alley', name: 'Alley 9', ...none } },
+      { method: 'PUT', path: '/places/ms', body: { name: 'Main Street', nameCkb: 'شەقامی سەرەکی', nameAr: null, nameEn: null, status: 'active', parentId: null } },
+      { method: 'PUT', path: '/places/ms', body: { name: 'Main Street', ...none, status: 'active', parentId: 'bk' } },
+      { method: 'PUT', path: '/places/a2', body: { name: 'Alley 2', ...none, status: 'inactive', parentId: null } },
+      { method: 'PUT', path: '/places/old', body: { name: 'Old Street', ...none, status: 'active', parentId: null } },
+    ])
+  })
+
+  it('imports a CSV file, refuses one without valid rows, and exports the tree as CSV and JSON', async () => {
+    const manager2: Me = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['places.manage'] }
+    const { api, calls } = server(manager2, { '/places?limit=2000&kind=city': [], '/places/export?format=csv': 'id,kind\n', '/places/export?format=json': [] }, { '/places/import': json({ created: 5, skipped: 2 }) })
+    const downloads: string[] = []
+    URL.createObjectURL = vi.fn(() => 'blob:x')
+    URL.revokeObjectURL = vi.fn()
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download)
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Places' }))
+    const input = await screen.findByLabelText('Import CSV')
+
+    await user.upload(input, new File(['kind,city,name\nstreet,Erbil,Main\n'], 'bad.csv', { type: 'text/csv' }))   // a street needs its neighbourhood
+    expect(await screen.findByRole('alert')).toHaveTextContent('no valid rows')
+    expect(posts(calls)).toEqual([])
+
+    const csv = '\uFEFFid,parent_id,kind,city,neighbourhood,street,name,name_ckb,name_ar,name_en,status\r\n'
+      + 'x,,city,Erbil,,,Erbil,هەولێر,أربيل,,active\r\n'
+      + 'y,x,street,Erbil,Ankawa,,"Main, Street",,,,inactive\r\n'
+      + 'z,y,alley,Erbil,Ankawa,Main Street,\'=A1,,,,active\r\n'
+    await user.upload(input, new File([csv], 'places.csv', { type: 'text/csv' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Imported: 5 new, 2 already existed.')
+    expect(posts(calls)).toEqual([
+      {
+        method: 'POST',
+        path: '/places/import',
+        body: {
+          rows: [
+            { kind: 'city', name: 'Erbil', city: null, neighbourhood: null, street: null, nameCkb: 'هەولێر', nameAr: 'أربيل', nameEn: null, active: true },
+            { kind: 'street', name: 'Main, Street', city: 'Erbil', neighbourhood: 'Ankawa', street: null, nameCkb: null, nameAr: null, nameEn: null, active: false },
+            { kind: 'alley', name: '=A1', city: 'Erbil', neighbourhood: 'Ankawa', street: 'Main Street', nameCkb: null, nameAr: null, nameEn: null, active: true },
+          ],
+        },
+      },
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Export JSON' }))
+    await waitFor(() => expect(downloads).toEqual(['places.csv', 'places.json']))
+    expect(calls.filter((c) => c.path.startsWith('/places/export')).map((c) => c.path)).toEqual(['/places/export?format=csv', '/places/export?format=json'])
+  })
+
+  it('edits the profile of a customer with lists that follow the places tree', async () => {
+    const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
+    const path = [{ id: 'ci', kind: 'city', name: 'Erbil' }, { id: 'an', kind: 'neighbourhood', name: 'Ankawa' }, { id: 'ms', kind: 'street', name: 'Main Street' }] as const
+    const known = { ...customer, approvalStatus: 'approved', phone: '0750', address: 'By the bridge', placeId: 'ms', placePath: [...path] }
+    const { api, calls } = server(editor, {
+      '/customers?limit=100': [known],
+      '/places?limit=2000&kind=city': [place('ci', 'city', 'Erbil'), place('du', 'city', 'Duhok')],
+      '/places?limit=2000&parentId=ci': [place('an', 'neighbourhood', 'Ankawa', 'ci'), place('bk', 'neighbourhood', 'Bakhtiari', 'ci')],
+      '/places?limit=2000&parentId=an': [place('ms', 'street', 'Main Street', 'an'), place('a2', 'alley', 'Alley 2', 'an')],
+      '/places?limit=2000&parentId=ms': [place('a1', 'alley', 'Alley 1', 'ms')],
+      '/places?limit=2000&parentId=du': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    expect(await screen.findByRole('textbox', { name: 'Phone' })).toHaveValue('0750')
+    // The saved place and every level above it are chosen; one more list offers what is below the street
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Alley' })).toHaveValue(''))
+    expect(screen.getByRole('combobox', { name: 'City' })).toHaveValue('ci')
+    expect(screen.getByRole('combobox', { name: 'Neighbourhood' })).toHaveValue('an')
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Alley' }), 'a1')
+    await user.clear(screen.getByRole('textbox', { name: 'Address note' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(posts(calls)).toEqual([{ method: 'PUT', path: '/customers/c1/profile', body: { phone: '0750', address: null, placeId: 'a1' } }])
+  })
+
+  it('drops the lists below a changed level and saves the most precise choice', async () => {
+    const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
+    const known = { ...customer, approvalStatus: 'approved', placeId: 'ms', placePath: [{ id: 'ci', kind: 'city', name: 'Erbil' }, { id: 'an', kind: 'neighbourhood', name: 'Ankawa' }, { id: 'ms', kind: 'street', name: 'Main Street' }] }
+    const { api, calls } = server(editor, {
+      '/customers?limit=100': [known],
+      '/places?limit=2000&kind=city': [place('ci', 'city', 'Erbil'), place('du', 'city', 'Duhok')],
+      '/places?limit=2000&parentId=ci': [place('an', 'neighbourhood', 'Ankawa', 'ci')],
+      '/places?limit=2000&parentId=an': [place('ms', 'street', 'Main Street', 'an')],
+      '/places?limit=2000&parentId=ms': [],
+      '/places?limit=2000&parentId=du': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Street' })).toHaveValue('ms'))
+
+    // Another city: the neighbourhood and street lists of the old one are gone and Duhok has nothing below it yet
+    await user.selectOptions(screen.getByRole('combobox', { name: 'City' }), 'du')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Street' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('combobox', { name: 'Neighbourhood' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(posts(calls)).toEqual([{ method: 'PUT', path: '/customers/c1/profile', body: { phone: null, address: null, placeId: 'du' } }])
+  })
+
+  it('shows the customer profile read-only without customers.write', async () => {
+    const reader: Me = { id: 'f', email: 'finance@t1', roles: ['FinanceManager'], permissions: ['customers.read'] }
+    const { api } = server(reader, {
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved', phone: '0750', placeId: 'ci', placePath: [{ id: 'ci', kind: 'city', name: 'Erbil' }] }],
+      '/places?limit=2000&kind=city': [place('ci', 'city', 'Erbil')],
+      '/places?limit=2000&parentId=ci': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    expect(await screen.findByRole('textbox', { name: 'Phone' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'City' })).toBeDisabled())
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 

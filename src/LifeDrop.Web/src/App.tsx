@@ -10,10 +10,11 @@ import { VisitsPage } from './pages/VisitsPage.tsx'
 import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
+import { PlacesPage } from './pages/PlacesPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'regions' | 'audit'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'regions' | 'audit'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -51,6 +52,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'users', label: t('web.tab.users'), visible: can(me, ...Permissions.users) },
     { id: 'devices', label: t('web.tab.devices'), visible: can(me, ...Permissions.devices) },
     { id: 'customers', label: t('web.tab.customers'), visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
+    { id: 'places', label: t('web.tab.places'), visible: can(me, ...Permissions.places) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
   ]
@@ -82,6 +84,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}
       {me && tab === 'map' && <LiveMapPage admin={admin} />}
       {me && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
+      {me && tab === 'places' && <PlacesPage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
     </div>

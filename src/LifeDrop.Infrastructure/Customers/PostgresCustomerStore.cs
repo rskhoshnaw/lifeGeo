@@ -144,7 +144,13 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
     private const string SelectColumns = """
         id, tenant_id, type, code, name, status, created_at,
         ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m,
-        region_id, approval_status
+        region_id, approval_status, phone, address, place_id,
+        (SELECT jsonb_agg(jsonb_build_object('id', a.id, 'kind', a.kind, 'name', a.name) ORDER BY a.depth DESC)
+         FROM (WITH RECURSIVE chain(id, parent_id, kind, name, depth) AS (
+                   SELECT p.id, p.parent_id, p.kind, p.name, 0 FROM places p WHERE p.id = customers.place_id
+                   UNION ALL
+                   SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
+               SELECT * FROM chain) a)
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -155,7 +161,14 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(9) ? null : reader.GetString(9),
         reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10),
         reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
-        reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13));
+        reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
+        reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
+        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)));
+
+    private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private static IReadOnlyList<PlacePathItem>? ReadPath(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<List<PlacePathItem>>(json, PathJson);
 
     public async Task<bool> SetLocationAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         double latitude, double longitude, string source, double? accuracyMeters, CancellationToken cancellationToken) =>
@@ -244,6 +257,56 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         await audit.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<CustomerProfileResult> SetProfileAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        CustomerProfileRequest profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+
+        await using (var lockRow = new NpgsqlCommand($"SELECT 1 FROM customers WHERE id = @id AND {ScopeFilter(scope)} FOR UPDATE", connection, transaction))
+        {
+            lockRow.Parameters.AddWithValue("id", id.Value);
+            AddScopeParameters(lockRow, scope);
+            if (await lockRow.ExecuteScalarAsync(cancellationToken) is null) return CustomerProfileResult.NotFound;
+        }
+
+        // The place must be active and not merged away.
+        if (profile.PlaceId is { } placeId && !await ExistsAsync(connection, transaction,
+                "SELECT 1 FROM places WHERE id = @id AND status = 'active' AND merged_into IS NULL", placeId, cancellationToken))
+            return CustomerProfileResult.InvalidData;
+
+        await using (var update = new NpgsqlCommand("""
+            UPDATE customers SET phone = @phone, address = @address, place_id = @place
+            WHERE id = @id
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("id", id.Value);
+            update.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Phone ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("address", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Address ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("place", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.PlaceId ?? DBNull.Value });
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, 'customer.profile_changed', @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("entity", id.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return CustomerProfileResult.Success;
+    }
+
+    private static async Task<bool> ExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, Guid id, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", id);
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
     private static async Task SetTenantAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, CancellationToken cancellationToken)

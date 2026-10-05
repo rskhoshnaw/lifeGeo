@@ -1,0 +1,14 @@
+﻿kind,city,neighbourhood,street,name,name_ckb,name_ar,name_en,status
+city,,,,Erbil,هەولێر,أربيل,Erbil,active
+city,,,,Sulaymaniyah,سلێمانی,السليمانية,Sulaymaniyah,active
+city,,,,Duhok,دهۆک,دهوك,Duhok,active
+city,,,,Zakho,زاخۆ,زاخو,Zakho,active
+city,,,,Kirkuk,کەرکووک,كركوك,Kirkuk,active
+city,,,,Ranya,ڕانیە,رانية,Ranya,active
+city,,,,Mosul,موسڵ,الموصل,Mosul,active
+neighbourhood,Erbil,,,Ankawa,عەنکاوە,عنكاوا,Ankawa,active
+neighbourhood,Erbil,,,Bakhtiari,بەختیاری,بختياري,Bakhtiari,active
+neighbourhood,Erbil,,,Shorsh,شۆڕش,شورش,Shorsh,active
+neighbourhood,Erbil,,,Rizgari,ڕزگاری,رزگاري,Rizgari,active
+neighbourhood,Erbil,,,Nishtiman,نیشتمان,نشتمان,Nishtiman,active
+neighbourhood,Erbil,,,Brayati,برایەتی,برايتي,Brayati,active

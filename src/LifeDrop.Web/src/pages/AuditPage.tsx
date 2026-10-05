@@ -5,8 +5,8 @@ import { auditPageSize, errorMessage, type AdminApi, type AuditEntry, type Audit
 // Actions written by the server today; the field also accepts any other text.
 const knownActions = [
   'auth.device_rejected', 'auth.refresh_replay', 'auth.refresh_rotated', 'auth.session_issued', 'auth.session_revoked', 'auth.sessions_killed',
-  'customer.approved', 'customer.created', 'customer.created_pending', 'customer.geofence_changed', 'customer.location_changed', 'customer.rejected', 'customer.visit_windows_changed',
-  'device.approved', 'device.blocked', 'device.registered', 'region.created', 'shift.ended', 'shift.started',
+  'customer.approved', 'customer.created', 'customer.created_pending', 'customer.geofence_changed', 'customer.location_changed', 'customer.profile_changed', 'customer.rejected', 'customer.visit_windows_changed',
+  'device.approved', 'device.blocked', 'device.registered', 'place.created', 'place.merged', 'place.updated', 'places.imported', 'region.created', 'shift.ended', 'shift.started',
   'team.created', 'team.member_assigned', 'team.member_removed', 'team.region_changed', 'user.role_assigned',
   'visit.arrived', 'visit.cancelled', 'visit.checked_in', 'visit.checked_out', 'visit.created', 'visit.created_unplanned', 'visit.en_route',
   'visit.failed', 'visit.offline_review_approved', 'visit.offline_review_rejected', 'visit.offline_review_required', 'visit.reassigned',

@@ -1954,5 +1954,287 @@
   "ckb": "ئەم سەردانە ئێستا ناگوازرێتەوە.",
   "ar": "لا يمكن تأجيل هذه الزيارة الآن.",
   "fa": "این ویزیت اکنون قابل انتقال نیست."
+ },
+ "web.tab.places": {
+  "en": "Places",
+  "ckb": "شوێنەکان",
+  "ar": "الأماكن",
+  "fa": "مکان‌ها"
+ },
+ "web.places.kind": {
+  "en": "Kind",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.places.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.places.status.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشط",
+  "fa": "فعال"
+ },
+ "web.places.status.inactive": {
+  "en": "Inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.places.search": {
+  "en": "Search names",
+  "ckb": "گەڕان لە ناوەکان",
+  "ar": "بحث في الأسماء",
+  "fa": "جستجو در نام‌ها"
+ },
+ "web.places.name": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.places.nameCkb": {
+  "en": "Kurdish name",
+  "ckb": "ناوی کوردی",
+  "ar": "الاسم الكردي",
+  "fa": "نام کردی"
+ },
+ "web.places.nameAr": {
+  "en": "Arabic name",
+  "ckb": "ناوی عەرەبی",
+  "ar": "الاسم العربي",
+  "fa": "نام عربی"
+ },
+ "web.places.nameEn": {
+  "en": "English name",
+  "ckb": "ناوی ئینگلیزی",
+  "ar": "الاسم الإنجليزي",
+  "fa": "نام انگلیسی"
+ },
+ "web.places.add": {
+  "en": "Add place",
+  "ckb": "زیادکردنی شوێن",
+  "ar": "إضافة مكان",
+  "fa": "افزودن مکان"
+ },
+ "web.places.edit": {
+  "en": "Edit",
+  "ckb": "دەستکاری",
+  "ar": "تعديل",
+  "fa": "ویرایش"
+ },
+ "web.places.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوتکردن",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "web.places.cancelEdit": {
+  "en": "Cancel",
+  "ckb": "پاشگەزبوونەوە",
+  "ar": "إلغاء",
+  "fa": "انصراف"
+ },
+ "web.places.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.places.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.places.merge": {
+  "en": "Merge",
+  "ckb": "تێکەڵکردن",
+  "ar": "دمج",
+  "fa": "ادغام"
+ },
+ "web.places.mergeTo": {
+  "en": "Merge {name} into",
+  "ckb": "{name} تێکەڵ بکە لەگەڵ",
+  "ar": "دمج {name} في",
+  "fa": "ادغام {name} در"
+ },
+ "web.places.import": {
+  "en": "Import CSV",
+  "ckb": "هاوردەکردنی CSV",
+  "ar": "استيراد CSV",
+  "fa": "ورود CSV"
+ },
+ "web.places.importing": {
+  "en": "Importing…",
+  "ckb": "هاوردەکردن…",
+  "ar": "جارٍ الاستيراد…",
+  "fa": "در حال ورود…"
+ },
+ "web.customers.profile": {
+  "en": "Profile",
+  "ckb": "پڕۆفایل",
+  "ar": "الملف",
+  "fa": "پروفایل"
+ },
+ "web.customers.profileTitle": {
+  "en": "Profile of {customer}",
+  "ckb": "پڕۆفایلی {customer}",
+  "ar": "ملف {customer}",
+  "fa": "پروفایل {customer}"
+ },
+ "web.customers.phone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "web.customers.address": {
+  "en": "Address note",
+  "ckb": "تێبینیی ناونیشان",
+  "ar": "ملاحظة العنوان",
+  "fa": "توضیح نشانی"
+ },
+ "web.customers.noPlace": {
+  "en": "— none —",
+  "ckb": "— هیچ —",
+  "ar": "— لا شيء —",
+  "fa": "— هیچ —"
+ },
+ "web.places.merged": {
+  "en": "Merged",
+  "ckb": "تێکەڵکراو",
+  "ar": "مدموج",
+  "fa": "ادغام‌شده"
+ },
+ "web.places.title": {
+  "en": "Cities, neighbourhoods, streets and alleys",
+  "ckb": "شار، گەڕەک، شەقام و کۆڵان",
+  "ar": "المدن والأحياء والشوارع والأزقة",
+  "fa": "شهرها، محله‌ها، خیابان‌ها و کوچه‌ها"
+ },
+ "web.places.kind.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "مدينة",
+  "fa": "شهر"
+ },
+ "web.places.kind.neighbourhood": {
+  "en": "Neighbourhood",
+  "ckb": "گەڕەک",
+  "ar": "حي",
+  "fa": "محله"
+ },
+ "web.places.kind.street": {
+  "en": "Street",
+  "ckb": "شەقام",
+  "ar": "شارع",
+  "fa": "خیابان"
+ },
+ "web.places.kind.alley": {
+  "en": "Alley",
+  "ckb": "کۆڵان",
+  "ar": "زقاق",
+  "fa": "کوچه"
+ },
+ "web.places.allCities": {
+  "en": "All cities",
+  "ckb": "هەموو شارەکان",
+  "ar": "كل المدن",
+  "fa": "همهٔ شهرها"
+ },
+ "web.places.open": {
+  "en": "Open",
+  "ckb": "کردنەوە",
+  "ar": "فتح",
+  "fa": "باز کردن"
+ },
+ "web.places.below": {
+  "en": "{count} below",
+  "ckb": "{count} لە خوارەوە",
+  "ar": "{count} تحته",
+  "fa": "{count} زیرمجموعه"
+ },
+ "web.places.showInactive": {
+  "en": "Show inactive",
+  "ckb": "پیشاندانی ناچالاکەکان",
+  "ar": "إظهار غير النشطة",
+  "fa": "نمایش غیرفعال‌ها"
+ },
+ "web.places.addUnder": {
+  "en": "Add under {name}",
+  "ckb": "زیادکردن لە ژێر {name}",
+  "ar": "إضافة تحت {name}",
+  "fa": "افزودن زیر {name}"
+ },
+ "web.places.addCity": {
+  "en": "Add a city",
+  "ckb": "زیادکردنی شار",
+  "ar": "إضافة مدينة",
+  "fa": "افزودن شهر"
+ },
+ "web.places.moveTo": {
+  "en": "Move {name} to",
+  "ckb": "{name} بگوازەرەوە بۆ",
+  "ar": "نقل {name} إلى",
+  "fa": "انتقال {name} به"
+ },
+ "web.places.moveBtn": {
+  "en": "Move",
+  "ckb": "گواستنەوە",
+  "ar": "نقل",
+  "fa": "انتقال"
+ },
+ "web.places.mergeConfirm": {
+  "en": "Merge {name} into {target}? Customers and everything below {name} move to {target}, and {name} is retired.",
+  "ckb": "{name} تێکەڵ بکرێت لەگەڵ {target}؟ کڕیارەکان و هەموو ئەوەی لە ژێر {name}ە دەگوازرێنەوە بۆ {target} و {name} ڕادەگیرێت.",
+  "ar": "دمج {name} في {target}؟ سينتقل العملاء وكل ما تحت {name} إلى {target} ويتوقف {name}.",
+  "fa": "{name} در {target} ادغام شود؟ مشتریان و هر چه زیر {name} است به {target} منتقل می‌شود و {name} کنار گذاشته می‌شود."
+ },
+ "web.places.none": {
+  "en": "Nothing here yet. Add a name below or import a CSV file.",
+  "ckb": "هێشتا هیچ شتێک لێرە نییە. لە خوارەوە ناوێک زیاد بکە یان فایلی CSV هاوردە بکە.",
+  "ar": "لا شيء هنا بعد. أضف اسمًا أدناه أو استورد ملف CSV.",
+  "fa": "هنوز چیزی اینجا نیست. در پایین نامی اضافه کنید یا فایل CSV را وارد کنید."
+ },
+ "web.places.importHelp": {
+  "en": "CSV with the columns kind, city, neighbourhood, street, name, name_ckb, name_ar, name_en (and status or active). An exported file can be imported again. Existing names are skipped.",
+  "ckb": "CSV بە ستوونەکانی kind, city, neighbourhood, street, name, name_ckb, name_ar, name_en (و status یان active). فایلی هەناردەکراو دەتوانرێت دووبارە هاوردە بکرێتەوە. ناوە هەبووەکان تێدەپەڕێنرێن.",
+  "ar": "ملف CSV بالأعمدة kind وcity وneighbourhood وstreet وname وname_ckb وname_ar وname_en (وstatus أو active). يمكن استيراد الملف المُصدَّر مرة أخرى. تُتجاهل الأسماء الموجودة.",
+  "fa": "فایل CSV با ستون‌های kind, city, neighbourhood, street, name, name_ckb, name_ar, name_en (و status یا active). فایل خروجی را می‌توان دوباره وارد کرد. نام‌های موجود نادیده گرفته می‌شود."
+ },
+ "web.places.importResult": {
+  "en": "Imported: {created} new, {skipped} already existed.",
+  "ckb": "هاوردە کرا: {created} نوێ، {skipped} پێشتر هەبوون.",
+  "ar": "تم الاستيراد: {created} جديد، و{skipped} موجود مسبقًا.",
+  "fa": "وارد شد: {created} جدید، {skipped} از قبل موجود بود."
+ },
+ "web.places.importBadFile": {
+  "en": "The file has no valid rows. Needed: kind (city, neighbourhood, street or alley), a name, and the city (and neighbourhood for a street) above it.",
+  "ckb": "فایلەکە هیچ ڕیزێکی دروستی تێدا نییە. پێویستە: kind (city یان neighbourhood یان street یان alley)، ناو، و شار (و گەڕەک بۆ شەقام).",
+  "ar": "لا توجد صفوف صالحة في الملف. المطلوب: kind (city أو neighbourhood أو street أو alley) واسم والمدينة (والحي للشارع) التي فوقه.",
+  "fa": "فایل ردیف معتبری ندارد. لازم است: kind (city یا neighbourhood یا street یا alley)، یک نام، و شهر (و برای خیابان، محله) بالای آن."
+ },
+ "web.places.export": {
+  "en": "Export CSV",
+  "ckb": "هەناردەکردنی CSV",
+  "ar": "تصدير CSV",
+  "fa": "خروجی CSV"
+ },
+ "web.places.exportJson": {
+  "en": "Export JSON",
+  "ckb": "هەناردەکردنی JSON",
+  "ar": "تصدير JSON",
+  "fa": "خروجی JSON"
+ },
+ "web.places.exportHelp": {
+  "en": "The whole tree with ids and names in three languages, for other projects.",
+  "ckb": "هەموو درەختەکە لەگەڵ ID و ناوەکان بە سێ زمان، بۆ پڕۆژەکانی تر.",
+  "ar": "الشجرة كاملة مع المعرّفات والأسماء بثلاث لغات، لمشاريع أخرى.",
+  "fa": "کل درخت با شناسه و نام‌ها به سه زبان، برای پروژه‌های دیگر."
  }
 }

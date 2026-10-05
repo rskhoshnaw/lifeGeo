@@ -69,6 +69,9 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.MarkVisitFailed>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.IRegionTeamStore, LifeDrop.Infrastructure.Regions.PostgresRegionTeamStore>();
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
+        builder.Services.AddScoped<LifeDrop.Application.Places.IPlaceStore, LifeDrop.Infrastructure.Places.PostgresPlaceStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Places.PlaceService>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
@@ -608,6 +611,7 @@ public partial class Program
         }
 
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
+        LifeDrop.API.Endpoints.PlaceEndpoints.MapPlaceEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);
