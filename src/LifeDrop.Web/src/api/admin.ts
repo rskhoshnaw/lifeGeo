@@ -2,6 +2,7 @@
 // live map (step 1.19), audit viewer (step 1.20). The server checks every action again;
 // permissions from /me only decide which buttons the panel shows.
 import type { ApiClient } from './client.ts'
+import { t } from '../i18n.ts'
 
 export interface Me {
   id: string
@@ -179,22 +180,22 @@ export function iraqToday(now: Date = new Date()): string {
 }
 
 export function errorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'No connection to the server. Try again.'
+  if (!(error instanceof ApiError)) return t('web.error.network')
   switch (error.status) {
     case 400:
-      return 'The server refused the data. Check the fields and try again.'
+      return t('web.error.badData')
     case 403:
-      return 'You do not have permission for this action.'
+      return t('web.error.forbidden')
     case 404:
-      return 'Not found, or outside your area.'
+      return t('web.error.notFound')
     case 409:
-      if (error.code === 'CUSTOMER_NOT_APPROVED') return 'This customer is not approved yet.'
-      if (error.code === 'DUPLICATE_NAME') return 'This name is already used.'
-      return 'This was already changed. Refresh the list.'
+      if (error.code === 'CUSTOMER_NOT_APPROVED') return t('web.error.customerNotApproved')
+      if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
+      return t('web.error.conflict')
     case 429:
-      return 'Too many requests. Wait a minute and try again.'
+      return t('web.error.tooMany')
     default:
-      return 'The server could not complete the request. Try again later.'
+      return t('web.error.server')
   }
 }
 

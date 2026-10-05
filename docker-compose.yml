@@ -1,0 +1,19 @@
+# Local development database (docs/LOCAL-SETUP.md): PostgreSQL 16 + PostGIS, the same image as CI.
+# Start: docker compose up -d    Stop: docker compose down    Delete all data: docker compose down -v
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_PASSWORD: temp_root
+    ports:
+      - "${LIFEDROP_DB_PORT:-5432}:5432"
+    volumes:
+      - lifedrop-db:/var/lib/postgresql/data
+      - ./db/local/init.sql:/docker-entrypoint-initdb.d/20_lifedrop.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  lifedrop-db:

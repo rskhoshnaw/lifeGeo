@@ -11,6 +11,10 @@ import {
   type VisitPriority,
   type VisitType,
 } from '../api/admin.ts'
+import { t, type TextKey } from '../i18n.ts'
+
+const visitStatuses = ['Planned', 'EnRoute', 'Arrived', 'InVisit', 'Completed', 'Failed', 'Cancelled']
+const statusText = (status: string) => (visitStatuses.includes(status) ? t(`web.visitStatus.${status}` as TextKey) : status)
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 const visitTypes: VisitType[] = ['pharmacy', 'doctor', 'wholesaler', 'other']
@@ -28,7 +32,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [picked, setPicked] = useState<Record<string, string>>({})
 
   function cancel(visit: PlannedVisit) {
-    const reason = window.prompt(`Reason for cancelling the visit to ${visit.customerName ?? visit.customerId}?`)?.trim()
+    const reason = window.prompt(t('web.visits.cancelPrompt', { customer: visit.customerName ?? visit.customerId }))?.trim()
     if (!reason) return
     void action.run(() => admin.cancelVisit(visit.id, reason))
   }
@@ -38,21 +42,21 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
     <section className="space-y-8 p-6">
       <div>
         <div className="mb-4 flex items-center gap-4">
-          <h2 className="text-xl font-semibold">Visit plan</h2>
-          <input type="date" aria-label="Plan date" className="rounded border px-2 py-1 text-sm" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          <h2 className="text-xl font-semibold">{t('web.visits.title')}</h2>
+          <input type="date" aria-label={t('web.visits.planDate')} className="rounded border px-2 py-1 text-sm" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
         </div>
         {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
-        {plan.data?.length === 0 && <p className="text-slate-600">No visits on this day.</p>}
+        {plan.data?.length === 0 && <p className="text-slate-600">{t('web.visits.none')}</p>}
         {plan.data && plan.data.length > 0 && (
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b">
-                <th className="py-2">Time</th>
-                <th>Customer</th>
-                <th>Assignee</th>
-                <th>Type</th>
-                <th>Priority</th>
-                <th>Status</th>
+                <th className="py-2">{t('web.visits.time')}</th>
+                <th>{t('web.visits.customer')}</th>
+                <th>{t('web.visits.assignee')}</th>
+                <th>{t('web.visits.type')}</th>
+                <th>{t('web.visits.priority')}</th>
+                <th>{t('web.visits.status')}</th>
                 <th />
               </tr>
             </thead>
@@ -67,14 +71,14 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                       {label} · {visit.customerName ?? ''}
                     </td>
                     <td>{visit.assigneeEmail ?? visit.userId}</td>
-                    <td>{visit.visitType}</td>
-                    <td>{visit.priority}</td>
-                    <td>{visit.status}</td>
-                    <td className="space-x-2 py-2 text-right">
+                    <td>{t(`web.visitType.${visit.visitType}`)}</td>
+                    <td>{t(`web.priority.${visit.priority}`)}</td>
+                    <td>{statusText(visit.status)}</td>
+                    <td className="space-x-2 py-2 text-end">
                       {visit.status === 'Planned' && others.length > 0 && (
                         <>
-                          <select aria-label={`New assignee for ${label}`} className="rounded border px-1 py-1" value={picked[visit.id] ?? ''} onChange={(e) => setPicked({ ...picked, [visit.id]: e.target.value })}>
-                            <option value="">Reassign to…</option>
+                          <select aria-label={t('web.visits.newAssigneeFor', { customer: label })} className="rounded border px-1 py-1" value={picked[visit.id] ?? ''} onChange={(e) => setPicked({ ...picked, [visit.id]: e.target.value })}>
+                            <option value="">{t('web.visits.reassignTo')}</option>
                             {others.map((u) => (
                               <option key={u.id} value={u.id}>
                                 {u.email ?? u.id}
@@ -82,13 +86,13 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                             ))}
                           </select>
                           <button className="rounded border px-2 py-1" disabled={action.busy || !picked[visit.id]} onClick={() => void action.run(() => admin.reassignVisit(visit.id, picked[visit.id]!))}>
-                            Reassign
+                            {t('web.visits.reassign')}
                           </button>
                         </>
                       )}
                       {canCancel && !finished.includes(visit.status) && (
                         <button className="rounded border px-2 py-1 text-red-700" disabled={action.busy} onClick={() => cancel(visit)}>
-                          Cancel
+                          {t('web.visits.cancel')}
                         </button>
                       )}
                     </td>
@@ -125,37 +129,41 @@ function NewVisitForm({ admin, date, users, onCreated }: { admin: AdminApi; date
 
   return (
     <form onSubmit={submit} className="flex flex-wrap items-end gap-2 text-sm">
-      <h3 className="w-full text-lg font-semibold">New visit on {date}</h3>
+      <h3 className="w-full text-lg font-semibold">{t('web.visits.newVisit', { date })}</h3>
       {(action.error ?? customers.error) && <p role="alert" className="w-full text-red-700">{action.error ?? customers.error}</p>}
-      <select aria-label="Assignee" className="rounded border px-2 py-1" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-        <option value="">Assignee…</option>
+      <select aria-label={t('web.visits.assignee')} className="rounded border px-2 py-1" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+        <option value="">{t('web.visits.chooseAssignee')}</option>
         {users.map((u) => (
           <option key={u.id} value={u.id}>
             {u.email ?? u.id}
           </option>
         ))}
       </select>
-      <select aria-label="Customer" className="rounded border px-2 py-1" value={customer} onChange={(e) => setCustomer(e.target.value)}>
-        <option value="">Customer…</option>
+      <select aria-label={t('web.visits.customer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => setCustomer(e.target.value)}>
+        <option value="">{t('web.visits.chooseCustomer')}</option>
         {approved.map((c) => (
           <option key={c.id} value={c.id}>
             {c.code} · {c.name}
           </option>
         ))}
       </select>
-      <select aria-label="Visit type" className="rounded border px-2 py-1" value={visitType} onChange={(e) => setVisitType(e.target.value as VisitType)}>
-        {visitTypes.map((t) => (
-          <option key={t}>{t}</option>
+      <select aria-label={t('web.visits.visitType')} className="rounded border px-2 py-1" value={visitType} onChange={(e) => setVisitType(e.target.value as VisitType)}>
+        {visitTypes.map((type) => (
+          <option key={type} value={type}>
+            {t(`web.visitType.${type}`)}
+          </option>
         ))}
       </select>
-      <select aria-label="Priority" className="rounded border px-2 py-1" value={priority} onChange={(e) => setPriority(e.target.value as VisitPriority)}>
+      <select aria-label={t('web.visits.priority')} className="rounded border px-2 py-1" value={priority} onChange={(e) => setPriority(e.target.value as VisitPriority)}>
         {priorities.map((p) => (
-          <option key={p}>{p}</option>
+          <option key={p} value={p}>
+            {t(`web.priority.${p}`)}
+          </option>
         ))}
       </select>
-      <input type="time" aria-label="Planned time" className="rounded border px-2 py-1" value={time} onChange={(e) => setTime(e.target.value)} />
+      <input type="time" aria-label={t('web.visits.plannedTime')} className="rounded border px-2 py-1" value={time} onChange={(e) => setTime(e.target.value)} />
       <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !assignee || !customer}>
-        Create visit
+        {t('web.visits.create')}
       </button>
     </form>
   )

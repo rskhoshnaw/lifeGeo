@@ -14,10 +14,16 @@
 
 ## Mobile (.NET MAUI, Android)
 - `src/LifeDrop.Mobile.Auth` — login/session. `src/LifeDrop.Mobile.Visits` — testable logic: `VisitsApiClient`, `DailyPlan`, `VisitLifecycle`, `Tracking/` (ShiftTracker, PointQueue, ShiftApiClient), `Offline/` (Outbox, FileDurableStore).
-- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`), `TrackingHost.cs` (shared services), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
+- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`), `TrackingHost.cs` (shared services), `AppLanguage.cs` (language choice, RTL, root pages), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
+
+## Texts (step 1.21)
+- `i18n/strings.json` — every user-facing text, key → {en, ckb, ar, fa}; read by the panel (`src/LifeDrop.Web/src/i18n.ts`) and the app (`src/LifeDrop.Mobile.Visits/Localization/Texts.cs`, embedded).
 
 ## Web panel
 - `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, LiveMap, Audit), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
 
 ## CI
 - `.github/workflows/build.yml` (jobs: build, mobile-android, web), `database-tests.yml` (`MIN_EXPECTED_TESTS`).
+
+## Local (Windows)
+- `docker-compose.yml` + `db/local/init.sql` (databases and roles as CI), `db/local/seed_dev.sql` (tenant `dev`, five users, regions, customers), `scripts/local/*.ps1` (Reset-LocalDb, Start-Api, Start-Panel, Run-Android, Test-All); guide `docs/LOCAL-SETUP.md`.

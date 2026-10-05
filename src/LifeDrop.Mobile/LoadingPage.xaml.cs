@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Auth;
 using System.Net.Http;
 using System;
@@ -13,6 +14,7 @@ public partial class LoadingPage : ContentPage
     public LoadingPage()
     {
         InitializeComponent();
+        LoadingLabel.Text = Texts.Get("app.loading");
     }
 
     protected override async void OnAppearing()
@@ -26,7 +28,7 @@ public partial class LoadingPage : ContentPage
 #endif
         if (store == null) 
         {
-            Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+            AppLanguage.ShowRoot(new MainPage());
             return;
         }
 
@@ -42,7 +44,7 @@ public partial class LoadingPage : ContentPage
                     url = "http://127.0.0.1:5256";
                     Preferences.Set("ApiUrl", url);
 #else
-                    Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+                    AppLanguage.ShowRoot(new MainPage());
                     return;
 #endif
                 }
@@ -56,7 +58,7 @@ public partial class LoadingPage : ContentPage
 
                 if (result.IsSuccess)
                 {
-                    Application.Current!.Windows[0].Page = new NavigationPage(new HomePage());
+                    AppLanguage.ShowRoot(new HomePage());
                     return;
                 }
             }
@@ -66,6 +68,6 @@ public partial class LoadingPage : ContentPage
             // Ignore and drop to login
         }
 
-        Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+        AppLanguage.ShowRoot(new MainPage());
     }
 }

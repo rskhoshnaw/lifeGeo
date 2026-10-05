@@ -1,0 +1,1754 @@
+{
+ "web.language": {
+  "en": "Language",
+  "ckb": "زمان",
+  "ar": "اللغة",
+  "fa": "زبان"
+ },
+ "web.signOut": {
+  "en": "Sign out",
+  "ckb": "چوونەدەرەوە",
+  "ar": "تسجيل الخروج",
+  "fa": "خروج"
+ },
+ "web.tab.home": {
+  "en": "Home",
+  "ckb": "سەرەکی",
+  "ar": "الرئيسية",
+  "fa": "خانه"
+ },
+ "web.tab.map": {
+  "en": "Live map",
+  "ckb": "نەخشەی ڕاستەوخۆ",
+  "ar": "الخريطة المباشرة",
+  "fa": "نقشهٔ زنده"
+ },
+ "web.tab.visits": {
+  "en": "Visits",
+  "ckb": "سەردانەکان",
+  "ar": "الزيارات",
+  "fa": "ویزیت‌ها"
+ },
+ "web.tab.users": {
+  "en": "Users",
+  "ckb": "بەکارهێنەران",
+  "ar": "المستخدمون",
+  "fa": "کاربران"
+ },
+ "web.tab.devices": {
+  "en": "Devices",
+  "ckb": "ئامێرەکان",
+  "ar": "الأجهزة",
+  "fa": "دستگاه‌ها"
+ },
+ "web.tab.customers": {
+  "en": "Customers",
+  "ckb": "کڕیاران",
+  "ar": "العملاء",
+  "fa": "مشتریان"
+ },
+ "web.tab.regions": {
+  "en": "Regions & teams",
+  "ckb": "ناوچە و تیمەکان",
+  "ar": "المناطق والفرق",
+  "fa": "مناطق و تیم‌ها"
+ },
+ "web.tab.audit": {
+  "en": "Audit",
+  "ckb": "تۆماری چالاکی",
+  "ar": "سجل التدقيق",
+  "fa": "گزارش رویدادها"
+ },
+ "web.login.companyCode": {
+  "en": "Company code",
+  "ckb": "کۆدی کۆمپانیا",
+  "ar": "رمز الشركة",
+  "fa": "کد شرکت"
+ },
+ "web.login.email": {
+  "en": "Email",
+  "ckb": "ئیمەیڵ",
+  "ar": "البريد الإلكتروني",
+  "fa": "ایمیل"
+ },
+ "web.login.password": {
+  "en": "Password",
+  "ckb": "وشەی نهێنی",
+  "ar": "كلمة المرور",
+  "fa": "رمز عبور"
+ },
+ "web.login.submit": {
+  "en": "Sign in",
+  "ckb": "چوونەژوورەوە",
+  "ar": "تسجيل الدخول",
+  "fa": "ورود"
+ },
+ "web.login.busy": {
+  "en": "Signing in…",
+  "ckb": "چوونەژوورەوە…",
+  "ar": "جارٍ تسجيل الدخول…",
+  "fa": "در حال ورود…"
+ },
+ "web.login.fillAll": {
+  "en": "Fill in all fields.",
+  "ckb": "هەموو خانەکان پڕ بکەرەوە.",
+  "ar": "املأ جميع الحقول.",
+  "fa": "همهٔ فیلدها را پر کنید."
+ },
+ "web.login.error.invalid_credentials": {
+  "en": "Wrong company code, email or password.",
+  "ckb": "کۆدی کۆمپانیا، ئیمەیڵ یان وشەی نهێنی هەڵەیە.",
+  "ar": "رمز الشركة أو البريد الإلكتروني أو كلمة المرور غير صحيح.",
+  "fa": "کد شرکت، ایمیل یا رمز عبور اشتباه است."
+ },
+ "web.login.error.device_only": {
+  "en": "This account can sign in only from its approved phone.",
+  "ckb": "ئەم هەژمارە تەنها لە مۆبایلە پەسەندکراوەکەیەوە دەتوانێت بچێتە ژوورەوە.",
+  "ar": "لا يمكن لهذا الحساب تسجيل الدخول إلا من هاتفه المعتمد.",
+  "fa": "این حساب فقط از گوشی تأییدشدهٔ خودش می‌تواند وارد شود."
+ },
+ "web.login.error.too_many_attempts": {
+  "en": "Too many attempts. Wait a minute and try again.",
+  "ckb": "هەوڵەکان زۆر بوون. خولەکێک چاوەڕێ بکە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "محاولات كثيرة. انتظر دقيقة ثم حاول مرة أخرى.",
+  "fa": "تلاش‌ها زیاد بود. یک دقیقه صبر کنید و دوباره تلاش کنید."
+ },
+ "web.login.error.network": {
+  "en": "No connection to the server. Check your internet and try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. ئینتەرنێتەکەت بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. اینترنت را بررسی کنید و دوباره تلاش کنید."
+ },
+ "web.login.error.server": {
+  "en": "The server could not sign you in. Try again later.",
+  "ckb": "سێرڤەر نەیتوانی بتباتە ژوورەوە. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر على الخادم تسجيل دخولك. حاول لاحقًا.",
+  "fa": "سرور نتوانست شما را وارد کند. بعداً تلاش کنید."
+ },
+ "web.home.welcome": {
+  "en": "Welcome",
+  "ckb": "بەخێربێیت",
+  "ar": "مرحبًا",
+  "fa": "خوش آمدید"
+ },
+ "web.home.signedInAs": {
+  "en": "Signed in as {email} ({tenant}).",
+  "ckb": "بە ناوی {email} ({tenant}) چوویتە ژوورەوە.",
+  "ar": "تم تسجيل الدخول باسم {email} ({tenant}).",
+  "fa": "با {email} ({tenant}) وارد شده‌اید."
+ },
+ "web.error.network": {
+  "en": "No connection to the server. Try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. حاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. دوباره تلاش کنید."
+ },
+ "web.error.badData": {
+  "en": "The server refused the data. Check the fields and try again.",
+  "ckb": "سێرڤەر زانیارییەکانی وەرنەگرت. خانەکان بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "رفض الخادم البيانات. تحقق من الحقول وحاول مرة أخرى.",
+  "fa": "سرور داده‌ها را نپذیرفت. فیلدها را بررسی و دوباره تلاش کنید."
+ },
+ "web.error.forbidden": {
+  "en": "You do not have permission for this action.",
+  "ckb": "ڕێگەپێدانی ئەم کارەت نییە.",
+  "ar": "ليست لديك صلاحية لهذا الإجراء.",
+  "fa": "اجازهٔ این کار را ندارید."
+ },
+ "web.error.notFound": {
+  "en": "Not found, or outside your area.",
+  "ckb": "نەدۆزرایەوە، یان لە دەرەوەی سنووری تۆیە.",
+  "ar": "غير موجود، أو خارج نطاقك.",
+  "fa": "پیدا نشد، یا خارج از محدودهٔ شماست."
+ },
+ "web.error.conflict": {
+  "en": "This was already changed. Refresh the list.",
+  "ckb": "ئەمە پێشتر گۆڕدراوە. لیستەکە نوێ بکەرەوە.",
+  "ar": "تم تغيير هذا مسبقًا. حدّث القائمة.",
+  "fa": "این مورد قبلاً تغییر کرده است. فهرست را تازه کنید."
+ },
+ "web.error.customerNotApproved": {
+  "en": "This customer is not approved yet.",
+  "ckb": "ئەم کڕیارە هێشتا پەسەند نەکراوە.",
+  "ar": "هذا العميل لم تتم الموافقة عليه بعد.",
+  "fa": "این مشتری هنوز تأیید نشده است."
+ },
+ "web.error.duplicateName": {
+  "en": "This name is already used.",
+  "ckb": "ئەم ناوە پێشتر بەکارهاتووە.",
+  "ar": "هذا الاسم مستخدم مسبقًا.",
+  "fa": "این نام قبلاً استفاده شده است."
+ },
+ "web.error.tooMany": {
+  "en": "Too many requests. Wait a minute and try again.",
+  "ckb": "داواکارییەکان زۆر بوون. خولەکێک چاوەڕێ بکە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "طلبات كثيرة. انتظر دقيقة ثم حاول مرة أخرى.",
+  "fa": "درخواست‌ها زیاد بود. یک دقیقه صبر کنید و دوباره تلاش کنید."
+ },
+ "web.error.server": {
+  "en": "The server could not complete the request. Try again later.",
+  "ckb": "سێرڤەر نەیتوانی داواکارییەکە تەواو بکات. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر على الخادم إكمال الطلب. حاول لاحقًا.",
+  "fa": "سرور نتوانست درخواست را انجام دهد. بعداً تلاش کنید."
+ },
+ "web.action.approve": {
+  "en": "Approve",
+  "ckb": "پەسەندکردن",
+  "ar": "موافقة",
+  "fa": "تأیید"
+ },
+ "web.action.reject": {
+  "en": "Reject",
+  "ckb": "ڕەتکردنەوە",
+  "ar": "رفض",
+  "fa": "رد"
+ },
+ "web.action.block": {
+  "en": "Block",
+  "ckb": "بلۆککردن",
+  "ar": "حظر",
+  "fa": "مسدود کردن"
+ },
+ "web.action.assign": {
+  "en": "Assign",
+  "ckb": "دیاریکردن",
+  "ar": "تعيين",
+  "fa": "اختصاص"
+ },
+ "web.action.add": {
+  "en": "Add",
+  "ckb": "زیادکردن",
+  "ar": "إضافة",
+  "fa": "افزودن"
+ },
+ "web.action.search": {
+  "en": "Search",
+  "ckb": "گەڕان",
+  "ar": "بحث",
+  "fa": "جست‌وجو"
+ },
+ "web.action.clear": {
+  "en": "Clear",
+  "ckb": "پاککردنەوە",
+  "ar": "مسح",
+  "fa": "پاک کردن"
+ },
+ "web.action.loadMore": {
+  "en": "Load more",
+  "ckb": "زیاتر پیشان بدە",
+  "ar": "عرض المزيد",
+  "fa": "بیشتر"
+ },
+ "web.users.title": {
+  "en": "Users",
+  "ckb": "بەکارهێنەران",
+  "ar": "المستخدمون",
+  "fa": "کاربران"
+ },
+ "web.users.email": {
+  "en": "Email",
+  "ckb": "ئیمەیڵ",
+  "ar": "البريد الإلكتروني",
+  "fa": "ایمیل"
+ },
+ "web.users.roles": {
+  "en": "Roles",
+  "ckb": "ڕۆڵەکان",
+  "ar": "الأدوار",
+  "fa": "نقش‌ها"
+ },
+ "web.users.team": {
+  "en": "Team",
+  "ckb": "تیم",
+  "ar": "الفريق",
+  "fa": "تیم"
+ },
+ "web.users.sessions": {
+  "en": "Active sessions",
+  "ckb": "دانیشتنە چالاکەکان",
+  "ar": "الجلسات النشطة",
+  "fa": "نشست‌های فعال"
+ },
+ "web.users.endSessions": {
+  "en": "End sessions",
+  "ckb": "کۆتاییهێنان بە دانیشتنەکان",
+  "ar": "إنهاء الجلسات",
+  "fa": "پایان نشست‌ها"
+ },
+ "web.users.confirmEnd": {
+  "en": "End every session of {user}? They must sign in again.",
+  "ckb": "هەموو دانیشتنەکانی {user} کۆتایی پێ بهێنرێت؟ دەبێت دووبارە بچێتە ژوورەوە.",
+  "ar": "إنهاء جميع جلسات {user}؟ سيتعين عليه تسجيل الدخول مجددًا.",
+  "fa": "همهٔ نشست‌های {user} پایان یابد؟ باید دوباره وارد شود."
+ },
+ "web.users.roleFor": {
+  "en": "Role for {user}",
+  "ckb": "ڕۆڵ بۆ {user}",
+  "ar": "دور لـ {user}",
+  "fa": "نقش برای {user}"
+ },
+ "web.users.addRole": {
+  "en": "Add role…",
+  "ckb": "زیادکردنی ڕۆڵ…",
+  "ar": "إضافة دور…",
+  "fa": "افزودن نقش…"
+ },
+ "web.devices.title": {
+  "en": "Devices",
+  "ckb": "ئامێرەکان",
+  "ar": "الأجهزة",
+  "fa": "دستگاه‌ها"
+ },
+ "web.devices.show": {
+  "en": "Show",
+  "ckb": "پیشاندان",
+  "ar": "عرض",
+  "fa": "نمایش"
+ },
+ "web.devices.pending": {
+  "en": "Waiting for approval",
+  "ckb": "چاوەڕێی پەسەندکردن",
+  "ar": "بانتظار الموافقة",
+  "fa": "در انتظار تأیید"
+ },
+ "web.devices.approved": {
+  "en": "Approved",
+  "ckb": "پەسەندکراو",
+  "ar": "معتمد",
+  "fa": "تأییدشده"
+ },
+ "web.devices.blocked": {
+  "en": "Blocked",
+  "ckb": "بلۆککراو",
+  "ar": "محظور",
+  "fa": "مسدود"
+ },
+ "web.devices.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.devices.none": {
+  "en": "No devices.",
+  "ckb": "هیچ ئامێرێک نییە.",
+  "ar": "لا توجد أجهزة.",
+  "fa": "دستگاهی نیست."
+ },
+ "web.devices.user": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.devices.device": {
+  "en": "Device",
+  "ckb": "ئامێر",
+  "ar": "الجهاز",
+  "fa": "دستگاه"
+ },
+ "web.devices.app": {
+  "en": "App",
+  "ckb": "ئەپ",
+  "ar": "التطبيق",
+  "fa": "برنامه"
+ },
+ "web.devices.registered": {
+  "en": "Registered",
+  "ckb": "کاتی تۆمارکردن",
+  "ar": "تاريخ التسجيل",
+  "fa": "زمان ثبت"
+ },
+ "web.devices.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.devices.confirmBlock": {
+  "en": "Block {device} of {user}? Its sessions end now.",
+  "ckb": "{device}ی {user} بلۆک بکرێت؟ دانیشتنەکانی ئێستا کۆتاییان دێت.",
+  "ar": "حظر {device} الخاص بـ {user}؟ ستنتهي جلساته الآن.",
+  "fa": "{device} متعلق به {user} مسدود شود؟ نشست‌هایش همین حالا پایان می‌یابد."
+ },
+ "web.customers.pendingTitle": {
+  "en": "Customers waiting for approval",
+  "ckb": "کڕیارانی چاوەڕێی پەسەندکردن",
+  "ar": "عملاء بانتظار الموافقة",
+  "fa": "مشتریان در انتظار تأیید"
+ },
+ "web.customers.nothingWaiting": {
+  "en": "Nothing waiting.",
+  "ckb": "هیچ شتێک چاوەڕێ ناکات.",
+  "ar": "لا شيء بالانتظار.",
+  "fa": "موردی در انتظار نیست."
+ },
+ "web.customers.noteFor": {
+  "en": "Note for {code}",
+  "ckb": "تێبینی بۆ {code}",
+  "ar": "ملاحظة لـ {code}",
+  "fa": "یادداشت برای {code}"
+ },
+ "web.customers.notePlaceholder": {
+  "en": "Note (required to reject)",
+  "ckb": "تێبینی (بۆ ڕەتکردنەوە پێویستە)",
+  "ar": "ملاحظة (مطلوبة للرفض)",
+  "fa": "یادداشت (برای رد لازم است)"
+ },
+ "web.customers.rejectNeedsNote": {
+  "en": "Write a reason before rejecting.",
+  "ckb": "پێش ڕەتکردنەوە هۆکارێک بنووسە.",
+  "ar": "اكتب سببًا قبل الرفض.",
+  "fa": "پیش از رد، دلیلی بنویسید."
+ },
+ "web.customers.title": {
+  "en": "Customers",
+  "ckb": "کڕیاران",
+  "ar": "العملاء",
+  "fa": "مشتریان"
+ },
+ "web.customers.code": {
+  "en": "Code",
+  "ckb": "کۆد",
+  "ar": "الرمز",
+  "fa": "کد"
+ },
+ "web.customers.name": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.customers.type": {
+  "en": "Type",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.customers.approval": {
+  "en": "Approval",
+  "ckb": "پەسەندکردن",
+  "ar": "الموافقة",
+  "fa": "تأیید"
+ },
+ "web.approval.approved": {
+  "en": "approved",
+  "ckb": "پەسەندکراو",
+  "ar": "معتمد",
+  "fa": "تأییدشده"
+ },
+ "web.approval.pending": {
+  "en": "pending",
+  "ckb": "چاوەڕێ",
+  "ar": "قيد الانتظار",
+  "fa": "در انتظار"
+ },
+ "web.approval.rejected": {
+  "en": "rejected",
+  "ckb": "ڕەتکراوە",
+  "ar": "مرفوض",
+  "fa": "ردشده"
+ },
+ "web.visits.title": {
+  "en": "Visit plan",
+  "ckb": "پلانی سەردان",
+  "ar": "خطة الزيارات",
+  "fa": "برنامهٔ ویزیت"
+ },
+ "web.visits.planDate": {
+  "en": "Plan date",
+  "ckb": "بەرواری پلان",
+  "ar": "تاريخ الخطة",
+  "fa": "تاریخ برنامه"
+ },
+ "web.visits.none": {
+  "en": "No visits on this day.",
+  "ckb": "لەم ڕۆژەدا هیچ سەردانێک نییە.",
+  "ar": "لا توجد زيارات في هذا اليوم.",
+  "fa": "در این روز ویزیتی نیست."
+ },
+ "web.visits.time": {
+  "en": "Time",
+  "ckb": "کات",
+  "ar": "الوقت",
+  "fa": "زمان"
+ },
+ "web.visits.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.visits.assignee": {
+  "en": "Assignee",
+  "ckb": "بەرپرسیار",
+  "ar": "المكلَّف",
+  "fa": "مسئول"
+ },
+ "web.visits.type": {
+  "en": "Type",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.visits.priority": {
+  "en": "Priority",
+  "ckb": "گرنگی",
+  "ar": "الأولوية",
+  "fa": "اولویت"
+ },
+ "web.visits.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.visits.reassignTo": {
+  "en": "Reassign to…",
+  "ckb": "گواستنەوە بۆ…",
+  "ar": "إعادة التعيين إلى…",
+  "fa": "واگذاری به…"
+ },
+ "web.visits.reassign": {
+  "en": "Reassign",
+  "ckb": "گواستنەوە",
+  "ar": "إعادة التعيين",
+  "fa": "واگذاری"
+ },
+ "web.visits.newAssigneeFor": {
+  "en": "New assignee for {customer}",
+  "ckb": "بەرپرسیاری نوێ بۆ {customer}",
+  "ar": "مكلَّف جديد لـ {customer}",
+  "fa": "مسئول جدید برای {customer}"
+ },
+ "web.visits.cancel": {
+  "en": "Cancel",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "لغو"
+ },
+ "web.visits.cancelPrompt": {
+  "en": "Reason for cancelling the visit to {customer}?",
+  "ckb": "هۆکاری هەڵوەشاندنەوەی سەردان بۆ {customer}؟",
+  "ar": "سبب إلغاء الزيارة إلى {customer}؟",
+  "fa": "دلیل لغو ویزیت {customer}؟"
+ },
+ "web.visits.newVisit": {
+  "en": "New visit on {date}",
+  "ckb": "سەردانی نوێ لە {date}",
+  "ar": "زيارة جديدة في {date}",
+  "fa": "ویزیت جدید در {date}"
+ },
+ "web.visits.chooseAssignee": {
+  "en": "Assignee…",
+  "ckb": "بەرپرسیار…",
+  "ar": "المكلَّف…",
+  "fa": "مسئول…"
+ },
+ "web.visits.chooseCustomer": {
+  "en": "Customer…",
+  "ckb": "کڕیار…",
+  "ar": "العميل…",
+  "fa": "مشتری…"
+ },
+ "web.visits.visitType": {
+  "en": "Visit type",
+  "ckb": "جۆری سەردان",
+  "ar": "نوع الزيارة",
+  "fa": "نوع ویزیت"
+ },
+ "web.visits.plannedTime": {
+  "en": "Planned time",
+  "ckb": "کاتی دیاریکراو",
+  "ar": "الوقت المخطط",
+  "fa": "زمان برنامه‌ریزی‌شده"
+ },
+ "web.visits.create": {
+  "en": "Create visit",
+  "ckb": "دروستکردنی سەردان",
+  "ar": "إنشاء زيارة",
+  "fa": "ایجاد ویزیت"
+ },
+ "web.visitType.pharmacy": {
+  "en": "pharmacy",
+  "ckb": "دەرمانخانە",
+  "ar": "صيدلية",
+  "fa": "داروخانه"
+ },
+ "web.visitType.doctor": {
+  "en": "doctor",
+  "ckb": "پزیشک",
+  "ar": "طبيب",
+  "fa": "پزشک"
+ },
+ "web.visitType.wholesaler": {
+  "en": "wholesaler",
+  "ckb": "کۆفرۆش",
+  "ar": "تاجر جملة",
+  "fa": "عمده‌فروش"
+ },
+ "web.visitType.other": {
+  "en": "other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "web.priority.high": {
+  "en": "high",
+  "ckb": "بەرز",
+  "ar": "عالية",
+  "fa": "بالا"
+ },
+ "web.priority.normal": {
+  "en": "normal",
+  "ckb": "ئاسایی",
+  "ar": "عادية",
+  "fa": "عادی"
+ },
+ "web.priority.low": {
+  "en": "low",
+  "ckb": "نزم",
+  "ar": "منخفضة",
+  "fa": "پایین"
+ },
+ "web.visitStatus.Planned": {
+  "en": "Planned",
+  "ckb": "پلان بۆ دانراو",
+  "ar": "مخططة",
+  "fa": "برنامه‌ریزی‌شده"
+ },
+ "web.visitStatus.EnRoute": {
+  "en": "On the way",
+  "ckb": "لە ڕێگادایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "web.visitStatus.Arrived": {
+  "en": "Arrived",
+  "ckb": "گەیشتووە",
+  "ar": "وصل",
+  "fa": "رسیده"
+ },
+ "web.visitStatus.InVisit": {
+  "en": "In visit",
+  "ckb": "لە سەرداندایە",
+  "ar": "في الزيارة",
+  "fa": "در حال ویزیت"
+ },
+ "web.visitStatus.Completed": {
+  "en": "Completed",
+  "ckb": "تەواوبوو",
+  "ar": "مكتملة",
+  "fa": "انجام‌شده"
+ },
+ "web.visitStatus.Failed": {
+  "en": "Failed",
+  "ckb": "سەرنەکەوتوو",
+  "ar": "فاشلة",
+  "fa": "ناموفق"
+ },
+ "web.visitStatus.Cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغاة",
+  "fa": "لغوشده"
+ },
+ "web.regions.title": {
+  "en": "Regions",
+  "ckb": "ناوچەکان",
+  "ar": "المناطق",
+  "fa": "مناطق"
+ },
+ "web.regions.newName": {
+  "en": "New region name",
+  "ckb": "ناوی ناوچەی نوێ",
+  "ar": "اسم المنطقة الجديدة",
+  "fa": "نام منطقهٔ جدید"
+ },
+ "web.regions.namePlaceholder": {
+  "en": "Region name",
+  "ckb": "ناوی ناوچە",
+  "ar": "اسم المنطقة",
+  "fa": "نام منطقه"
+ },
+ "web.regions.add": {
+  "en": "Add region",
+  "ckb": "زیادکردنی ناوچە",
+  "ar": "إضافة منطقة",
+  "fa": "افزودن منطقه"
+ },
+ "web.teams.title": {
+  "en": "Teams",
+  "ckb": "تیمەکان",
+  "ar": "الفرق",
+  "fa": "تیم‌ها"
+ },
+ "web.teams.regionOf": {
+  "en": "Region of {team}",
+  "ckb": "ناوچەی {team}",
+  "ar": "منطقة {team}",
+  "fa": "منطقهٔ {team}"
+ },
+ "web.teams.removeFrom": {
+  "en": "Remove {user} from {team}",
+  "ckb": "لابردنی {user} لە {team}",
+  "ar": "إزالة {user} من {team}",
+  "fa": "حذف {user} از {team}"
+ },
+ "web.teams.addMemberTo": {
+  "en": "Add member to {team}",
+  "ckb": "زیادکردنی ئەندام بۆ {team}",
+  "ar": "إضافة عضو إلى {team}",
+  "fa": "افزودن عضو به {team}"
+ },
+ "web.teams.addMember": {
+  "en": "Add member…",
+  "ckb": "زیادکردنی ئەندام…",
+  "ar": "إضافة عضو…",
+  "fa": "افزودن عضو…"
+ },
+ "web.teams.nowIn": {
+  "en": " (now {team})",
+  "ckb": " (ئێستا لە {team})",
+  "ar": " (حاليًا في {team})",
+  "fa": " (اکنون در {team})"
+ },
+ "web.teams.newName": {
+  "en": "New team name",
+  "ckb": "ناوی تیمی نوێ",
+  "ar": "اسم الفريق الجديد",
+  "fa": "نام تیم جدید"
+ },
+ "web.teams.namePlaceholder": {
+  "en": "Team name",
+  "ckb": "ناوی تیم",
+  "ar": "اسم الفريق",
+  "fa": "نام تیم"
+ },
+ "web.teams.regionOfNew": {
+  "en": "Region of the new team",
+  "ckb": "ناوچەی تیمە نوێیەکە",
+  "ar": "منطقة الفريق الجديد",
+  "fa": "منطقهٔ تیم جدید"
+ },
+ "web.teams.chooseRegion": {
+  "en": "Region…",
+  "ckb": "ناوچە…",
+  "ar": "المنطقة…",
+  "fa": "منطقه…"
+ },
+ "web.teams.add": {
+  "en": "Add team",
+  "ckb": "زیادکردنی تیم",
+  "ar": "إضافة فريق",
+  "fa": "افزودن تیم"
+ },
+ "web.map.title": {
+  "en": "Live map",
+  "ckb": "نەخشەی ڕاستەوخۆ",
+  "ar": "الخريطة المباشرة",
+  "fa": "نقشهٔ زنده"
+ },
+ "web.map.statusOnly": {
+  "en": "Positions are not shown for your role; status only.",
+  "ckb": "شوێنەکان بۆ ڕۆڵی تۆ پیشان نادرێن؛ تەنها دۆخ.",
+  "ar": "لا تُعرض المواقع لدورك؛ الحالة فقط.",
+  "fa": "موقعیت‌ها برای نقش شما نمایش داده نمی‌شود؛ فقط وضعیت."
+ },
+ "web.map.nobody": {
+  "en": "Nobody is on shift.",
+  "ckb": "کەس لە دەوامدا نییە.",
+  "ar": "لا أحد في المناوبة.",
+  "fa": "کسی در شیفت نیست."
+ },
+ "web.map.user": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.map.team": {
+  "en": "Team",
+  "ckb": "تیم",
+  "ar": "الفريق",
+  "fa": "تیم"
+ },
+ "web.map.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.map.lastUpdate": {
+  "en": "Last update",
+  "ckb": "دوایین نوێکردنەوە",
+  "ar": "آخر تحديث",
+  "fa": "آخرین به‌روزرسانی"
+ },
+ "web.map.shiftStarted": {
+  "en": "Shift started",
+  "ckb": "دەستپێکی دەوام",
+  "ar": "بداية المناوبة",
+  "fa": "شروع شیفت"
+ },
+ "web.map.lastCustomer": {
+  "en": "Last customer",
+  "ckb": "دوایین کڕیار",
+  "ar": "آخر عميل",
+  "fa": "آخرین مشتری"
+ },
+ "web.map.mock": {
+  "en": "mock location",
+  "ckb": "شوێنی ساختە",
+  "ar": "موقع مزيّف",
+  "fa": "موقعیت جعلی"
+ },
+ "web.map.live": {
+  "en": "Live",
+  "ckb": "ڕاستەوخۆ",
+  "ar": "مباشر",
+  "fa": "زنده"
+ },
+ "web.map.stale": {
+  "en": "Not live (last update {minutes} min ago)",
+  "ckb": "ڕاستەوخۆ نییە (دوایین نوێکردنەوە {minutes} خولەک لەمەوبەر)",
+  "ar": "غير مباشر (آخر تحديث قبل {minutes} دقيقة)",
+  "fa": "زنده نیست (آخرین به‌روزرسانی {minutes} دقیقه پیش)"
+ },
+ "web.map.noPosition": {
+  "en": "No position yet",
+  "ckb": "هێشتا شوێن نییە",
+  "ar": "لا يوجد موقع بعد",
+  "fa": "هنوز موقعیتی نیست"
+ },
+ "web.map.notLive": {
+  "en": " (not live)",
+  "ckb": " (ڕاستەوخۆ نییە)",
+  "ar": " (غير مباشر)",
+  "fa": " (زنده نیست)"
+ },
+ "web.audit.title": {
+  "en": "Audit log",
+  "ckb": "تۆماری چالاکییەکان",
+  "ar": "سجل التدقيق",
+  "fa": "گزارش رویدادها"
+ },
+ "web.audit.action": {
+  "en": "Action",
+  "ckb": "کردار",
+  "ar": "الإجراء",
+  "fa": "عملیات"
+ },
+ "web.audit.actorId": {
+  "en": "Actor id",
+  "ckb": "ناسنامەی بکەر",
+  "ar": "معرّف المنفّذ",
+  "fa": "شناسهٔ انجام‌دهنده"
+ },
+ "web.audit.entityId": {
+  "en": "Entity id",
+  "ckb": "ناسنامەی بابەت",
+  "ar": "معرّف الكيان",
+  "fa": "شناسهٔ موجودیت"
+ },
+ "web.audit.fromDate": {
+  "en": "From date",
+  "ckb": "لە بەرواری",
+  "ar": "من تاريخ",
+  "fa": "از تاریخ"
+ },
+ "web.audit.toDate": {
+  "en": "To date",
+  "ckb": "تا بەرواری",
+  "ar": "إلى تاريخ",
+  "fa": "تا تاریخ"
+ },
+ "web.audit.none": {
+  "en": "No entries.",
+  "ckb": "هیچ تۆمارێک نییە.",
+  "ar": "لا توجد سجلات.",
+  "fa": "رکوردی نیست."
+ },
+ "web.audit.time": {
+  "en": "Time (Baghdad)",
+  "ckb": "کات (بەغدا)",
+  "ar": "الوقت (بغداد)",
+  "fa": "زمان (بغداد)"
+ },
+ "web.audit.actor": {
+  "en": "Actor",
+  "ckb": "بکەر",
+  "ar": "المنفّذ",
+  "fa": "انجام‌دهنده"
+ },
+ "web.audit.entity": {
+  "en": "Entity",
+  "ckb": "بابەت",
+  "ar": "الكيان",
+  "fa": "موجودیت"
+ },
+ "web.audit.onlyActor": {
+  "en": "Show only this actor",
+  "ckb": "تەنها ئەم بکەرە پیشان بدە",
+  "ar": "عرض هذا المنفّذ فقط",
+  "fa": "فقط همین انجام‌دهنده"
+ },
+ "web.audit.dateOrder": {
+  "en": "The start date is after the end date.",
+  "ckb": "بەرواری دەستپێک دوای بەرواری کۆتاییە.",
+  "ar": "تاريخ البداية بعد تاريخ النهاية.",
+  "fa": "تاریخ شروع بعد از تاریخ پایان است."
+ },
+ "app.language": {
+  "en": "Language",
+  "ckb": "زمان",
+  "ar": "اللغة",
+  "fa": "زبان"
+ },
+ "app.loading": {
+  "en": "Loading…",
+  "ckb": "بارکردن…",
+  "ar": "جارٍ التحميل…",
+  "fa": "در حال بارگذاری…"
+ },
+ "app.tryAgain": {
+  "en": "Try again",
+  "ckb": "دووبارە هەوڵ بدەرەوە",
+  "ar": "حاول مرة أخرى",
+  "fa": "تلاش دوباره"
+ },
+ "app.yes": {
+  "en": "Yes",
+  "ckb": "بەڵێ",
+  "ar": "نعم",
+  "fa": "بله"
+ },
+ "app.no": {
+  "en": "No",
+  "ckb": "نەخێر",
+  "ar": "لا",
+  "fa": "خیر"
+ },
+ "app.cancel": {
+  "en": "Cancel",
+  "ckb": "پاشگەزبوونەوە",
+  "ar": "إلغاء",
+  "fa": "انصراف"
+ },
+ "app.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "app.sessionEnded": {
+  "en": "Your session has ended. Please log in again.",
+  "ckb": "دانیشتنەکەت کۆتایی هات. تکایە دووبارە بچۆ ژوورەوە.",
+  "ar": "انتهت جلستك. يرجى تسجيل الدخول مجددًا.",
+  "fa": "نشست شما به پایان رسید. لطفاً دوباره وارد شوید."
+ },
+ "app.unexpected": {
+  "en": "Something unexpected happened. Try again.",
+  "ckb": "هەڵەیەکی چاوەڕواننەکراو ڕوویدا. دووبارە هەوڵ بدەرەوە.",
+  "ar": "حدث خطأ غير متوقع. حاول مرة أخرى.",
+  "fa": "خطای پیش‌بینی‌نشده‌ای رخ داد. دوباره تلاش کنید."
+ },
+ "app.timeout": {
+  "en": "The server did not answer in time. Try again.",
+  "ckb": "سێرڤەر لە کاتی خۆیدا وەڵامی نەدایەوە. دووبارە هەوڵ بدەرەوە.",
+  "ar": "لم يستجب الخادم في الوقت المحدد. حاول مرة أخرى.",
+  "fa": "سرور به‌موقع پاسخ نداد. دوباره تلاش کنید."
+ },
+ "app.login.apiUrl": {
+  "en": "Server address",
+  "ckb": "ناونیشانی سێرڤەر",
+  "ar": "عنوان الخادم",
+  "fa": "نشانی سرور"
+ },
+ "app.login.tenant": {
+  "en": "Company code",
+  "ckb": "کۆدی کۆمپانیا",
+  "ar": "رمز الشركة",
+  "fa": "کد شرکت"
+ },
+ "app.login.email": {
+  "en": "Email",
+  "ckb": "ئیمەیڵ",
+  "ar": "البريد الإلكتروني",
+  "fa": "ایمیل"
+ },
+ "app.login.password": {
+  "en": "Password",
+  "ckb": "وشەی نهێنی",
+  "ar": "كلمة المرور",
+  "fa": "رمز عبور"
+ },
+ "app.login.deviceLabel": {
+  "en": "Phone name",
+  "ckb": "ناوی مۆبایل",
+  "ar": "اسم الهاتف",
+  "fa": "نام گوشی"
+ },
+ "app.login.register": {
+  "en": "Register this phone",
+  "ckb": "تۆمارکردنی ئەم مۆبایلە",
+  "ar": "تسجيل هذا الهاتف",
+  "fa": "ثبت این گوشی"
+ },
+ "app.login.submit": {
+  "en": "Log in",
+  "ckb": "چوونەژوورەوە",
+  "ar": "تسجيل الدخول",
+  "fa": "ورود"
+ },
+ "app.login.checking": {
+  "en": "Checking…",
+  "ckb": "پشکنین…",
+  "ar": "جارٍ التحقق…",
+  "fa": "در حال بررسی…"
+ },
+ "app.login.storageMissing": {
+  "en": "This phone's secure storage is not available.",
+  "ckb": "بیرگەی پارێزراوی ئەم مۆبایلە بەردەست نییە.",
+  "ar": "التخزين الآمن لهذا الهاتف غير متاح.",
+  "fa": "فضای امن این گوشی در دسترس نیست."
+ },
+ "app.login.registered": {
+  "en": "This phone is registered (ID {id}).",
+  "ckb": "ئەم مۆبایلە تۆمار کراوە (ناسنامە {id}).",
+  "ar": "هذا الهاتف مسجّل (المعرّف {id}).",
+  "fa": "این گوشی ثبت شده است (شناسه {id})."
+ },
+ "app.login.notRegistered": {
+  "en": "This phone is not registered yet.",
+  "ckb": "ئەم مۆبایلە هێشتا تۆمار نەکراوە.",
+  "ar": "هذا الهاتف غير مسجّل بعد.",
+  "fa": "این گوشی هنوز ثبت نشده است."
+ },
+ "app.login.signedIn": {
+  "en": "Signed in.",
+  "ckb": "چوویتە ژوورەوە.",
+  "ar": "تم تسجيل الدخول.",
+  "fa": "وارد شده‌اید."
+ },
+ "app.login.notSignedIn": {
+  "en": "Not signed in.",
+  "ckb": "نەچوویتە ژوورەوە.",
+  "ar": "لم يتم تسجيل الدخول.",
+  "fa": "وارد نشده‌اید."
+ },
+ "app.login.storageError": {
+  "en": "The phone's saved data could not be read.",
+  "ckb": "زانیارییە پاشەکەوتکراوەکانی مۆبایل نەخوێندرانەوە.",
+  "ar": "تعذّرت قراءة البيانات المحفوظة في الهاتف.",
+  "fa": "داده‌های ذخیره‌شدهٔ گوشی خوانده نشد."
+ },
+ "app.login.urlRequired": {
+  "en": "Enter the server address.",
+  "ckb": "ناونیشانی سێرڤەر بنووسە.",
+  "ar": "أدخل عنوان الخادم.",
+  "fa": "نشانی سرور را وارد کنید."
+ },
+ "app.login.httpNotAllowed": {
+  "en": "An insecure (http) address is not allowed.",
+  "ckb": "ناونیشانی نائەمین (http) ڕێگەپێدراو نییە.",
+  "ar": "العنوان غير الآمن (http) غير مسموح.",
+  "fa": "نشانی ناامن (http) مجاز نیست."
+ },
+ "app.login.registering": {
+  "en": "Registering…",
+  "ckb": "تۆمارکردن…",
+  "ar": "جارٍ التسجيل…",
+  "fa": "در حال ثبت…"
+ },
+ "app.login.registerDone": {
+  "en": "Phone registered. Wait until your manager approves it.",
+  "ckb": "مۆبایلەکە تۆمار کرا. چاوەڕێ بکە تا بەڕێوەبەرەکەت پەسەندی دەکات.",
+  "ar": "تم تسجيل الهاتف. انتظر حتى يوافق عليه مديرك.",
+  "fa": "گوشی ثبت شد. صبر کنید تا مدیرتان آن را تأیید کند."
+ },
+ "app.login.loggingIn": {
+  "en": "Logging in…",
+  "ckb": "چوونەژوورەوە…",
+  "ar": "جارٍ تسجيل الدخول…",
+  "fa": "در حال ورود…"
+ },
+ "app.auth.InvalidCredentials": {
+  "en": "Wrong company code, email or password.",
+  "ckb": "کۆدی کۆمپانیا، ئیمەیڵ یان وشەی نهێنی هەڵەیە.",
+  "ar": "رمز الشركة أو البريد الإلكتروني أو كلمة المرور غير صحيح.",
+  "fa": "کد شرکت، ایمیل یا رمز عبور اشتباه است."
+ },
+ "app.auth.DeviceNotApproved": {
+  "en": "This phone is not approved yet. Ask your manager.",
+  "ckb": "ئەم مۆبایلە هێشتا پەسەند نەکراوە. لە بەڕێوەبەرەکەت بپرسە.",
+  "ar": "هذا الهاتف غير معتمد بعد. راجع مديرك.",
+  "fa": "این گوشی هنوز تأیید نشده است. از مدیرتان بپرسید."
+ },
+ "app.auth.Conflict": {
+  "en": "This phone is already registered.",
+  "ckb": "ئەم مۆبایلە پێشتر تۆمار کراوە.",
+  "ar": "هذا الهاتف مسجّل مسبقًا.",
+  "fa": "این گوشی قبلاً ثبت شده است."
+ },
+ "app.auth.Forbidden": {
+  "en": "This account cannot do this from this phone.",
+  "ckb": "ئەم هەژمارە ناتوانێت ئەم کارە لەم مۆبایلەوە بکات.",
+  "ar": "لا يمكن لهذا الحساب القيام بذلك من هذا الهاتف.",
+  "fa": "این حساب نمی‌تواند این کار را از این گوشی انجام دهد."
+ },
+ "app.auth.BadRequest": {
+  "en": "Some fields are empty or wrong.",
+  "ckb": "هەندێک خانە بەتاڵن یان هەڵەن.",
+  "ar": "بعض الحقول فارغة أو غير صحيحة.",
+  "fa": "برخی فیلدها خالی یا نادرست است."
+ },
+ "app.auth.Unauthorized": {
+  "en": "Your session has ended. Please log in again.",
+  "ckb": "دانیشتنەکەت کۆتایی هات. تکایە دووبارە بچۆ ژوورەوە.",
+  "ar": "انتهت جلستك. يرجى تسجيل الدخول مجددًا.",
+  "fa": "نشست شما به پایان رسید. لطفاً دوباره وارد شوید."
+ },
+ "app.auth.NetworkOrServerError": {
+  "en": "No connection to the server. Try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. حاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. دوباره تلاش کنید."
+ },
+ "app.auth.LocalStateError": {
+  "en": "Data saved on this phone could not be used. Try again.",
+  "ckb": "زانیارییە پاشەکەوتکراوەکانی ئەم مۆبایلە بەکارنایەن. دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر استخدام البيانات المحفوظة في هذا الهاتف. حاول مرة أخرى.",
+  "fa": "داده‌های ذخیره‌شده در این گوشی قابل استفاده نیست. دوباره تلاش کنید."
+ },
+ "app.home.title": {
+  "en": "Home",
+  "ckb": "سەرەکی",
+  "ar": "الرئيسية",
+  "fa": "خانه"
+ },
+ "app.home.welcome": {
+  "en": "Welcome to LifeDrop",
+  "ckb": "بەخێربێیت بۆ LifeDrop",
+  "ar": "مرحبًا بك في LifeDrop",
+  "fa": "به LifeDrop خوش آمدید"
+ },
+ "app.home.shiftOff": {
+  "en": "Shift: off",
+  "ckb": "دەوام: ناچالاک",
+  "ar": "المناوبة: متوقفة",
+  "fa": "شیفت: خاموش"
+ },
+ "app.home.shiftOn": {
+  "en": "Shift: on since {time}",
+  "ckb": "دەوام: چالاکە لە کاتژمێر {time}ەوە",
+  "ar": "المناوبة: مفعّلة منذ {time}",
+  "fa": "شیفت: روشن از {time}"
+ },
+ "app.home.startShift": {
+  "en": "Start shift",
+  "ckb": "دەستپێکردنی دەوام",
+  "ar": "بدء المناوبة",
+  "fa": "شروع شیفت"
+ },
+ "app.home.endShift": {
+  "en": "End shift",
+  "ckb": "کۆتاییهێنان بە دەوام",
+  "ar": "إنهاء المناوبة",
+  "fa": "پایان شیفت"
+ },
+ "app.home.plan": {
+  "en": "Today's plan",
+  "ckb": "پلانی ئەمڕۆ",
+  "ar": "خطة اليوم",
+  "fa": "برنامهٔ امروز"
+ },
+ "app.home.logout": {
+  "en": "Log out",
+  "ckb": "چوونەدەرەوە",
+  "ar": "تسجيل الخروج",
+  "fa": "خروج"
+ },
+ "app.home.trackingUnavailable": {
+  "en": "Tracking is not available on this device.",
+  "ckb": "بەدواداچوونی شوێن لەم ئامێرەدا بەردەست نییە.",
+  "ar": "التتبع غير متاح على هذا الجهاز.",
+  "fa": "ردیابی روی این دستگاه در دسترس نیست."
+ },
+ "app.home.locationNeeded": {
+  "en": "Location permission is needed to start a shift.",
+  "ckb": "بۆ دەستپێکردنی دەوام ڕێگەپێدانی شوێن پێویستە.",
+  "ar": "يلزم إذن الموقع لبدء المناوبة.",
+  "fa": "برای شروع شیفت اجازهٔ موقعیت لازم است."
+ },
+ "app.home.endShiftQuestion": {
+  "en": "Stop tracking and end your shift?",
+  "ckb": "بەدواداچوونی شوێن ڕابگیرێت و کۆتایی بە دەوامەکەت بهێنیت؟",
+  "ar": "إيقاف التتبع وإنهاء مناوبتك؟",
+  "fa": "ردیابی متوقف و شیفت شما تمام شود؟"
+ },
+ "app.home.points": {
+  "en": "Points — on the phone: {local} · sent: {sent} · accepted: {accepted} · rejected: {rejected}",
+  "ckb": "خاڵەکان — لەسەر مۆبایل: {local} · نێردراو: {sent} · وەرگیراو: {accepted} · ڕەتکراوە: {rejected}",
+  "ar": "النقاط — على الهاتف: {local} · مُرسلة: {sent} · مقبولة: {accepted} · مرفوضة: {rejected}",
+  "fa": "نقاط — روی گوشی: {local} · ارسال‌شده: {sent} · پذیرفته: {accepted} · ردشده: {rejected}"
+ },
+ "app.home.steps": {
+  "en": "Visit steps — on the phone: {local} · sent: {sent} · accepted: {accepted} · rejected: {rejected}",
+  "ckb": "هەنگاوەکانی سەردان — لەسەر مۆبایل: {local} · نێردراو: {sent} · وەرگیراو: {accepted} · ڕەتکراوە: {rejected}",
+  "ar": "خطوات الزيارة — على الهاتف: {local} · مُرسلة: {sent} · مقبولة: {accepted} · مرفوضة: {rejected}",
+  "fa": "مراحل ویزیت — روی گوشی: {local} · ارسال‌شده: {sent} · پذیرفته: {accepted} · ردشده: {rejected}"
+ },
+ "app.shift.deviceRequired": {
+  "en": "This phone is not an approved device for your account.",
+  "ckb": "ئەم مۆبایلە ئامێرێکی پەسەندکراو نییە بۆ هەژمارەکەت.",
+  "ar": "هذا الهاتف ليس جهازًا معتمدًا لحسابك.",
+  "fa": "این گوشی دستگاه تأییدشدهٔ حساب شما نیست."
+ },
+ "app.shift.network": {
+  "en": "No connection to the server. Try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. حاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. دوباره تلاش کنید."
+ },
+ "app.shift.server": {
+  "en": "The server could not change the shift. Try again later.",
+  "ckb": "سێرڤەر نەیتوانی دەوامەکە بگۆڕێت. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر على الخادم تغيير المناوبة. حاول لاحقًا.",
+  "fa": "سرور نتوانست شیفت را تغییر دهد. بعداً تلاش کنید."
+ },
+ "app.home.logoutUnsent": {
+  "en": "{count} items saved on this phone have not reached the server yet and will be lost. Log out anyway?",
+  "ckb": "{count} تۆمار لەسەر ئەم مۆبایلە هێشتا نەگەیشتوونەتە سێرڤەر و لەناو دەچن. هەر دەچیتە دەرەوە؟",
+  "ar": "{count} عنصرًا محفوظًا على هذا الهاتف لم يصل إلى الخادم بعد وسيُفقد. هل تريد الخروج رغم ذلك؟",
+  "fa": "{count} مورد ذخیره‌شده روی این گوشی هنوز به سرور نرسیده و از بین می‌رود. باز هم خارج می‌شوید؟"
+ },
+ "app.home.logoutQuestion": {
+  "en": "Are you sure you want to log out?",
+  "ckb": "دڵنیایت دەتەوێت بچیتە دەرەوە؟",
+  "ar": "هل أنت متأكد أنك تريد تسجيل الخروج؟",
+  "fa": "آیا مطمئن هستید که می‌خواهید خارج شوید؟"
+ },
+ "app.home.loggingOut": {
+  "en": "Logging out…",
+  "ckb": "چوونەدەرەوە…",
+  "ar": "جارٍ تسجيل الخروج…",
+  "fa": "در حال خروج…"
+ },
+ "app.home.urlMissing": {
+  "en": "The server address is not set.",
+  "ckb": "ناونیشانی سێرڤەر دیاری نەکراوە.",
+  "ar": "عنوان الخادم غير محدد.",
+  "fa": "نشانی سرور تنظیم نشده است."
+ },
+ "app.home.logoutFailed": {
+  "en": "Logging out did not finish. Try again.",
+  "ckb": "چوونەدەرەوە تەواو نەبوو. دووبارە هەوڵ بدەرەوە.",
+  "ar": "لم يكتمل تسجيل الخروج. حاول مرة أخرى.",
+  "fa": "خروج کامل نشد. دوباره تلاش کنید."
+ },
+ "app.plan.title": {
+  "en": "Today's plan",
+  "ckb": "پلانی ئەمڕۆ",
+  "ar": "خطة اليوم",
+  "fa": "برنامهٔ امروز"
+ },
+ "app.plan.today": {
+  "en": "Today, {date}",
+  "ckb": "ئەمڕۆ، {date}",
+  "ar": "اليوم، {date}",
+  "fa": "امروز، {date}"
+ },
+ "app.plan.empty": {
+  "en": "No visits planned for today.",
+  "ckb": "ئەمڕۆ هیچ سەردانێک پلان بۆ دانەنراوە.",
+  "ar": "لا توجد زيارات مخططة لليوم.",
+  "fa": "برای امروز ویزیتی برنامه‌ریزی نشده است."
+ },
+ "app.plan.network": {
+  "en": "No connection to the server. Check your internet and try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. ئینتەرنێتەکەت بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. اینترنت را بررسی کنید و دوباره تلاش کنید."
+ },
+ "app.plan.server": {
+  "en": "The server could not load your plan. Try again later.",
+  "ckb": "سێرڤەر نەیتوانی پلانەکەت باربکات. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر على الخادم تحميل خطتك. حاول لاحقًا.",
+  "fa": "سرور نتوانست برنامهٔ شما را بارگذاری کند. بعداً تلاش کنید."
+ },
+ "app.plan.stale": {
+  "en": "The list below may be out of date.",
+  "ckb": "لەوانەیە لیستی خوارەوە کۆن بێت.",
+  "ar": "قد تكون القائمة أدناه قديمة.",
+  "fa": "ممکن است فهرست زیر قدیمی باشد."
+ },
+ "app.plan.highPriority": {
+  "en": "High priority",
+  "ckb": "گرنگیی بەرز",
+  "ar": "أولوية عالية",
+  "fa": "اولویت بالا"
+ },
+ "app.plan.unplanned": {
+  "en": "Unplanned",
+  "ckb": "بێ پلان",
+  "ar": "غير مخططة",
+  "fa": "بدون برنامه"
+ },
+ "app.plan.anyTime": {
+  "en": "Any time",
+  "ckb": "هەر کاتێک",
+  "ar": "أي وقت",
+  "fa": "هر زمان"
+ },
+ "app.plan.waiting": {
+  "en": "waiting to send",
+  "ckb": "چاوەڕێی ناردن",
+  "ar": "بانتظار الإرسال",
+  "fa": "در انتظار ارسال"
+ },
+ "app.status.Planned": {
+  "en": "Planned",
+  "ckb": "پلان بۆ دانراو",
+  "ar": "مخططة",
+  "fa": "برنامه‌ریزی‌شده"
+ },
+ "app.status.EnRoute": {
+  "en": "On the way",
+  "ckb": "لە ڕێگادایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "app.status.Arrived": {
+  "en": "Arrived",
+  "ckb": "گەیشتووە",
+  "ar": "وصل",
+  "fa": "رسیده"
+ },
+ "app.status.InVisit": {
+  "en": "In visit",
+  "ckb": "لە سەرداندایە",
+  "ar": "في الزيارة",
+  "fa": "در حال ویزیت"
+ },
+ "app.status.Completed": {
+  "en": "Completed",
+  "ckb": "تەواوبوو",
+  "ar": "مكتملة",
+  "fa": "انجام‌شده"
+ },
+ "app.status.Failed": {
+  "en": "Failed",
+  "ckb": "سەرنەکەوتوو",
+  "ar": "فاشلة",
+  "fa": "ناموفق"
+ },
+ "app.status.Cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغاة",
+  "fa": "لغوشده"
+ },
+ "app.type.pharmacy": {
+  "en": "Pharmacy",
+  "ckb": "دەرمانخانە",
+  "ar": "صيدلية",
+  "fa": "داروخانه"
+ },
+ "app.type.doctor": {
+  "en": "Doctor",
+  "ckb": "پزیشک",
+  "ar": "طبيب",
+  "fa": "پزشک"
+ },
+ "app.type.wholesaler": {
+  "en": "Wholesaler",
+  "ckb": "کۆفرۆش",
+  "ar": "تاجر جملة",
+  "fa": "عمده‌فروش"
+ },
+ "app.type.other": {
+  "en": "Other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "app.visit.title": {
+  "en": "Visit",
+  "ckb": "سەردان",
+  "ar": "الزيارة",
+  "fa": "ویزیت"
+ },
+ "app.visit.report": {
+  "en": "Visit report",
+  "ckb": "ڕاپۆرتی سەردان",
+  "ar": "تقرير الزيارة",
+  "fa": "گزارش ویزیت"
+ },
+ "app.visit.result": {
+  "en": "Result of the visit",
+  "ckb": "ئەنجامی سەردان",
+  "ar": "نتيجة الزيارة",
+  "fa": "نتیجهٔ ویزیت"
+ },
+ "app.visit.notePlaceholder": {
+  "en": "What happened in this visit?",
+  "ckb": "لەم سەردانەدا چی ڕوویدا؟",
+  "ar": "ماذا حدث في هذه الزيارة؟",
+  "fa": "در این ویزیت چه گذشت؟"
+ },
+ "app.visit.reportSaved": {
+  "en": "Report saved on the server.",
+  "ckb": "ڕاپۆرتەکە لە سێرڤەر پاشەکەوت کرا.",
+  "ar": "تم حفظ التقرير على الخادم.",
+  "fa": "گزارش روی سرور ذخیره شد."
+ },
+ "app.visit.submit": {
+  "en": "Save report and check out",
+  "ckb": "پاشەکەوتکردنی ڕاپۆرت و تۆمارکردنی ڕۆیشتن",
+  "ar": "حفظ التقرير وتسجيل المغادرة",
+  "fa": "ذخیرهٔ گزارش و ثبت خروج"
+ },
+ "app.visit.retryCheckOut": {
+  "en": "Try check-out again",
+  "ckb": "دووبارە هەوڵدانەوە بۆ تۆمارکردنی ڕۆیشتن",
+  "ar": "إعادة محاولة تسجيل المغادرة",
+  "fa": "تلاش دوباره برای ثبت خروج"
+ },
+ "app.visit.plannedFor": {
+  "en": "Planned for {time}",
+  "ckb": "دیاریکراو بۆ کاتژمێر {time}",
+  "ar": "مخططة الساعة {time}",
+  "fa": "برنامه‌ریزی‌شده برای {time}"
+ },
+ "app.visit.anyTimeToday": {
+  "en": "Any time today",
+  "ckb": "هەر کاتێکی ئەمڕۆ",
+  "ar": "أي وقت اليوم",
+  "fa": "هر زمانی امروز"
+ },
+ "app.visit.status": {
+  "en": "Status: {status}",
+  "ckb": "دۆخ: {status}",
+  "ar": "الحالة: {status}",
+  "fa": "وضعیت: {status}"
+ },
+ "app.visit.reason": {
+  "en": "Reason: {reason}",
+  "ckb": "هۆکار: {reason}",
+  "ar": "السبب: {reason}",
+  "fa": "دلیل: {reason}"
+ },
+ "app.outcome.products_presented": {
+  "en": "Products presented",
+  "ckb": "بەرهەمەکان ناساندران",
+  "ar": "تم عرض المنتجات",
+  "fa": "محصولات معرفی شد"
+ },
+ "app.outcome.order_intent": {
+  "en": "Customer intends to order",
+  "ckb": "کڕیار نیازی داواکردنی هەیە",
+  "ar": "العميل ينوي الطلب",
+  "fa": "مشتری قصد سفارش دارد"
+ },
+ "app.outcome.follow_up_needed": {
+  "en": "Follow-up needed",
+  "ckb": "بەدواداچوون پێویستە",
+  "ar": "تلزم متابعة",
+  "fa": "پیگیری لازم است"
+ },
+ "app.outcome.no_interest": {
+  "en": "No interest",
+  "ckb": "هیچ ئارەزوویەکی نییە",
+  "ar": "لا يوجد اهتمام",
+  "fa": "علاقه‌ای ندارد"
+ },
+ "app.outcome.other": {
+  "en": "Other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "app.step.EnRoute": {
+  "en": "Start trip",
+  "ckb": "کەوتنە ڕێ",
+  "ar": "بدء الرحلة",
+  "fa": "شروع حرکت"
+ },
+ "app.step.Arrive": {
+  "en": "Arrival",
+  "ckb": "گەیشتن",
+  "ar": "الوصول",
+  "fa": "رسیدن"
+ },
+ "app.step.CheckIn": {
+  "en": "Check-in",
+  "ckb": "تۆمارکردنی گەیشتن",
+  "ar": "تسجيل الوصول",
+  "fa": "ثبت ورود"
+ },
+ "app.step.Report": {
+  "en": "Report",
+  "ckb": "ڕاپۆرت",
+  "ar": "التقرير",
+  "fa": "گزارش"
+ },
+ "app.step.CheckOut": {
+  "en": "Check-out",
+  "ckb": "تۆمارکردنی ڕۆیشتن",
+  "ar": "تسجيل المغادرة",
+  "fa": "ثبت خروج"
+ },
+ "app.stepState.local": {
+  "en": "saved on the phone",
+  "ckb": "لەسەر مۆبایل پاشەکەوت کراوە",
+  "ar": "محفوظ على الهاتف",
+  "fa": "روی گوشی ذخیره شد"
+ },
+ "app.stepState.sent": {
+  "en": "sent, waiting for the server",
+  "ckb": "نێردرا، چاوەڕێی سێرڤەرە",
+  "ar": "أُرسل، بانتظار الخادم",
+  "fa": "ارسال شد، در انتظار سرور"
+ },
+ "app.stepState.acceptedReview": {
+  "en": "accepted, a manager will review it",
+  "ckb": "وەرگیرا، بەڕێوەبەرێک پێیدا دەچێتەوە",
+  "ar": "مقبول، وسيراجعه مدير",
+  "fa": "پذیرفته شد، مدیر آن را بررسی می‌کند"
+ },
+ "app.stepState.accepted": {
+  "en": "accepted",
+  "ckb": "وەرگیرا",
+  "ar": "مقبول",
+  "fa": "پذیرفته شد"
+ },
+ "app.stepState.rejected": {
+  "en": "rejected — {reason}",
+  "ckb": "ڕەتکرایەوە — {reason}",
+  "ar": "مرفوض — {reason}",
+  "fa": "رد شد — {reason}"
+ },
+ "app.next.StartTrip": {
+  "en": "Start trip",
+  "ckb": "کەوتنە ڕێ",
+  "ar": "بدء الرحلة",
+  "fa": "شروع حرکت"
+ },
+ "app.next.MarkArrived": {
+  "en": "I have arrived",
+  "ckb": "گەیشتم",
+  "ar": "لقد وصلت",
+  "fa": "رسیدم"
+ },
+ "app.next.CheckIn": {
+  "en": "Check in here",
+  "ckb": "لێرە گەیشتن تۆمار بکە",
+  "ar": "سجّل الوصول هنا",
+  "fa": "ثبت ورود در اینجا"
+ },
+ "app.next.ReportAndCheckOut": {
+  "en": "Save report and check out",
+  "ckb": "پاشەکەوتکردنی ڕاپۆرت و تۆمارکردنی ڕۆیشتن",
+  "ar": "حفظ التقرير وتسجيل المغادرة",
+  "fa": "ذخیرهٔ گزارش و ثبت خروج"
+ },
+ "app.offline": {
+  "en": "No internet: saved on the phone. It will be sent automatically when the connection is back.",
+  "ckb": "ئینتەرنێت نییە: لەسەر مۆبایل پاشەکەوت کرا. کاتێک پەیوەندی گەڕایەوە بە شێوەی خۆکار دەنێردرێت.",
+  "ar": "لا يوجد إنترنت: تم الحفظ على الهاتف. سيُرسل تلقائيًا عند عودة الاتصال.",
+  "fa": "اینترنت نیست: روی گوشی ذخیره شد. با برقراری اتصال، خودکار ارسال می‌شود."
+ },
+ "app.report.chooseOutcome": {
+  "en": "Choose the result of the visit.",
+  "ckb": "ئەنجامی سەردانەکە هەڵبژێرە.",
+  "ar": "اختر نتيجة الزيارة.",
+  "fa": "نتیجهٔ ویزیت را انتخاب کنید."
+ },
+ "app.report.noteShort": {
+  "en": "Write a short note about the visit (at least {min} characters).",
+  "ckb": "تێبینییەکی کورت دەربارەی سەردانەکە بنووسە (لانیکەم {min} پیت).",
+  "ar": "اكتب ملاحظة قصيرة عن الزيارة (على الأقل {min} أحرف).",
+  "fa": "یادداشت کوتاهی دربارهٔ ویزیت بنویسید (دست‌کم {min} حرف)."
+ },
+ "app.report.noteLong": {
+  "en": "The note is too long (at most {max} characters).",
+  "ckb": "تێبینییەکە زۆر درێژە (زۆرترین {max} پیت).",
+  "ar": "الملاحظة طويلة جدًا (بحد أقصى {max} حرف).",
+  "fa": "یادداشت خیلی طولانی است (حداکثر {max} حرف)."
+ },
+ "app.report.notSaved": {
+  "en": "The report was not saved, so check-out was not started.",
+  "ckb": "ڕاپۆرتەکە پاشەکەوت نەکرا، بۆیە تۆمارکردنی ڕۆیشتن دەستی پێنەکرد.",
+  "ar": "لم يُحفظ التقرير، لذلك لم يبدأ تسجيل المغادرة.",
+  "fa": "گزارش ذخیره نشد، پس ثبت خروج شروع نشد."
+ },
+ "app.report.savedOnPhone": {
+  "en": "Report saved on the phone.",
+  "ckb": "ڕاپۆرتەکە لەسەر مۆبایل پاشەکەوت کرا.",
+  "ar": "تم حفظ التقرير على الهاتف.",
+  "fa": "گزارش روی گوشی ذخیره شد."
+ },
+ "app.report.saved": {
+  "en": "Report saved.",
+  "ckb": "ڕاپۆرتەکە پاشەکەوت کرا.",
+  "ar": "تم حفظ التقرير.",
+  "fa": "گزارش ذخیره شد."
+ },
+ "app.report.completed": {
+  "en": "Report saved and visit completed.",
+  "ckb": "ڕاپۆرتەکە پاشەکەوت کرا و سەردانەکە تەواو بوو.",
+  "ar": "تم حفظ التقرير واكتملت الزيارة.",
+  "fa": "گزارش ذخیره و ویزیت تمام شد."
+ },
+ "app.report.checkOutRefused": {
+  "en": "Report saved, but check-out was not accepted.",
+  "ckb": "ڕاپۆرتەکە پاشەکەوت کرا، بەڵام تۆمارکردنی ڕۆیشتن وەرنەگیرا.",
+  "ar": "تم حفظ التقرير، لكن لم يُقبل تسجيل المغادرة.",
+  "fa": "گزارش ذخیره شد، اما ثبت خروج پذیرفته نشد."
+ },
+ "app.gps.permission": {
+  "en": "Location permission is needed. Allow it in the phone settings and try again.",
+  "ckb": "ڕێگەپێدانی شوێن پێویستە. لە ڕێکخستنەکانی مۆبایلدا ڕێگەی پێ بدە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "يلزم إذن الموقع. اسمح به من إعدادات الهاتف وحاول مرة أخرى.",
+  "fa": "اجازهٔ موقعیت لازم است. آن را در تنظیمات گوشی فعال کنید و دوباره تلاش کنید."
+ },
+ "app.gps.timeout": {
+  "en": "Your position could not be found in time. Go outside or near a window and try again.",
+  "ckb": "شوێنەکەت لە کاتی خۆیدا نەدۆزرایەوە. بچۆ دەرەوە یان نزیک پەنجەرەیەک و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر تحديد موقعك في الوقت المحدد. اخرج أو اقترب من نافذة وحاول مرة أخرى.",
+  "fa": "موقعیت شما به‌موقع پیدا نشد. بیرون یا کنار پنجره بروید و دوباره تلاش کنید."
+ },
+ "app.gps.off": {
+  "en": "Location is off or unavailable. Turn on location and try again.",
+  "ckb": "شوێن کوژاوەتەوە یان بەردەست نییە. شوێن هەڵبکە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "الموقع متوقف أو غير متاح. شغّل الموقع وحاول مرة أخرى.",
+  "fa": "موقعیت خاموش یا در دسترس نیست. آن را روشن کنید و دوباره تلاش کنید."
+ },
+ "app.changed.reloaded": {
+  "en": "This visit was changed elsewhere. Its current status is shown.",
+  "ckb": "ئەم سەردانە لە شوێنێکی ترەوە گۆڕدرا. دۆخی ئێستای پیشان دەدرێت.",
+  "ar": "تم تغيير هذه الزيارة من مكان آخر. تُعرض حالتها الحالية.",
+  "fa": "این ویزیت جای دیگری تغییر کرد. وضعیت فعلی آن نمایش داده می‌شود."
+ },
+ "app.changed.notReloaded": {
+  "en": "This visit was changed elsewhere and could not be reloaded. Go back to the plan.",
+  "ckb": "ئەم سەردانە لە شوێنێکی ترەوە گۆڕدرا و نەتوانرا دووبارە باربکرێتەوە. بگەڕێوە بۆ پلانەکە.",
+  "ar": "تم تغيير هذه الزيارة من مكان آخر وتعذّرت إعادة تحميلها. ارجع إلى الخطة.",
+  "fa": "این ویزیت جای دیگری تغییر کرد و بارگذاری دوباره ممکن نشد. به برنامه برگردید."
+ },
+ "app.lifecycle.unexpected": {
+  "en": "Something went wrong. Nothing was changed on this screen; try again.",
+  "ckb": "هەڵەیەک ڕوویدا. هیچ شتێک لەم پەڕەیەدا نەگۆڕدرا؛ دووبارە هەوڵ بدەرەوە.",
+  "ar": "حدث خطأ. لم يتغير شيء في هذه الشاشة؛ حاول مرة أخرى.",
+  "fa": "مشکلی پیش آمد. چیزی در این صفحه تغییر نکرد؛ دوباره تلاش کنید."
+ },
+ "app.result.NetworkError": {
+  "en": "No connection to the server. Nothing was changed on this screen; try again.",
+  "ckb": "پەیوەندی بە سێرڤەرەوە نییە. هیچ شتێک لەم پەڕەیەدا نەگۆڕدرا؛ دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد اتصال بالخادم. لم يتغير شيء في هذه الشاشة؛ حاول مرة أخرى.",
+  "fa": "اتصال به سرور برقرار نیست. چیزی در این صفحه تغییر نکرد؛ دوباره تلاش کنید."
+ },
+ "app.result.SessionExpired": {
+  "en": "Your session has ended. Please log in again.",
+  "ckb": "دانیشتنەکەت کۆتایی هات. تکایە دووبارە بچۆ ژوورەوە.",
+  "ar": "انتهت جلستك. يرجى تسجيل الدخول مجددًا.",
+  "fa": "نشست شما به پایان رسید. لطفاً دوباره وارد شوید."
+ },
+ "app.result.NotAssigned": {
+  "en": "This visit is no longer assigned to you.",
+  "ckb": "ئەم سەردانە ئیتر بە تۆ نەسپێردراوە.",
+  "ar": "لم تعد هذه الزيارة مسندة إليك.",
+  "fa": "این ویزیت دیگر به شما سپرده نشده است."
+ },
+ "app.result.DeviceRequired": {
+  "en": "This phone is not an approved device for your account. Contact your manager.",
+  "ckb": "ئەم مۆبایلە ئامێرێکی پەسەندکراو نییە بۆ هەژمارەکەت. پەیوەندی بە بەڕێوەبەرەکەتەوە بکە.",
+  "ar": "هذا الهاتف ليس جهازًا معتمدًا لحسابك. تواصل مع مديرك.",
+  "fa": "این گوشی دستگاه تأییدشدهٔ حساب شما نیست. با مدیرتان تماس بگیرید."
+ },
+ "app.result.CustomerLocationMissing": {
+  "en": "The customer has no saved location yet. Ask your manager to set it.",
+  "ckb": "شوێنی ئەم کڕیارە هێشتا پاشەکەوت نەکراوە. داوا لە بەڕێوەبەرەکەت بکە دیاری بکات.",
+  "ar": "لا يوجد موقع محفوظ للعميل بعد. اطلب من مديرك تحديده.",
+  "fa": "موقعیت مشتری هنوز ذخیره نشده است. از مدیرتان بخواهید آن را تعیین کند."
+ },
+ "app.result.ReportRequired": {
+  "en": "The report is missing on the server. Save it again.",
+  "ckb": "ڕاپۆرتەکە لە سێرڤەر نییە. دووبارە پاشەکەوتی بکەرەوە.",
+  "ar": "التقرير غير موجود على الخادم. احفظه مرة أخرى.",
+  "fa": "گزارش روی سرور نیست. دوباره ذخیره‌اش کنید."
+ },
+ "app.result.InvalidData": {
+  "en": "The server did not accept the data. Check the report and try again.",
+  "ckb": "سێرڤەر زانیارییەکانی وەرنەگرت. ڕاپۆرتەکە بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "لم يقبل الخادم البيانات. تحقق من التقرير وحاول مرة أخرى.",
+  "fa": "سرور داده‌ها را نپذیرفت. گزارش را بررسی و دوباره تلاش کنید."
+ },
+ "app.result.OutsideGeofence": {
+  "en": "You are not at the customer's location. Go to the customer and try again.",
+  "ckb": "تۆ لە شوێنی کڕیارەکە نیت. بچۆ لای کڕیارەکە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "أنت لست في موقع العميل. اذهب إلى العميل وحاول مرة أخرى.",
+  "fa": "شما در محل مشتری نیستید. نزد مشتری بروید و دوباره تلاش کنید."
+ },
+ "app.result.GpsLowAccuracy": {
+  "en": "Your position is not accurate enough. Wait a moment outdoors and try again.",
+  "ckb": "شوێنەکەت بە تەواوی ورد نییە. کەمێک لە دەرەوە چاوەڕێ بکە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "موقعك غير دقيق بما يكفي. انتظر قليلًا في الخارج وحاول مرة أخرى.",
+  "fa": "موقعیت شما به‌اندازهٔ کافی دقیق نیست. کمی بیرون صبر کنید و دوباره تلاش کنید."
+ },
+ "app.result.GpsStale": {
+  "en": "Your position was too old. Try again.",
+  "ckb": "شوێنەکەت زۆر کۆن بوو. دووبارە هەوڵ بدەرەوە.",
+  "ar": "موقعك قديم جدًا. حاول مرة أخرى.",
+  "fa": "موقعیت شما خیلی قدیمی بود. دوباره تلاش کنید."
+ },
+ "app.result.GpsClockSkew": {
+  "en": "The phone's clock is wrong. Set the time automatically and try again.",
+  "ckb": "کاتژمێری مۆبایلەکە هەڵەیە. کات بە شێوەی خۆکار ڕێک بخە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "ساعة الهاتف غير صحيحة. اضبط الوقت تلقائيًا وحاول مرة أخرى.",
+  "fa": "ساعت گوشی اشتباه است. زمان را خودکار تنظیم کنید و دوباره تلاش کنید."
+ },
+ "app.result.GpsMocked": {
+  "en": "A fake location app was detected. Turn it off to continue.",
+  "ckb": "ئەپێکی شوێنی ساختە دۆزرایەوە. بیکوژێنەوە بۆ ئەوەی بەردەوام بیت.",
+  "ar": "تم اكتشاف تطبيق موقع مزيّف. أوقفه للمتابعة.",
+  "fa": "یک برنامهٔ موقعیت جعلی شناسایی شد. برای ادامه آن را خاموش کنید."
+ },
+ "app.result.OfflineExpired": {
+  "en": "This step was saved on the phone more than 24 hours ago and can no longer be accepted.",
+  "ckb": "ئەم هەنگاوە زیاتر لە 24 کاتژمێر لەمەوبەر لەسەر مۆبایل پاشەکەوت کراوە و ئیتر وەرناگیرێت.",
+  "ar": "حُفظت هذه الخطوة على الهاتف قبل أكثر من 24 ساعة ولم يعد بالإمكان قبولها.",
+  "fa": "این مرحله بیش از ۲۴ ساعت پیش روی گوشی ذخیره شده و دیگر پذیرفته نمی‌شود."
+ },
+ "app.result.Changed": {
+  "en": "This visit was changed elsewhere.",
+  "ckb": "ئەم سەردانە لە شوێنێکی ترەوە گۆڕدرا.",
+  "ar": "تم تغيير هذه الزيارة من مكان آخر.",
+  "fa": "این ویزیت جای دیگری تغییر کرد."
+ },
+ "app.result.ServerError": {
+  "en": "The server could not record this step. Try again later.",
+  "ckb": "سێرڤەر نەیتوانی ئەم هەنگاوە تۆمار بکات. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر على الخادم تسجيل هذه الخطوة. حاول لاحقًا.",
+  "fa": "سرور نتوانست این مرحله را ثبت کند. بعداً تلاش کنید."
+ },
+ "app.tracking.channel": {
+  "en": "Shift tracking",
+  "ckb": "بەدواداچوونی دەوام",
+  "ar": "تتبع المناوبة",
+  "fa": "ردیابی شیفت"
+ },
+ "app.tracking.title": {
+  "en": "Shift on",
+  "ckb": "دەوام چالاکە",
+  "ar": "المناوبة مفعّلة",
+  "fa": "شیفت روشن است"
+ },
+ "app.tracking.text": {
+  "en": "LifeDrop is recording your location until you end the shift.",
+  "ckb": "LifeDrop شوێنەکەت تۆمار دەکات تا کۆتایی بە دەوام دەهێنیت.",
+  "ar": "يسجّل LifeDrop موقعك حتى تنهي المناوبة.",
+  "fa": "LifeDrop موقعیت شما را تا پایان شیفت ثبت می‌کند."
+ }
+}

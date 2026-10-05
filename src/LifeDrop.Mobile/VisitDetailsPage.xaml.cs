@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Visits;
 using System;
 using System.Linq;
@@ -11,14 +12,7 @@ namespace LifeDrop.Mobile;
 // starts check-out; when the report is saved but check-out is refused, only check-out is offered again.
 public partial class VisitDetailsPage : ContentPage
 {
-    private static readonly (string Contract, string Label)[] OutcomeChoices =
-    [
-        ("products_presented", "Products presented"),
-        ("order_intent", "Customer intends to order"),
-        ("follow_up_needed", "Follow-up needed"),
-        ("no_interest", "No interest"),
-        ("other", "Other")
-    ];
+    private static readonly string[] OutcomeChoices = ["products_presented", "order_intent", "follow_up_needed", "no_interest", "other"];
 
     private readonly VisitLifecycle _lifecycle;
     private bool _reportLoaded;
@@ -27,7 +21,15 @@ public partial class VisitDetailsPage : ContentPage
     {
         InitializeComponent();
         _lifecycle = lifecycle;
-        OutcomePicker.ItemsSource = OutcomeChoices.Select(c => c.Label).ToList();
+        FlowDirection = AppLanguage.Direction;
+        Title = Texts.Get("app.visit.title");
+        ReportTitleLabel.Text = Texts.Get("app.visit.report");
+        OutcomePicker.Title = Texts.Get("app.visit.result");
+        NoteEditor.Placeholder = Texts.Get("app.visit.notePlaceholder");
+        ReportSavedLabel.Text = Texts.Get("app.visit.reportSaved");
+        SubmitBtn.Text = Texts.Get("app.visit.submit");
+        RetryCheckOutBtn.Text = Texts.Get("app.visit.retryCheckOut");
+        OutcomePicker.ItemsSource = OutcomeChoices.Select(c => Texts.Get("app.outcome." + c)).ToList();
         Render();
     }
 
@@ -53,7 +55,7 @@ public partial class VisitDetailsPage : ContentPage
         }
         if (_lifecycle.SavedReport is { } saved)
         {
-            OutcomePicker.SelectedIndex = Array.FindIndex(OutcomeChoices, c => c.Contract == saved.Outcome);
+            OutcomePicker.SelectedIndex = Array.IndexOf(OutcomeChoices, saved.Outcome);
             NoteEditor.Text = saved.Note;
         }
         Render();
@@ -64,7 +66,7 @@ public partial class VisitDetailsPage : ContentPage
 
     private async void OnSubmitClicked(object? sender, EventArgs e)
     {
-        var outcome = OutcomePicker.SelectedIndex >= 0 ? OutcomeChoices[OutcomePicker.SelectedIndex].Contract : null;
+        var outcome = OutcomePicker.SelectedIndex >= 0 ? OutcomeChoices[OutcomePicker.SelectedIndex] : null;
         await RunAsync(ct => _lifecycle.SubmitReportAndCheckOutAsync(outcome, NoteEditor.Text, ct));
     }
 
@@ -88,7 +90,7 @@ public partial class VisitDetailsPage : ContentPage
         Render();
         if (timedOut)
         {
-            MessageLabel.Text = "The server did not answer in time. Try again.";
+            MessageLabel.Text = Texts.Get("app.timeout");
             MessageLabel.IsVisible = true;
         }
         LeaveIfSessionEnded();
@@ -97,26 +99,26 @@ public partial class VisitDetailsPage : ContentPage
     private void LeaveIfSessionEnded()
     {
         if (_lifecycle.SessionExpired)
-            Application.Current!.Windows[0].Page = new NavigationPage(new MainPage());
+            AppLanguage.ShowRoot(new MainPage());
     }
 
     // "Check-in: saved on the phone", "Report: accepted", ... for steps made without internet.
     private static string DescribeStep(LifeDrop.Mobile.Offline.OutboxItem step)
     {
-        var name = step.Kind switch
+        var name = Texts.Get(step.Kind switch
         {
-            LifeDrop.Mobile.Offline.OutboxKind.EnRoute => "Start trip",
-            LifeDrop.Mobile.Offline.OutboxKind.Arrive => "Arrival",
-            LifeDrop.Mobile.Offline.OutboxKind.CheckIn => "Check-in",
-            LifeDrop.Mobile.Offline.OutboxKind.Report => "Report",
-            _ => "Check-out"
-        };
+            LifeDrop.Mobile.Offline.OutboxKind.EnRoute => "app.step.EnRoute",
+            LifeDrop.Mobile.Offline.OutboxKind.Arrive => "app.step.Arrive",
+            LifeDrop.Mobile.Offline.OutboxKind.CheckIn => "app.step.CheckIn",
+            LifeDrop.Mobile.Offline.OutboxKind.Report => "app.step.Report",
+            _ => "app.step.CheckOut"
+        });
         var state = step.State switch
         {
-            LifeDrop.Mobile.Offline.SyncState.Local => "saved on the phone",
-            LifeDrop.Mobile.Offline.SyncState.Sent => "sent, waiting for the server",
-            LifeDrop.Mobile.Offline.SyncState.Accepted => step.ReviewRequired ? "accepted, a manager will review it" : "accepted",
-            _ => "rejected — " + VisitLifecycle.Describe(step.Answer ?? VisitActionResult.ServerError)
+            LifeDrop.Mobile.Offline.SyncState.Local => Texts.Get("app.stepState.local"),
+            LifeDrop.Mobile.Offline.SyncState.Sent => Texts.Get("app.stepState.sent"),
+            LifeDrop.Mobile.Offline.SyncState.Accepted => Texts.Get(step.ReviewRequired ? "app.stepState.acceptedReview" : "app.stepState.accepted"),
+            _ => Texts.Get("app.stepState.rejected", ("reason", VisitLifecycle.Describe(step.Answer ?? VisitActionResult.ServerError)))
         };
         return $"{name}: {state}";
     }
@@ -124,13 +126,13 @@ public partial class VisitDetailsPage : ContentPage
     private void Render()
     {
         var visit = _lifecycle.Visit;
-        var customer = string.IsNullOrWhiteSpace(visit.CustomerName) ? "Customer" : visit.CustomerName!;
+        var customer = string.IsNullOrWhiteSpace(visit.CustomerName) ? Texts.Get("app.customer") : visit.CustomerName!;
         CustomerLabel.Text = string.IsNullOrWhiteSpace(visit.CustomerCode) ? customer : $"{customer} ({visit.CustomerCode})";
-        DetailsLabel.Text = DailyPlan.TypeLabel(visit.VisitType) + (visit.Priority == "high" ? " · High priority" : "")
-            + (visit.IsUnplanned ? " · Unplanned" : "");
-        TimeLabel.Text = visit.PlannedTime is { } time ? $"Planned for {time:HH:mm}" : "Any time today";
-        StatusLabel.Text = $"Status: {DailyPlan.StatusLabel(visit.Status)}";
-        ReasonLabel.Text = visit.ExceptionReason is null ? null : $"Reason: {visit.ExceptionReason}";
+        DetailsLabel.Text = DailyPlan.TypeLabel(visit.VisitType) + (visit.Priority == "high" ? " · " + Texts.Get("app.plan.highPriority") : "")
+            + (visit.IsUnplanned ? " · " + Texts.Get("app.plan.unplanned") : "");
+        TimeLabel.Text = visit.PlannedTime is { } time ? Texts.Get("app.visit.plannedFor", ("time", time.ToString("HH:mm"))) : Texts.Get("app.visit.anyTimeToday");
+        StatusLabel.Text = Texts.Get("app.visit.status", ("status", DailyPlan.StatusLabel(visit.Status)));
+        ReasonLabel.Text = visit.ExceptionReason is null ? null : Texts.Get("app.visit.reason", ("reason", visit.ExceptionReason));
         ReasonLabel.IsVisible = visit.ExceptionReason is not null;
 
         var singleStep = _lifecycle.NextStep is VisitStep.StartTrip or VisitStep.MarkArrived or VisitStep.CheckIn;

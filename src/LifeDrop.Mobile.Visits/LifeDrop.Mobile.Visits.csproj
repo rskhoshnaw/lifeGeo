@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Texts shared with the web panel (plan step 1.21). -->
+    <EmbeddedResource Include="../../i18n/strings.json" LogicalName="LifeDrop.strings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../LifeDrop.Mobile.Auth/LifeDrop.Mobile.Auth.csproj" />
   </ItemGroup>
 </Project>

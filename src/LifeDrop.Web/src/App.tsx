@@ -10,10 +10,21 @@ import { VisitsPage } from './pages/VisitsPage.tsx'
 import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
+import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
+import { t, useLang } from './i18n.ts'
 
 type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'regions' | 'audit'
 
 export default function App({ api }: { api: ApiClient }) {
+  return (
+    <I18nProvider>
+      <Root api={api} />
+    </I18nProvider>
+  )
+}
+
+function Root({ api }: { api: ApiClient }) {
+  useLang() // re-render everything when the language changes
   const [account, setAccount] = useState<Account | null>(() => api.account)
 
   useEffect(() => api.onSignedOut(() => setAccount(null)), [api])
@@ -34,14 +45,14 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
 
   // Tabs follow the user's permissions; hiding is for convenience only, the server checks every request.
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
-    { id: 'home', label: 'Home', visible: true },
-    { id: 'map', label: 'Live map', visible: can(me, ...Permissions.liveMap) },
-    { id: 'visits', label: 'Visits', visible: can(me, ...Permissions.planVisits) },
-    { id: 'users', label: 'Users', visible: can(me, ...Permissions.users) },
-    { id: 'devices', label: 'Devices', visible: can(me, ...Permissions.devices) },
-    { id: 'customers', label: 'Customers', visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
-    { id: 'regions', label: 'Regions & teams', visible: can(me, ...Permissions.regions) },
-    { id: 'audit', label: 'Audit', visible: can(me, ...Permissions.audit) },
+    { id: 'home', label: t('web.tab.home'), visible: true },
+    { id: 'map', label: t('web.tab.map'), visible: can(me, ...Permissions.liveMap) },
+    { id: 'visits', label: t('web.tab.visits'), visible: can(me, ...Permissions.planVisits) },
+    { id: 'users', label: t('web.tab.users'), visible: can(me, ...Permissions.users) },
+    { id: 'devices', label: t('web.tab.devices'), visible: can(me, ...Permissions.devices) },
+    { id: 'customers', label: t('web.tab.customers'), visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
+    { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
+    { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
   ]
 
   return (
@@ -57,9 +68,12 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
               </button>
             ))}
         </nav>
-        <button className="rounded border px-3 py-1 text-sm" onClick={() => void api.logout()}>
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguagePicker />
+          <button className="rounded border px-3 py-1 text-sm" onClick={() => void api.logout()}>
+            {t('web.signOut')}
+          </button>
+        </div>
       </header>
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
       {tab === 'home' && <HomePage account={account} />}

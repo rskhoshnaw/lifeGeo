@@ -8,6 +8,13 @@
 3. Read only the plan row of the current step in `docs/IMPLEMENTATION-PLAN.md` (`grep '^| 1.17 '`), not the whole plan.
 4. Check the previous PR's CI once (merged? green?), then work.
 
+## Local machine (Windows) — preferred from step 1.22
+- Setup and daily use: `docs/LOCAL-SETUP.md`. Database in Docker (`docker compose up -d`); after new migrations run
+  `scripts/local/Reset-LocalDb.ps1` (and add the migration as `activeContext.md` says).
+- Before every push run `scripts/local/Test-All.ps1` (`-Android` when mobile code changed). It runs what CI runs,
+  so it replaces the cloud verification steps (no installing .NET/PostGIS each session).
+- Real-device checks: `scripts/local/Start-Api.ps1` + `Run-Android.ps1` (USB, `adb reverse`).
+
 ## Working rules
 - Reply to the owner in Persian, short. Times in Iraq local time (Asia/Baghdad).
 - Branch `claude/jolly-bardeen-5q93e2`; after a merge reset it to `origin/main`. Open the PR yourself; the owner merges.

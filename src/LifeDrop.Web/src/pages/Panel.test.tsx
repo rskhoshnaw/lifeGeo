@@ -81,7 +81,7 @@ describe('panel management screens', () => {
     render(<App api={api} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Users' }))
     await screen.findByText('rep@t1')
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Language'])
     expect(calls.some((c) => c.path === '/roles')).toBe(false)
   })
 
@@ -180,7 +180,7 @@ describe('panel management screens', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Regions & teams' }))
     expect(await screen.findByText('Team A')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Language'])
     expect(calls.some((c) => c.path === '/users')).toBe(false)
   })
 })

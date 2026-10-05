@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Localization;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -38,6 +39,7 @@ public sealed class TrackingService : Service, ILocationListener
 
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
+        AppLanguage.Load(); // the service can start before the app screen
         var notification = BuildNotification();
         if (OperatingSystem.IsAndroidVersionAtLeast(29)) StartForeground(NotificationId, notification, ForegroundService.TypeLocation);
         else StartForeground(NotificationId, notification);
@@ -122,7 +124,7 @@ public sealed class TrackingService : Service, ILocationListener
         if (OperatingSystem.IsAndroidVersionAtLeast(26))
         {
             var manager = (NotificationManager?)GetSystemService(NotificationService);
-            manager?.CreateNotificationChannel(new NotificationChannel(ChannelId, "Shift tracking", NotificationImportance.Low));
+            manager?.CreateNotificationChannel(new NotificationChannel(ChannelId, Texts.Get("app.tracking.channel"), NotificationImportance.Low));
             builder = new Notification.Builder(this, ChannelId);
         }
         else
@@ -132,8 +134,8 @@ public sealed class TrackingService : Service, ILocationListener
 #pragma warning restore CA1422
         }
         return builder
-            .SetContentTitle("Shift on")
-            .SetContentText("LifeDrop is recording your location until you end the shift.")
+            .SetContentTitle(Texts.Get("app.tracking.title"))
+            .SetContentText(Texts.Get("app.tracking.text"))
             .SetSmallIcon(Android.Resource.Drawable.IcMenuMyLocation)
             .SetOngoing(true)
             .Build();
