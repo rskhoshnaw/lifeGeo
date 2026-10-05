@@ -22,6 +22,7 @@ public static class TrackingHost
     private static ShiftTracker? _tracker;
     private static Outbox? _outbox;
     private static IVisitsApiClient? _visits;
+    private static ICustomersApiClient? _customers;
     private static IDurableStore? _store;
     private static bool _listening;
 
@@ -38,6 +39,12 @@ public static class TrackingHost
     public static IVisitsApiClient? VisitsApi
     {
         get { lock (Gate) return _visits; }
+    }
+
+    // Customers and places (step 1.23-b); online only.
+    public static ICustomersApiClient? CustomersApi
+    {
+        get { lock (Gate) return _customers; }
     }
 
     public static IDurableStore? Store
@@ -61,6 +68,7 @@ public static class TrackingHost
             var session = new AuthSession(credentials, new AuthApiClient(http), TimeProvider.System);
             _store = new FileDurableStore(OfflineFolder);
             _visits = new VisitsApiClient(http, session);
+            _customers = new CustomersApiClient(http, session);
             _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
             _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store));
             if (!_listening)
@@ -102,6 +110,7 @@ public static class TrackingHost
             _tracker = null;
             _outbox = null;
             _visits = null;
+            _customers = null;
             _store = null;
             try
             {

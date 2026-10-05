@@ -12,6 +12,9 @@
             <Label x:Name="StatusLabel" FontAttributes="Bold" />
             <Label x:Name="ReasonLabel" IsVisible="False" />
 
+            <!-- Phone, address and where the customer is (plan step 1.23-b) -->
+            <Button x:Name="CustomerBtn" Clicked="OnCustomerClicked" HorizontalOptions="Start" />
+
             <!-- Start trip / I have arrived / Check in here -->
             <Button x:Name="StepBtn" Clicked="OnStepClicked" IsVisible="False" />
 

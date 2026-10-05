@@ -22,6 +22,8 @@
 
             <Button x:Name="PlanBtn" Clicked="OnPlanClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <Button x:Name="NewCustomerBtn" Clicked="OnNewCustomerClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

@@ -3535,6 +3535,135 @@ public class CustomerApiIntegrationTests
     private sealed record CreatedResponseDto(Guid Id);
 
     [SkippableFact]
+    public async Task MobileClient_PicksAddsPlacesAndRegistersCustomersAgainstTheRealApi()
+    {
+        // Plan step 1.23-b: the phone's customer and place calls match the server contract end to end.
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        var now = new DateTimeOffset(2026, 10, 5, 6, 0, 0, TimeSpan.Zero);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    services.AddSingleton<TimeProvider>(new FixedClock(now));
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+
+        Guid t1 = Guid.NewGuid(), rep = Guid.NewGuid(), manager = Guid.NewGuid(), device = Guid.NewGuid(), mine = Guid.NewGuid(), notMine = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@r, @t1), (@m, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status)
+                VALUES (@d, @t1, @r, 'Phone', 'android', 'install-1', '1.0', '\x00', 'approved');
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, owner_user_id) VALUES
+                    (@mine, @t1, 'Pharmacy', 'C-MINE', 'My Pharmacy', @r), (@other, @t1, 'Pharmacy', 'C-OTHER', 'Not mine', NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("r", rep), ("m", manager), ("d", device), ("mine", mine), ("other", notMine) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // A manager prepares the cities (the app never adds cities)
+        var managerClient = factory.CreateClient();
+        managerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken(t1, manager, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Assert.Equal(HttpStatusCode.OK, (await managerClient.PostAsJsonAsync("/places/import", new
+        {
+            Rows = new object[]
+            {
+                new { Kind = "city", Name = "Erbil", NameCkb = "هەولێر", NameEn = "Erbil" },
+                new { Kind = "city", Name = "Duhok" },
+                new { Kind = "neighbourhood", Name = "Ankawa", City = "Erbil", NameCkb = "عەنکاوە" }
+            }
+        })).StatusCode);
+
+        var token = GenerateToken(t1, rep, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, deviceId: device);
+        var api = new LifeDrop.Mobile.Visits.CustomersApiClient(factory.CreateClient(), new StaticMobileSession(token));
+
+        // Pick: the cities, then the neighbourhoods below one; suggestions follow the typed text
+        var picker = new LifeDrop.Mobile.Visits.PlacePicker(api);
+        await picker.LoadAsync(null);
+        Assert.Equal(new[] { "Duhok", "Erbil" }, picker.Levels[0].Items.Select(p => p.Name).ToArray());
+        await picker.SelectAsync(0, picker.Levels[0].Items.Single(p => p.Name == "Erbil").Id);
+        Assert.Equal(new[] { "Ankawa" }, picker.Suggest(1, "عەنکا", "ckb").Select(p => p.Name).ToArray());
+
+        // Add: a neighbourhood, a street under it and an alley under the street are part of the reference at once
+        Assert.Equal(LifeDrop.Mobile.Visits.PlaceAddResult.Added, await picker.AddAsync(1, "neighbourhood", "Nishtiman"));
+        Assert.Equal(LifeDrop.Mobile.Visits.PlaceAddResult.Added, await picker.AddAsync(2, "street", "Hospital Street"));
+        Assert.Equal(LifeDrop.Mobile.Visits.PlaceAddResult.Added, await picker.AddAsync(3, "alley", "Alley 1"));
+        var alley = picker.PlaceId;
+        Assert.Equal(LifeDrop.Mobile.Visits.PlaceAddResult.UsedExisting, await picker.AddAsync(1, "neighbourhood", " nishtiman "));   // the same name is chosen, not added twice
+        Assert.Equal(picker.Levels[1].SelectedId, picker.PlaceId);   // choosing the neighbourhood again closes the lists below it
+        await picker.SelectAsync(1, picker.Levels[1].Items.Single(p => p.Name == "Nishtiman").Id);
+        Assert.Equal(new[] { "Hospital Street" }, picker.Levels[2].Items.Select(p => p.Name).ToArray());
+
+        // Save the profile of a customer of mine and read it back with the path above the alley
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Success, await api.SetProfileAsync(mine, "0750 000 0000", "By the bridge", alley));
+        var (found, profile) = await api.GetCustomerAsync(mine);
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Success, found);
+        Assert.Equal(("0750 000 0000", "By the bridge", alley), (profile!.Phone, profile.Address, profile.PlaceId));
+        Assert.Equal(new[] { ("city", "Erbil"), ("neighbourhood", "Nishtiman"), ("street", "Hospital Street"), ("alley", "Alley 1") }, profile.PlacePath!.Select(p => (p.Kind, p.Name)).ToArray());
+
+        // A second picker opens on the saved path
+        var reopened = new LifeDrop.Mobile.Visits.PlacePicker(api);
+        await reopened.LoadAsync(profile.PlacePath);
+        Assert.Equal(alley, reopened.PlaceId);
+        Assert.Equal(4, reopened.Levels.Count);
+
+        // A customer I did not add cannot be changed or read by me
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.NotFound, await api.SetProfileAsync(notMine, "1", null, null));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.NotFound, (await api.GetCustomerAsync(notMine)).Result);
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.InvalidData, await api.SetProfileAsync(mine, "1", null, Guid.NewGuid()));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.NotFound, (await api.CreatePlaceAsync(Guid.NewGuid(), "neighbourhood", "x")).Result);   // an unknown parent
+
+        // Register a new customer: code made by the app, profile and GPS position saved
+        var fix = new LifeDrop.Mobile.Visits.DeviceFix(36.1912, 44.0093, 8, now.AddSeconds(-5), false);
+        var flow = new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), _ => 3);
+        var outcome = await flow.CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("  Shifa Pharmacy ", "Pharmacy", "0751", "Near the clinic", alley, fix));
+        Assert.True(outcome.Complete, outcome.ToString());
+        Assert.Equal("N261005-DDDD", outcome.Code);
+        var (_, created) = await api.GetCustomerAsync(outcome.CustomerId!.Value);
+        Assert.Equal(("N261005-DDDD", "Shifa Pharmacy", "Pharmacy", "0751", alley), (created!.Code, created.Name, created.Type, created.Phone, created.PlaceId));
+
+        // The same code again is taken: the app tries other codes, and gives up after five
+        var taken = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), _ => 3).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Second", "Doctor", null, null, null, null));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Conflict, taken.Create);
+        var counter = 0;
+        var retried = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), n => counter++ < 4 ? 3 : 5 % n).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Third", "Doctor", null, null, null, null));
+        Assert.True(retried.Complete);
+        Assert.Equal("N261005-FFFF", retried.Code);   // the first attempt reused the taken code, the next one was free
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using (var tenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false)", conn))
+            {
+                tenant.Parameters.AddWithValue("t1", t1);
+                await tenant.ExecuteNonQueryAsync();
+            }
+            await using var state = new NpgsqlCommand("SELECT status, location_source, owner_user_id FROM customers WHERE code = 'N261005-DDDD'", conn);
+            await using var reader = await state.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(("located", "gps", rep), (reader.GetString(0), reader.GetString(1), reader.GetGuid(2)));   // placed by GPS and owned by the user who added it
+        }
+    }
+
+    [SkippableFact]
     public async Task VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
