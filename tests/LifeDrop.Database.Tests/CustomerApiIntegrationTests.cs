@@ -117,7 +117,8 @@ public class CustomerApiIntegrationTests
                 var m19 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0019_live_map.sql"));
                 var m20 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0020_flexible_planning.sql"));
                 var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21;
+                var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1989,7 +1990,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[]
         {
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
-            "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
+            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
         Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
@@ -3662,6 +3663,162 @@ public class CustomerApiIntegrationTests
             Assert.Equal(("located", "gps", rep), (reader.GetString(0), reader.GetString(1), reader.GetGuid(2)));   // placed by GPS and owned by the user who added it
         }
     }
+
+    [SkippableFact]
+    public async Task RegionReps_EditRegionCustomersAndTheResponsibleAreNotified()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), sv = Guid.NewGuid(), sv2 = Guid.NewGuid();
+        Guid repA = Guid.NewGuid(), repA2 = Guid.NewGuid(), repB = Guid.NewGuid(), repB2 = Guid.NewGuid(), repX = Guid.NewGuid(), tenant2Manager = Guid.NewGuid();
+        Guid cA = Guid.NewGuid(), cA2 = Guid.NewGuid(), cB = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id, email) VALUES
+                    (@m, @t1, 'manager@t1'), (@m2, @t1, 'manager2@t1'), (@sv, @t1, 'sv@t1'), (@sv2, @t1, 'sv2@t1'),
+                    (@ra, @t1, 'repa@t1'), (@ra2, @t1, 'repa2@t1'), (@rb, @t1, 'repb@t1'), (@rb2, @t1, 'repb2@t1'), (@rx, @t1, 'repx@t1'), (@tm, @t2, 'manager@t2');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, u.id, r.id FROM (VALUES (@m, 'SalesManager'), (@m2, 'SalesManager'), (@sv, 'Supervisor'), (@sv2, 'Supervisor'),
+                    (@ra, 'SalesRep'), (@ra2, 'SalesRep'), (@rb, 'SalesRep'), (@rb2, 'SalesRep'), (@rx, 'SalesRep')) AS u(id, role)
+                JOIN roles r ON r.tenant_id = @t1 AND r.name = u.role
+                UNION ALL SELECT @t2, @tm, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('55555555-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('55555555-0000-0000-0000-0000000000b1', @t1, 'Sulaymaniyah');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, '55555555-0000-0000-0000-0000000000e1', 'Team Erbil'),
+                    ('55555555-0000-0000-0000-0000000000a2', @t1, '55555555-0000-0000-0000-0000000000b1', 'Team Sulaymaniyah');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @sv2, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra2, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @rb, '55555555-0000-0000-0000-0000000000a2'), (@t1, @rb2, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id) VALUES
+                    (@ca, @t1, 'Pharmacy', 'CA', 'Erbil One', '55555555-0000-0000-0000-0000000000e1', @ra),
+                    (@ca2, @t1, 'Pharmacy', 'CA2', 'Erbil Two', '55555555-0000-0000-0000-0000000000e1', @ra2),
+                    (@cb, @t1, 'Pharmacy', 'CB', 'Sulaymaniyah One', '55555555-0000-0000-0000-0000000000b1', @rb);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("m2", manager2), ("sv", sv), ("sv2", sv2), ("ra", repA), ("ra2", repA2), ("rb", repB), ("rb2", repB2), ("rx", repX), ("tm", tenant2Manager),
+                ("ca", cA), ("ca2", cA2), ("cb", cB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Profile(Guid customer, string phone) => client.PutAsJsonAsync($"/customers/{customer}/profile", new { Phone = phone });
+        Task<HttpResponseMessage> Location(Guid customer) => client.PutAsJsonAsync($"/customers/{customer}/location", new { Latitude = 36.19, Longitude = 44.0, Source = "manual" });
+        async Task<List<LifeDrop.Application.Notifications.NotificationDto>> Inbox(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Notifications.NotificationDto>>("/notifications" + query))!;
+        async Task<int> Unread() => (await client.GetFromJsonAsync<UnreadCountDto>("/notifications/unread-count"))!.Count;
+
+        // A rep sees and changes the customers of the region of their team, not those of another region
+        As(t1, repA);
+        Assert.Equal(new[] { "CA", "CA2" }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>("/customers?limit=10"))!.Select(c => c.Code).OrderBy(c => c, StringComparer.Ordinal).ToArray());
+        await AssertProblemAsync(await Profile(cB, "1"), HttpStatusCode.NotFound, "NOT_FOUND");
+        // A rep without a team keeps to the customers they added
+        As(t1, repX);
+        Assert.Empty(await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>("/customers?limit=10") ?? new());
+        await AssertProblemAsync(await Profile(cA2, "1"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Region with supervisors: a rep's change of a colleague's customer is told to both supervisors, nobody else
+        As(t1, repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 111")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA, "0750 222")).StatusCode);   // the rep's own customer: nobody is told
+        Assert.Equal(0, await Unread());
+        foreach (var supervisor in new[] { sv, sv2 })
+        {
+            As(t1, supervisor);
+            var message = Assert.Single(await Inbox());
+            Assert.Equal(("customer.profile_changed", cA2.ToString(), repA, "repa@t1", "CA2", "Erbil Two"), (message.Kind, message.EntityId, message.ActorId, message.ActorEmail, message.CustomerCode, message.CustomerName));
+            Assert.Null(message.ReadAt);
+            Assert.Equal(1, await Unread());
+        }
+        As(t1, manager);
+        Assert.Empty(await Inbox());   // the region has supervisors, so the sales manager is not told
+
+        // A supervisor's own change tells the other supervisor, not the manager and not themselves
+        As(t1, sv);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 333")).StatusCode);
+        As(t1, sv2);
+        Assert.Equal(2, (await Inbox()).Count);
+        As(t1, sv);
+        Assert.Equal(1, (await Inbox()).Count);
+
+        // Region without a supervisor: the sales managers are told (profile and location changes alike)
+        As(t1, repB2);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 444")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Location(cB)).StatusCode);
+        As(t1, repB);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 555")).StatusCode);   // the owner: nobody is told
+        foreach (var salesManager in new[] { manager, manager2 })
+        {
+            As(t1, salesManager);
+            var inbox = await Inbox();
+            Assert.Equal(new[] { "customer.location_changed", "customer.profile_changed" }, inbox.Select(n => n.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+            Assert.All(inbox, n => Assert.Equal(("repb2@t1", "CB"), (n.ActorEmail, n.CustomerCode)));
+            Assert.True(inbox[0].CreatedAt >= inbox[1].CreatedAt);   // newest first
+        }
+        // The sales manager's own change tells the other manager only if the region has none... it has none, so the other manager
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 666")).StatusCode);
+        As(t1, manager2);
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, manager);
+        Assert.Equal(2, (await Inbox()).Count);
+
+        // Everybody reads and marks only their own messages
+        As(t1, manager2);
+        var mine = await Inbox("?unread=true&limit=2");
+        Assert.Equal(2, mine.Count);
+        Assert.Equal(3, await Unread());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);   // again: harmless
+        Assert.Equal(2, await Unread());
+        Assert.Equal(2, (await Inbox("?unread=true")).Count);
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, manager);
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{mine[0].Id}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");   // not the manager's message
+        Assert.Equal(2, await Unread());
+        As(t1, manager2);
+        await AssertProblemAsync(await client.GetAsync("/notifications?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/notifications?limit=201"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{Guid.NewGuid()}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/notifications/read-all", null)).StatusCode);
+        Assert.Equal(0, await Unread());
+        Assert.Empty(await Inbox("?unread=true"));
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, sv);
+        Assert.Equal(1, await Unread());   // marking one's own messages did not touch the others'
+
+        // Another company sees none of it
+        As(t2, tenant2Manager);
+        Assert.Empty(await Inbox());
+        Assert.Equal(0, await Unread());
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{mine[1].Id}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");
+    }
+
+    private sealed record UnreadCountDto(int Count);
 
     [SkippableFact]
     public async Task VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope()

@@ -420,6 +420,40 @@ describe('panel management screens', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
+  it('shows the unread count, lists the messages and marks them read', async () => {
+    const supervisor: Me = { id: 's', email: 'sv@t1', roles: ['Supervisor'], permissions: ['customers.read'] }
+    const message = (id: string, kind: 'customer.profile_changed' | 'customer.location_changed', readAt: string | null) => ({
+      id, kind, entityId: 'c1', actorId: 'u1', actorEmail: id === 'n3' ? null : 'rep@t1', customerCode: id === 'n3' ? null : 'P-1', customerName: id === 'n3' ? null : 'Shifa',
+      createdAt: '2026-10-05T07:30:00Z', readAt,
+    })
+    const { api, calls } = server(supervisor, {
+      '/notifications/unread-count': { count: 2 },
+      '/notifications?limit=200': [message('n1', 'customer.profile_changed', null), message('n2', 'customer.location_changed', '2026-10-05T08:00:00Z'), message('n3', 'customer.profile_changed', null)],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications (2)' }))
+
+    expect(await screen.findByText('rep@t1 changed the profile of P-1 · Shifa')).toBeInTheDocument()
+    expect(screen.getByText('rep@t1 changed the location of P-1 · Shifa')).toBeInTheDocument()
+    expect(screen.getByText('someone changed the profile of a customer')).toBeInTheDocument()   // a message without names still reads well
+    expect(screen.getByText('2 unread')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Mark read' })).toHaveLength(2)              // the read one has no button
+
+    await user.click(screen.getAllByRole('button', { name: 'Mark read' })[0]!)
+    await user.click(screen.getByRole('button', { name: 'Mark all read' }))
+    expect(posts(calls).map((c) => c.path)).toEqual(['/notifications/n1/read', '/notifications/read-all'])
+  })
+
+  it('shows no number on the Notifications tab when nothing is unread, and survives a failing count', async () => {
+    const { api } = server(manager, { '/notifications/unread-count': { count: 0 } })
+    render(<App api={api} />)
+    expect(await screen.findByRole('button', { name: 'Notifications' })).toBeInTheDocument()
+    const { api: failing } = server(manager, {})   // the count route answers 404
+    render(<App api={failing} />)
+    expect(await screen.findAllByRole('button', { name: 'Notifications' })).toHaveLength(2)
+  })
+
   it('manages regions, teams and members', async () => {
     const salesManager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['regions.manage', 'regions.read', 'sessions.kill', 'teams.manage', 'teams.read'] }
     const regions = [{ id: 'r', name: 'Erbil' }, { id: 'r2', name: 'Baghdad' }]

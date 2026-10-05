@@ -289,3 +289,16 @@ One tree per company: city -> neighbourhood -> street -> alley (an alley sits un
 | `PUT /customers/{id}/profile` | `customers.write`, customer inside the data scope (else 404) | Replaces `phone` (max 40), `address` (max 300) and `placeId` (the most precise place known: any kind; null clears). The place must be active and not merged (else 400 `INVALID_DATA`) | `customer.profile_changed` |
 
 `GET /customers` and `GET /customers/{id}` also return `phone`, `address`, `placeId` and `placePath` (the place and the ones above it, from the city down: `id`, `kind`, `name`). Migration 0021 adds the table `places` (RLS, one live name per kind under one parent, tree trigger), `customers.place_id` and the permission `places.manage` (SalesManager, Supervisor; also backfilled); the grants file covers the new table. Tests: `Places_TreeImportAddAndEditByPermissionAndCustomerProfile`, `Places_MergeExportAndImportAgainWithinTenantAndTreeRulesInTheDatabase`, `PlaceExportTests`; panel tests in `Panel.test.tsx` and `csv.test.ts`. Starter list: `docs/places-starter.csv`.
+
+## Region reps and notifications (step 1.23-c)
+
+The default `SalesRep` role now has data scope `region` (migration 0022, also for existing tenants that kept the default): `customers.read`, `customers.write` and `customers.location.write` cover the customers of the region of the rep's team (a customer is in the region when its `region_id` is that region) and the ones the rep added; a rep without a team keeps to the customers they added. `ScientificRep` is unchanged (`own`).
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /notifications?unread=&limit=` | Signed-in user; only their own messages | Newest first, limit 1-200 (default 50). Each: `id`, `kind` (`customer.profile_changed` / `customer.location_changed`), `entityId` (customer id), `actorId`, `actorEmail`, `customerCode`, `customerName`, `createdAt`, `readAt` | — |
+| `GET /notifications/unread-count` | same | `{count}` | — |
+| `POST /notifications/{id}/read` | same | Marks one of the user's own messages read (again: harmless); somebody else's or unknown: 404 | — |
+| `POST /notifications/read-all` | same | Marks all of the user's messages read | — |
+
+Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).

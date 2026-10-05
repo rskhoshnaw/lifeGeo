@@ -19,9 +19,10 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.23 flexible planning part 1 (order, move to another day, customer visit hours) | in PR; plan section 1-ه lists 1.23-ب … 1.27 |
 | 1.23-ب part 1 (places tree, customer profile: server + panel) | ✅ merged (PR #34) |
 | 1.23-ب part 2 (app: place pickers with suggestions, customer details, new customer) | in PR; map suggestions moved to 1.27 |
+| 1.23-ج reps edit region customers + notifications | in PR |
 | Next | **1.24** plan from region/street/neighbourhood (panel), 1.25–1.27; **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
-Migrations: 0001–0021. Owner must apply 0006–0021 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0022. Owner must apply 0006–0022 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 
 ## Log (one line per step, newest last)
@@ -36,4 +37,5 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.23: migration 0020, `PlanOperations.cs` (`PlanVisits`), `PUT /visit-plan/order`, `POST /visits/{id}/postpone`, `/customers/{id}/visit-windows` (`CustomerVisitWindows`), `windowStatus` in plans; panel Visits/Customers, app plan buttons (online only); DB 39/39, Domain 172, Application 52, Mobile.Visits 162, panel 37 tests.
 - 1.23-ب (part 1): migration 0021 (`places` tree + trigger, `customers.place_id`, `places.manage`), `Places/PlaceOperations.cs` (`PlaceService`, `PlaceExport`), `PostgresPlaceStore`, `PlaceEndpoints.cs`, `CustomerProfileService`; panel Places tab (tree, import/export CSV/JSON) + profile editor; no approval step (owner 2026-10-06); DB 41/41, Application 68, panel 46 tests.
 - 1.23-ب (part 2, app): `Mobile.Visits/Customers/` (`CustomersApiClient`, `PlacePicker`, `NewCustomerFlow`, `CustomerCodes`), pages `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`, buttons on Home and Visit details; online only; DB 42/42, Mobile.Visits 211 tests; **real-device check pending**.
+- 1.23-ج: migration 0022 (`notifications`, SalesRep scope `region`), `Notifications/NotificationOperations.cs`, `PostgresNotificationStore`, `NotificationEndpoints.cs`, `PostgresCustomerStore.NotifyAsync` (same transaction as the change), panel Notifications tab; DB 43/43, panel 49 tests.
 - Local setup (not a plan step): Docker DB, seed, PowerShell scripts, `docs/LOCAL-SETUP.md`; checked here: migrations + seed on the compose DB, API as lifedrop_app, register → approve → rep login, DB tests 37/37 against it.

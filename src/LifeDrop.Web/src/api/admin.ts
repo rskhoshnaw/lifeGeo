@@ -56,6 +56,19 @@ export interface Customer {
   placePath: PlacePathItem[] | null
 }
 
+// A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
+export interface Notification {
+  id: string
+  kind: 'customer.profile_changed' | 'customer.location_changed'
+  entityId: string
+  actorId: string
+  actorEmail: string | null
+  customerCode: string | null
+  customerName: string | null
+  createdAt: string
+  readAt: string | null
+}
+
 export interface PlacePathItem {
   id: string
   kind: PlaceKind
@@ -330,6 +343,10 @@ export class AdminApi {
     return response.text()
   }
   setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
+  notifications = (unreadOnly = false) => this.get<Notification[]>(`/notifications?limit=200${unreadOnly ? '&unread=true' : ''}`)
+  unreadCount = async () => (await this.get<{ count: number }>('/notifications/unread-count')).count
+  markRead = (id: string) => this.post(`/notifications/${id}/read`)
+  markAllRead = () => this.post('/notifications/read-all')
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')

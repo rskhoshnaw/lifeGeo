@@ -2346,10 +2346,10 @@
   "fa": "ساخت کد آزاد برای مشتری ممکن نشد. دوباره تلاش کنید."
  },
  "app.customer.notYours": {
-  "en": "You can change only customers you added.",
-  "ckb": "تەنها دەتوانیت ئەو کڕیارانە بگۆڕیت کە خۆت زیادت کردوون.",
-  "ar": "يمكنك تعديل العملاء الذين أضفتهم أنت فقط.",
-  "fa": "فقط مشتریانی را می‌توانید تغییر دهید که خودتان اضافه کرده‌اید."
+  "en": "You cannot change this customer.",
+  "ckb": "ناتوانیت ئەم کڕیارە بگۆڕیت.",
+  "ar": "لا يمكنك تعديل هذا العميل.",
+  "fa": "شما نمی‌توانید این مشتری را تغییر دهید."
  },
  "app.customer.partialProfile": {
   "en": "The customer was added (code {code}), but the phone, address or place could not be saved. Open the customer and try again.",
@@ -2452,5 +2452,65 @@
   "ckb": "باشە",
   "ar": "حسنًا",
   "fa": "تأیید"
+ },
+ "web.tab.notifications": {
+  "en": "Notifications",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "الإشعارات",
+  "fa": "اعلان‌ها"
+ },
+ "web.notifications.title": {
+  "en": "Notifications",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "الإشعارات",
+  "fa": "اعلان‌ها"
+ },
+ "web.notifications.none": {
+  "en": "No notifications.",
+  "ckb": "هیچ ئاگادارکردنەوەیەک نییە.",
+  "ar": "لا توجد إشعارات.",
+  "fa": "اعلانی نیست."
+ },
+ "web.notifications.profileChanged": {
+  "en": "{actor} changed the profile of {customer}",
+  "ckb": "{actor} پڕۆفایلی {customer}ی گۆڕی",
+  "ar": "غيّر {actor} ملف {customer}",
+  "fa": "{actor} پروفایل {customer} را تغییر داد"
+ },
+ "web.notifications.locationChanged": {
+  "en": "{actor} changed the location of {customer}",
+  "ckb": "{actor} شوێنی {customer}ی گۆڕی",
+  "ar": "غيّر {actor} موقع {customer}",
+  "fa": "{actor} موقعیت {customer} را تغییر داد"
+ },
+ "web.notifications.markRead": {
+  "en": "Mark read",
+  "ckb": "وەک خوێندراو نیشانە بکە",
+  "ar": "تحديد كمقروء",
+  "fa": "علامت‌گذاری به‌عنوان خوانده‌شده"
+ },
+ "web.notifications.markAllRead": {
+  "en": "Mark all read",
+  "ckb": "هەمووی وەک خوێندراو نیشانە بکە",
+  "ar": "تحديد الكل كمقروء",
+  "fa": "علامت‌گذاری همه به‌عنوان خوانده‌شده"
+ },
+ "web.notifications.unreadBadge": {
+  "en": "{count} unread",
+  "ckb": "{count} نەخوێندراو",
+  "ar": "{count} غير مقروء",
+  "fa": "{count} خوانده‌نشده"
+ },
+ "web.notifications.someone": {
+  "en": "someone",
+  "ckb": "کەسێک",
+  "ar": "شخص ما",
+  "fa": "کسی"
+ },
+ "web.notifications.aCustomer": {
+  "en": "a customer",
+  "ckb": "کڕیارێک",
+  "ar": "عميل",
+  "fa": "یک مشتری"
  }
 }

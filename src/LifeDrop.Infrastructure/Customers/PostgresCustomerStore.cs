@@ -298,6 +298,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         audit.Parameters.AddWithValue("actor", actorId.Value);
         audit.Parameters.AddWithValue("entity", id.Value.ToString());
         await audit.ExecuteNonQueryAsync(cancellationToken);
+        await NotifyAsync(connection, transaction, tenantId, actorId, id, "customer.profile_changed", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return CustomerProfileResult.Success;
     }
@@ -343,7 +344,54 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         audit.Parameters.AddWithValue("action", auditAction);
         audit.Parameters.AddWithValue("entity", id.Value.ToString());
         await audit.ExecuteNonQueryAsync(cancellationToken);
+        if (auditAction == "customer.location_changed")
+            await NotifyAsync(connection, transaction, tenantId, actorId, id, auditAction, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    // Tells the people responsible that somebody other than the customer's owner changed it (plan step 1.23-c): the supervisors of the
+    // customer's region (a role with customers.approve and region scope, in a team of that region); when the region has none, the sales
+    // managers (customers.approve with tenant scope). The person who made the change is never told.
+    private static async Task NotifyAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, CustomerId id,
+        string kind, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("""
+            WITH c AS (SELECT id, region_id, owner_user_id FROM customers WHERE id = @id),
+            supervisors AS (
+                SELECT DISTINCT ur.user_id
+                FROM c
+                JOIN teams t ON t.region_id = c.region_id
+                JOIN team_members tm ON tm.team_id = t.id
+                JOIN user_roles ur ON ur.tenant_id = tm.tenant_id AND ur.user_id = tm.user_id
+                JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id AND r.data_scope = 'region'
+                JOIN role_permissions rp ON rp.tenant_id = r.tenant_id AND rp.role_id = r.id AND rp.permission_key = 'customers.approve'
+                JOIN users u ON u.tenant_id = ur.tenant_id AND u.id = ur.user_id AND u.is_active
+                WHERE ur.tenant_id = @tenant
+            ),
+            managers AS (
+                SELECT DISTINCT ur.user_id
+                FROM user_roles ur
+                JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id AND r.data_scope = 'tenant'
+                JOIN role_permissions rp ON rp.tenant_id = r.tenant_id AND rp.role_id = r.id AND rp.permission_key = 'customers.approve'
+                JOIN users u ON u.tenant_id = ur.tenant_id AND u.id = ur.user_id AND u.is_active
+                WHERE ur.tenant_id = @tenant
+            ),
+            recipients AS (
+                SELECT user_id FROM supervisors
+                UNION ALL
+                SELECT user_id FROM managers WHERE NOT EXISTS (SELECT 1 FROM supervisors)
+            )
+            INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
+            SELECT @tenant, r.user_id, @kind, @entity, @actor
+            FROM recipients r
+            WHERE r.user_id <> @actor AND (SELECT owner_user_id FROM c) IS DISTINCT FROM @actor
+            """, connection, transaction);
+        command.Parameters.AddWithValue("id", id.Value);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("kind", kind);
+        command.Parameters.AddWithValue("entity", id.Value.ToString());
+        command.Parameters.AddWithValue("actor", actorId.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
