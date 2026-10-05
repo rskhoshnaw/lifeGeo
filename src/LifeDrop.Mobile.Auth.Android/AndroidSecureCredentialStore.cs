@@ -272,7 +272,19 @@ public class AndroidSecureCredentialStore : ISecureCredentialStore
     public Task SaveDeviceAsync(RegisteredDevice device, CancellationToken cancellationToken = default)
     {
         var json = JsonSerializer.Serialize(device);
-        var encrypted = Encrypt(json);
+        string encrypted;
+        try
+        {
+            encrypted = Encrypt(json);
+        }
+        catch (Exception ex)
+        {
+#if ANDROID
+            // Shown by: adb logcat -s LifeDrop (the coordinator turns any failure into a generic message).
+            global::Android.Util.Log.Error("LifeDrop", "Device registration encrypt failed: " + ex);
+#endif
+            throw;
+        }
         if (!_putString("DeviceRegistration", encrypted))
             throw new InvalidOperationException("Failed to commit device registration to secure storage.");
         return Task.CompletedTask;
