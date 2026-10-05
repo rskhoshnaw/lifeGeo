@@ -8,5 +8,5 @@ $env:ConnectionStrings__LifeDrop = "Host=localhost;Port=$LocalDbPort;Database=li
 $env:Jwt__Issuer = 'lifedrop-local'
 $env:Jwt__Audience = 'lifedrop-local'
 $env:Jwt__SigningKey = 'local-development-signing-key-not-for-production-0001'
-$env:Cors__AllowedOrigins__0 = 'http://localhost:5173'
+$env:Cors__AllowedOrigins__0 = 'http://localhost:5273'
 dotnet run --project src\LifeDrop.API --urls 'http://0.0.0.0:5256'
