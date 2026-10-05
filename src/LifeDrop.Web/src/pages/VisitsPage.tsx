@@ -15,6 +15,7 @@ import { t, type TextKey } from '../i18n.ts'
 
 const visitStatuses = ['Planned', 'EnRoute', 'Arrived', 'InVisit', 'Completed', 'Failed', 'Cancelled']
 const statusText = (status: string) => (visitStatuses.includes(status) ? t(`web.visitStatus.${status}` as TextKey) : status)
+import { PlanFromPlaces } from '../components/PlanFromPlaces.tsx'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 const visitTypes: VisitType[] = ['pharmacy', 'doctor', 'wholesaler', 'other']
@@ -149,6 +150,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </table>
         )}
       </div>
+      {can(me, ...Permissions.planVisits) && users.data && <PlanFromPlaces admin={admin} me={me} date={date} users={users.data} onCreated={plan.reload} />}
       {can(me, ...Permissions.customers) && users.data && <NewVisitForm admin={admin} date={date} users={users.data} onCreated={plan.reload} />}
     </section>
   )

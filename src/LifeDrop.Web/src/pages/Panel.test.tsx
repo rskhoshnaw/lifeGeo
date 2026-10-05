@@ -197,6 +197,39 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('plans from a place: shows the list first, skips what the server marks and creates only the ticked customers', async () => {
+    const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
+    const today = iraqToday()
+    const candidate = (code: string, extra: object = {}) => ({ customerId: `id-${code}`, code, name: `Name ${code}`, type: 'Pharmacy', place: 'Erbil › N1', lastVisitDate: null, windowStatus: 'none', included: true, skipReason: null, ...extra })
+    const preview = { matching: 3, included: 2, candidates: [candidate('C1'), candidate('C2', { lastVisitDate: '2026-09-01' }), candidate('C3', { included: false, skipReason: 'outside_hours' })] }
+    const { api, calls } = server(
+      planner,
+      { [`/visit-plan?scheduleDate=${today}`]: [], '/users': [rep], '/places?limit=2000&kind=city': [place('p1', 'city', 'Erbil', null, 'active', null, 1)], '/places?limit=2000&parentId=p1': [place('p2', 'neighbourhood', 'N1', 'p1')] },
+      { '/visit-plan/preview': json(preview), '/visit-plan/generate': json({ created: 1, skipped: 0, visitIds: ['v1'] }) },
+    )
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Visits' }))
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Plan for' }), 'u1')
+
+    // Nothing to preview before a place or region is chosen
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeDisabled()
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'City' }), 'p1')
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Neighbourhood' }), 'p2')
+    fireEvent.change(screen.getByLabelText('How many (empty = all)'), { target: { value: '2' } })
+    await user.click(screen.getByRole('button', { name: 'Preview' }))
+
+    expect(await screen.findByText('2 of 3 customers will get a visit')).toBeInTheDocument()
+    expect(screen.getByText('closed that day')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'C3 Name C3' })).toBeDisabled()
+    await user.click(screen.getByRole('checkbox', { name: 'C1 Name C1' }))   // untick one
+    await user.click(screen.getByRole('button', { name: 'Create 1 visits' }))
+
+    expect(await screen.findByText('1 visits created, 0 skipped')).toBeInTheDocument()
+    expect(posts(calls).map((c) => c.path)).toEqual(['/visit-plan/preview', '/visit-plan/generate'])
+    expect(posts(calls)[1]!.body).toMatchObject({ assignedUserId: 'u1', scheduleDate: today, placeId: 'p2', count: 2, order: 'least_recent', respectWindows: true, customerIds: ['id-C2'] })
+  })
+
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {
     const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
     const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]

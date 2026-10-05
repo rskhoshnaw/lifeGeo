@@ -164,6 +164,41 @@ export interface NewVisit {
   plannedTime: string | null
 }
 
+export type PlanOrder = 'least_recent' | 'name' | 'code'
+export interface PlanRequest {
+  assignedUserId: string
+  scheduleDate: string
+  placeId?: string | null
+  regionId?: string | null
+  count?: number | null
+  order?: PlanOrder
+  respectWindows?: boolean
+  visitType?: VisitType | null
+  priority?: VisitPriority | null
+  customerIds?: string[] | null
+}
+export interface PlanCandidate {
+  customerId: string
+  code: string
+  name: string
+  type: string
+  place: string | null
+  lastVisitDate: string | null
+  windowStatus: string
+  included: boolean
+  skipReason: 'outside_hours' | 'over_limit' | null
+}
+export interface PlanPreview {
+  matching: number
+  included: number
+  candidates: PlanCandidate[]
+}
+export interface PlanGenerated {
+  created: number
+  skipped: number
+  visitIds: string[]
+}
+
 export interface Region {
   id: string
   name: string
@@ -312,6 +347,9 @@ export class AdminApi {
 
   visitPlan = (date: string, assignedUserId?: string) =>
     this.get<PlannedVisit[]>(`/visit-plan?scheduleDate=${date}${assignedUserId ? `&assignedUserId=${assignedUserId}` : ''}`)
+  // Plan from places (step 1.24): the list first, then the visits for the customers that were chosen.
+  previewPlan = (request: PlanRequest) => this.postJson<PlanPreview>('/visit-plan/preview', request)
+  generatePlan = (request: PlanRequest) => this.postJson<PlanGenerated>('/visit-plan/generate', request)
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })
@@ -359,6 +397,12 @@ export class AdminApi {
 
   private async get<T>(path: string): Promise<T> {
     const response = await this.api.request(path)
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as T
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    const response = await this.api.request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (!response.ok) throw await toError(response)
     return (await response.json()) as T
   }

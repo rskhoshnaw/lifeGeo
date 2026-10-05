@@ -2512,5 +2512,149 @@
   "ckb": "کڕیارێک",
   "ar": "عميل",
   "fa": "یک مشتری"
+ },
+ "web.planGen.title": {
+  "en": "Plan from places",
+  "ckb": "پلان لە شوێنەکانەوە دروست بکە",
+  "ar": "إنشاء خطة من الأماكن",
+  "fa": "ساخت برنامه از مکان‌ها"
+ },
+ "web.planGen.hint": {
+  "en": "Pick a field user, the day {date} and where the customers are; check the list, then create the visits.",
+  "ckb": "بەکارهێنەرێک و شوێنی کڕیارەکان هەڵبژێرە، لیستەکە ببینە، پاشان سەردانەکان دروست بکە. ڕۆژ: {date}",
+  "ar": "اختر المستخدم والمكان الذي يوجد فيه العملاء، راجع القائمة ثم أنشئ الزيارات. اليوم: {date}",
+  "fa": "کاربر و محل مشتریان را انتخاب کنید، فهرست را ببینید و سپس ویزیت‌ها را بسازید. روز: {date}"
+ },
+ "web.planGen.region": {
+  "en": "Region",
+  "ckb": "ناوچە",
+  "ar": "المنطقة",
+  "fa": "منطقه"
+ },
+ "web.planGen.anyRegion": {
+  "en": "Any region",
+  "ckb": "هەموو ناوچەکان",
+  "ar": "كل المناطق",
+  "fa": "همهٔ مناطق"
+ },
+ "web.planGen.count": {
+  "en": "How many (empty = all)",
+  "ckb": "چەند (بەتاڵ = هەموو)",
+  "ar": "العدد (فارغ = الكل)",
+  "fa": "چندتا (خالی = همه)"
+ },
+ "web.planGen.order": {
+  "en": "Order",
+  "ckb": "ڕیزبەندی",
+  "ar": "الترتيب",
+  "fa": "ترتیب"
+ },
+ "web.planGen.order.least_recent": {
+  "en": "Longest since last visit first",
+  "ckb": "ئەوانەی زۆرترین ماوە سەردان نەکراون یەکەم",
+  "ar": "الأقدم زيارةً أولاً",
+  "fa": "قدیمی‌ترین ویزیت اول"
+ },
+ "web.planGen.order.name": {
+  "en": "By name",
+  "ckb": "بەپێی ناو",
+  "ar": "حسب الاسم",
+  "fa": "بر اساس نام"
+ },
+ "web.planGen.order.code": {
+  "en": "By code",
+  "ckb": "بەپێی کۆد",
+  "ar": "حسب الرمز",
+  "fa": "بر اساس کد"
+ },
+ "web.planGen.respectHours": {
+  "en": "Skip customers closed that weekday",
+  "ckb": "ئەو کڕیارانە لابە کە ئەو ڕۆژە کراوە نین",
+  "ar": "تخطَّ العملاء المغلقين في ذلك اليوم",
+  "fa": "مشتریانی که آن روز هفته نمی‌پذیرند حذف شوند"
+ },
+ "web.planGen.preview": {
+  "en": "Preview",
+  "ckb": "پێشبینین",
+  "ar": "معاينة",
+  "fa": "پیش‌نمایش"
+ },
+ "web.planGen.summary": {
+  "en": "{included} of {matching} customers will get a visit",
+  "ckb": "{included} لە {matching} کڕیار سەردانیان بۆ دروست دەکرێت",
+  "ar": "{included} من {matching} عميلاً ستُنشأ لهم زيارات",
+  "fa": "برای {included} از {matching} مشتری ویزیت ساخته می‌شود"
+ },
+ "web.planGen.empty": {
+  "en": "No customer matches",
+  "ckb": "هیچ کڕیارێک ناگونجێت",
+  "ar": "لا يوجد عميل مطابق",
+  "fa": "مشتری مطابق پیدا نشد"
+ },
+ "web.planGen.create": {
+  "en": "Create {count} visits",
+  "ckb": "{count} سەردان دروست بکە",
+  "ar": "إنشاء {count} زيارات",
+  "fa": "ایجاد {count} ویزیت"
+ },
+ "web.planGen.created": {
+  "en": "{created} visits created, {skipped} skipped",
+  "ckb": "{created} سەردان دروستکرا، {skipped} پەڕێنرا",
+  "ar": "تم إنشاء {created} زيارات وتخطي {skipped}",
+  "fa": "{created} ویزیت ساخته شد، {skipped} رد شد"
+ },
+ "web.planGen.skip.outside_hours": {
+  "en": "closed that day",
+  "ckb": "ئەو ڕۆژە کراوە نییە",
+  "ar": "مغلق في ذلك اليوم",
+  "fa": "آن روز نمی‌پذیرد"
+ },
+ "web.planGen.skip.over_limit": {
+  "en": "over the limit",
+  "ckb": "لە سنوور تێپەڕیوە",
+  "ar": "فوق الحد",
+  "fa": "بیش از تعداد"
+ },
+ "web.planGen.lastVisit": {
+  "en": "Last visit",
+  "ckb": "دوایین سەردان",
+  "ar": "آخر زيارة",
+  "fa": "آخرین ویزیت"
+ },
+ "web.planGen.never": {
+  "en": "never",
+  "ckb": "هەرگیز",
+  "ar": "أبداً",
+  "fa": "هرگز"
+ },
+ "web.planGen.place": {
+  "en": "Place",
+  "ckb": "شوێن",
+  "ar": "المكان",
+  "fa": "مکان"
+ },
+ "web.planGen.needArea": {
+  "en": "Choose a place or a region first",
+  "ckb": "سەرەتا شوێنێک یان ناوچەیەک هەڵبژێرە",
+  "ar": "اختر مكاناً أو منطقة أولاً",
+  "fa": "ابتدا یک مکان یا منطقه انتخاب کنید"
+ },
+ "web.planGen.assignee": {
+  "en": "Plan for",
+  "ckb": "پلان بۆ",
+  "ar": "الخطة لـ",
+  "fa": "برنامه برای"
+ },
+ "web.planGen.visitType": {
+  "en": "Visit type for all",
+  "ckb": "جۆری سەردان بۆ هەمووان",
+  "ar": "نوع الزيارة للجميع",
+  "fa": "نوع ویزیت برای همه"
+ },
+ "web.planGen.priority": {
+  "en": "Priority for all",
+  "ckb": "گرنگی بۆ هەمووان",
+  "ar": "الأولوية للجميع",
+  "fa": "اولویت برای همه"
  }
 }

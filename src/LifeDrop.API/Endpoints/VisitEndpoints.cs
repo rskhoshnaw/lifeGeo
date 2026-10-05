@@ -59,6 +59,31 @@ public static class VisitEndpoints
             .WithName("ReorderVisitPlan").WithTags("Visits").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        // Plan from places (plan step 1.24): preview, then create in one step.
+        app.MapPost("/visit-plan/preview", async (GeneratePlanRequest request, HttpContext context,
+            PlanGenerator generator, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, preview) = await generator.PreviewAsync(tenantId, actorId, request, cancellationToken);
+            return result == PlanGenerationResult.Success ? Results.Ok(preview) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("PreviewVisitPlan").WithTags("Visits").Produces<PlanPreviewDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/visit-plan/generate", async (GeneratePlanRequest request, HttpContext context,
+            PlanGenerator generator, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, generated) = await generator.GenerateAsync(tenantId, actorId, request, cancellationToken);
+            return result == PlanGenerationResult.Success ? Results.Ok(generated) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GenerateVisitPlan").WithTags("Visits").Produces<PlanGeneratedDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/visits/{visitId:guid}/postpone", async (Guid visitId, PostponeVisitRequest request, HttpContext context,
             PlanVisits plan, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
@@ -209,6 +234,13 @@ public static class VisitEndpoints
         ManageVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
         ManageVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         ManageVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+        _ => Results.Forbid()
+    };
+
+    private static IResult ToResult(PlanGenerationResult result) => result switch
+    {
+        PlanGenerationResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        PlanGenerationResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
         _ => Results.Forbid()
     };
 

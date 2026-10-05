@@ -302,3 +302,15 @@ The default `SalesRep` role now has data scope `region` (migration 0022, also fo
 | `POST /notifications/read-all` | same | Marks all of the user's messages read | — |
 
 Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
+
+## Plan from places (step 1.24)
+
+No migration. Both routes need `visits.write` (SalesManager, Supervisor) and apply the caller's data scope twice: the assignee must be inside the scope (as for `POST /visits`), and only customers inside the scope are candidates.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `POST /visit-plan/preview` | `visits.write`; assignee and customers in scope | Body: `assignedUserId`, `scheduleDate` (today or later, Iraq time), `placeId` and/or `regionId` (at least one), optional `count` (1-200; empty = all), `order` (`least_recent` default / `name` / `code`), `respectWindows` (default true), `visitType`, `priority`. A `placeId` includes every place below it. Candidates: approved customers that have no visit (other than Cancelled/Failed) on that day, max 2000. Result `{matching, included, candidates[]}`; each candidate has `code`, `name`, `type`, `place` path, `lastVisitDate` (last Completed visit), `windowStatus`, `included`, `skipReason` (`outside_hours` = the customer's weekly hours do not include that weekday; `over_limit`). Creates nothing. 400 `INVALID_DATA`, 403, 404 `USER_NOT_FOUND` | — |
+| `POST /visit-plan/generate` | same | Same body plus `customerIds` (the rows kept in the preview; `count` is then ignored). The server recomputes the candidates and creates visits only for those that are still included; `{created, skipped, visitIds}`. Visit type = by customer type unless given; priority default normal. New visits go after the ones already in the assignee's day (their current order is fixed first). One transaction | `visit.created` per visit and one `visit.plan_generated` (entity = assignee) |
+
+Test: `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; panel: the "Plan from places" form on the Visits tab (`Panel.test.tsx`).
+
