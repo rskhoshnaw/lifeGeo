@@ -23,6 +23,7 @@ public partial class VisitDetailsPage : ContentPage
         _lifecycle = lifecycle;
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.visit.title");
+        CustomerBtn.Text = Texts.Get("app.customer.details");
         ReportTitleLabel.Text = Texts.Get("app.visit.report");
         OutcomePicker.Title = Texts.Get("app.visit.result");
         NoteEditor.Placeholder = Texts.Get("app.visit.notePlaceholder");
@@ -61,6 +62,9 @@ public partial class VisitDetailsPage : ContentPage
         Render();
         LeaveIfSessionEnded();
     }
+
+    private async void OnCustomerClicked(object? sender, EventArgs e) =>
+        await Navigation.PushAsync(new CustomerPage(_lifecycle.Visit.CustomerId, _lifecycle.Visit.CustomerName));
 
     private async void OnStepClicked(object? sender, EventArgs e) => await RunAsync(ct => _lifecycle.RunNextStepAsync(ct));
 

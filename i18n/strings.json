@@ -2236,5 +2236,221 @@
   "ckb": "هەموو درەختەکە لەگەڵ ID و ناوەکان بە سێ زمان، بۆ پڕۆژەکانی تر.",
   "ar": "الشجرة كاملة مع المعرّفات والأسماء بثلاث لغات، لمشاريع أخرى.",
   "fa": "کل درخت با شناسه و نام‌ها به سه زبان، برای پروژه‌های دیگر."
+ },
+ "app.home.newCustomer": {
+  "en": "New customer",
+  "ckb": "کڕیاری نوێ",
+  "ar": "عميل جديد",
+  "fa": "مشتری جدید"
+ },
+ "app.customer.details": {
+  "en": "Customer details",
+  "ckb": "وردەکاریی کڕیار",
+  "ar": "تفاصيل العميل",
+  "fa": "جزئیات مشتری"
+ },
+ "app.customer.new": {
+  "en": "New customer",
+  "ckb": "کڕیاری نوێ",
+  "ar": "عميل جديد",
+  "fa": "مشتری جدید"
+ },
+ "app.customer.name": {
+  "en": "Customer name",
+  "ckb": "ناوی کڕیار",
+  "ar": "اسم العميل",
+  "fa": "نام مشتری"
+ },
+ "app.customer.type": {
+  "en": "Type",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "app.customer.phone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "app.customer.address": {
+  "en": "Address note",
+  "ckb": "تێبینیی ناونیشان",
+  "ar": "ملاحظة العنوان",
+  "fa": "توضیح نشانی"
+ },
+ "app.customer.place": {
+  "en": "Where is the customer?",
+  "ckb": "کڕیار لە کوێیە؟",
+  "ar": "أين العميل؟",
+  "fa": "مشتری کجاست؟"
+ },
+ "app.customer.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوتکردن",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "app.customer.saved": {
+  "en": "Saved.",
+  "ckb": "پاشەکەوت کرا.",
+  "ar": "تم الحفظ.",
+  "fa": "ذخیره شد."
+ },
+ "app.customer.create": {
+  "en": "Add customer",
+  "ckb": "زیادکردنی کڕیار",
+  "ar": "إضافة العميل",
+  "fa": "افزودن مشتری"
+ },
+ "app.customer.created": {
+  "en": "Customer added. Code: {code}",
+  "ckb": "کڕیار زیاد کرا. کۆد: {code}",
+  "ar": "تمت إضافة العميل. الرمز: {code}",
+  "fa": "مشتری اضافه شد. کد: {code}"
+ },
+ "app.customer.useLocation": {
+  "en": "Use my current location",
+  "ckb": "شوێنی ئێستام بەکاربهێنە",
+  "ar": "استخدم موقعي الحالي",
+  "fa": "از موقعیت فعلی من استفاده کن"
+ },
+ "app.customer.locationSet": {
+  "en": "Location captured (accuracy {meters} m).",
+  "ckb": "شوێن وەرگیرا (وردی {meters} م).",
+  "ar": "تم التقاط الموقع (الدقة {meters} م).",
+  "fa": "موقعیت ثبت شد (دقت {meters} متر)."
+ },
+ "app.customer.locationFailed": {
+  "en": "Could not get a position. Allow location, go outside and try again.",
+  "ckb": "نەتوانرا شوێن وەربگیرێت. ڕێگە بە شوێن بدە، بچۆ دەرەوە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر الحصول على الموقع. اسمح بالموقع واخرج إلى الخارج وحاول مرة أخرى.",
+  "fa": "موقعیت گرفته نشد. دسترسی موقعیت را بدهید، بیرون بروید و دوباره تلاش کنید."
+ },
+ "app.customer.nameRequired": {
+  "en": "Enter the customer name.",
+  "ckb": "ناوی کڕیار بنووسە.",
+  "ar": "أدخل اسم العميل.",
+  "fa": "نام مشتری را وارد کنید."
+ },
+ "app.customer.loadFailed": {
+  "en": "Could not load the customer. Check your internet and try again.",
+  "ckb": "نەتوانرا کڕیارەکە باربکرێت. ئینتەرنێتەکەت بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر تحميل العميل. تحقق من الإنترنت وحاول مرة أخرى.",
+  "fa": "بارگذاری مشتری ممکن نشد. اینترنت را بررسی کنید و دوباره تلاش کنید."
+ },
+ "app.customer.codeFailed": {
+  "en": "Could not make a free customer code. Try again.",
+  "ckb": "نەتوانرا کۆدێکی بەتاڵ بۆ کڕیار دروست بکرێت. دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر إنشاء رمز عميل غير مستخدم. حاول مرة أخرى.",
+  "fa": "ساخت کد آزاد برای مشتری ممکن نشد. دوباره تلاش کنید."
+ },
+ "app.customer.notYours": {
+  "en": "You can change only customers you added.",
+  "ckb": "تەنها دەتوانیت ئەو کڕیارانە بگۆڕیت کە خۆت زیادت کردوون.",
+  "ar": "يمكنك تعديل العملاء الذين أضفتهم أنت فقط.",
+  "fa": "فقط مشتریانی را می‌توانید تغییر دهید که خودتان اضافه کرده‌اید."
+ },
+ "app.customer.partialProfile": {
+  "en": "The customer was added (code {code}), but the phone, address or place could not be saved. Open the customer and try again.",
+  "ckb": "کڕیار زیاد کرا (کۆد {code})، بەڵام تەلەفۆن و ناونیشان یان شوێنەکە پاشەکەوت نەکران. کڕیارەکە بکەرەوە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تمت إضافة العميل (الرمز {code}) لكن تعذّر حفظ الهاتف أو العنوان أو المكان. افتح العميل وحاول مرة أخرى.",
+  "fa": "مشتری اضافه شد (کد {code}) اما تلفن، نشانی یا مکان ذخیره نشد. مشتری را باز کنید و دوباره تلاش کنید."
+ },
+ "app.customer.partialLocation": {
+  "en": "The customer was added (code {code}), but the location could not be saved. Open the customer and try again.",
+  "ckb": "کڕیار زیاد کرا (کۆد {code})، بەڵام شوێنەکە پاشەکەوت نەکرا. کڕیارەکە بکەرەوە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تمت إضافة العميل (الرمز {code}) لكن تعذّر حفظ الموقع. افتح العميل وحاول مرة أخرى.",
+  "fa": "مشتری اضافه شد (کد {code}) اما موقعیت ذخیره نشد. مشتری را باز کنید و دوباره تلاش کنید."
+ },
+ "app.place.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "app.place.neighbourhood": {
+  "en": "Neighbourhood",
+  "ckb": "گەڕەک",
+  "ar": "الحي",
+  "fa": "محله"
+ },
+ "app.place.streetOrAlley": {
+  "en": "Street or alley",
+  "ckb": "شەقام یان کۆڵان",
+  "ar": "شارع أو زقاق",
+  "fa": "خیابان یا کوچه"
+ },
+ "app.place.alley": {
+  "en": "Alley",
+  "ckb": "کۆڵان",
+  "ar": "زقاق",
+  "fa": "کوچه"
+ },
+ "app.place.choose": {
+  "en": "— choose —",
+  "ckb": "— هەڵبژێرە —",
+  "ar": "— اختر —",
+  "fa": "— انتخاب کنید —"
+ },
+ "app.place.typeName": {
+  "en": "Type a name to find or add it",
+  "ckb": "ناوێک بنووسە بۆ دۆزینەوە یان زیادکردنی",
+  "ar": "اكتب اسمًا للبحث عنه أو إضافته",
+  "fa": "نامی بنویسید تا پیدا یا اضافه شود"
+ },
+ "app.place.addNeighbourhood": {
+  "en": "Add as neighbourhood",
+  "ckb": "وەک گەڕەک زیاد بکە",
+  "ar": "أضف كحي",
+  "fa": "افزودن به‌عنوان محله"
+ },
+ "app.place.addStreet": {
+  "en": "Add as street",
+  "ckb": "وەک شەقام زیاد بکە",
+  "ar": "أضف كشارع",
+  "fa": "افزودن به‌عنوان خیابان"
+ },
+ "app.place.addAlley": {
+  "en": "Add as alley",
+  "ckb": "وەک کۆڵان زیاد بکە",
+  "ar": "أضف كزقاق",
+  "fa": "افزودن به‌عنوان کوچه"
+ },
+ "app.place.added": {
+  "en": "Added: {name}",
+  "ckb": "زیاد کرا: {name}",
+  "ar": "تمت الإضافة: {name}",
+  "fa": "اضافه شد: {name}"
+ },
+ "app.place.usedExisting": {
+  "en": "Already in the list: {name}",
+  "ckb": "پێشتر لە لیستەکەدایە: {name}",
+  "ar": "موجود مسبقًا في القائمة: {name}",
+  "fa": "از قبل در فهرست است: {name}"
+ },
+ "app.place.kindStreet": {
+  "en": "street",
+  "ckb": "شەقام",
+  "ar": "شارع",
+  "fa": "خیابان"
+ },
+ "app.place.kindAlley": {
+  "en": "alley",
+  "ckb": "کۆڵان",
+  "ar": "زقاق",
+  "fa": "کوچه"
+ },
+ "app.place.noCities": {
+  "en": "No cities yet. Ask your manager to add them.",
+  "ckb": "هێشتا هیچ شارێک نییە. لە بەڕێوەبەرەکەت بپرسە زیادیان بکات.",
+  "ar": "لا توجد مدن بعد. اطلب من مديرك إضافتها.",
+  "fa": "هنوز شهری نیست. از مدیرتان بخواهید اضافه کند."
+ },
+ "app.ok": {
+  "en": "OK",
+  "ckb": "باشە",
+  "ar": "حسنًا",
+  "fa": "تأیید"
  }
 }
