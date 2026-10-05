@@ -24,3 +24,6 @@
 
 ## CI
 - `.github/workflows/build.yml` (jobs: build, mobile-android, web), `database-tests.yml` (`MIN_EXPECTED_TESTS`).
+
+## Local (Windows)
+- `docker-compose.yml` + `db/local/init.sql` (databases and roles as CI), `db/local/seed_dev.sql` (tenant `dev`, five users, regions, customers), `scripts/local/*.ps1` (Reset-LocalDb, Start-Api, Start-Panel, Run-Android, Test-All); guide `docs/LOCAL-SETUP.md`.

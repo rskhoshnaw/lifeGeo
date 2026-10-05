@@ -28,3 +28,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.19: migration 0019 (`tracking.read`/`tracking.summary`, seed + backfill), `GET /live-map`, panel Live map (MapLibre 6 + OSM, lazy chunk); DB 37/37, app 48, panel 27 tests.
 - 1.20: panel Audit tab (filters, Iraq-day bounds, cursor paging, read-only), `actorEmail` on `/audit-logs`; no migration; DB 37/37, panel 31 tests.
 - 1.21: `i18n/strings.json` (292 keys × ckb/ar/fa/en) used by panel (`src/i18n.ts`, `components/I18n.tsx`) and app (`Mobile.Visits/Localization/Texts.cs`, `Mobile/AppLanguage.cs`); default ckb, RTL; tests check every key in every language + same placeholders + every app key used exists; panel 34, Mobile.Visits 139.
+- Local setup (not a plan step): Docker DB, seed, PowerShell scripts, `docs/LOCAL-SETUP.md`; checked here: migrations + seed on the compose DB, API as lifedrop_app, register → approve → rep login, DB tests 37/37 against it.
