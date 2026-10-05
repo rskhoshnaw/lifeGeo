@@ -56,7 +56,7 @@ docker compose up -d                  # بار اول image را دانلود م
 
 ```powershell
 .\scripts\local\Start-Api.ps1     # http://localhost:5256  (با نقش محدود lifedrop_app)
-.\scripts\local\Start-Panel.ps1   # http://localhost:5173
+.\scripts\local\Start-Panel.ps1   # http://localhost:5273 (not 5173, which another project uses)
 ```
 
 در پنل با `dev` / `manager@dev.local` / `LifeDrop-Local-1` وارد شوید.
