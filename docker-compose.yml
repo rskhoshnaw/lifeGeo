@@ -6,8 +6,8 @@ services:
     environment:
       POSTGRES_PASSWORD: temp_root
     ports:
-      # Port 55433 on this computer only, so it never clashes with another PostgreSQL on 5432.
-      - "127.0.0.1:${LIFEDROP_DB_PORT:-55433}:5432"
+      # Port 54321 on this computer only, so it never clashes with another PostgreSQL on 5432.
+      - "127.0.0.1:${LIFEDROP_DB_PORT:-54321}:5432"
     volumes:
       - lifedrop-db:/var/lib/postgresql/data
       - ./db/local/init.sql:/docker-entrypoint-initdb.d/20_lifedrop.sql:ro
