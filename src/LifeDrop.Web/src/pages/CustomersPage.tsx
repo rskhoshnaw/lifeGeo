@@ -5,12 +5,13 @@ import { t, type TextKey } from '../i18n.ts'
 const approvalText = (status: string) =>
   ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   return (
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
-      {can(me, ...Permissions.customers) && <CustomerList admin={admin} />}
+      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} />}
     </section>
   )
 }
@@ -62,11 +63,12 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   )
 }
 
-function CustomerList({ admin }: { admin: AdminApi }) {
+function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean }) {
   const first = useLoad(useCallback(() => admin.customers(), [admin]))
   const [more, setMore] = useState<Customer[]>([])
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hoursFor, setHoursFor] = useState<Customer | null>(null)
   const items = [...(first.data ?? []), ...more]
 
   async function loadMore() {
@@ -91,6 +93,7 @@ function CustomerList({ admin }: { admin: AdminApi }) {
               <th>{t('web.customers.name')}</th>
               <th>{t('web.customers.type')}</th>
               <th>{t('web.customers.approval')}</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -100,11 +103,17 @@ function CustomerList({ admin }: { admin: AdminApi }) {
                 <td>{customer.name}</td>
                 <td>{customer.type}</td>
                 <td>{approvalText(customer.approvalStatus)}</td>
+                <td className="text-end">
+                  <button className="rounded border px-2 py-1" onClick={() => setHoursFor(customer)}>
+                    {t('web.customers.visitHours')}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      {hoursFor && <VisitWindowsEditor key={hoursFor.id} admin={admin} customer={hoursFor} canEdit={canEdit} onClose={() => setHoursFor(null)} />}
       {first.data && first.data.length === 100 && !done && (
         <button className="mt-3 rounded border px-3 py-1 text-sm" onClick={() => void loadMore()}>
           {t('web.action.loadMore')}

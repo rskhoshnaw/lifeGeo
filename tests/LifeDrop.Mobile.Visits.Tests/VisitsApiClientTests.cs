@@ -273,6 +273,62 @@ public class VisitsApiClientTests
         Assert.Equal(expected, (await shifts.UploadPointsAsync(Guid.NewGuid(), [])).Status);
     }
 
+    [Fact]
+    public async Task ReadsThePlanningFieldsOfFlexiblePlanning()
+    {
+        var (client, _) = Create(_ => Json(HttpStatusCode.OK, OneVisit.Replace("\"customerCode\":\"C1\"",
+            "\"customerCode\":\"C1\",\"sortOrder\":2,\"postponeCount\":1,\"postponeReason\":\"Not there\",\"windowStatus\":\"outside\"")));
+        var visit = Assert.Single((await client.GetDailyPlanAsync()).Visits);
+        Assert.Equal((2, 1, "Not there", "outside"), (visit.SortOrder, visit.PostponeCount, visit.PostponeReason, visit.WindowStatus));
+    }
+
+    [Fact]
+    public async Task OlderServersWithoutPlanningFieldsStillWork()
+    {
+        var (client, _) = Create(_ => Json(HttpStatusCode.OK, OneVisit));
+        var visit = Assert.Single((await client.GetDailyPlanAsync()).Visits);
+        Assert.Equal((null, 0, null, "none"), (visit.SortOrder, visit.PostponeCount, visit.PostponeReason, visit.WindowStatus));
+    }
+
+    [Fact]
+    public async Task ReorderSendsTheDayAndTheWholeOrderToThePlanRoute()
+    {
+        var body = "";
+        var (client, handler) = Create(request => { body = request.Content!.ReadAsStringAsync().Result; return new HttpResponseMessage(HttpStatusCode.NoContent); });
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        Assert.Equal(VisitActionResult.Success, await client.ReorderPlanAsync(new DateOnly(2026, 10, 5), ids));
+
+        Assert.Equal((HttpMethod.Put, "/visit-plan/order"), (handler.LastRequest!.Method, handler.LastRequest.RequestUri!.AbsolutePath));
+        Assert.Contains("\"scheduleDate\":\"2026-10-05\"", body);
+        Assert.Contains($"\"visitIds\":[\"{ids[0]}\",\"{ids[1]}\"]", body);
+    }
+
+    [Fact]
+    public async Task PostponeSendsTheNewDayAndReasonAndMapsTheAnswers()
+    {
+        var id = Guid.NewGuid();
+        var body = "";
+        var (client, handler) = Create(request => { body = request.Content!.ReadAsStringAsync().Result; return new HttpResponseMessage(HttpStatusCode.NoContent); });
+        Assert.Equal(VisitActionResult.Success, await client.PostponeAsync(id, new DateOnly(2026, 10, 7), "Not there"));
+        Assert.Equal((HttpMethod.Post, $"/visits/{id}/postpone"), (handler.LastRequest!.Method, handler.LastRequest.RequestUri!.AbsolutePath));
+        Assert.Contains("\"scheduleDate\":\"2026-10-07\"", body);
+        Assert.Contains("\"reason\":\"Not there\"", body);
+
+        foreach (var (status, code, expected) in new[]
+        {
+            (HttpStatusCode.BadRequest, "INVALID_STATE", VisitActionResult.InvalidState),
+            (HttpStatusCode.BadRequest, "INVALID_DATA", VisitActionResult.InvalidData),
+            (HttpStatusCode.Conflict, "CONCURRENCY_CONFLICT", VisitActionResult.Conflict),
+            (HttpStatusCode.NotFound, "NOT_FOUND", VisitActionResult.NotFound),
+            (HttpStatusCode.Forbidden, "FORBIDDEN", VisitActionResult.Forbidden),
+        })
+        {
+            var (failing, _) = Create(_ => Json(status, $"{{\"code\":\"{code}\"}}"));
+            Assert.Equal(expected, await failing.PostponeAsync(id, new DateOnly(2026, 10, 7), null));
+        }
+    }
+
     private sealed class FixedSession(AuthResult<string> token) : IAuthSession
     {
         public Task<AuthResult<string>> GetAccessTokenAsync(CancellationToken cancellationToken = default) => Task.FromResult(token);

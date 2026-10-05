@@ -8,7 +8,8 @@ using System.Threading.Tasks;
 namespace LifeDrop.Mobile;
 
 // One row of the plan, already formatted for display.
-public sealed record VisitRow(PlannedVisit Visit, string Customer, string Time, string Details, string Status);
+public sealed record VisitRow(PlannedVisit Visit, string Customer, string Time, string Details, string Status,
+    bool CanMoveUp, bool CanMoveDown, bool CanPostpone, string MoveUpText, string MoveDownText, string PostponeText);
 
 // Daily plan (plan step 1.10, PRD §5.1): today's visits (Iraq date) from GET /visits. Loading, empty and
 // error states come from DailyPlan; a failed refresh keeps the last list and says it may be out of date.
@@ -39,6 +40,50 @@ public partial class DailyPlanPage : ContentPage
     }
 
     private async void OnRetryClicked(object? sender, EventArgs e) => await LoadAsync();
+
+    // Plan changes (plan step 1.23): the server must accept them, so they need a connection.
+    private async void OnMoveUp(object? sender, EventArgs e) => await ChangeAsync(sender, (plan, row) => plan.MoveAsync(row.Visit.Id, -1));
+
+    private async void OnMoveDown(object? sender, EventArgs e) => await ChangeAsync(sender, (plan, row) => plan.MoveAsync(row.Visit.Id, 1));
+
+    private async void OnPostpone(object? sender, EventArgs e)
+    {
+        if (_plan is null || (sender as BindableObject)?.BindingContext is not VisitRow row) return;
+        var choices = DailyPlan.PostponeChoices(_plan.Date);
+        var labels = choices.Select(d => d.ToString("dddd d MMMM", Texts.Culture)).ToArray();
+        var picked = await DisplayActionSheet(Texts.Get("app.plan.postponeTitle"), Texts.Get("app.cancel"), null, labels);
+        var index = picked is null ? -1 : Array.IndexOf(labels, picked);
+        if (index < 0) return;
+        await ChangeAsync(sender, (plan, visit) => plan.PostponeAsync(visit.Visit.Id, choices[index], null));
+    }
+
+    private async Task ChangeAsync(object? sender, Func<DailyPlan, VisitRow, Task<VisitActionResult>> change)
+    {
+        if (_plan is null || (sender as BindableObject)?.BindingContext is not VisitRow row) return;
+        var plan = _plan;
+        Spinner.IsVisible = Spinner.IsRunning = true;
+        VisitActionResult result;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            result = await change(plan, row);
+        }
+        catch (OperationCanceledException)
+        {
+            result = VisitActionResult.NetworkError;
+        }
+        finally
+        {
+            Spinner.IsVisible = Spinner.IsRunning = false;
+        }
+
+        Render();
+        var message = DailyPlan.ChangeMessage(result);
+        if (message is null) return;
+        MessageLabel.Text = message;
+        MessageLabel.IsVisible = true;
+        if (result == VisitActionResult.SessionExpired) ShowSessionEnded();
+    }
 
     private async void OnVisitSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -86,7 +131,7 @@ public partial class DailyPlanPage : ContentPage
     {
         var plan = _plan!;
         if (plan.Date != default) DateLabel.Text = Texts.Get("app.plan.today", ("date", plan.Date.ToString("dddd d MMMM yyyy", Texts.Culture)));
-        VisitList.ItemsSource = plan.Visits.Select(ToRow).ToList();
+        VisitList.ItemsSource = plan.Visits.Select((v, i) => ToRow(v, i, plan.Visits.Count)).ToList();
         MessageLabel.Text = plan.Message;
         MessageLabel.IsVisible = plan.Message is not null;
         RetryBtn.IsVisible = plan.State == DailyPlanState.Error && plan.Error != PlanLoadStatus.SessionExpired;
@@ -102,18 +147,21 @@ public partial class DailyPlanPage : ContentPage
         AppLanguage.ShowRoot(new MainPage());
     }
 
-    private static VisitRow ToRow(PlannedVisit v)
+    private static VisitRow ToRow(PlannedVisit v, int index, int count)
     {
         var customer = string.IsNullOrWhiteSpace(v.CustomerName) ? Texts.Get("app.customer") : v.CustomerName!;
         if (!string.IsNullOrWhiteSpace(v.CustomerCode)) customer += $" ({v.CustomerCode})";
         var details = DailyPlan.TypeLabel(v.VisitType);
         if (v.Priority == "high") details += " · " + Texts.Get("app.plan.highPriority");
         if (v.IsUnplanned) details += " · " + Texts.Get("app.plan.unplanned");
+        details += DailyPlan.PlanNotes(v);
         // Steps saved on the phone move the status forward until the server has them.
         var outbox = TrackingHost.Outbox;
         var waiting = outbox?.HasPending(v.Id) == true;
         var status = waiting ? VisitLifecycle.LocalStatus(outbox!, v) : v.Status;
         return new VisitRow(v, customer, v.PlannedTime?.ToString("HH:mm") ?? Texts.Get("app.plan.anyTime"), details,
-            DailyPlan.StatusLabel(status) + (waiting ? " · " + Texts.Get("app.plan.waiting") : ""));
+            DailyPlan.StatusLabel(status) + (waiting ? " · " + Texts.Get("app.plan.waiting") : ""),
+            index > 0, index < count - 1, DailyPlan.CanPostpone(v, waiting),
+            Texts.Get("app.plan.moveUp") + " " + customer, Texts.Get("app.plan.moveDown") + " " + customer, Texts.Get("app.plan.postpone"));
     }
 }

@@ -175,6 +175,84 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.geofence_changed", "geofence_radius_m = @radius",
             command => command.Parameters.AddWithValue("radius", (object?)radiusMeters ?? DBNull.Value), cancellationToken);
 
+    public async Task<IReadOnlyList<VisitWindowDto>?> GetVisitWindowsAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+
+        await using (var exists = new NpgsqlCommand($"SELECT 1 FROM customers WHERE id = @id AND {ScopeFilter(scope)}", connection, transaction))
+        {
+            exists.Parameters.AddWithValue("id", id.Value);
+            AddScopeParameters(exists, scope);
+            if (await exists.ExecuteScalarAsync(cancellationToken) is null) return null;
+        }
+
+        await using var command = new NpgsqlCommand("""
+            SELECT weekday, opens_at, closes_at FROM customer_visit_windows
+            WHERE customer_id = @id ORDER BY weekday, opens_at
+            """, connection, transaction);
+        command.Parameters.AddWithValue("id", id.Value);
+        var windows = new List<VisitWindowDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            windows.Add(new VisitWindowDto(reader.GetInt16(0), reader.GetFieldValue<TimeOnly>(1), reader.GetFieldValue<TimeOnly>(2)));
+        return windows;
+    }
+
+    public async Task<bool> ReplaceVisitWindowsAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        IReadOnlyList<VisitWindowDto> windows, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+
+        // Lock the customer row (inside the actor's scope) so concurrent replacements run one after the other.
+        await using (var lockRow = new NpgsqlCommand($"SELECT 1 FROM customers WHERE id = @id AND {ScopeFilter(scope)} FOR UPDATE", connection, transaction))
+        {
+            lockRow.Parameters.AddWithValue("id", id.Value);
+            AddScopeParameters(lockRow, scope);
+            if (await lockRow.ExecuteScalarAsync(cancellationToken) is null) return false;
+        }
+
+        await using (var delete = new NpgsqlCommand("DELETE FROM customer_visit_windows WHERE customer_id = @id", connection, transaction))
+        {
+            delete.Parameters.AddWithValue("id", id.Value);
+            await delete.ExecuteNonQueryAsync(cancellationToken);
+        }
+        foreach (var window in windows)
+        {
+            await using var insert = new NpgsqlCommand("""
+                INSERT INTO customer_visit_windows (tenant_id, customer_id, weekday, opens_at, closes_at)
+                VALUES (@tenant, @id, @weekday, @opens, @closes)
+                """, connection, transaction);
+            insert.Parameters.AddWithValue("tenant", tenantId.Value);
+            insert.Parameters.AddWithValue("id", id.Value);
+            insert.Parameters.AddWithValue("weekday", (short)window.Weekday);
+            insert.Parameters.AddWithValue("opens", window.OpensAt);
+            insert.Parameters.AddWithValue("closes", window.ClosesAt);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, 'customer.visit_windows_changed', @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("entity", id.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private static async Task SetTenantAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, CancellationToken cancellationToken)
+    {
+        await using var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @tenant, true)", connection, transaction);
+        setTenant.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
+        await setTenant.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     // One UPDATE limited to the actor's scope and, only if a row changed, its audit entry, in one transaction.
     private async Task<bool> UpdateWithAuditAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string auditAction,
         string setClause, Action<NpgsqlCommand> addParameters, CancellationToken cancellationToken)

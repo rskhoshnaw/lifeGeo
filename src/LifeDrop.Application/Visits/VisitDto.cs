@@ -20,5 +20,12 @@ public sealed record VisitDto(
     string? CustomerName = null,
     string? CustomerCode = null,
     // Planning board (plan step 1.18): the assignee's email, so the panel can show who the visit belongs to.
-    string? AssigneeEmail = null
+    string? AssigneeEmail = null,
+    // Flexible planning (plan step 1.23): manual position in the day's plan (null = not ordered), how often the visit
+    // was moved to another day (with the last reason) and whether the day/time fits the customer's accepted visit
+    // windows: "none" (the customer has no windows), "within" or "outside".
+    int? SortOrder = null,
+    int PostponeCount = 0,
+    string? PostponeReason = null,
+    string WindowStatus = "none"
 );

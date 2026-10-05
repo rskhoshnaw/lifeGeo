@@ -108,6 +108,70 @@ public sealed class DailyPlan
         }
     }
 
+    // Changing the plan (plan step 1.23) needs the server: it is not queued offline.
+    // Moves one visit a place up (-1) or down (+1) and saves the order of the whole day; the list changes only after
+    // the server accepted it.
+    public async Task<VisitActionResult> MoveAsync(Guid visitId, int delta, CancellationToken cancellationToken = default)
+    {
+        var list = Visits.ToList();
+        var from = list.FindIndex(v => v.Id == visitId);
+        var to = from + delta;
+        if (from < 0 || to < 0 || to >= list.Count || Date == default) return VisitActionResult.InvalidState;
+        (list[from], list[to]) = (list[to], list[from]);
+
+        var result = await _api.ReorderPlanAsync(Date, list.Select(v => v.Id).ToList(), cancellationToken);
+        if (result == VisitActionResult.Success)
+        {
+            Visits = list.Select((v, i) => v with { SortOrder = i + 1 }).ToList();
+            CacheVisits();
+        }
+        return result;
+    }
+
+    // Moves a visit to another day (for example when the customer is not available); it leaves today's list.
+    public async Task<VisitActionResult> PostponeAsync(Guid visitId, DateOnly newDay, string? reason, CancellationToken cancellationToken = default)
+    {
+        if (newDay <= Date) return VisitActionResult.InvalidData;
+        var result = await _api.PostponeAsync(visitId, newDay, string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(), cancellationToken);
+        if (result == VisitActionResult.Success)
+        {
+            Visits = Visits.Where(v => v.Id != visitId).ToList();
+            State = Visits.Count == 0 ? DailyPlanState.Empty : DailyPlanState.Loaded;
+            CacheVisits();
+        }
+        return result;
+    }
+
+    // The days offered for "another day": tomorrow and the following days.
+    public static IReadOnlyList<DateOnly> PostponeChoices(DateOnly today, int days = 7) =>
+        Enumerable.Range(1, days).Select(today.AddDays).ToList();
+
+    // Only a visit that has not started its work can move, and not while steps for it wait on the phone.
+    public static bool CanPostpone(PlannedVisit visit, bool hasPendingSteps) =>
+        !hasPendingSteps && visit.Status is "Planned" or "EnRoute";
+
+    // The message for a failed plan change, or null on success.
+    public static string? ChangeMessage(VisitActionResult result) => result switch
+    {
+        VisitActionResult.Success => null,
+        VisitActionResult.SessionExpired => Texts.Get("app.sessionEnded"),
+        VisitActionResult.InvalidState or VisitActionResult.InvalidData => Texts.Get("app.plan.cannotPostpone"),
+        VisitActionResult.ServerError or VisitActionResult.Forbidden => Texts.Get("app.plan.server"),
+        _ => Texts.Get("app.plan.changeFailed")
+    };
+
+    // The extra text of a plan row: outside the customer's hours, moved before.
+    public static string PlanNotes(PlannedVisit visit)
+    {
+        var notes = "";
+        if (visit.WindowStatus == "outside") notes += " · " + Texts.Get("app.plan.outsideHours");
+        if (visit.PostponeCount > 0) notes += " · " + Texts.Get("app.plan.moved", ("count", visit.PostponeCount.ToString()));
+        return notes;
+    }
+
+    private void CacheVisits() =>
+        _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(Date, Visits.ToList()), Json));
+
     private IReadOnlyList<PlannedVisit>? ReadCache(DateOnly today)
     {
         var text = _cache?.Read(CacheKey);

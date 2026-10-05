@@ -68,6 +68,15 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         return (CreateVisitResult.Created, visit);
     }
 
+    // Whether the visit's day (and planned time, when set) fits the customer's accepted visit windows (plan step 1.23):
+    // 'none' = the customer has no windows, 'within', or 'outside'. weekday 0 = Sunday, like EXTRACT(DOW).
+    private const string WindowStatusSql = @"CASE
+                WHEN NOT EXISTS (SELECT 1 FROM customer_visit_windows w WHERE w.tenant_id = v.tenant_id AND w.customer_id = v.customer_id) THEN 'none'
+                WHEN EXISTS (SELECT 1 FROM customer_visit_windows w WHERE w.tenant_id = v.tenant_id AND w.customer_id = v.customer_id
+                             AND w.weekday = EXTRACT(DOW FROM v.schedule_date)::int
+                             AND (v.planned_time IS NULL OR (v.planned_time >= w.opens_at AND v.planned_time < w.closes_at))) THEN 'within'
+                ELSE 'outside' END";
+
     public async Task<System.Collections.Generic.List<VisitDto>> ListAssignedVisitsAsync(TenantId tenantId, UserId assignedUserId, System.DateOnly scheduleDate, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -81,11 +90,12 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
 
         const string sql = @"
             SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
-                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code
+                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code,
+                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @"
             FROM visits v
             LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
             WHERE v.user_id = @userId AND v.schedule_date = @scheduleDate
-            ORDER BY v.planned_time ASC NULLS LAST,
+            ORDER BY v.sort_order ASC NULLS LAST, v.planned_time ASC NULLS LAST,
                      CASE v.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
                      v.created_at ASC, v.id ASC;
         ";
@@ -110,7 +120,8 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         // Scope 2 = tenant, 1 = region (the actor and members of teams in the region), 0 = own (DataScope values).
         const string sql = @"
             SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
-                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code, u.email
+                v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code,
+                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @", u.email
             FROM visits v
             LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
             LEFT JOIN users u ON u.tenant_id = v.tenant_id AND u.id = v.user_id
@@ -120,7 +131,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                    OR (@scope = 1 AND @region::uuid IS NOT NULL AND EXISTS (
                        SELECT 1 FROM team_members m JOIN teams t ON t.id = m.team_id
                        WHERE m.user_id = v.user_id AND t.region_id = @region)))
-            ORDER BY v.planned_time ASC NULLS LAST,
+            ORDER BY v.sort_order ASC NULLS LAST, v.planned_time ASC NULLS LAST,
                      CASE v.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
                      v.created_at ASC, v.id ASC;
         ";
@@ -157,7 +168,11 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 UnplannedReason: reader.IsDBNull(11) ? null : reader.GetString(11),
                 CustomerName: reader.IsDBNull(12) ? null : reader.GetString(12),
                 CustomerCode: reader.IsDBNull(13) ? null : reader.GetString(13),
-                AssigneeEmail: withAssigneeEmail && !reader.IsDBNull(14) ? reader.GetString(14) : null
+                AssigneeEmail: withAssigneeEmail && !reader.IsDBNull(18) ? reader.GetString(18) : null,
+                SortOrder: reader.IsDBNull(14) ? null : reader.GetInt32(14),
+                PostponeCount: reader.GetInt32(15),
+                PostponeReason: reader.IsDBNull(16) ? null : reader.GetString(16),
+                WindowStatus: reader.GetString(17)
             ));
         }
         return results;
@@ -251,6 +266,48 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
             """, command =>
         {
             command.Parameters.AddWithValue("reason", reason);
+            command.Parameters.AddWithValue("expectedUser", expectedUserId.Value);
+            command.Parameters.AddWithValue("expectedStatus", expectedStatus.ToString());
+        }, cancellationToken);
+
+    // Plan step 1.23. The positions are written only when every listed visit belongs to the assignee on that day.
+    public async Task<bool> TryReorderAsync(TenantId tenantId, UserId actorId, UserId assigneeId, System.DateOnly scheduleDate,
+        System.Collections.Generic.IReadOnlyList<System.Guid> visitIds, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken, actorId);
+
+        await using var update = new NpgsqlCommand("""
+            UPDATE visits v SET sort_order = o.pos
+            FROM unnest(@ids::uuid[], @positions::int[]) AS o(id, pos)
+            WHERE v.id = o.id AND v.tenant_id = @tenant AND v.user_id = @assignee AND v.schedule_date = @day
+            """, connection, transaction);
+        update.Parameters.AddWithValue("ids", System.Linq.Enumerable.ToArray(visitIds));
+        update.Parameters.AddWithValue("positions", System.Linq.Enumerable.Range(1, visitIds.Count).ToArray());
+        update.Parameters.AddWithValue("tenant", tenantId.Value);
+        update.Parameters.AddWithValue("assignee", assigneeId.Value);
+        update.Parameters.AddWithValue("day", scheduleDate);
+        if (await update.ExecuteNonQueryAsync(cancellationToken) != visitIds.Count)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
+
+        await InsertAuditAsync(connection, transaction, tenantId, actorId, "visit.reordered", assigneeId.Value.ToString(), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public Task<bool> TryPostponeAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus,
+        System.DateOnly newDate, string? reason, CancellationToken cancellationToken) =>
+        UpdateWithAuditAsync(tenantId, actorId, visitId, "visit.postponed", """
+            UPDATE visits SET schedule_date = @newDate, status = 'Planned', sort_order = NULL,
+                postpone_count = postpone_count + 1, postpone_reason = @reason
+            WHERE id = @id AND user_id = @expectedUser AND status = @expectedStatus
+            """, command =>
+        {
+            command.Parameters.AddWithValue("newDate", newDate);
+            command.Parameters.Add(new NpgsqlParameter("reason", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)reason ?? System.DBNull.Value });
             command.Parameters.AddWithValue("expectedUser", expectedUserId.Value);
             command.Parameters.AddWithValue("expectedStatus", expectedStatus.ToString());
         }, cancellationToken);
@@ -429,8 +486,12 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         await insert.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static Task InsertAuditAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId,
+        string action, VisitId visitId, CancellationToken cancellationToken) =>
+        InsertAuditAsync(connection, transaction, tenantId, actorId, action, visitId.Value.ToString(), cancellationToken);
+
     private static async Task InsertAuditAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId,
-        string action, VisitId visitId, CancellationToken cancellationToken)
+        string action, string entityId, CancellationToken cancellationToken)
     {
         await using var audit = new NpgsqlCommand("""
             INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
@@ -439,7 +500,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         audit.Parameters.AddWithValue("tenant", tenantId.Value);
         audit.Parameters.AddWithValue("actor", actorId.Value);
         audit.Parameters.AddWithValue("action", action);
-        audit.Parameters.AddWithValue("entity", visitId.Value.ToString());
+        audit.Parameters.AddWithValue("entity", entityId);
         await audit.ExecuteNonQueryAsync(cancellationToken);
     }
 

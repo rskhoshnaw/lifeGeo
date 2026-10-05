@@ -31,6 +31,30 @@ public static class CustomerEndpoints
             .WithName("SetCustomerGeofenceRadius").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Days and hours in which a customer accepts visits (plan step 1.23).
+        app.MapGet("/customers/{customerId:guid}/visit-windows", async (Guid customerId, HttpContext context,
+            CustomerVisitWindows windows, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await windows.GetAsync(tenantId, actorId, customerId, cancellationToken);
+            return result == CustomerUpdateResult.Success ? Results.Ok(items) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GetCustomerVisitWindows").WithTags("Customers").Produces<IReadOnlyList<VisitWindowDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/customers/{customerId:guid}/visit-windows", async (Guid customerId, SetVisitWindowsRequest request, HttpContext context,
+            CustomerVisitWindows windows, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await windows.SetAsync(tenantId, actorId, customerId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SetCustomerVisitWindows").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // Customers registered outside the rep's region, waiting for approval (plan step 1.15, decision D11).
         app.MapGet("/customer-approvals", async (HttpContext context, CustomerApprovals approvals, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>

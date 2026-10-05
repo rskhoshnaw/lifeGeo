@@ -85,6 +85,18 @@ public class Visit : AggregateRoot<VisitId>
         UserId = newUserId;
     }
 
+    // Moving a visit to another day (plan step 1.23), for example when the customer is not available. Allowed before
+    // arrival; an en-route visit goes back to Planned. The new day must not be in the past.
+    public void Postpone(DateOnly newDate, DateOnly today)
+    {
+        if (newDate < today) throw new ArgumentException("A visit cannot be moved to a past day.", nameof(newDate));
+        if (newDate == ScheduleDate) throw new ArgumentException("The visit is already planned for this day.", nameof(newDate));
+        if (Status is not (VisitStatus.Planned or VisitStatus.EnRoute))
+            throw new InvalidOperationException($"Cannot postpone a visit that is {Status}.");
+        ScheduleDate = newDate;
+        Status = VisitStatus.Planned;
+    }
+
     public void MarkEnRoute()
     {
         if (Status != VisitStatus.Planned)

@@ -30,11 +30,30 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const canCancel = can(me, ...Permissions.cancelVisits)
   const action = useAction(plan.reload)
   const [picked, setPicked] = useState<Record<string, string>>({})
+  const [moveDay, setMoveDay] = useState<Record<string, string>>({})
 
   function cancel(visit: PlannedVisit) {
     const reason = window.prompt(t('web.visits.cancelPrompt', { customer: visit.customerName ?? visit.customerId }))?.trim()
     if (!reason) return
     void action.run(() => admin.cancelVisit(visit.id, reason))
+  }
+
+  // Swaps a visit with its neighbour inside the same assignee's list and saves the whole order of that assignee.
+  function shift(visit: PlannedVisit, delta: -1 | 1) {
+    const ids = (plan.data ?? []).filter((v) => v.userId === visit.userId).map((v) => v.id)
+    const from = ids.indexOf(visit.id)
+    const to = from + delta
+    if (from < 0 || to < 0 || to >= ids.length) return
+    ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
+    void action.run(() => admin.reorderPlan(date, ids, visit.userId))
+  }
+
+  function postpone(visit: PlannedVisit) {
+    const day = moveDay[visit.id]
+    if (!day) return
+    const reason = window.prompt(t('web.visits.postponePrompt', { customer: visit.customerName ?? visit.customerId }))
+    if (reason === null) return
+    void action.run(() => admin.postponeVisit(visit.id, day, reason.trim()))
   }
 
   const error = action.error ?? plan.error ?? users.error
@@ -51,7 +70,8 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
           <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b">
-                <th className="py-2">{t('web.visits.time')}</th>
+                <th className="py-2">{t('web.visits.order')}</th>
+                <th>{t('web.visits.time')}</th>
                 <th>{t('web.visits.customer')}</th>
                 <th>{t('web.visits.assignee')}</th>
                 <th>{t('web.visits.type')}</th>
@@ -64,17 +84,43 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
               {plan.data.map((visit) => {
                 const label = visit.customerCode ?? visit.customerId
                 const others = (users.data ?? []).filter((u) => u.id !== visit.userId)
+                const mine = (plan.data ?? []).filter((v) => v.userId === visit.userId)
+                const position = mine.findIndex((v) => v.id === visit.id)
+                const movable = visit.status === 'Planned' || visit.status === 'EnRoute'
                 return (
                   <tr key={visit.id} className="border-b align-top">
+                    <td className="space-x-1 py-2 whitespace-nowrap">
+                      <button className="rounded border px-1" aria-label={t('web.visits.moveUp', { customer: label })} disabled={action.busy || position <= 0} onClick={() => shift(visit, -1)}>
+                        ↑
+                      </button>
+                      <button className="rounded border px-1" aria-label={t('web.visits.moveDown', { customer: label })} disabled={action.busy || position >= mine.length - 1} onClick={() => shift(visit, 1)}>
+                        ↓
+                      </button>
+                    </td>
                     <td className="py-2">{visit.plannedTime?.slice(0, 5) ?? '—'}</td>
                     <td>
                       {label} · {visit.customerName ?? ''}
+                      {visit.windowStatus === 'outside' && <div className="text-xs text-amber-700">⚠ {t('web.visits.outsideHours')}</div>}
+                      {visit.postponeCount > 0 && (
+                        <div className="text-xs text-slate-600">
+                          {t('web.visits.movedTimes', { count: visit.postponeCount })}
+                          {visit.postponeReason ? ` · ${visit.postponeReason}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td>{visit.assigneeEmail ?? visit.userId}</td>
                     <td>{t(`web.visitType.${visit.visitType}`)}</td>
                     <td>{t(`web.priority.${visit.priority}`)}</td>
                     <td>{statusText(visit.status)}</td>
                     <td className="space-x-2 py-2 text-end">
+                      {movable && (
+                        <>
+                          <input type="date" aria-label={t('web.visits.moveToDay', { customer: label })} className="rounded border px-1 py-1" min={iraqToday()} value={moveDay[visit.id] ?? ''} onChange={(e) => setMoveDay({ ...moveDay, [visit.id]: e.target.value })} />
+                          <button className="rounded border px-2 py-1" disabled={action.busy || !moveDay[visit.id]} onClick={() => postpone(visit)}>
+                            {t('web.visits.move')}
+                          </button>
+                        </>
+                      )}
                       {visit.status === 'Planned' && others.length > 0 && (
                         <>
                           <select aria-label={t('web.visits.newAssigneeFor', { customer: label })} className="rounded border px-1 py-1" value={picked[visit.id] ?? ''} onChange={(e) => setPicked({ ...picked, [visit.id]: e.target.value })}>

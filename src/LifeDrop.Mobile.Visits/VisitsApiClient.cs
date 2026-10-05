@@ -19,7 +19,13 @@ public sealed record PlannedVisit(
     string Priority,
     TimeOnly? PlannedTime,
     bool IsUnplanned,
-    string? ExceptionReason);
+    string? ExceptionReason,
+    // Flexible planning (plan step 1.23): manual position, times moved to another day, and whether the visit's
+    // day/time fits the customer's accepted hours ("none", "within" or "outside").
+    int? SortOrder = null,
+    int PostponeCount = 0,
+    string? PostponeReason = null,
+    string WindowStatus = "none");
 
 public enum PlanLoadStatus { Success, SessionExpired, NetworkError, ServerError }
 
@@ -66,6 +72,13 @@ public interface IVisitsApiClient
     // Offline check-in / check-out sent later (decision D5): the server may accept it and ask a manager to review it.
     Task<(VisitActionResult Result, bool ReviewRequired)> SendOfflineCheckpointAsync(Guid visitId, bool checkOut, DeviceFix fix,
         long? elapsedSinceCaptureMs, string idempotencyKey, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // PUT /visit-plan/order (the whole day in the wanted order) and POST /visits/{id}/postpone (another day, optional
+    // reason) - plan step 1.23. Online only; the server checks that the visits are the caller's.
+    Task<VisitActionResult> ReorderPlanAsync(DateOnly scheduleDate, IReadOnlyList<Guid> visitIds, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    Task<VisitActionResult> PostponeAsync(Guid visitId, DateOnly newDate, string? reason, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
     // PUT / GET /visits/{id}/report.
@@ -141,6 +154,12 @@ public sealed class VisitsApiClient : IVisitsApiClient
 
     public Task<VisitActionResult> MarkArrivedAsync(Guid visitId, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/arrive", null, null, cancellationToken);
+
+    public Task<VisitActionResult> ReorderPlanAsync(DateOnly scheduleDate, IReadOnlyList<Guid> visitIds, CancellationToken cancellationToken = default) =>
+        SendActionAsync(HttpMethod.Put, "/visit-plan/order", new { scheduleDate = scheduleDate.ToString("yyyy-MM-dd"), visitIds }, null, cancellationToken);
+
+    public Task<VisitActionResult> PostponeAsync(Guid visitId, DateOnly newDate, string? reason, CancellationToken cancellationToken = default) =>
+        SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/postpone", new { scheduleDate = newDate.ToString("yyyy-MM-dd"), reason }, null, cancellationToken);
 
     public Task<VisitActionResult> CheckInAsync(Guid visitId, DeviceFix fix, string idempotencyKey, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/start", FixBody(fix), idempotencyKey, cancellationToken);

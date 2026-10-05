@@ -19,11 +19,17 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="local:VisitRow">
                         <Border Padding="12" Margin="0,0,0,8" StrokeThickness="1">
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
                                 <Label Grid.Row="0" Grid.Column="0" Text="{Binding Customer}" FontAttributes="Bold" />
                                 <Label Grid.Row="0" Grid.Column="1" Text="{Binding Time}" />
                                 <Label Grid.Row="1" Grid.Column="0" Text="{Binding Details}" />
                                 <Label Grid.Row="1" Grid.Column="1" Text="{Binding Status}" FontAttributes="Bold" />
+                                <!-- Plan changes (step 1.23): order and another day -->
+                                <HorizontalStackLayout Grid.Row="2" Grid.ColumnSpan="2" Spacing="8" Margin="0,8,0,0">
+                                    <Button Text="▲" Clicked="OnMoveUp" IsVisible="{Binding CanMoveUp}" SemanticProperties.Description="{Binding MoveUpText}" />
+                                    <Button Text="▼" Clicked="OnMoveDown" IsVisible="{Binding CanMoveDown}" SemanticProperties.Description="{Binding MoveDownText}" />
+                                    <Button Text="{Binding PostponeText}" Clicked="OnPostpone" IsVisible="{Binding CanPostpone}" />
+                                </HorizontalStackLayout>
                             </Grid>
                         </Border>
                     </DataTemplate>

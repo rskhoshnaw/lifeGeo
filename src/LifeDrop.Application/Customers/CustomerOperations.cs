@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using LifeDrop.Application.Roles;
 using LifeDrop.Domain.Common;
 
@@ -27,6 +28,14 @@ public interface ICustomerStore
         throw new NotSupportedException();
     Task<bool> SetGeofenceRadiusAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         int? radiusMeters, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    // Accepted visit days and hours (plan step 1.23). Get: null when the customer is not in the actor's scope.
+    // Replace: swaps the whole list in one transaction with its audit row; false when not in scope.
+    Task<IReadOnlyList<VisitWindowDto>?> GetVisitWindowsAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    Task<bool> ReplaceVisitWindowsAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        IReadOnlyList<VisitWindowDto> windows, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 }
 
@@ -180,6 +189,56 @@ public sealed class CustomerLocationService(ICustomerStore store, IPermissionSto
             "manual" => true,
             _ => false
         };
+
+    private async Task<AccessScope?> ScopeAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>
+        tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, permission, cancellationToken);
+}
+
+// Weekday: 0 = Sunday .. 6 = Saturday. Times are local (Asia/Baghdad); OpensAt must be before ClosesAt.
+public sealed record VisitWindowDto(int Weekday, TimeOnly OpensAt, TimeOnly ClosesAt);
+
+public sealed record SetVisitWindowsRequest(IReadOnlyList<VisitWindowDto> Windows);
+
+// Days and hours in which a customer accepts visits (plan step 1.23). A customer without windows has no restriction.
+// Reading needs customers.read, changing customers.write, both within the actor's data scope; changes are audited.
+public sealed class CustomerVisitWindows(ICustomerStore store, IPermissionStore permissions)
+{
+    public const int MaxWindows = 21;
+
+    public async Task<(CustomerUpdateResult Result, IReadOnlyList<VisitWindowDto>? Windows)> GetAsync(TenantId tenantId, UserId actorId, Guid customerId,
+        CancellationToken cancellationToken)
+    {
+        var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.CustomersRead, cancellationToken);
+        if (scope is null) return (CustomerUpdateResult.Forbidden, null);
+        var windows = await store.GetVisitWindowsAsync(tenantId, new CustomerId(customerId), scope, cancellationToken);
+        return windows is null ? (CustomerUpdateResult.NotFound, null) : (CustomerUpdateResult.Success, windows);
+    }
+
+    public async Task<CustomerUpdateResult> SetAsync(TenantId tenantId, UserId actorId, Guid customerId, SetVisitWindowsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return CustomerUpdateResult.Forbidden;
+        if (!IsValid(request.Windows)) return CustomerUpdateResult.InvalidData;
+
+        var ordered = request.Windows.OrderBy(w => w.Weekday).ThenBy(w => w.OpensAt).ToList();
+        return await store.ReplaceVisitWindowsAsync(tenantId, actorId, new CustomerId(customerId), scope, ordered, cancellationToken)
+            ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
+    }
+
+    // At most 21 windows; weekday 0-6; opens before closes; windows of one day must not overlap.
+    public static bool IsValid(IReadOnlyList<VisitWindowDto>? windows)
+    {
+        if (windows is null || windows.Count > MaxWindows) return false;
+        if (windows.Any(w => w is null || w.Weekday is < 0 or > 6 || w.OpensAt >= w.ClosesAt)) return false;
+        foreach (var day in windows.GroupBy(w => w.Weekday))
+        {
+            var sorted = day.OrderBy(w => w.OpensAt).ToList();
+            for (var i = 1; i < sorted.Count; i++)
+                if (sorted[i].OpensAt < sorted[i - 1].ClosesAt) return false;
+        }
+        return true;
+    }
 
     private async Task<AccessScope?> ScopeAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>
         tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, permission, cancellationToken);

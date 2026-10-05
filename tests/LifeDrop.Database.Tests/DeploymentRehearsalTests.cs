@@ -85,7 +85,7 @@ public class DeploymentRehearsalTests
                 await cmd.ExecuteNonQueryAsync();
 
             // 2. RUN MIGRATIONS
-            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql", "0012_customer_location.sql", "0013_visit_reports.sql", "0014_visit_location_events.sql", "0015_visit_status_history.sql", "0016_shifts_tracking.sql", "0017_offline_checkpoints.sql", "0018_customer_approval.sql", "0019_live_map.sql" };
+            string[] migrationFiles = { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0005_dev_admin_customer_permissions.sql", "0006_visits.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0009_default_roles.sql", "0010_visit_planning.sql", "0011_visit_cancel_permission.sql", "0012_customer_location.sql", "0013_visit_reports.sql", "0014_visit_location_events.sql", "0015_visit_status_history.sql", "0016_shifts_tracking.sql", "0017_offline_checkpoints.sql", "0018_customer_approval.sql", "0019_live_map.sql", "0020_flexible_planning.sql" };
             var migSql = $"SET search_path TO {schema}, public; ";
             foreach(var f in migrationFiles) {
                 migSql += await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, f)) + "\n";
