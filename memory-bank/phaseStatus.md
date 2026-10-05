@@ -15,7 +15,8 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.19 basic live map (D3 decided: finance = summary) | ✅ merged (PR #26) |
 | 1.20 audit viewer in the panel | ✅ merged (PR #27) |
 | 1.21 multilingual (ckb default, ar, fa RTL + en) | in PR; translations are Claude drafts, owner reviews `i18n/strings.json` |
-| Next | **1.22** end-to-end test (panel → phone → panel) |
+| 1.22 end-to-end test | 🟡 partial: register/approve/login/plan/Arrived verified on a real phone; Check-in, report, Check-out, deliberate error and repeat request **not yet tested** |
+| Next | finish 1.22 (move P-001 to the test spot, then Check-in → Check-out) in parallel with **2.1** catalog and price |
 
 Migrations: 0001–0019. Owner must apply 0006–0019 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
@@ -28,4 +29,5 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.19: migration 0019 (`tracking.read`/`tracking.summary`, seed + backfill), `GET /live-map`, panel Live map (MapLibre 6 + OSM, lazy chunk); DB 37/37, app 48, panel 27 tests.
 - 1.20: panel Audit tab (filters, Iraq-day bounds, cursor paging, read-only), `actorEmail` on `/audit-logs`; no migration; DB 37/37, panel 31 tests.
 - 1.21: `i18n/strings.json` (292 keys × ckb/ar/fa/en) used by panel (`src/i18n.ts`, `components/I18n.tsx`) and app (`Mobile.Visits/Localization/Texts.cs`, `Mobile/AppLanguage.cs`); default ckb, RTL; tests check every key in every language + same placeholders + every app key used exists; panel 34, Mobile.Visits 139.
+- 1.22 (partial, owner on a real phone): panel on port 5273; Android keystore save error on first device registration is now logged (`adb logcat -s LifeDrop`); visit reached Arrived; Check-in onwards pending.
 - Local setup (not a plan step): Docker DB, seed, PowerShell scripts, `docs/LOCAL-SETUP.md`; checked here: migrations + seed on the compose DB, API as lifedrop_app, register → approve → rep login, DB tests 37/37 against it.
