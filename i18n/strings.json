@@ -1750,5 +1750,209 @@
   "ckb": "LifeDrop شوێنەکەت تۆمار دەکات تا کۆتایی بە دەوام دەهێنیت.",
   "ar": "يسجّل LifeDrop موقعك حتى تنهي المناوبة.",
   "fa": "LifeDrop موقعیت شما را تا پایان شیفت ثبت می‌کند."
+ },
+ "web.visits.order": {
+  "en": "Order",
+  "ckb": "ڕیزبەندی",
+  "ar": "الترتيب",
+  "fa": "ترتیب"
+ },
+ "web.visits.moveUp": {
+  "en": "Move {customer} up",
+  "ckb": "{customer} بەرەو سەرەوە ببە",
+  "ar": "نقل {customer} للأعلى",
+  "fa": "{customer} را بالا ببر"
+ },
+ "web.visits.moveDown": {
+  "en": "Move {customer} down",
+  "ckb": "{customer} بەرەو خوارەوە ببە",
+  "ar": "نقل {customer} للأسفل",
+  "fa": "{customer} را پایین ببر"
+ },
+ "web.visits.moveToDay": {
+  "en": "New day for {customer}",
+  "ckb": "ڕۆژی نوێ بۆ {customer}",
+  "ar": "يوم جديد لـ {customer}",
+  "fa": "روز جدید برای {customer}"
+ },
+ "web.visits.move": {
+  "en": "Move to day",
+  "ckb": "دواخستن بۆ ڕۆژی",
+  "ar": "تأجيل إلى يوم",
+  "fa": "انتقال به روز"
+ },
+ "web.visits.postponePrompt": {
+  "en": "Reason for moving the visit to {customer} to another day? (optional)",
+  "ckb": "هۆکاری گواستنەوەی سەردانی {customer} بۆ ڕۆژێکی دیکە؟ (ئارەزووەکی)",
+  "ar": "سبب نقل زيارة {customer} إلى يوم آخر؟ (اختياري)",
+  "fa": "دلیل انتقال ویزیت {customer} به روز دیگر؟ (اختیاری)"
+ },
+ "web.visits.outsideHours": {
+  "en": "Outside the customer's visit hours",
+  "ckb": "دەرەوەی کاتی پێشوازیی کڕیار",
+  "ar": "خارج ساعات استقبال العميل",
+  "fa": "خارج از ساعت پذیرش مشتری"
+ },
+ "web.visits.movedTimes": {
+  "en": "Moved {count}×",
+  "ckb": "{count} جار دواخراوە",
+  "ar": "تأجلت {count} مرة",
+  "fa": "{count} بار منتقل شده"
+ },
+ "web.customers.visitHours": {
+  "en": "Visit hours",
+  "ckb": "کاتی پێشوازی",
+  "ar": "ساعات الزيارة",
+  "fa": "ساعت‌های پذیرش"
+ },
+ "web.customers.visitHoursTitle": {
+  "en": "Visit hours of {customer}",
+  "ckb": "کاتی پێشوازیی {customer}",
+  "ar": "ساعات زيارة {customer}",
+  "fa": "ساعت‌های پذیرش {customer}"
+ },
+ "web.customers.visitHoursHelp": {
+  "en": "Days and hours when the customer accepts visits. No rows means any time.",
+  "ckb": "ڕۆژ و کاتەکانی وەرگرتنی سەردان لەلایەن کڕیارەوە. ئەگەر هیچ ڕیزێک نەبێت، هەر کاتێک دروستە.",
+  "ar": "الأيام والساعات التي يقبل فيها العميل الزيارات. بدون صفوف يعني أي وقت.",
+  "fa": "روزها و ساعت‌هایی که مشتری ویزیت می‌پذیرد. بدون ردیف یعنی هر زمان."
+ },
+ "web.customers.weekday": {
+  "en": "Day",
+  "ckb": "ڕۆژ",
+  "ar": "اليوم",
+  "fa": "روز"
+ },
+ "web.customers.opensAt": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.customers.closesAt": {
+  "en": "To",
+  "ckb": "تا",
+  "ar": "إلى",
+  "fa": "تا"
+ },
+ "web.customers.addWindow": {
+  "en": "Add hours",
+  "ckb": "زیادکردنی کات",
+  "ar": "إضافة ساعات",
+  "fa": "افزودن ساعت"
+ },
+ "web.customers.removeWindow": {
+  "en": "Remove",
+  "ckb": "لابردن",
+  "ar": "حذف",
+  "fa": "حذف"
+ },
+ "web.customers.saveHours": {
+  "en": "Save",
+  "ckb": "پاشەکەوتکردن",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "web.customers.closeHours": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "web.customers.hoursInvalid": {
+  "en": "Each closing time must be after its opening time, and hours of the same day must not overlap.",
+  "ckb": "کاتی داخستن دەبێت دوای کاتی کردنەوە بێت، و کاتەکانی یەک ڕۆژ نابێت یەک بگرنەوە.",
+  "ar": "يجب أن يكون وقت الإغلاق بعد وقت الفتح، ولا يجوز أن تتداخل ساعات اليوم الواحد.",
+  "fa": "ساعت پایان باید بعد از ساعت شروع باشد و ساعت‌های یک روز نباید هم‌پوشانی داشته باشند."
+ },
+ "web.weekday.0": {
+  "en": "Sunday",
+  "ckb": "یەکشەممە",
+  "ar": "الأحد",
+  "fa": "یکشنبه"
+ },
+ "web.weekday.1": {
+  "en": "Monday",
+  "ckb": "دووشەممە",
+  "ar": "الاثنين",
+  "fa": "دوشنبه"
+ },
+ "web.weekday.2": {
+  "en": "Tuesday",
+  "ckb": "سێشەممە",
+  "ar": "الثلاثاء",
+  "fa": "سه‌شنبه"
+ },
+ "web.weekday.3": {
+  "en": "Wednesday",
+  "ckb": "چوارشەممە",
+  "ar": "الأربعاء",
+  "fa": "چهارشنبه"
+ },
+ "web.weekday.4": {
+  "en": "Thursday",
+  "ckb": "پێنجشەممە",
+  "ar": "الخميس",
+  "fa": "پنجشنبه"
+ },
+ "web.weekday.5": {
+  "en": "Friday",
+  "ckb": "هەینی",
+  "ar": "الجمعة",
+  "fa": "جمعه"
+ },
+ "web.weekday.6": {
+  "en": "Saturday",
+  "ckb": "شەممە",
+  "ar": "السبت",
+  "fa": "شنبه"
+ },
+ "app.plan.postpone": {
+  "en": "Another day",
+  "ckb": "ڕۆژێکی تر",
+  "ar": "يوم آخر",
+  "fa": "روز دیگر"
+ },
+ "app.plan.postponeTitle": {
+  "en": "Move this visit to:",
+  "ckb": "ئەم سەردانە دوابخە بۆ:",
+  "ar": "تأجيل هذه الزيارة إلى:",
+  "fa": "انتقال این ویزیت به:"
+ },
+ "app.plan.moveUp": {
+  "en": "Move up",
+  "ckb": "بەرەو سەرەوە",
+  "ar": "للأعلى",
+  "fa": "بالا"
+ },
+ "app.plan.moveDown": {
+  "en": "Move down",
+  "ckb": "بەرەو خوارەوە",
+  "ar": "للأسفل",
+  "fa": "پایین"
+ },
+ "app.plan.outsideHours": {
+  "en": "outside customer hours",
+  "ckb": "دەرەوەی کاتی کڕیار",
+  "ar": "خارج ساعات العميل",
+  "fa": "خارج از ساعت مشتری"
+ },
+ "app.plan.moved": {
+  "en": "moved {count}×",
+  "ckb": "{count} جار دواخراوە",
+  "ar": "تأجلت {count} مرة",
+  "fa": "{count} بار منتقل شده"
+ },
+ "app.plan.changeFailed": {
+  "en": "Could not change the plan. Check your internet and try again.",
+  "ckb": "نەتوانرا پلانەکە بگۆڕدرێت. ئینتەرنێتەکەت بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر تغيير الخطة. تحقق من الإنترنت وحاول مرة أخرى.",
+  "fa": "تغییر برنامه ممکن نشد. اینترنت را بررسی کنید و دوباره تلاش کنید."
+ },
+ "app.plan.cannotPostpone": {
+  "en": "This visit cannot be moved now.",
+  "ckb": "ئەم سەردانە ئێستا ناگوازرێتەوە.",
+  "ar": "لا يمكن تأجيل هذه الزيارة الآن.",
+  "fa": "این ویزیت اکنون قابل انتقال نیست."
  }
 }

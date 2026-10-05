@@ -12,6 +12,8 @@ public static class PermissionKeys
     public const string VisitsFail = "visits.fail";
     public const string VisitsCreateUnplanned = "visits.create_unplanned";
     public const string VisitsCancel = "visits.cancel";
+    // Plan step 1.23: a field user reorders and postpones visits of their own plan (managers use visits.write).
+    public const string VisitsPlan = "visits.plan";
     public const string CustomersApprove = "customers.approve";
     public const string DeviceApprove = "device.approve";
     public const string DevicesManage = "devices.manage";

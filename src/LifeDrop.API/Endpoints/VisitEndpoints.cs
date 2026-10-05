@@ -47,6 +47,29 @@ public static class VisitEndpoints
             .WithName("ListVisitPlan").WithTags("Visits").Produces<List<VisitDto>>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        // Flexible planning (plan step 1.23): order of a day's visits and moving a visit to another day.
+        app.MapPut("/visit-plan/order", async (ReorderPlanRequest request, HttpContext context,
+            PlanVisits plan, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await plan.ReorderAsync(tenantId, actorId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("ReorderVisitPlan").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/visits/{visitId:guid}/postpone", async (Guid visitId, PostponeVisitRequest request, HttpContext context,
+            PlanVisits plan, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await plan.PostponeAsync(tenantId, actorId, visitId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("PostponeVisit").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
         // Manager actions (plan step 1.4).
         app.MapPut("/visits/{visitId:guid}/assignee", async (Guid visitId, ReassignVisitRequest request, HttpContext context,
             ManageVisit manage, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>

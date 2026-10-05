@@ -68,6 +68,19 @@ export interface PlannedVisit {
   customerName: string | null
   customerCode: string | null
   assigneeEmail: string | null
+  // Flexible planning (plan step 1.23): manual position, times the visit was moved to another day (with the last
+  // reason) and whether its day/time fits the customer's accepted hours ("none" = the customer has none).
+  sortOrder: number | null
+  postponeCount: number
+  postponeReason: string | null
+  windowStatus: 'none' | 'within' | 'outside'
+}
+
+// Day (0 = Sunday .. 6 = Saturday) and local hours (HH:mm:ss) in which a customer accepts visits.
+export interface VisitWindow {
+  weekday: number
+  opensAt: string
+  closesAt: string
 }
 
 export interface NewVisit {
@@ -163,6 +176,7 @@ export const Permissions = {
   assignRoles: ['user.manageroles', 'system.admin'],
   devices: ['device.approve', 'devices.manage', 'system.admin'],
   customers: ['customers.read'],
+  editCustomers: ['customers.write'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
   cancelVisits: ['visits.cancel'],
@@ -228,6 +242,13 @@ export class AdminApi {
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })
+  // The whole day of one assignee in the wanted order, and moving one visit to another day (step 1.23).
+  reorderPlan = (scheduleDate: string, visitIds: string[], assignedUserId: string) =>
+    this.send('PUT', '/visit-plan/order', { scheduleDate, visitIds, assignedUserId })
+  postponeVisit = (id: string, scheduleDate: string, reason: string) =>
+    this.post(`/visits/${id}/postpone`, { scheduleDate, reason: reason || null })
+  visitWindows = (customerId: string) => this.get<VisitWindow[]>(`/customers/${customerId}/visit-windows`)
+  setVisitWindows = (customerId: string, windows: VisitWindow[]) => this.send('PUT', `/customers/${customerId}/visit-windows`, { windows })
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')

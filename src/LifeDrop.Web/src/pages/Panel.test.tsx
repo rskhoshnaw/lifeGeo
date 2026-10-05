@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.tsx'
 import { ApiClient } from '../api/client.ts'
@@ -30,7 +30,7 @@ const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamI
 const device = (id: string, status: Device['status']): Device => ({ id, userId: 'u1', userEmail: 'rep@t1', label: `Phone ${id}`, platform: 'android', appVersion: '1.0', status, registeredAt: '2026-10-04T08:00:00Z' })
 const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending' }
 
-const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1' })
+const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1', sortOrder: null, postponeCount: 0, postponeReason: null, windowStatus: 'none' })
 
 const posts = (calls: Call[]) => calls.filter((c) => c.method !== 'GET' && c.path !== '/auth/refresh')
 
@@ -147,6 +147,92 @@ describe('panel management screens', () => {
     expect(screen.getAllByRole('button', { name: 'Reassign' })).toHaveLength(1)
     // No customers.read: no create form
     expect(screen.queryByRole('button', { name: 'Create visit' })).not.toBeInTheDocument()
+  })
+
+  it('reorders one assignee\'s day, moves a visit to another day and flags visits outside the customer hours', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' Customer closed ')
+    const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
+    const today = iraqToday()
+    const other: PlannedVisit = { ...visit('v3', 'Planned'), userId: 'u2', assigneeEmail: 'rep2@t1', customerCode: 'P-3' }
+    const { api, calls } = server(planner, {
+      [`/visit-plan?scheduleDate=${today}`]: [
+        { ...visit('v1', 'Planned'), sortOrder: 1, windowStatus: 'outside' },
+        { ...visit('v2', 'Planned'), customerCode: 'P-2', sortOrder: 2, postponeCount: 2, postponeReason: 'Not there' },
+        other,
+        { ...visit('v4', 'Completed'), userId: 'u2', assigneeEmail: 'rep2@t1', customerCode: 'P-4' },
+      ],
+      '/users': [rep, { ...rep, id: 'u2', email: 'rep2@t1' }],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Visits' }))
+    await screen.findByText('P-2 · Shifa')
+
+    // Flags: outside hours, moved before
+    expect(screen.getByText(/Outside the customer's visit hours/)).toBeInTheDocument()
+    expect(screen.getByText(/Moved 2×/)).toHaveTextContent('Not there')
+
+    // Each assignee has their own order: the first cannot go up, the last cannot go down, a single visit neither
+    expect(screen.getByRole('button', { name: 'Move P-1 up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move P-2 down' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move P-3 up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move P-3 down' })).toBeEnabled()   // rep2 has P-3 and P-4
+    await user.click(screen.getByRole('button', { name: 'Move P-1 down' }))
+
+    // Moving to another day: only open visits; the reason prompt can be cancelled
+    expect(screen.queryByLabelText('New day for P-4')).not.toBeInTheDocument()
+    const dayInput = screen.getByLabelText('New day for P-2')
+    expect(screen.getAllByRole('button', { name: 'Move to day' })[1]).toBeDisabled()
+    fireEvent.change(dayInput, { target: { value: '2099-10-20' } })
+    await user.click(screen.getAllByRole('button', { name: 'Move to day' })[1]!)
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls).map((c) => c.path)).toEqual(['/visit-plan/order'])   // cancelled: nothing sent
+    await user.click(screen.getAllByRole('button', { name: 'Move to day' })[1]!)
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/visit-plan/order', body: { scheduleDate: today, visitIds: ['v2', 'v1'], assignedUserId: 'u1' } },
+      { method: 'POST', path: '/visits/v2/postpone', body: { scheduleDate: '2099-10-20', reason: 'Customer closed' } },
+    ])
+  })
+
+  it('edits the visit hours of a customer and rejects hours that overlap', async () => {
+    const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
+    const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]
+    const { api, calls } = server(editor, { '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }], '/customers/c1/visit-windows': hours })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Visit hours' }))
+    expect(await screen.findByLabelText('From')).toHaveValue('09:00')
+
+    // A second window on the same day that overlaps the first is refused before anything is sent
+    await user.click(screen.getByRole('button', { name: 'Add hours' }))
+    const days = screen.getAllByLabelText('Day')
+    await user.selectOptions(days[1]!, '2')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('must not overlap')
+    expect(posts(calls)).toEqual([])
+
+    // Thursday afternoon instead
+    await user.selectOptions(days[1]!, '4')
+    fireEvent.change(screen.getAllByLabelText('From')[1]!, { target: { value: '15:00' } })
+    fireEvent.change(screen.getAllByLabelText('To')[1]!, { target: { value: '18:30' } })
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/customers/c1/visit-windows', body: { windows: [hours[0], { weekday: 4, opensAt: '15:00:00', closesAt: '18:30:00' }] } },
+    ])
+    expect(screen.queryByLabelText('From')).not.toBeInTheDocument()   // the editor closes after saving
+  })
+
+  it('shows the visit hours read-only without customers.write', async () => {
+    const reader: Me = { id: 'f', email: 'finance@t1', roles: ['FinanceManager'], permissions: ['customers.read'] }
+    const { api } = server(reader, { '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }], '/customers/c1/visit-windows': [{ weekday: 0, opensAt: '08:00:00', closesAt: '12:00:00' }] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Visit hours' }))
+    expect(await screen.findByLabelText('From')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Add hours' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
   it('manages regions, teams and members', async () => {

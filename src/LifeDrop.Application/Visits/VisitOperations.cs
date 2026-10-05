@@ -34,6 +34,16 @@ public interface IVisitStore
     Task<bool> TryCancelAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus, string reason, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
+    // Flexible planning (plan step 1.23). Reorder: gives the listed visits positions 1..n, in one transaction, only when
+    // every one of them belongs to the assignee on that day; false otherwise. Postpone: moves a visit to another day
+    // (status back to Planned, position cleared) while it still has the expected assignee and status; one audit row each.
+    Task<bool> TryReorderAsync(TenantId tenantId, UserId actorId, UserId assigneeId, DateOnly scheduleDate, System.Collections.Generic.IReadOnlyList<Guid> visitIds,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    Task<bool> TryPostponeAsync(TenantId tenantId, UserId actorId, VisitId visitId, UserId expectedUserId, VisitStatus expectedStatus,
+        DateOnly newDate, string? reason, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     // Visit report (plan step 1.6): saved only while the visit is InVisit and assigned to the actor, with audit.
     Task<bool> TrySaveReportAsync(TenantId tenantId, UserId actorId, VisitId visitId, VisitReport report, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -168,8 +178,8 @@ public static class IraqCalendar
 }
 
 // Daily plan of the caller (plan step 1.3, PRD §5.1, §11): only the caller's visits; without a date the day is
-// "today" in Asia/Baghdad; a day without visits is an empty list. Ordered by planned time (unscheduled last),
-// then priority, then creation.
+// "today" in Asia/Baghdad; a day without visits is an empty list. Ordered by the manual position (plan step 1.23,
+// unordered visits last), then planned time (unscheduled last), then priority, then creation.
 public sealed class ListAssignedVisits(IVisitStore store, TimeProvider clock)
 {
     public async Task<System.Collections.Generic.List<VisitDto>?> ExecuteAsync(TenantId tenantId, UserId actorId, DateOnly? scheduleDate, CancellationToken cancellationToken)
@@ -347,7 +357,7 @@ public sealed class ManageVisit(IVisitStore store, LifeDrop.Application.Roles.IP
             : (scope, null, ManageVisitResult.NotFound);
     }
 
-    private static bool IsUserInScope(LifeDrop.Application.Roles.AccessScope scope, UserId userId, Guid? userRegion) => scope.Scope switch
+    internal static bool IsUserInScope(LifeDrop.Application.Roles.AccessScope scope, UserId userId, Guid? userRegion) => scope.Scope switch
     {
         LifeDrop.Application.Roles.DataScope.Tenant => true,
         LifeDrop.Application.Roles.DataScope.Region => userId == scope.ActorId || (scope.RegionId is not null && userRegion == scope.RegionId),

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -109,7 +110,8 @@ public class CustomerApiIntegrationTests
                 var m17 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0017_offline_checkpoints.sql"));
                 var m18 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0018_customer_approval.sql"));
                 var m19 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0019_live_map.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19;
+                var m20 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0020_flexible_planning.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1983,10 +1985,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail" }, await RowsAsync(
+        Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "41" }, grantsBefore);
+        Assert.Equal(new[] { "43" }, grantsBefore);   // 41 + visits.plan for SalesRep and ScientificRep (plan step 1.23)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -2850,6 +2852,295 @@ public class CustomerApiIntegrationTests
                 ("visit.cancelled", supervisor, vC.ToString()),
                 ("visit.reassigned", manager, vB.ToString())
             }, rows.ToArray());
+        }
+    }
+
+    private async Task<(IsolatedSchema Schema, WebApplicationFactory<LifeDrop.API.Program> Factory)> StartFlexiblePlanHostAsync(string url)
+    {
+        var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    // 06:00 UTC on 5 Oct = 09:00 on Monday 5 Oct 2026 in Baghdad.
+                    services.AddSingleton<TimeProvider>(new FixedClock(new DateTimeOffset(2026, 10, 5, 6, 0, 0, TimeSpan.Zero)));
+                });
+            });
+        return (schemaBlock, factory);
+    }
+
+    [SkippableFact]
+    public async Task FlexiblePlan_OwnerAndManagersReorderAndPostponeWithinScopeAndAudit()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid customer = Guid.NewGuid();
+        Guid v1 = Guid.NewGuid(), v2 = Guid.NewGuid(), v3 = Guid.NewGuid(), v4 = Guid.NewGuid(), v5 = Guid.NewGuid(), vB = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('55555555-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('55555555-0000-0000-0000-0000000000b1', @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, '55555555-0000-0000-0000-0000000000e1', 'Team A'),
+                    ('55555555-0000-0000-0000-0000000000a2', @t1, '55555555-0000-0000-0000-0000000000b1', 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @rb, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (@v1, @t1, @ra, @c, 'Planned', '2026-10-06', now() - interval '5 minutes'),
+                    (@v2, @t1, @ra, @c, 'Planned', '2026-10-06', now() - interval '4 minutes'),
+                    (@v3, @t1, @ra, @c, 'EnRoute', '2026-10-06', now() - interval '3 minutes'),
+                    (@v4, @t1, @ra, @c, 'Completed', '2026-10-06', now() - interval '2 minutes'),
+                    (@v5, @t1, @ra, @c, 'Planned', '2026-10-06', now() - interval '1 minutes'),
+                    (@vb, @t1, @rb, @c, 'Planned', '2026-10-06', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("rb", repB), ("c", customer),
+                ("v1", v1), ("v2", v2), ("v3", v3), ("v4", v4), ("v5", v5), ("vb", vB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Reorder(string day, IEnumerable<Guid> ids, Guid? assignee = null) =>
+            client.PutAsJsonAsync("/visit-plan/order", new { ScheduleDate = day, VisitIds = ids, AssignedUserId = assignee });
+        Task<HttpResponseMessage> Postpone(Guid visit, string day, string? reason = null) =>
+            client.PostAsJsonAsync($"/visits/{visit}/postpone", new { ScheduleDate = day, Reason = reason });
+        async Task<List<LifeDrop.Application.Visits.VisitDto>> OwnPlan(string day) =>
+            (await (await client.GetAsync($"/visits?scheduleDate={day}")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+
+        // Without any order: planned time, priority, then creation (all equal here: creation order), no positions.
+        As(repA);
+        var initial = await OwnPlan("2026-10-06");
+        Assert.Equal(new[] { v1, v2, v3, v4, v5 }, initial.Select(v => v.Id).ToArray());
+        Assert.All(initial, v => Assert.Null(v.SortOrder));
+
+        // Finance has neither visits.plan nor visits.write
+        As(finance);
+        await AssertProblemAsync(await Reorder("2026-10-06", new[] { v1 }, repA), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Postpone(v1, "2026-10-07"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // The owner reorders their own day (any status is allowed in the order)
+        As(repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await Reorder("2026-10-06", new[] { v3, v1, v2, v4 })).StatusCode);
+        var ordered = await OwnPlan("2026-10-06");
+        Assert.Equal(new[] { v3, v1, v2, v4, v5 }, ordered.Select(v => v.Id).ToArray());   // v5 is not ordered yet: last
+        Assert.Equal(new int?[] { 1, 2, 3, 4, null }, ordered.Select(v => v.SortOrder).ToArray());
+
+        // Invalid or unsafe requests
+        await AssertProblemAsync(await Reorder("2026-10-06", Array.Empty<Guid>()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Reorder("2026-10-06", new[] { v1, v1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Reorder("2026-10-06", new[] { v1, vB }), HttpStatusCode.Conflict, "CONCURRENCY_CONFLICT");   // vB is not repA's
+        await AssertProblemAsync(await Reorder("2026-10-07", new[] { v1 }), HttpStatusCode.Conflict, "CONCURRENCY_CONFLICT");        // wrong day
+        await AssertProblemAsync(await Reorder("2026-10-06", new[] { vB }, repB), HttpStatusCode.NotFound, "NOT_FOUND");            // another user's plan
+        Assert.Equal(new[] { v3, v1, v2, v4, v5 }, (await OwnPlan("2026-10-06")).Select(v => v.Id).ToArray());                      // nothing changed
+
+        // A supervisor reorders a rep of their region, not another region's rep
+        As(supervisor);
+        Assert.Equal(HttpStatusCode.NoContent, (await Reorder("2026-10-06", new[] { v5, v2, v1, v3, v4 }, repA)).StatusCode);
+        await AssertProblemAsync(await Reorder("2026-10-06", new[] { vB }, repB), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(repA);
+        Assert.Equal(new[] { v5, v2, v1, v3, v4 }, (await OwnPlan("2026-10-06")).Select(v => v.Id).ToArray());
+
+        // Postpone: reason limits, past day, same day, finished visit
+        await AssertProblemAsync(await Postpone(v1, "2026-10-04"), HttpStatusCode.BadRequest, "INVALID_DATA");              // before today (5 Oct)
+        await AssertProblemAsync(await Postpone(v1, "2026-10-06"), HttpStatusCode.BadRequest, "INVALID_DATA");              // same day
+        await AssertProblemAsync(await Postpone(v1, "2026-10-07", new string('x', 501)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Postpone(v4, "2026-10-07"), HttpStatusCode.BadRequest, "INVALID_STATE");              // Completed
+        await AssertProblemAsync(await Postpone(vB, "2026-10-07"), HttpStatusCode.NotFound, "NOT_FOUND");                    // not repA's visit
+        await AssertProblemAsync(await Postpone(Guid.NewGuid(), "2026-10-07"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // An en-route visit can be postponed: back to Planned on the new day, at the end of that day, counted with its reason
+        Assert.Equal(HttpStatusCode.NoContent, (await Postpone(v3, "2026-10-07", "  Customer not available  ")).StatusCode);
+        Assert.DoesNotContain(v3, (await OwnPlan("2026-10-06")).Select(v => v.Id));
+        var moved = Assert.Single(await OwnPlan("2026-10-07"));
+        Assert.Equal((v3, "Planned", null, 1, "Customer not available", "2026-10-07"),
+            (moved.Id, moved.Status, moved.SortOrder, moved.PostponeCount, moved.PostponeReason, moved.ScheduleDate.ToString("yyyy-MM-dd")));
+        // ... and again, the count grows and the position stays cleared; postponing to today is allowed
+        Assert.Equal(HttpStatusCode.NoContent, (await Postpone(v3, "2026-10-05")).StatusCode);
+        var movedAgain = Assert.Single(await OwnPlan("2026-10-05"));
+        Assert.Equal((2, (string?)null, (int?)null), (movedAgain.PostponeCount, movedAgain.PostponeReason, movedAgain.SortOrder));
+
+        // The sales manager moves any visit (tenant scope); a supervisor only inside the region
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Postpone(vB, "2026-10-08", "Holiday")).StatusCode);
+        As(supervisor);
+        await AssertProblemAsync(await Postpone(vB, "2026-10-09"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await Postpone(v5, "2026-10-09")).StatusCode);
+
+        // Status history: the en-route visit went back to Planned, recorded for the rep; audit has one row per success
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using (var setTenant = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false)", conn))
+            {
+                setTenant.Parameters.AddWithValue("t1", t1);
+                await setTenant.ExecuteNonQueryAsync();
+            }
+            await using var history = new NpgsqlCommand(@"
+                SELECT from_status, to_status, actor_id FROM visit_status_history WHERE visit_id = @v ORDER BY occurred_at, id;", conn);
+            history.Parameters.AddWithValue("v", v3);
+            await using (var reader = await history.ExecuteReaderAsync())
+            {
+                var rows = new List<(string?, string, Guid?)>();
+                while (await reader.ReadAsync()) rows.Add((reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetGuid(2)));
+                Assert.Equal(new (string?, string, Guid?)[] { (null, "EnRoute", null), ("EnRoute", "Planned", repA) }, rows.ToArray());
+            }
+
+            await using var audit = new NpgsqlCommand(@"
+                SELECT action, actor_id, entity_id FROM audit_logs WHERE tenant_id = @t1 AND action IN ('visit.reordered', 'visit.postponed') ORDER BY occurred_at, action;", conn);
+            audit.Parameters.AddWithValue("t1", t1);
+            await using var auditReader = await audit.ExecuteReaderAsync();
+            var auditRows = new List<(string, Guid, string)>();
+            while (await auditReader.ReadAsync()) auditRows.Add((auditReader.GetString(0), auditReader.GetGuid(1), auditReader.GetString(2)));
+            Assert.Equal(new[]
+            {
+                ("visit.reordered", repA, repA.ToString()),
+                ("visit.reordered", supervisor, repA.ToString()),
+                ("visit.postponed", repA, v3.ToString()),
+                ("visit.postponed", repA, v3.ToString()),
+                ("visit.postponed", manager, vB.ToString()),
+                ("visit.postponed", supervisor, v5.ToString())
+            }, auditRows.ToArray());
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomerVisitWindows_AreEditedWithinScopeAndFlagVisitsOutsideThem()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid cWindows = Guid.NewGuid(), cFree = Guid.NewGuid();
+        Guid vTue = Guid.NewGuid(), vTueNoon = Guid.NewGuid(), vTueAfternoon = Guid.NewGuid(), vWed = Guid.NewGuid(), vFree = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@fin, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, owner_user_id) VALUES
+                    (@cw, @t1, 'Pharmacy', 'W1', 'Has windows', @ra), (@cf, @t1, 'Pharmacy', 'F1', 'No windows', @ra);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, planned_time) VALUES
+                    (@vtue, @t1, @ra, @cw, 'Planned', '2026-10-06', NULL),
+                    (@vnoon, @t1, @ra, @cw, 'Planned', '2026-10-06', '10:00'),
+                    (@vaft, @t1, @ra, @cw, 'Planned', '2026-10-06', '14:00'),
+                    (@vwed, @t1, @ra, @cw, 'Planned', '2026-10-07', NULL),
+                    (@vfree, @t1, @ra, @cf, 'Planned', '2026-10-06', '03:00');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("fin", finance), ("ra", repA), ("rb", repB), ("cw", cWindows), ("cf", cFree),
+                ("vtue", vTue), ("vnoon", vTueNoon), ("vaft", vTueAfternoon), ("vwed", vWed), ("vfree", vFree) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Put(Guid customer, params object[] windows) =>
+            client.PutAsJsonAsync($"/customers/{customer}/visit-windows", new { Windows = windows });
+        object W(int weekday, string opens, string closes) => new { Weekday = weekday, OpensAt = opens, ClosesAt = closes };
+        async Task<Dictionary<Guid, string>> StatusesAsync(string day) =>
+            (await (await client.GetAsync($"/visits?scheduleDate={day}")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!
+                .ToDictionary(v => v.Id, v => v.WindowStatus);
+
+        // No windows yet: nothing is flagged
+        As(repA);
+        Assert.All((await StatusesAsync("2026-10-06")).Values, status => Assert.Equal("none", status));
+
+        // Roles: the owner (customers.write) edits; another rep's customer is not visible; finance may read but not edit
+        As(repB);
+        await AssertProblemAsync(await Put(cWindows, W(2, "09:00:00", "13:00:00")), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/customers/{cWindows}/visit-windows"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(finance);
+        await AssertProblemAsync(await Put(cWindows, W(2, "09:00:00", "13:00:00")), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/customers/{cWindows}/visit-windows")).StatusCode);
+
+        // Validation: order, overlap, weekday range, count
+        As(repA);
+        await AssertProblemAsync(await Put(cWindows, W(2, "13:00:00", "09:00:00")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(cWindows, W(2, "09:00:00", "09:00:00")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(cWindows, W(2, "09:00:00", "13:00:00"), W(2, "12:00:00", "15:00:00")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(cWindows, W(7, "09:00:00", "13:00:00")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(cWindows, W(-1, "09:00:00", "13:00:00")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(cWindows, Enumerable.Range(0, 22).Select(i => W(i % 7, $"{i / 7 * 6:00}:00:00", $"{i / 7 * 6 + 5:00}:00:00")).ToArray()),
+            HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(Guid.NewGuid(), W(2, "09:00:00", "13:00:00")), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Tuesday 09:00-13:00 and 17:00-20:00 (given out of order); Sunday all morning
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(cWindows, W(2, "17:00:00", "20:00:00"), W(0, "08:00:00", "12:00:00"), W(2, "09:00:00", "13:00:00"))).StatusCode);
+        var stored = (await (await client.GetAsync($"/customers/{cWindows}/visit-windows")).Content.ReadFromJsonAsync<List<VisitWindowDto>>())!;
+        Assert.Equal(new[] { (0, "08:00:00", "12:00:00"), (2, "09:00:00", "13:00:00"), (2, "17:00:00", "20:00:00") },
+            stored.Select(w => (w.Weekday, w.OpensAt.ToString("HH:mm:ss"), w.ClosesAt.ToString("HH:mm:ss"))).ToArray());
+
+        // Visit day and planned time against the windows (6 Oct 2026 is a Tuesday, 7 Oct a Wednesday)
+        var tuesday = await StatusesAsync("2026-10-06");
+        Assert.Equal("within", tuesday[vTue]);          // no planned time: the day is accepted
+        Assert.Equal("within", tuesday[vTueNoon]);      // 10:00 inside 09:00-13:00
+        Assert.Equal("outside", tuesday[vTueAfternoon]); // 14:00 between the two windows
+        Assert.Equal("none", tuesday[vFree]);           // that customer has no windows
+        Assert.Equal("outside", (await StatusesAsync("2026-10-07"))[vWed]);
+
+        // The planning board shows the same flag to a manager
+        As(manager);
+        var board = (await (await client.GetAsync("/visit-plan?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        Assert.Equal("outside", board.Single(v => v.Id == vTueAfternoon).WindowStatus);
+
+        // Replacing with an empty list lifts every restriction; each change is audited
+        As(repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(cWindows)).StatusCode);
+        Assert.Empty((await (await client.GetAsync($"/customers/{cWindows}/visit-windows")).Content.ReadFromJsonAsync<List<VisitWindowDto>>())!);
+        Assert.Equal("none", (await StatusesAsync("2026-10-07"))[vWed]);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var audit = new NpgsqlCommand(@"
+                SELECT actor_id, entity_id FROM audit_logs WHERE tenant_id = @t1 AND action = 'customer.visit_windows_changed' ORDER BY occurred_at;", conn);
+            audit.Parameters.AddWithValue("t1", t1);
+            await using var reader = await audit.ExecuteReaderAsync();
+            var rows = new List<(Guid, string)>();
+            while (await reader.ReadAsync()) rows.Add((reader.GetGuid(0), reader.GetString(1)));
+            Assert.Equal(new[] { (repA, cWindows.ToString()), (repA, cWindows.ToString()) }, rows.ToArray());
         }
     }
 
