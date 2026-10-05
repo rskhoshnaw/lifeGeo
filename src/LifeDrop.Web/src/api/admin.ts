@@ -49,36 +49,33 @@ export interface Customer {
   createdAt: string
   regionId: string | null
   approvalStatus: string
-  // Profile (plan step 1.23-b): contact details and the place in the city/neighbourhood/street reference list.
+  // Profile (plan step 1.23-b): contact details and the most precise place; placePath lists it and the ones above it.
   phone: string | null
   address: string | null
-  cityId: string | null
-  neighbourhoodId: string | null
-  streetId: string | null
+  placeId: string | null
+  placePath: PlacePathItem[] | null
 }
 
-export interface City {
+export interface PlacePathItem {
   id: string
+  kind: PlaceKind
   name: string
-  nameCkb: string | null
-  nameAr: string | null
-  nameEn: string | null
-  status: 'active' | 'inactive'
 }
 
-export type PlaceKind = 'neighbourhood' | 'street'
-export type PlaceStatus = 'active' | 'suggested' | 'inactive'
+// Places tree: city -> neighbourhood -> street -> alley; childCount counts the active places directly below.
+export type PlaceKind = 'city' | 'neighbourhood' | 'street' | 'alley'
 
 export interface Place {
   id: string
-  cityId: string
+  parentId: string | null
   kind: PlaceKind
   name: string
   nameCkb: string | null
   nameAr: string | null
   nameEn: string | null
-  status: PlaceStatus
+  status: 'active' | 'inactive'
   mergedInto: string | null
+  childCount: number
 }
 
 // Names of one place: the main name and the optional Kurdish, Arabic and English names.
@@ -89,29 +86,28 @@ export interface PlaceNames {
   nameEn: string | null
 }
 
+// One row of an import file: the levels above are named, missing ones are created.
 export interface ImportRow {
-  city: string
   kind: PlaceKind
   name: string
+  city: string | null
+  neighbourhood: string | null
+  street: string | null
   nameCkb: string | null
   nameAr: string | null
   nameEn: string | null
-  osm: string | null
   active: boolean
 }
 
 export interface ImportSummary {
-  citiesCreated: number
-  placesCreated: number
+  created: number
   skipped: number
 }
 
 export interface CustomerProfile {
   phone: string | null
   address: string | null
-  cityId: string | null
-  neighbourhoodId: string | null
-  streetId: string | null
+  placeId: string | null
 }
 
 export type VisitType = 'pharmacy' | 'doctor' | 'wholesaler' | 'other'
@@ -313,20 +309,25 @@ export class AdminApi {
     this.post(`/visits/${id}/postpone`, { scheduleDate, reason: reason || null })
   visitWindows = (customerId: string) => this.get<VisitWindow[]>(`/customers/${customerId}/visit-windows`)
   setVisitWindows = (customerId: string, windows: VisitWindow[]) => this.send('PUT', `/customers/${customerId}/visit-windows`, { windows })
-  // Reference list of cities, neighbourhoods and streets and the customer profile (step 1.23-b).
-  cities = (includeInactive = false) => this.get<City[]>(includeInactive ? '/cities?includeInactive=true' : '/cities')
-  places = (cityId: string, kind: PlaceKind | '' = '', search = '', includeInactive = false) =>
+  // Places tree and customer profile (step 1.23-b). parentId null lists the cities.
+  places = (parentId: string | null, includeInactive = false, search = '') =>
     this.get<Place[]>(
-      `/places?cityId=${cityId}&limit=2000${kind ? `&kind=${kind}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}${includeInactive ? '&includeInactive=true' : ''}`,
+      `/places?limit=2000${parentId ? `&parentId=${parentId}` : '&kind=city'}${search ? `&q=${encodeURIComponent(search)}` : ''}${includeInactive ? '&includeInactive=true' : ''}`,
     )
-  createCity = (name: string) => this.post('/cities', { name })
-  createPlace = (cityId: string, kind: PlaceKind, names: PlaceNames) => this.post('/places', { cityId, kind, ...names })
-  updatePlace = (id: string, names: PlaceNames, status: 'active' | 'inactive') => this.send('PUT', `/places/${id}`, { ...names, status })
+  createPlace = (parentId: string | null, kind: PlaceKind, names: PlaceNames) => this.post('/places', { parentId, kind, ...names })
+  updatePlace = (id: string, names: PlaceNames, status: 'active' | 'inactive', parentId: string | null = null) =>
+    this.send('PUT', `/places/${id}`, { ...names, status, parentId })
   mergePlace = (id: string, intoPlaceId: string) => this.post(`/places/${id}/merge`, { intoPlaceId })
   importPlaces = async (rows: ImportRow[]): Promise<ImportSummary> => {
     const response = await this.api.request('/places/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) })
     if (!response.ok) throw await toError(response)
     return (await response.json()) as ImportSummary
+  }
+  // The whole tree as text (CSV or JSON) for other projects.
+  exportPlaces = async (format: 'csv' | 'json', includeInactive = false): Promise<string> => {
+    const response = await this.api.request(`/places/export?format=${format}${includeInactive ? '&includeInactive=true' : ''}`)
+    if (!response.ok) throw await toError(response)
+    return response.text()
   }
   setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')

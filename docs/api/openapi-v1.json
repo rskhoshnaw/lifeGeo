@@ -1828,166 +1828,6 @@
         }
       }
     },
-    "/cities": {
-      "get": {
-        "tags": [
-          "Places"
-        ],
-        "operationId": "ListCities",
-        "parameters": [
-          {
-            "name": "includeInactive",
-            "in": "query",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CityDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Places"
-        ],
-        "operationId": "CreateCity",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCityRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreatedResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/places": {
       "get": {
         "tags": [
@@ -1996,7 +1836,7 @@
         "operationId": "ListPlaces",
         "parameters": [
           {
-            "name": "cityId",
+            "name": "parentId",
             "in": "query",
             "schema": {
               "type": "string",
@@ -2436,6 +2276,85 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/places/export": {
+      "get": {
+        "tags": [
+          "Places"
+        ],
+        "operationId": "ExportPlaces",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           },
           "400": {
             "description": "Bad Request",
@@ -5484,76 +5403,6 @@
           }
         }
       },
-      "CityDto": {
-        "required": [
-          "id",
-          "name",
-          "nameCkb",
-          "nameAr",
-          "nameEn",
-          "status"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "nameCkb": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "nameAr": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "nameEn": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "status": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateCityRequest": {
-        "required": [
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "nameCkb": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "nameAr": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "nameEn": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "CreateCustomerRequest": {
         "required": [
           "type",
@@ -5594,14 +5443,17 @@
       },
       "CreatePlaceRequest": {
         "required": [
-          "cityId",
+          "parentId",
           "kind",
           "name"
         ],
         "type": "object",
         "properties": {
-          "cityId": {
-            "type": "string",
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "kind": {
@@ -5852,26 +5704,21 @@
               "string"
             ]
           },
-          "cityId": {
+          "placeId": {
             "type": [
               "null",
               "string"
             ],
             "format": "uuid"
           },
-          "neighbourhoodId": {
+          "placePath": {
             "type": [
               "null",
-              "string"
+              "array"
             ],
-            "format": "uuid"
-          },
-          "streetId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
+            "items": {
+              "$ref": "#/components/schemas/PlacePathItem"
+            }
           }
         }
       },
@@ -5879,9 +5726,7 @@
         "required": [
           "phone",
           "address",
-          "cityId",
-          "neighbourhoodId",
-          "streetId"
+          "placeId"
         ],
         "type": "object",
         "properties": {
@@ -5897,21 +5742,7 @@
               "string"
             ]
           },
-          "cityId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "neighbourhoodId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "streetId": {
+          "placeId": {
             "type": [
               "null",
               "string"
@@ -6020,20 +5851,34 @@
       },
       "ImportPlaceRow": {
         "required": [
-          "city",
           "kind",
           "name"
         ],
         "type": "object",
         "properties": {
-          "city": {
-            "type": "string"
-          },
           "kind": {
             "type": "string"
           },
           "name": {
             "type": "string"
+          },
+          "city": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "neighbourhood": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "street": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "nameCkb": {
             "type": [
@@ -6048,12 +5893,6 @@
             ]
           },
           "nameEn": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "osm": {
             "type": [
               "null",
               "string"
@@ -6081,21 +5920,12 @@
       },
       "ImportPlacesResult": {
         "required": [
-          "citiesCreated",
-          "placesCreated",
+          "created",
           "skipped"
         ],
         "type": "object",
         "properties": {
-          "citiesCreated": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "placesCreated": {
+          "created": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -6376,7 +6206,7 @@
       "PlaceDto": {
         "required": [
           "id",
-          "cityId",
+          "parentId",
           "kind",
           "name",
           "nameCkb",
@@ -6390,8 +6220,11 @@
             "type": "string",
             "format": "uuid"
           },
-          "cityId": {
-            "type": "string",
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "kind": {
@@ -6427,6 +6260,35 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "childCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
+          }
+        }
+      },
+      "PlacePathItem": {
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -6971,6 +6833,13 @@
           },
           "status": {
             "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

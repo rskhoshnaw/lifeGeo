@@ -31,8 +31,8 @@ public interface ICustomerStore
         throw new NotSupportedException();
 
     // Customer profile (plan step 1.23-b): contact details and the place in the reference list. Replaces the five
-    // fields (null clears). NotFound when the customer is not in the actor's scope; InvalidData when a place is missing,
-    // inactive, of the wrong kind or outside the chosen city. One audit row in the same transaction.
+    // fields (null clears). NotFound when the customer is not in the actor's scope; InvalidData when the place is missing,
+    // inactive or merged away. One audit row in the same transaction.
     Task<CustomerProfileResult> SetProfileAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         CustomerProfileRequest profile, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -251,12 +251,12 @@ public sealed class CustomerVisitWindows(ICustomerStore store, IPermissionStore 
         tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, permission, cancellationToken);
 }
 
-public sealed record CustomerProfileRequest(string? Phone, string? Address, Guid? CityId, Guid? NeighbourhoodId, Guid? StreetId);
+// PlaceId: the most precise place known (a city, neighbourhood, street or alley), or null.
+public sealed record CustomerProfileRequest(string? Phone, string? Address, Guid? PlaceId);
 
 public enum CustomerProfileResult { Success, NotFound, InvalidData }
 
-// Phone and address of a customer and where it is (plan step 1.23-b). Needs customers.write within the actor's data
-// scope; a neighbourhood or street needs its city.
+// Phone and address of a customer and where it is (plan step 1.23-b). Needs customers.write within the actor's data scope.
 public sealed class CustomerProfileService(ICustomerStore store, IPermissionStore permissions)
 {
     public const int MaxPhoneLength = 40;
@@ -271,8 +271,7 @@ public sealed class CustomerProfileService(ICustomerStore store, IPermissionStor
         var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
         if (phone is { Length: > MaxPhoneLength } || address is { Length: > MaxAddressLength } ||
-            request.CityId == Guid.Empty || request.NeighbourhoodId == Guid.Empty || request.StreetId == Guid.Empty ||
-            ((request.NeighbourhoodId is not null || request.StreetId is not null) && request.CityId is null))
+            request.PlaceId == Guid.Empty)
             return (CustomerUpdateResult.InvalidData, CustomerProfileResult.InvalidData);
 
         var result = await store.SetProfileAsync(tenantId, actorId, new CustomerId(customerId), scope,

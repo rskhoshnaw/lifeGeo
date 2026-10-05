@@ -10,34 +10,13 @@ public static class PlaceEndpoints
 {
     public static void MapPlaceEndpoints(this WebApplication app)
     {
-        app.MapGet("/cities", async (bool? includeInactive, HttpContext context, PlaceService service,
-            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
-        {
-            if (securityState.IsInsecureDbRole) return Unavailable();
-            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await service.ListCitiesAsync(tenantId, actorId, includeInactive == true, cancellationToken);
-            return result == PlaceResult.Success ? Results.Ok(items) : ToError(result);
-        }).RequireAuthorization()
-            .WithName("ListCities").WithTags("Places").Produces<List<CityDto>>(200)
-            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
-
-        app.MapPost("/cities", async (CreateCityRequest request, HttpContext context, PlaceService service,
-            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
-        {
-            if (securityState.IsInsecureDbRole) return Unavailable();
-            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, id) = await service.CreateCityAsync(tenantId, actorId, request, cancellationToken);
-            return result == PlaceResult.Success ? Results.Created($"/cities/{id}", new CreatedResponse(id)) : ToError(result);
-        }).RequireAuthorization()
-            .WithName("CreateCity").WithTags("Places").Produces<CreatedResponse>(201)
-            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
-
-        app.MapGet("/places", async (Guid? cityId, string? kind, string? q, bool? includeInactive, int? limit, HttpContext context,
+        // Places tree (plan step 1.23-b). kind=city lists the cities; parentId lists what is directly below a place.
+        app.MapGet("/places", async (Guid? parentId, string? kind, string? q, bool? includeInactive, int? limit, HttpContext context,
             PlaceService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await service.ListPlacesAsync(tenantId, actorId, cityId, kind, q, includeInactive == true, limit, cancellationToken);
+            var (result, items) = await service.ListAsync(tenantId, actorId, parentId, kind, q, includeInactive == true, limit, cancellationToken);
             return result == PlaceResult.Success ? Results.Ok(items) : ToError(result);
         }).RequireAuthorization()
             .WithName("ListPlaces").WithTags("Places").Produces<List<PlaceDto>>(200)
@@ -48,7 +27,7 @@ public static class PlaceEndpoints
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, id) = await service.CreatePlaceAsync(tenantId, actorId, request, cancellationToken);
+            var (result, id) = await service.CreateAsync(tenantId, actorId, request, cancellationToken);
             return result == PlaceResult.Success ? Results.Created($"/places/{id}", new CreatedResponse(id)) : ToError(result);
         }).RequireAuthorization()
             .WithName("CreatePlace").WithTags("Places").Produces<CreatedResponse>(201)
@@ -59,7 +38,7 @@ public static class PlaceEndpoints
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var result = await service.UpdatePlaceAsync(tenantId, actorId, placeId, request, cancellationToken);
+            var result = await service.UpdateAsync(tenantId, actorId, placeId, request, cancellationToken);
             return result == PlaceResult.Success ? Results.NoContent() : ToError(result);
         }).RequireAuthorization()
             .WithName("UpdatePlace").WithTags("Places").Produces(204)
@@ -70,7 +49,7 @@ public static class PlaceEndpoints
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var result = await service.MergePlaceAsync(tenantId, actorId, placeId, request, cancellationToken);
+            var result = await service.MergeAsync(tenantId, actorId, placeId, request, cancellationToken);
             return result == PlaceResult.Success ? Results.NoContent() : ToError(result);
         }).RequireAuthorization()
             .WithName("MergePlace").WithTags("Places").Produces(204)
@@ -85,6 +64,22 @@ public static class PlaceEndpoints
             return result == PlaceResult.Success ? Results.Ok(summary) : ToError(result);
         }).RequireAuthorization()
             .WithName("ImportPlaces").WithTags("Places").Produces<ImportPlacesResult>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        // The whole tree for other projects: JSON (default) or CSV with the same columns as the import file.
+        app.MapGet("/places/export", async (string? format, bool? includeInactive, HttpContext context, PlaceService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            if (format is not (null or "json" or "csv")) return ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData);
+            var (result, rows) = await service.ExportAsync(tenantId, actorId, includeInactive == true, cancellationToken);
+            if (result != PlaceResult.Success) return ToError(result);
+            return format == "csv"
+                ? Results.Text("\uFEFF" + PlaceExport.ToCsv(rows), "text/csv; charset=utf-8")
+                : Results.Ok(rows);
+        }).RequireAuthorization()
+            .WithName("ExportPlaces").WithTags("Places").Produces<List<PlaceExportRow>>(200).Produces(200, contentType: "text/csv")
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
         // Phone, address and place of a customer (plan step 1.23-b).

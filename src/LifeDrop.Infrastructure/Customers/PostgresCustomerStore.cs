@@ -144,7 +144,13 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
     private const string SelectColumns = """
         id, tenant_id, type, code, name, status, created_at,
         ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m,
-        region_id, approval_status, phone, address, city_id, neighbourhood_id, street_id
+        region_id, approval_status, phone, address, place_id,
+        (SELECT jsonb_agg(jsonb_build_object('id', a.id, 'kind', a.kind, 'name', a.name) ORDER BY a.depth DESC)
+         FROM (WITH RECURSIVE chain(id, parent_id, kind, name, depth) AS (
+                   SELECT p.id, p.parent_id, p.kind, p.name, 0 FROM places p WHERE p.id = customers.place_id
+                   UNION ALL
+                   SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
+               SELECT * FROM chain) a)
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -157,7 +163,12 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
         reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
         reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
-        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : reader.GetGuid(17), reader.IsDBNull(18) ? null : reader.GetGuid(18));
+        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)));
+
+    private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private static IReadOnlyList<PlacePathItem>? ReadPath(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<List<PlacePathItem>>(json, PathJson);
 
     public async Task<bool> SetLocationAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         double latitude, double longitude, string source, double? accuracyMeters, CancellationToken cancellationToken) =>
@@ -262,25 +273,20 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             if (await lockRow.ExecuteScalarAsync(cancellationToken) is null) return CustomerProfileResult.NotFound;
         }
 
-        // The city must be active; a neighbourhood or street must be of that city and kind, not inactive and not merged away.
-        if (profile.CityId is { } cityId && !await ExistsAsync(connection, transaction, "SELECT 1 FROM cities WHERE id = @id AND status = 'active'", cityId, null, cancellationToken))
-            return CustomerProfileResult.InvalidData;
-        if (profile.NeighbourhoodId is { } neighbourhoodId && !await ExistsAsync(connection, transaction, PlaceCheckSql, neighbourhoodId, ("neighbourhood", profile.CityId), cancellationToken))
-            return CustomerProfileResult.InvalidData;
-        if (profile.StreetId is { } streetId && !await ExistsAsync(connection, transaction, PlaceCheckSql, streetId, ("street", profile.CityId), cancellationToken))
+        // The place must be active and not merged away.
+        if (profile.PlaceId is { } placeId && !await ExistsAsync(connection, transaction,
+                "SELECT 1 FROM places WHERE id = @id AND status = 'active' AND merged_into IS NULL", placeId, cancellationToken))
             return CustomerProfileResult.InvalidData;
 
         await using (var update = new NpgsqlCommand("""
-            UPDATE customers SET phone = @phone, address = @address, city_id = @city, neighbourhood_id = @neighbourhood, street_id = @street
+            UPDATE customers SET phone = @phone, address = @address, place_id = @place
             WHERE id = @id
             """, connection, transaction))
         {
             update.Parameters.AddWithValue("id", id.Value);
             update.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Phone ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("address", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Address ?? DBNull.Value });
-            update.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.CityId ?? DBNull.Value });
-            update.Parameters.Add(new NpgsqlParameter("neighbourhood", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.NeighbourhoodId ?? DBNull.Value });
-            update.Parameters.Add(new NpgsqlParameter("street", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.StreetId ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("place", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.PlaceId ?? DBNull.Value });
             await update.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -296,20 +302,10 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         return CustomerProfileResult.Success;
     }
 
-    private const string PlaceCheckSql = """
-        SELECT 1 FROM places WHERE id = @id AND kind = @kind AND city_id = @city AND status IN ('active', 'suggested') AND merged_into IS NULL
-        """;
-
-    private static async Task<bool> ExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, Guid id,
-        (string Kind, Guid? CityId)? place, CancellationToken cancellationToken)
+    private static async Task<bool> ExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, Guid id, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("id", id);
-        if (place is { } p)
-        {
-            command.Parameters.AddWithValue("kind", p.Kind);
-            command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)p.CityId ?? DBNull.Value });
-        }
         return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 

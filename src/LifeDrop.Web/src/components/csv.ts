@@ -1,4 +1,4 @@
-import type { ImportRow } from '../api/admin.ts'
+import type { ImportRow, PlaceKind } from '../api/admin.ts'
 
 // Splits CSV text into records: comma separated, double quotes for fields with commas, quotes or line breaks
 // ("" is a quote inside a quoted field), a leading byte order mark and CRLF line breaks are accepted.
@@ -33,34 +33,47 @@ export function parseCsv(text: string): string[][] {
   return rows
 }
 
-// Rows of the Export-CityPlaces.ps1 file (columns city, kind, name_ckb, name_ar, name_en, name_local, osm, active).
-// The main name is name_local, else the English, Kurdish or Arabic name. Rows without a city, a valid kind or any
-// name are dropped; active = "no" keeps the row but hides it.
+const kinds: PlaceKind[] = ['city', 'neighbourhood', 'street', 'alley']
+
+// Rows of an import or export file. Columns: kind, city, neighbourhood, street, name, name_ckb, name_ar, name_en and
+// status (active|inactive) or active (yes|no); id and parent_id are ignored. A row needs a kind, a name and the levels
+// above it (city: none, its city column is ignored; neighbourhood: city; street: city and neighbourhood; alley: city and neighbourhood, street
+// optional); other rows are dropped. A leading apostrophe before = + - @ (added by the export to keep a spreadsheet
+// from running text as a formula) is removed.
 export function placesFromCsv(text: string): ImportRow[] {
   const [header, ...records] = parseCsv(text)
   if (!header) return []
-  const column = (name: string) => header.findIndex((h) => h.trim().toLowerCase() === name)
-  const index = Object.fromEntries(['city', 'kind', 'name_ckb', 'name_ar', 'name_en', 'name_local', 'osm', 'active'].map((n) => [n, column(n)]))
+  const index = (name: string) => header.findIndex((h) => h.trim().toLowerCase() === name)
+  const columns = Object.fromEntries(['kind', 'city', 'neighbourhood', 'street', 'name', 'name_ckb', 'name_ar', 'name_en', 'status', 'active'].map((n) => [n, index(n)]))
   const cell = (record: string[], name: string) => {
-    const at = index[name]!
-    return at < 0 ? '' : (record[at] ?? '').trim()
+    const at = columns[name]!
+    const value = at < 0 ? '' : (record[at] ?? '').trim()
+    return /^'[=+\-@]/.test(value) ? value.slice(1) : value
   }
   const rows: ImportRow[] = []
   for (const record of records) {
-    const kind = cell(record, 'kind').toLowerCase()
-    const names = { ckb: cell(record, 'name_ckb'), ar: cell(record, 'name_ar'), en: cell(record, 'name_en') }
-    const name = cell(record, 'name_local') || names.en || names.ckb || names.ar
+    const kind = cell(record, 'kind').toLowerCase() as PlaceKind
+    const name = cell(record, 'name')
     const city = cell(record, 'city')
-    if (!city || !name || (kind !== 'neighbourhood' && kind !== 'street')) continue
+    const neighbourhood = cell(record, 'neighbourhood')
+    const street = cell(record, 'street')
+    if (!kinds.includes(kind) || !name) continue
+    const valid =
+      kind === 'city' ? !neighbourhood && !street
+      : kind === 'neighbourhood' ? !!city && !neighbourhood && !street
+      : kind === 'street' ? !!city && !!neighbourhood && !street
+      : !!city && !!neighbourhood
+    if (!valid) continue
     rows.push({
-      city,
       kind,
       name,
-      nameCkb: names.ckb || null,
-      nameAr: names.ar || null,
-      nameEn: names.en || null,
-      osm: cell(record, 'osm') || null,
-      active: cell(record, 'active').toLowerCase() !== 'no',
+      city: kind === 'city' ? null : city || null,
+      neighbourhood: neighbourhood || null,
+      street: street || null,
+      nameCkb: cell(record, 'name_ckb') || null,
+      nameAr: cell(record, 'name_ar') || null,
+      nameEn: cell(record, 'name_en') || null,
+      active: cell(record, 'status').toLowerCase() !== 'inactive' && cell(record, 'active').toLowerCase() !== 'no',
     })
   }
   return rows
