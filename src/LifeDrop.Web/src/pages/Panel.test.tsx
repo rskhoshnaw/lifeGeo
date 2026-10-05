@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.tsx'
 import { ApiClient } from '../api/client.ts'
-import { iraqToday, type Customer, type Device, type Me, type PlannedVisit, type UserSummary } from '../api/admin.ts'
+import { iraqToday, type City, type Customer, type Place, type Device, type Me, type PlannedVisit, type UserSummary } from '../api/admin.ts'
 
 type Call = { method: string; path: string; body: unknown }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -28,9 +28,13 @@ function server(me: Me, data: Record<string, unknown>, posts: Record<string, Res
 const manager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['customers.approve', 'customers.read', 'device.approve', 'sessions.kill', 'user.manageroles'] }
 const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamId: 't', teamName: 'Team A', regionId: 'r', activeSessions: 2 }
 const device = (id: string, status: Device['status']): Device => ({ id, userId: 'u1', userEmail: 'rep@t1', label: `Phone ${id}`, platform: 'android', appVersion: '1.0', status, registeredAt: '2026-10-04T08:00:00Z' })
-const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending' }
+const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending', phone: null, address: null, cityId: null, neighbourhoodId: null, streetId: null }
 
 const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1', sortOrder: null, postponeCount: 0, postponeReason: null, windowStatus: 'none' })
+
+const erbil: City = { id: 'ci', name: 'Erbil', nameCkb: null, nameAr: null, nameEn: null, status: 'active' }
+const place = (id: string, kind: Place['kind'], name: string, status: Place['status'] = 'active', mergedInto: string | null = null): Place =>
+  ({ id, cityId: 'ci', kind, name, nameCkb: null, nameAr: null, nameEn: null, status, mergedInto })
 
 const posts = (calls: Call[]) => calls.filter((c) => c.method !== 'GET' && c.path !== '/auth/refresh')
 
@@ -232,6 +236,136 @@ describe('panel management screens', () => {
     await user.click(await screen.findByRole('button', { name: 'Visit hours' }))
     expect(await screen.findByLabelText('From')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Add hours' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('manages the reference list: approve, rename, merge, deactivate, add', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const manager2: Me = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['customers.read', 'places.manage'] }
+    const { api, calls } = server(manager2, {
+      '/cities?includeInactive=true': [erbil],
+      '/places?cityId=ci&limit=2000&includeInactive=true': [
+        place('p1', 'street', 'Gulan Street', 'suggested'),
+        place('p2', 'street', 'Gulan St'),
+        place('p3', 'neighbourhood', 'Ankawa'),
+        place('p4', 'street', 'Old Street', 'inactive'),
+        place('p5', 'street', 'Gone Street', 'inactive', 'p2'),
+      ],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Places' }))
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'City' }), 'ci')
+    await screen.findByRole('cell', { name: 'Gulan Street' })
+
+    // Active and suggested names are listed; inactive and merged ones are not
+    expect(screen.getByRole('cell', { name: 'Ankawa' })).toBeInTheDocument()
+    expect(screen.queryByRole('cell', { name: 'Old Street' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Approve Gulan Street' }))
+    // Only live names of the same kind are offered as the merge target
+    const target = screen.getByRole('combobox', { name: 'Merge Gulan Street into' })
+    expect(within(target).getAllByRole('option').map((o) => o.textContent)).toEqual(['', 'Gulan St'])
+    await user.selectOptions(target, 'p2')
+    await user.click(screen.getByRole('button', { name: 'Merge Gulan Street' }))
+
+    await user.click(screen.getByRole('button', { name: 'Edit Ankawa' }))
+    await user.type(screen.getAllByRole('textbox', { name: 'Kurdish name' })[0]!, 'عەنکاوە')   // the edit row comes before the add form
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await user.type(screen.getByRole('textbox', { name: 'New city name' }), 'Duhok')
+    await user.click(screen.getByRole('button', { name: 'Add city' }))
+    await user.selectOptions(screen.getAllByRole('combobox', { name: 'Kind' })[1]!, 'neighbourhood')
+    await user.type(screen.getAllByRole('textbox', { name: 'Name' })[0]!, 'Khabat')
+    await user.click(screen.getByRole('button', { name: 'Add place' }))
+
+    // Inactive: the merged name has no actions, the other one can be activated again
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'inactive')
+    expect(screen.getByText('Merged')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Gone Street' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Activate Old Street' }))
+
+    const none = { nameCkb: null, nameAr: null, nameEn: null }
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/places/p1', body: { name: 'Gulan Street', ...none, status: 'active' } },
+      { method: 'POST', path: '/places/p1/merge', body: { intoPlaceId: 'p2' } },
+      { method: 'PUT', path: '/places/p3', body: { name: 'Ankawa', nameCkb: 'عەنکاوە', nameAr: null, nameEn: null, status: 'active' } },
+      { method: 'POST', path: '/cities', body: { name: 'Duhok' } },
+      { method: 'POST', path: '/places', body: { cityId: 'ci', kind: 'neighbourhood', name: 'Khabat', ...none } },
+      { method: 'PUT', path: '/places/p4', body: { name: 'Old Street', ...none, status: 'active' } },
+    ])
+  })
+
+  it('imports a CSV file of places and refuses a file without valid rows', async () => {
+    const manager2: Me = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['places.manage'] }
+    const { api, calls } = server(manager2, { '/cities?includeInactive=true': [erbil] }, { '/places/import': json({ citiesCreated: 1, placesCreated: 2, skipped: 1 }) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Places' }))
+    const input = await screen.findByLabelText('Import CSV')
+
+    await user.upload(input, new File(['city,kind,name_ckb\nErbil,road,Bad kind\n'], 'bad.csv', { type: 'text/csv' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('no valid rows')
+    expect(posts(calls)).toEqual([])
+
+    const csv = '\uFEFFcity,kind,name_ckb,name_ar,name_en,name_local,osm,active\r\n'
+      + 'Erbil,street,,,,"100m Road, east",way/1,yes\r\n'
+      + 'Erbil,neighbourhood,عەنکاوە,,Ankawa,,node/2,no\r\n'
+      + ',street,,,,No city,,yes\r\n'
+    await user.upload(input, new File([csv], 'places.csv', { type: 'text/csv' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Imported: 2 new names, 1 new cities, 1 already existed.')
+    expect(posts(calls)).toEqual([
+      {
+        method: 'POST',
+        path: '/places/import',
+        body: {
+          rows: [
+            { city: 'Erbil', kind: 'street', name: '100m Road, east', nameCkb: null, nameAr: null, nameEn: null, osm: 'way/1', active: true },
+            { city: 'Erbil', kind: 'neighbourhood', name: 'Ankawa', nameCkb: 'عەنکاوە', nameAr: null, nameEn: 'Ankawa', osm: 'node/2', active: false },
+          ],
+        },
+      },
+    ])
+  })
+
+  it('edits the profile of a customer with the city, neighbourhood and street lists', async () => {
+    const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
+    const known = { ...customer, approvalStatus: 'approved', phone: '0750', address: 'By the bridge', cityId: 'ci', streetId: 'p2' }
+    const { api, calls } = server(editor, {
+      '/customers?limit=100': [known],
+      '/cities': [erbil, { ...erbil, id: 'cz', name: 'Zakho' }],
+      '/places?cityId=ci&limit=2000': [place('p2', 'street', 'Gulan St'), place('p3', 'neighbourhood', 'Ankawa')],
+      '/places?cityId=cz&limit=2000': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    expect(await screen.findByRole('textbox', { name: 'Phone' })).toHaveValue('0750')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Street' })).toHaveValue('p2'))
+
+    // Choosing another city clears the neighbourhood and street of the old one
+    await user.selectOptions(screen.getByRole('combobox', { name: 'City' }), 'cz')
+    expect(screen.getByRole('combobox', { name: 'Street' })).toHaveValue('')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'City' }), 'ci')
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Neighbourhood' }), 'p3')
+    await waitFor(() => expect(within(screen.getByRole('combobox', { name: 'Street' })).getAllByRole('option').length).toBe(2))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Street' }), 'p2')
+    await user.clear(screen.getByRole('textbox', { name: 'Address note' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/customers/c1/profile', body: { phone: '0750', address: null, cityId: 'ci', neighbourhoodId: 'p3', streetId: 'p2' } },
+    ])
+  })
+
+  it('shows the customer profile read-only without customers.write', async () => {
+    const reader: Me = { id: 'f', email: 'finance@t1', roles: ['FinanceManager'], permissions: ['customers.read'] }
+    const { api } = server(reader, { '/customers?limit=100': [{ ...customer, approvalStatus: 'approved', phone: '0750' }], '/cities': [erbil] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    expect(await screen.findByRole('textbox', { name: 'Phone' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 

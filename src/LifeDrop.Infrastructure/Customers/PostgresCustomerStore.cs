@@ -144,7 +144,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
     private const string SelectColumns = """
         id, tenant_id, type, code, name, status, created_at,
         ST_Y(geom::geometry), ST_X(geom::geometry), location_source, location_updated_at, geofence_radius_m,
-        region_id, approval_status
+        region_id, approval_status, phone, address, city_id, neighbourhood_id, street_id
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -155,7 +155,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(9) ? null : reader.GetString(9),
         reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10),
         reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
-        reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13));
+        reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
+        reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
+        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : reader.GetGuid(17), reader.IsDBNull(18) ? null : reader.GetGuid(18));
 
     public async Task<bool> SetLocationAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
         double latitude, double longitude, string source, double? accuracyMeters, CancellationToken cancellationToken) =>
@@ -244,6 +246,71 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         await audit.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<CustomerProfileResult> SetProfileAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope,
+        CustomerProfileRequest profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+
+        await using (var lockRow = new NpgsqlCommand($"SELECT 1 FROM customers WHERE id = @id AND {ScopeFilter(scope)} FOR UPDATE", connection, transaction))
+        {
+            lockRow.Parameters.AddWithValue("id", id.Value);
+            AddScopeParameters(lockRow, scope);
+            if (await lockRow.ExecuteScalarAsync(cancellationToken) is null) return CustomerProfileResult.NotFound;
+        }
+
+        // The city must be active; a neighbourhood or street must be of that city and kind, not inactive and not merged away.
+        if (profile.CityId is { } cityId && !await ExistsAsync(connection, transaction, "SELECT 1 FROM cities WHERE id = @id AND status = 'active'", cityId, null, cancellationToken))
+            return CustomerProfileResult.InvalidData;
+        if (profile.NeighbourhoodId is { } neighbourhoodId && !await ExistsAsync(connection, transaction, PlaceCheckSql, neighbourhoodId, ("neighbourhood", profile.CityId), cancellationToken))
+            return CustomerProfileResult.InvalidData;
+        if (profile.StreetId is { } streetId && !await ExistsAsync(connection, transaction, PlaceCheckSql, streetId, ("street", profile.CityId), cancellationToken))
+            return CustomerProfileResult.InvalidData;
+
+        await using (var update = new NpgsqlCommand("""
+            UPDATE customers SET phone = @phone, address = @address, city_id = @city, neighbourhood_id = @neighbourhood, street_id = @street
+            WHERE id = @id
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("id", id.Value);
+            update.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Phone ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("address", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)profile.Address ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.CityId ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("neighbourhood", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.NeighbourhoodId ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("street", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)profile.StreetId ?? DBNull.Value });
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, 'customer.profile_changed', @entity, now())
+            """, connection, transaction);
+        audit.Parameters.AddWithValue("tenant", tenantId.Value);
+        audit.Parameters.AddWithValue("actor", actorId.Value);
+        audit.Parameters.AddWithValue("entity", id.Value.ToString());
+        await audit.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return CustomerProfileResult.Success;
+    }
+
+    private const string PlaceCheckSql = """
+        SELECT 1 FROM places WHERE id = @id AND kind = @kind AND city_id = @city AND status IN ('active', 'suggested') AND merged_into IS NULL
+        """;
+
+    private static async Task<bool> ExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, Guid id,
+        (string Kind, Guid? CityId)? place, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", id);
+        if (place is { } p)
+        {
+            command.Parameters.AddWithValue("kind", p.Kind);
+            command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)p.CityId ?? DBNull.Value });
+        }
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
     private static async Task SetTenantAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, CancellationToken cancellationToken)

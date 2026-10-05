@@ -36,6 +36,7 @@
     <None Include="../../db/migrations/0018_customer_approval.sql" Link="0018_customer_approval.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0019_live_map.sql" Link="0019_live_map.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0020_flexible_planning.sql" Link="0020_flexible_planning.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0021_places_customer_profile.sql" Link="0021_places_customer_profile.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

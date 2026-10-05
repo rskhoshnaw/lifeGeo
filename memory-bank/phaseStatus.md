@@ -17,9 +17,10 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.21 multilingual (ckb default, ar, fa RTL + en) | in PR; translations are Claude drafts, owner reviews `i18n/strings.json` |
 | 1.22 end-to-end test | ✅ real phone + local DB: full visit to Completed, audit once per event, deliberate far check-in rejected (`visit.check_in_rejected`), app hides the repeat; direct server repeat is covered by DB tests only |
 | 1.23 flexible planning part 1 (order, move to another day, customer visit hours) | in PR; plan section 1-ه lists 1.23-ب … 1.27 |
-| Next | **1.23-ب** customer profile + street/neighbourhood list, then 1.24–1.27; **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 1.23-ب part 1 (places reference list, customer profile: server + panel) | in PR; part 2 = app (profile edit, new customer, suggest a name) |
+| Next | **1.23-ب part 2** (app), then 1.24–1.27; **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
-Migrations: 0001–0020. Owner must apply 0006–0020 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0021. Owner must apply 0006–0021 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 
 ## Log (one line per step, newest last)
@@ -32,4 +33,5 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.21: `i18n/strings.json` (292 keys × ckb/ar/fa/en) used by panel (`src/i18n.ts`, `components/I18n.tsx`) and app (`Mobile.Visits/Localization/Texts.cs`, `Mobile/AppLanguage.cs`); default ckb, RTL; tests check every key in every language + same placeholders + every app key used exists; panel 34, Mobile.Visits 139.
 - 1.22 (done, owner on a real phone): panel on port 5273; Android keystore save error on first device registration is now logged (`adb logcat -s LifeDrop`); full visit completed on the phone (`scripts/local/Set-CustomerHere.ps1` moves a customer to the test spot).
 - 1.23: migration 0020, `PlanOperations.cs` (`PlanVisits`), `PUT /visit-plan/order`, `POST /visits/{id}/postpone`, `/customers/{id}/visit-windows` (`CustomerVisitWindows`), `windowStatus` in plans; panel Visits/Customers, app plan buttons (online only); DB 39/39, Domain 172, Application 52, Mobile.Visits 162, panel 37 tests.
+- 1.23-ب (part 1): migration 0021, `Places/PlaceOperations.cs` (`PlaceService`), `PostgresPlaceStore`, `PlaceEndpoints.cs`, `CustomerProfileService`; panel Places tab + profile editor + CSV import; DB 40/40, panel 44 tests.
 - Local setup (not a plan step): Docker DB, seed, PowerShell scripts, `docs/LOCAL-SETUP.md`; checked here: migrations + seed on the compose DB, API as lifedrop_app, register → approve → rep login, DB tests 37/37 against it.

@@ -111,7 +111,8 @@ public class CustomerApiIntegrationTests
                 var m18 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0018_customer_approval.sql"));
                 var m19 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0019_live_map.sql"));
                 var m20 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0020_flexible_planning.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20;
+                var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1988,7 +1989,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "43" }, grantsBefore);   // 41 + visits.plan for SalesRep and ScientificRep (plan step 1.23)
+        Assert.Equal(new[] { "45" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -3143,6 +3144,205 @@ public class CustomerApiIntegrationTests
             Assert.Equal(new[] { (repA, cWindows.ToString()), (repA, cWindows.ToString()) }, rows.ToArray());
         }
     }
+
+    [SkippableFact]
+    public async Task Places_ImportSuggestMergeAndCustomerProfileWithinPermissionsAndTenant()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), finance = Guid.NewGuid(), rep = Guid.NewGuid(), repB = Guid.NewGuid(), manager2 = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@fin, @t1), (@r, @t1), (@rb, @t1), (@m2, @t2);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t2, @m2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'First', @r), (@c2, @t1, 'Pharmacy', 'C2', 'Second', @r);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("fin", finance), ("r", rep), ("rb", repB), ("m2", manager2), ("c1", c1), ("c2", c2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Import(params object[] rows) => client.PostAsJsonAsync("/places/import", new { Rows = rows });
+        object Row(string city, string kind, string name, bool active = true, string? ckb = null) =>
+            new { City = city, Kind = kind, Name = name, NameCkb = ckb, NameAr = (string?)null, NameEn = (string?)null, Osm = "way/1", Active = active };
+        async Task<List<LifeDrop.Application.Places.CityDto>> Cities(string query = "") =>
+            (await (await client.GetAsync("/cities" + query)).Content.ReadFromJsonAsync<List<LifeDrop.Application.Places.CityDto>>())!;
+        async Task<List<LifeDrop.Application.Places.PlaceDto>> Places(string query) =>
+            (await (await client.GetAsync("/places" + query)).Content.ReadFromJsonAsync<List<LifeDrop.Application.Places.PlaceDto>>())!;
+
+        // Importing, creating cities and managing names need places.manage; finance may only read
+        As(t1, finance);
+        await AssertProblemAsync(await Import(Row("Erbil", "street", "100m Road")), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/cities", new { Name = "Duhok" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Empty(await Cities());
+
+        // A whole file is rejected when one row is bad; nothing is stored then
+        As(t1, manager);
+        await AssertProblemAsync(await Import(), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Import(Row("Erbil", "street", "Fine"), Row("Erbil", "road", "Bad kind")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Import(Row("Erbil", "street", new string('x', 161))), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Import(Row(" ", "street", "No city")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Import(Enumerable.Range(0, 2001).Select(i => Row("Erbil", "street", "S" + i)).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Empty(await Cities());
+
+        // Import: cities are found or created by name (case-insensitive), the same name may be a neighbourhood and a street,
+        // a repeated row and a second import are skipped, inactive rows are kept but hidden
+        var first = await Import(Row("Erbil", "neighbourhood", "Ankawa", ckb: "عەنکاوە"), Row("Erbil", "street", "100m Road"), Row("Erbil", "street", "Ankawa"),
+            Row("Erbil", "street", "Old Street", active: false), Row("erbil", "street", " 100M road "), Row("Zakho", "street", "Main Street"));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(new LifeDrop.Application.Places.ImportPlacesResult(2, 5, 1), await first.Content.ReadFromJsonAsync<LifeDrop.Application.Places.ImportPlacesResult>());
+        var again = await (await Import(Row("Erbil", "street", "100m Road"), Row("ZAKHO", "street", "Main Street"))).Content.ReadFromJsonAsync<LifeDrop.Application.Places.ImportPlacesResult>();
+        Assert.Equal(new LifeDrop.Application.Places.ImportPlacesResult(0, 0, 2), again);
+
+        var cities = await Cities();
+        Assert.Equal(new[] { "Erbil", "Zakho" }, cities.Select(c => c.Name).ToArray());
+        Guid erbil = cities[0].Id, zakho = cities[1].Id;
+
+        // Reading: customers.read; the field user sees active and suggested names only, search ignores case and treats % literally
+        As(t1, rep);
+        Assert.Equal(new[] { "100m Road", "Ankawa", "Ankawa" }, (await Places($"?cityId={erbil}")).Select(p => p.Name).ToArray());
+        Assert.Equal(new[] { "Ankawa" }, (await Places($"?cityId={erbil}&kind=neighbourhood")).Select(p => p.Name).ToArray());
+        Assert.Equal(new[] { "عەنکاوە" }, (await Places($"?cityId={erbil}&kind=neighbourhood")).Select(p => p.NameCkb!).ToArray());
+        Assert.Equal(new[] { "100m Road" }, (await Places($"?cityId={erbil}&q=ROAD")).Select(p => p.Name).ToArray());
+        Assert.Empty(await Places($"?cityId={erbil}&q=%25"));
+        Assert.Equal(3, (await Places($"?cityId={erbil}&includeInactive=true")).Count);   // includeInactive needs places.manage: ignored
+        await AssertProblemAsync(await client.GetAsync("/places?kind=road"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        As(t1, manager);
+        Assert.Equal(4, (await Places($"?cityId={erbil}&includeInactive=true")).Count);
+        var street = (await Places($"?cityId={erbil}&kind=street&q=100m")).Single();
+        var neighbourhood = (await Places($"?cityId={erbil}&kind=neighbourhood")).Single();
+        var zakhoStreet = (await Places($"?cityId={zakho}")).Single();
+        var oldStreet = (await Places($"?cityId={erbil}&includeInactive=true&q=old")).Single();
+        Assert.Equal("inactive", oldStreet.Status);
+
+        // A manager adds a city; names must be new
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/cities", new { Name = "Duhok", NameCkb = "دهۆک" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/cities", new { Name = " duhok " }), HttpStatusCode.Conflict, "DUPLICATE_NAME");
+        Assert.Equal(3, (await Cities()).Count);
+
+        // A field user suggests a name: usable at once, marked suggested; duplicates (any case/spacing) and unknown cities fail
+        As(t1, rep);
+        var suggested = await client.PostAsJsonAsync("/places", new { CityId = erbil, Kind = "street", Name = "Gulan Street" });
+        Assert.Equal(HttpStatusCode.Created, suggested.StatusCode);
+        var gulan = (await suggested.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        Assert.Equal("suggested", (await Places($"?cityId={erbil}&q=gulan")).Single().Status);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/places", new { CityId = erbil, Kind = "street", Name = "  gulan street " }), HttpStatusCode.Conflict, "DUPLICATE_NAME");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/places", new { CityId = Guid.NewGuid(), Kind = "street", Name = "X" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/places", new { CityId = erbil, Kind = "road", Name = "X" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{gulan}", new { Name = "Mine", Status = "active" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = street.Id }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t1, finance);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/places", new { CityId = erbil, Kind = "street", Name = "Finance Street" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // A manager approves and renames it; the new name must be free; merged and unknown rows cannot be edited
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/places/{gulan}", new { Name = "Gulan St.", NameCkb = "گوڵان", Status = "active" })).StatusCode);
+        Assert.Equal(("Gulan St.", "active"), (await Places($"?cityId={erbil}&q=gulan")).Select(p => (p.Name, p.Status)).Single());
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{gulan}", new { Name = "100M ROAD", Status = "active" }), HttpStatusCode.Conflict, "DUPLICATE_NAME");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{gulan}", new { Name = "Gulan St.", Status = "suggested" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{Guid.NewGuid()}", new { Name = "X", Status = "active" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Customer profile: the owner (customers.write) sets phone, address and places; rules for places
+        As(t1, rep);
+        async Task<HttpResponseMessage> Profile(Guid customer, object body) => await client.PutAsJsonAsync($"/customers/{customer}/profile", body);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(c1, new { Phone = " 0750 000 0000 ", Address = "Near the bridge", CityId = erbil, NeighbourhoodId = neighbourhood.Id, StreetId = gulan })).StatusCode);
+        var stored = (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{c1}"))!;
+        Assert.Equal(("0750 000 0000", "Near the bridge", erbil, neighbourhood.Id, gulan), (stored.Phone, stored.Address, stored.CityId, stored.NeighbourhoodId, stored.StreetId));
+        await AssertProblemAsync(await Profile(c1, new { CityId = erbil, StreetId = zakhoStreet.Id }), HttpStatusCode.BadRequest, "INVALID_DATA");        // street of another city
+        await AssertProblemAsync(await Profile(c1, new { CityId = erbil, StreetId = neighbourhood.Id }), HttpStatusCode.BadRequest, "INVALID_DATA");     // wrong kind
+        await AssertProblemAsync(await Profile(c1, new { StreetId = gulan }), HttpStatusCode.BadRequest, "INVALID_DATA");                                  // no city
+        await AssertProblemAsync(await Profile(c1, new { CityId = erbil, StreetId = oldStreet.Id }), HttpStatusCode.BadRequest, "INVALID_DATA");         // inactive
+        await AssertProblemAsync(await Profile(c1, new { CityId = Guid.NewGuid() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Profile(c1, new { Phone = new string('1', 41) }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Profile(c1, new { Address = new string('a', 301) }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Profile(Guid.NewGuid(), new { Phone = "1" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(erbil, (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{c1}"))!.CityId);   // refused requests changed nothing
+        As(t1, repB);   // another rep's customer is out of scope
+        await AssertProblemAsync(await Profile(c1, new { Phone = "1" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(t1, finance);
+        await AssertProblemAsync(await Profile(c1, new { Phone = "1" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Merge: customers move to the kept name, the merged one is retired and cannot be reused or merged again
+        As(t1, rep);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(c2, new { CityId = erbil, StreetId = street.Id })).StatusCode);
+        As(t1, manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = gulan }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = neighbourhood.Id }), HttpStatusCode.BadRequest, "INVALID_DATA");   // other kind
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = zakhoStreet.Id }), HttpStatusCode.BadRequest, "INVALID_DATA");   // other city
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = oldStreet.Id }), HttpStatusCode.Conflict, "CONCURRENCY_CONFLICT");   // inactive target
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = street.Id })).StatusCode);
+        As(t1, rep);
+        Assert.Equal(street.Id, (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{c1}"))!.StreetId);
+        Assert.DoesNotContain(gulan, (await Places($"?cityId={erbil}")).Select(p => p.Id));
+        await AssertProblemAsync(await Profile(c1, new { CityId = erbil, StreetId = gulan }), HttpStatusCode.BadRequest, "INVALID_DATA");   // merged away
+        As(t1, manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{gulan}/merge", new { IntoPlaceId = street.Id }), HttpStatusCode.Conflict, "CONCURRENCY_CONFLICT");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{gulan}", new { Name = "Again", Status = "active" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(t1, rep);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/places", new { CityId = erbil, Kind = "street", Name = "Gulan St." })).StatusCode);   // the merged name is free again
+
+        // Clearing the profile
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(c1, new { })).StatusCode);
+        var cleared = (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{c1}"))!;
+        Assert.Equal((null, null, null, null, null), (cleared.Phone, cleared.Address, cleared.CityId, cleared.NeighbourhoodId, cleared.StreetId));
+
+        // Another company sees none of it and cannot touch it
+        As(t2, manager2);
+        Assert.Empty(await Cities());
+        Assert.Empty(await Places(""));
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/places/{street.Id}/merge", new { IntoPlaceId = neighbourhood.Id }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{street.Id}", new { Name = "Hijacked", Status = "active" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Audit: one row per successful change, refused ones leave none
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var audit = new NpgsqlCommand(@"
+                SELECT action || ':' || count(*) FROM audit_logs
+                WHERE tenant_id = @t1 AND (action LIKE 'place%' OR action LIKE 'city.%' OR action = 'customer.profile_changed')
+                GROUP BY action ORDER BY action COLLATE ""C"";", conn);
+            audit.Parameters.AddWithValue("t1", t1);
+            await using var reader = await audit.ExecuteReaderAsync();
+            var rows = new List<string>();
+            while (await reader.ReadAsync()) rows.Add(reader.GetString(0));
+            Assert.Equal(new[] { "city.created:1", "customer.profile_changed:3", "place.merged:1", "place.suggested:2", "place.updated:1", "places.imported:2" }, rows.ToArray());
+        }
+    }
+
+    private sealed record CreatedResponseDto(Guid Id);
 
     [SkippableFact]
     public async Task VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope()

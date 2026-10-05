@@ -5,6 +5,7 @@ import { t, type TextKey } from '../i18n.ts'
 const approvalText = (status: string) =>
   ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
@@ -69,6 +70,7 @@ function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean })
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hoursFor, setHoursFor] = useState<Customer | null>(null)
+  const [profileFor, setProfileFor] = useState<Customer | null>(null)
   const items = [...(first.data ?? []), ...more]
 
   async function loadMore() {
@@ -103,7 +105,10 @@ function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean })
                 <td>{customer.name}</td>
                 <td>{customer.type}</td>
                 <td>{approvalText(customer.approvalStatus)}</td>
-                <td className="text-end">
+                <td className="space-x-2 text-end">
+                  <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.profile')} ${customer.code}`} onClick={() => setProfileFor(customer)}>
+                    {t('web.customers.profile')}
+                  </button>
                   <button className="rounded border px-2 py-1" onClick={() => setHoursFor(customer)}>
                     {t('web.customers.visitHours')}
                   </button>
@@ -113,6 +118,7 @@ function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean })
           </tbody>
         </table>
       )}
+      {profileFor && <CustomerProfileEditor key={profileFor.id} admin={admin} customer={profileFor} canEdit={canEdit} onClose={() => setProfileFor(null)} />}
       {hoursFor && <VisitWindowsEditor key={hoursFor.id} admin={admin} customer={hoursFor} canEdit={canEdit} onClose={() => setHoursFor(null)} />}
       {first.data && first.data.length === 100 && !done && (
         <button className="mt-3 rounded border px-3 py-1 text-sm" onClick={() => void loadMore()}>

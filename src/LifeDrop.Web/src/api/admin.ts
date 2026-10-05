@@ -49,6 +49,69 @@ export interface Customer {
   createdAt: string
   regionId: string | null
   approvalStatus: string
+  // Profile (plan step 1.23-b): contact details and the place in the city/neighbourhood/street reference list.
+  phone: string | null
+  address: string | null
+  cityId: string | null
+  neighbourhoodId: string | null
+  streetId: string | null
+}
+
+export interface City {
+  id: string
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  status: 'active' | 'inactive'
+}
+
+export type PlaceKind = 'neighbourhood' | 'street'
+export type PlaceStatus = 'active' | 'suggested' | 'inactive'
+
+export interface Place {
+  id: string
+  cityId: string
+  kind: PlaceKind
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  status: PlaceStatus
+  mergedInto: string | null
+}
+
+// Names of one place: the main name and the optional Kurdish, Arabic and English names.
+export interface PlaceNames {
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+}
+
+export interface ImportRow {
+  city: string
+  kind: PlaceKind
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  osm: string | null
+  active: boolean
+}
+
+export interface ImportSummary {
+  citiesCreated: number
+  placesCreated: number
+  skipped: number
+}
+
+export interface CustomerProfile {
+  phone: string | null
+  address: string | null
+  cityId: string | null
+  neighbourhoodId: string | null
+  streetId: string | null
 }
 
 export type VisitType = 'pharmacy' | 'doctor' | 'wholesaler' | 'other'
@@ -177,6 +240,7 @@ export const Permissions = {
   devices: ['device.approve', 'devices.manage', 'system.admin'],
   customers: ['customers.read'],
   editCustomers: ['customers.write'],
+  places: ['places.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
   cancelVisits: ['visits.cancel'],
@@ -249,6 +313,22 @@ export class AdminApi {
     this.post(`/visits/${id}/postpone`, { scheduleDate, reason: reason || null })
   visitWindows = (customerId: string) => this.get<VisitWindow[]>(`/customers/${customerId}/visit-windows`)
   setVisitWindows = (customerId: string, windows: VisitWindow[]) => this.send('PUT', `/customers/${customerId}/visit-windows`, { windows })
+  // Reference list of cities, neighbourhoods and streets and the customer profile (step 1.23-b).
+  cities = (includeInactive = false) => this.get<City[]>(includeInactive ? '/cities?includeInactive=true' : '/cities')
+  places = (cityId: string, kind: PlaceKind | '' = '', search = '', includeInactive = false) =>
+    this.get<Place[]>(
+      `/places?cityId=${cityId}&limit=2000${kind ? `&kind=${kind}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}${includeInactive ? '&includeInactive=true' : ''}`,
+    )
+  createCity = (name: string) => this.post('/cities', { name })
+  createPlace = (cityId: string, kind: PlaceKind, names: PlaceNames) => this.post('/places', { cityId, kind, ...names })
+  updatePlace = (id: string, names: PlaceNames, status: 'active' | 'inactive') => this.send('PUT', `/places/${id}`, { ...names, status })
+  mergePlace = (id: string, intoPlaceId: string) => this.post(`/places/${id}/merge`, { intoPlaceId })
+  importPlaces = async (rows: ImportRow[]): Promise<ImportSummary> => {
+    const response = await this.api.request('/places/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) })
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as ImportSummary
+  }
+  setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')

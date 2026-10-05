@@ -45,3 +45,15 @@ INSERT INTO customers (id, tenant_id, type, code, name, city, region_id, geom, l
         ST_GeogFromText('SRID=4326;POINT(44.0210 36.1990)'), 'manual', now(), 'located', '00000000-0000-0000-0000-000000000104'),
     ('00000000-0000-0000-0000-0000000004c3', '00000000-0000-0000-0000-00000000d001', 'Wholesaler', 'W-001', 'Slemani Medical Store', 'Sulaymaniyah', '00000000-0000-0000-0000-0000000002e2',
         ST_GeogFromText('SRID=4326;POINT(45.4329 35.5613)'), 'manual', now(), 'located', '00000000-0000-0000-0000-000000000105');
+
+-- Sample reference list (plan step 1.23-b): a few names so the pickers are not empty. Real lists come from
+-- scripts/local/Export-CityPlaces.ps1 and the panel's Places tab (Import CSV).
+INSERT INTO cities (id, tenant_id, name, name_ckb) VALUES
+    ('00000000-0000-0000-0000-0000000005c1', '00000000-0000-0000-0000-00000000d001', 'Erbil', 'هەولێر'),
+    ('00000000-0000-0000-0000-0000000005c2', '00000000-0000-0000-0000-00000000d001', 'Sulaymaniyah', 'سلێمانی');
+INSERT INTO places (tenant_id, city_id, kind, name) VALUES
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Ankawa'),
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Bakhtiari'),
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'street', '100m Road'),
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'street', '60m Road'),
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'street', 'Gulan Street');
