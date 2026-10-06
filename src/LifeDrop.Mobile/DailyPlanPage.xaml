@@ -12,6 +12,7 @@
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
             <Label x:Name="MessageLabel" IsVisible="False" />
             <Button x:Name="RetryBtn" Clicked="OnRetryClicked" IsVisible="False" HorizontalOptions="Start" />
+            <Button x:Name="AddBtn" Clicked="OnAddClicked" HorizontalOptions="Start" />
         </VerticalStackLayout>
 
         <RefreshView x:Name="Refresher" Grid.Row="2" Refreshing="OnRefreshing">

@@ -2,7 +2,7 @@
 
 ## Backend (.NET 10, raw SQL with Npgsql, PostgreSQL 16 + PostGIS)
 - `src/LifeDrop.Domain/Visits/` — `Visit` state machine, `VisitReport`, `LocationCheck.cs` (GpsFix, LocationCheckPolicy, OfflineCheckPolicy).
-- `src/LifeDrop.Application/` — use cases by area: `Visits/VisitOperations.cs` (create, en-route, arrive, fail, manage, reports, `VisitCheckpoint` check-in/out), `Visits/OfflineReviews.cs`, `Customers/CustomerOperations.cs` (create + `CustomerApprovals`), `Tracking/ShiftTracking.cs`, `Tracking/LiveMap.cs` (`/live-map`, D3), `Roles/` (`IPermissionStore`, `PermissionKeys`, data scope tenant/region/own), `Auth/`, `Users/UserDirectory.cs` (panel reads: me, users, roles, devices), `Visits/VisitOperations.cs` `VisitPlanBoard` (`/visit-plan`), `Regions/RegionTeamOperations.cs`, `Visits/PlanOperations.cs` (`PlanVisits`: reorder + postpone, step 1.23), `Customers/CustomerOperations.cs` `CustomerVisitWindows` + `CustomerProfileService`, `Places/PlaceOperations.cs` (`PlaceService`, `PlaceExport`: places tree, import, merge, export, step 1.23-b).
+- `src/LifeDrop.Application/` — use cases by area: `Visits/VisitOperations.cs` (create, en-route, arrive, fail, manage, reports, `VisitCheckpoint` check-in/out), `Visits/OfflineReviews.cs`, `Customers/CustomerOperations.cs` (create + `CustomerApprovals`), `Tracking/ShiftTracking.cs`, `Tracking/LiveMap.cs` (`/live-map`, D3), `Roles/` (`IPermissionStore`, `PermissionKeys`, data scope tenant/region/own), `Auth/`, `Users/UserDirectory.cs` (panel reads: me, users, roles, devices), `Visits/VisitOperations.cs` `VisitPlanBoard` (`/visit-plan`), `Regions/RegionTeamOperations.cs`, `Visits/PlanOperations.cs` (`PlanVisits`: reorder + postpone, step 1.23), `Visits/PlanGeneration.cs` (`PlanGenerator`, step 1.24; store `Infrastructure/Visits/PostgresPlanGenerationStore.cs`), `Customers/CustomerOperations.cs` `CustomerVisitWindows` + `CustomerProfileService`, `Places/PlaceOperations.cs` (`PlaceService`, `PlaceExport`: places tree, import, merge, export, step 1.23-b), `Notifications/NotificationOperations.cs` (own messages; created by `PostgresCustomerStore.NotifyAsync`, step 1.23-c).
 - `src/LifeDrop.Infrastructure/` — Postgres stores (`Visits/PostgresVisitStore.cs`, `Customers/…`, `Tracking/PostgresShiftStore.cs`). Every write sets `app.current_tenant` (RLS) and writes its audit row in the same transaction; visit writes also set `app.current_actor` (status-history trigger).
 - `src/LifeDrop.API/Program.cs` — DI, auth/JWT, CORS, older routes; `Endpoints/*.cs` — newer routes; `ApiErrors.cs` — ProblemDetails codes.
 - `db/migrations/00NN_*.sql` (never edit merged ones), `db/grants/lifedrop_app_grants.sql`.
@@ -13,14 +13,14 @@
 - `tests/LifeDrop.{Domain,Application,Mobile.Auth,Mobile.Visits}.Tests` — unit tests (`LifeDrop.CI.slnf`).
 
 ## Mobile (.NET MAUI, Android)
-- `src/LifeDrop.Mobile.Auth` — login/session. `src/LifeDrop.Mobile.Visits` — testable logic: `VisitsApiClient`, `DailyPlan`, `VisitLifecycle`, `Tracking/` (ShiftTracker, PointQueue, ShiftApiClient), `Offline/` (Outbox, FileDurableStore), `Customers/` (CustomersApiClient, PlacePicker, NewCustomerFlow: step 1.23-b).
-- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`, `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`), `TrackingHost.cs` (shared services), `AppLanguage.cs` (language choice, RTL, root pages), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
+- `src/LifeDrop.Mobile.Auth` — login/session. `src/LifeDrop.Mobile.Visits` — testable logic: `VisitsApiClient`, `DailyPlan`, `VisitLifecycle`, `Tracking/` (ShiftTracker, PointQueue, ShiftApiClient), `Offline/` (Outbox, FileDurableStore), `Customers/` (CustomersApiClient, PlacePicker, NewCustomerFlow: step 1.23-b), `SelfPlan.cs` (SelfPlanner: step 1.25).
+- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `AddToPlanPage`, `VisitDetailsPage`, `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`), `TrackingHost.cs` (shared services), `AppLanguage.cs` (language choice, RTL, root pages), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
 
 ## Texts (step 1.21)
 - `i18n/strings.json` — every user-facing text, key → {en, ckb, ar, fa}; read by the panel (`src/LifeDrop.Web/src/i18n.ts`) and the app (`src/LifeDrop.Mobile.Visits/Localization/Texts.cs`, embedded).
 
 ## Web panel
-- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, Places, LiveMap, Audit), `components/` (VisitWindowsEditor, CustomerProfileEditor, csv.ts), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
+- `src/LifeDrop.Web` — Vite + React + TS strict + Tailwind v4; `src/api/client.ts` (auth), `src/api/admin.ts` (management calls, `can()`), `src/pages/` (Users, Devices, Customers, Visits, Regions, Places, LiveMap, Audit), `components/` (PlanFromPlaces, PlaceCascade, VisitWindowsEditor, CustomerProfileEditor, csv.ts), `src/components/LiveMapView.tsx` (MapLibre), tests `*.test.ts(x)`.
 
 ## CI
 - `.github/workflows/build.yml` (jobs: build, mobile-android, web), `database-tests.yml` (`MIN_EXPECTED_TESTS`).

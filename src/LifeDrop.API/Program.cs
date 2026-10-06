@@ -71,12 +71,18 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
         builder.Services.AddScoped<LifeDrop.Application.Places.IPlaceStore, LifeDrop.Infrastructure.Places.PostgresPlaceStore>();
         builder.Services.AddScoped<LifeDrop.Application.Places.PlaceService>();
+        builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerPriorityStore, LifeDrop.Infrastructure.Customers.PostgresCustomerPriorityStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanVisits>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanGenerationStore, LifeDrop.Infrastructure.Visits.PostgresPlanGenerationStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.PlanGenerator>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerVisitWindows>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitPlanBoard>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
@@ -612,6 +618,7 @@ public partial class Program
 
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
         LifeDrop.API.Endpoints.PlaceEndpoints.MapPlaceEndpoints(app);
+        LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);

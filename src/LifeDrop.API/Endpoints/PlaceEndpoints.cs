@@ -99,6 +99,23 @@ public static class PlaceEndpoints
         }).RequireAuthorization()
             .WithName("SetCustomerProfile").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Priority of customers by a manager (plan step 1.26).
+        app.MapPut("/customers/priority", async (SetCustomerPriorityRequest request, HttpContext context,
+            CustomerPriorityService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, data) = await service.SetAsync(tenantId, actorId, request, cancellationToken);
+            return result switch
+            {
+                CustomerPriorityResult.Success => Results.Ok(data),
+                CustomerPriorityResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("SetCustomerPriority").WithTags("Customers").Produces<CustomerPriorityDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

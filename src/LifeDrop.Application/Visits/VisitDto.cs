@@ -27,5 +27,7 @@ public sealed record VisitDto(
     int? SortOrder = null,
     int PostponeCount = 0,
     string? PostponeReason = null,
-    string WindowStatus = "none"
+    string WindowStatus = "none",
+    // Priority the manager gave the customer (plan step 1.26): high | normal | low (not the priority of this visit).
+    string CustomerPriority = "normal"
 );

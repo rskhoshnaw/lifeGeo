@@ -2346,10 +2346,10 @@
   "fa": "ساخت کد آزاد برای مشتری ممکن نشد. دوباره تلاش کنید."
  },
  "app.customer.notYours": {
-  "en": "You can change only customers you added.",
-  "ckb": "تەنها دەتوانیت ئەو کڕیارانە بگۆڕیت کە خۆت زیادت کردوون.",
-  "ar": "يمكنك تعديل العملاء الذين أضفتهم أنت فقط.",
-  "fa": "فقط مشتریانی را می‌توانید تغییر دهید که خودتان اضافه کرده‌اید."
+  "en": "You cannot change this customer.",
+  "ckb": "ناتوانیت ئەم کڕیارە بگۆڕیت.",
+  "ar": "لا يمكنك تعديل هذا العميل.",
+  "fa": "شما نمی‌توانید این مشتری را تغییر دهید."
  },
  "app.customer.partialProfile": {
   "en": "The customer was added (code {code}), but the phone, address or place could not be saved. Open the customer and try again.",
@@ -2452,5 +2452,413 @@
   "ckb": "باشە",
   "ar": "حسنًا",
   "fa": "تأیید"
+ },
+ "web.tab.notifications": {
+  "en": "Notifications",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "الإشعارات",
+  "fa": "اعلان‌ها"
+ },
+ "web.notifications.title": {
+  "en": "Notifications",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "الإشعارات",
+  "fa": "اعلان‌ها"
+ },
+ "web.notifications.none": {
+  "en": "No notifications.",
+  "ckb": "هیچ ئاگادارکردنەوەیەک نییە.",
+  "ar": "لا توجد إشعارات.",
+  "fa": "اعلانی نیست."
+ },
+ "web.notifications.profileChanged": {
+  "en": "{actor} changed the profile of {customer}",
+  "ckb": "{actor} پڕۆفایلی {customer}ی گۆڕی",
+  "ar": "غيّر {actor} ملف {customer}",
+  "fa": "{actor} پروفایل {customer} را تغییر داد"
+ },
+ "web.notifications.locationChanged": {
+  "en": "{actor} changed the location of {customer}",
+  "ckb": "{actor} شوێنی {customer}ی گۆڕی",
+  "ar": "غيّر {actor} موقع {customer}",
+  "fa": "{actor} موقعیت {customer} را تغییر داد"
+ },
+ "web.notifications.markRead": {
+  "en": "Mark read",
+  "ckb": "وەک خوێندراو نیشانە بکە",
+  "ar": "تحديد كمقروء",
+  "fa": "علامت‌گذاری به‌عنوان خوانده‌شده"
+ },
+ "web.notifications.markAllRead": {
+  "en": "Mark all read",
+  "ckb": "هەمووی وەک خوێندراو نیشانە بکە",
+  "ar": "تحديد الكل كمقروء",
+  "fa": "علامت‌گذاری همه به‌عنوان خوانده‌شده"
+ },
+ "web.notifications.unreadBadge": {
+  "en": "{count} unread",
+  "ckb": "{count} نەخوێندراو",
+  "ar": "{count} غير مقروء",
+  "fa": "{count} خوانده‌نشده"
+ },
+ "web.notifications.someone": {
+  "en": "someone",
+  "ckb": "کەسێک",
+  "ar": "شخص ما",
+  "fa": "کسی"
+ },
+ "web.notifications.aCustomer": {
+  "en": "a customer",
+  "ckb": "کڕیارێک",
+  "ar": "عميل",
+  "fa": "یک مشتری"
+ },
+ "web.planGen.title": {
+  "en": "Plan from places",
+  "ckb": "پلان لە شوێنەکانەوە دروست بکە",
+  "ar": "إنشاء خطة من الأماكن",
+  "fa": "ساخت برنامه از مکان‌ها"
+ },
+ "web.planGen.hint": {
+  "en": "Pick a field user, the day {date} and where the customers are; check the list, then create the visits.",
+  "ckb": "بەکارهێنەرێک و شوێنی کڕیارەکان هەڵبژێرە، لیستەکە ببینە، پاشان سەردانەکان دروست بکە. ڕۆژ: {date}",
+  "ar": "اختر المستخدم والمكان الذي يوجد فيه العملاء، راجع القائمة ثم أنشئ الزيارات. اليوم: {date}",
+  "fa": "کاربر و محل مشتریان را انتخاب کنید، فهرست را ببینید و سپس ویزیت‌ها را بسازید. روز: {date}"
+ },
+ "web.planGen.region": {
+  "en": "Region",
+  "ckb": "ناوچە",
+  "ar": "المنطقة",
+  "fa": "منطقه"
+ },
+ "web.planGen.anyRegion": {
+  "en": "Any region",
+  "ckb": "هەموو ناوچەکان",
+  "ar": "كل المناطق",
+  "fa": "همهٔ مناطق"
+ },
+ "web.planGen.count": {
+  "en": "How many (empty = all)",
+  "ckb": "چەند (بەتاڵ = هەموو)",
+  "ar": "العدد (فارغ = الكل)",
+  "fa": "چندتا (خالی = همه)"
+ },
+ "web.planGen.order": {
+  "en": "Order",
+  "ckb": "ڕیزبەندی",
+  "ar": "الترتيب",
+  "fa": "ترتیب"
+ },
+ "web.planGen.order.least_recent": {
+  "en": "Longest since last visit first",
+  "ckb": "ئەوانەی زۆرترین ماوە سەردان نەکراون یەکەم",
+  "ar": "الأقدم زيارةً أولاً",
+  "fa": "قدیمی‌ترین ویزیت اول"
+ },
+ "web.planGen.order.name": {
+  "en": "By name",
+  "ckb": "بەپێی ناو",
+  "ar": "حسب الاسم",
+  "fa": "بر اساس نام"
+ },
+ "web.planGen.order.code": {
+  "en": "By code",
+  "ckb": "بەپێی کۆد",
+  "ar": "حسب الرمز",
+  "fa": "بر اساس کد"
+ },
+ "web.planGen.respectHours": {
+  "en": "Skip customers closed that weekday",
+  "ckb": "ئەو کڕیارانە لابە کە ئەو ڕۆژە کراوە نین",
+  "ar": "تخطَّ العملاء المغلقين في ذلك اليوم",
+  "fa": "مشتریانی که آن روز هفته نمی‌پذیرند حذف شوند"
+ },
+ "web.planGen.preview": {
+  "en": "Preview",
+  "ckb": "پێشبینین",
+  "ar": "معاينة",
+  "fa": "پیش‌نمایش"
+ },
+ "web.planGen.summary": {
+  "en": "{included} of {matching} customers will get a visit",
+  "ckb": "{included} لە {matching} کڕیار سەردانیان بۆ دروست دەکرێت",
+  "ar": "{included} من {matching} عميلاً ستُنشأ لهم زيارات",
+  "fa": "برای {included} از {matching} مشتری ویزیت ساخته می‌شود"
+ },
+ "web.planGen.empty": {
+  "en": "No customer matches",
+  "ckb": "هیچ کڕیارێک ناگونجێت",
+  "ar": "لا يوجد عميل مطابق",
+  "fa": "مشتری مطابق پیدا نشد"
+ },
+ "web.planGen.create": {
+  "en": "Create {count} visits",
+  "ckb": "{count} سەردان دروست بکە",
+  "ar": "إنشاء {count} زيارات",
+  "fa": "ایجاد {count} ویزیت"
+ },
+ "web.planGen.created": {
+  "en": "{created} visits created, {skipped} skipped",
+  "ckb": "{created} سەردان دروستکرا، {skipped} پەڕێنرا",
+  "ar": "تم إنشاء {created} زيارات وتخطي {skipped}",
+  "fa": "{created} ویزیت ساخته شد، {skipped} رد شد"
+ },
+ "web.planGen.skip.outside_hours": {
+  "en": "closed that day",
+  "ckb": "ئەو ڕۆژە کراوە نییە",
+  "ar": "مغلق في ذلك اليوم",
+  "fa": "آن روز نمی‌پذیرد"
+ },
+ "web.planGen.skip.over_limit": {
+  "en": "over the limit",
+  "ckb": "لە سنوور تێپەڕیوە",
+  "ar": "فوق الحد",
+  "fa": "بیش از تعداد"
+ },
+ "web.planGen.lastVisit": {
+  "en": "Last visit",
+  "ckb": "دوایین سەردان",
+  "ar": "آخر زيارة",
+  "fa": "آخرین ویزیت"
+ },
+ "web.planGen.never": {
+  "en": "never",
+  "ckb": "هەرگیز",
+  "ar": "أبداً",
+  "fa": "هرگز"
+ },
+ "web.planGen.place": {
+  "en": "Place",
+  "ckb": "شوێن",
+  "ar": "المكان",
+  "fa": "مکان"
+ },
+ "web.planGen.needArea": {
+  "en": "Choose a place or a region first",
+  "ckb": "سەرەتا شوێنێک یان ناوچەیەک هەڵبژێرە",
+  "ar": "اختر مكاناً أو منطقة أولاً",
+  "fa": "ابتدا یک مکان یا منطقه انتخاب کنید"
+ },
+ "web.planGen.assignee": {
+  "en": "Plan for",
+  "ckb": "پلان بۆ",
+  "ar": "الخطة لـ",
+  "fa": "برنامه برای"
+ },
+ "web.planGen.visitType": {
+  "en": "Visit type for all",
+  "ckb": "جۆری سەردان بۆ هەمووان",
+  "ar": "نوع الزيارة للجميع",
+  "fa": "نوع ویزیت برای همه"
+ },
+ "web.planGen.priority": {
+  "en": "Priority for all",
+  "ckb": "گرنگی بۆ هەمووان",
+  "ar": "الأولوية للجميع",
+  "fa": "اولویت برای همه"
+ },
+ "app.plan.add": {
+  "en": "Add customers",
+  "ckb": "زیادکردنی کڕیار",
+  "ar": "إضافة عملاء",
+  "fa": "افزودن مشتری"
+ },
+ "app.add.title": {
+  "en": "Add to my plan",
+  "ckb": "زیادکردن بۆ پلانەکەم",
+  "ar": "إضافة إلى خطتي",
+  "fa": "افزودن به برنامهٔ من"
+ },
+ "app.add.place": {
+  "en": "Where are the customers?",
+  "ckb": "کڕیارەکان لە کوێن؟",
+  "ar": "أين العملاء؟",
+  "fa": "مشتریان کجا هستند؟"
+ },
+ "app.add.search": {
+  "en": "Name or code",
+  "ckb": "ناو یان کۆد",
+  "ar": "الاسم أو الرمز",
+  "fa": "نام یا کد"
+ },
+ "app.add.searchBtn": {
+  "en": "Search",
+  "ckb": "گەڕان",
+  "ar": "بحث",
+  "fa": "جستجو"
+ },
+ "app.add.day": {
+  "en": "Day: {day}",
+  "ckb": "ڕۆژ: {day}",
+  "ar": "اليوم: {day}",
+  "fa": "روز: {day}"
+ },
+ "app.add.needSearch": {
+  "en": "Choose a place or type at least two letters.",
+  "ckb": "شوێنێک هەڵبژێرە یان بەلایەنی کەمەوە دوو پیت بنووسە.",
+  "ar": "اختر مكاناً أو اكتب حرفين على الأقل.",
+  "fa": "یک مکان انتخاب کنید یا دست‌کم دو حرف بنویسید."
+ },
+ "app.add.none": {
+  "en": "No customer found, or all are already in the plan.",
+  "ckb": "هیچ کڕیارێک نەدۆزرایەوە، یان هەموویان لە پلانەکەدان.",
+  "ar": "لا يوجد عميل، أو أن الجميع في الخطة.",
+  "fa": "مشتری پیدا نشد یا همه در برنامه هستند."
+ },
+ "app.add.addBtn": {
+  "en": "Add {count}",
+  "ckb": "{count} زیاد بکە",
+  "ar": "أضف {count}",
+  "fa": "{count} مورد اضافه شود"
+ },
+ "app.add.added": {
+  "en": "{count} visits added.",
+  "ckb": "{count} سەردان زیادکرا.",
+  "ar": "تمت إضافة {count} زيارات.",
+  "fa": "{count} ویزیت اضافه شد."
+ },
+ "app.add.closed": {
+  "en": "closed that day",
+  "ckb": "ئەو ڕۆژە کراوە نییە",
+  "ar": "مغلق في ذلك اليوم",
+  "fa": "آن روز نمی‌پذیرد"
+ },
+ "app.add.lastVisit": {
+  "en": "last visit {date}",
+  "ckb": "دوایین سەردان {date}",
+  "ar": "آخر زيارة {date}",
+  "fa": "آخرین ویزیت {date}"
+ },
+ "app.add.neverVisited": {
+  "en": "never visited",
+  "ckb": "هەرگیز سەردان نەکراوە",
+  "ar": "لم تتم زيارته",
+  "fa": "هرگز ویزیت نشده"
+ },
+ "web.customers.priority": {
+  "en": "Priority",
+  "ckb": "گرنگی",
+  "ar": "الأولوية",
+  "fa": "اولویت"
+ },
+ "web.customers.tick": {
+  "en": "Select {code}",
+  "ckb": "هەڵبژاردنی {code}",
+  "ar": "تحديد {code}",
+  "fa": "انتخاب {code}"
+ },
+ "web.priorityBar.title": {
+  "en": "Priority of customers",
+  "ckb": "گرنگیی کڕیارەکان",
+  "ar": "أولوية العملاء",
+  "fa": "اولویت مشتریان"
+ },
+ "web.priorityBar.hint": {
+  "en": "Reps see it in their plan and get these customers first in suggestions. Tick customers below, or choose a place to cover all customers in it.",
+  "ckb": "نوێنەرەکان لە پلانەکەیاندا دەیبینن و ئەم کڕیارانە لە پێشنیارەکاندا یەکەم دەبن. کڕیارەکان لە خوارەوە هەڵبژێرە، یان شوێنێک هەڵبژێرە بۆ هەموو کڕیارەکانی.",
+  "ar": "يرى المندوبون ذلك في خطتهم ويظهر هؤلاء العملاء أولاً في الاقتراحات. حدّد العملاء أدناه أو اختر مكاناً ليشمل كل عملائه.",
+  "fa": "نمایندگان آن را در برنامه می‌بینند و این مشتریان در پیشنهادها اول می‌آیند. مشتریان را پایین تیک بزنید یا مکانی را برای همهٔ مشتریانش انتخاب کنید."
+ },
+ "web.priorityBar.value": {
+  "en": "Priority to set",
+  "ckb": "اولویەتی دیاریکراو",
+  "ar": "الأولوية المراد تعيينها",
+  "fa": "اولویت مورد نظر"
+ },
+ "web.priorityBar.applyTicked": {
+  "en": "Apply to {count} ticked",
+  "ckb": "جێبەجێکردن بۆ {count} هەڵبژێردراو",
+  "ar": "تطبيق على {count} محدد",
+  "fa": "اعمال برای {count} تیک‌خورده"
+ },
+ "web.priorityBar.applyPlace": {
+  "en": "Apply to all customers of the place",
+  "ckb": "جێبەجێکردن بۆ هەموو کڕیارەکانی شوێنەکە",
+  "ar": "تطبيق على كل عملاء المكان",
+  "fa": "اعمال برای همهٔ مشتریان مکان"
+ },
+ "web.priorityBar.done": {
+  "en": "{updated} customers changed",
+  "ckb": "{updated} کڕیار گۆڕدرا",
+  "ar": "تم تغيير {updated} عملاء",
+  "fa": "{updated} مشتری تغییر کرد"
+ },
+ "web.visits.customerPriority": {
+  "en": "Customer priority: {priority}",
+  "ckb": "گرنگیی کڕیار: {priority}",
+  "ar": "أولوية العميل: {priority}",
+  "fa": "اولویت مشتری: {priority}"
+ },
+ "app.priority.high": {
+  "en": "manager priority: high",
+  "ckb": "گرنگیی بەڕێوەبەر: بەرز",
+  "ar": "أولوية المدير: عالية",
+  "fa": "اولویت مدیر: بالا"
+ },
+ "app.priority.low": {
+  "en": "manager priority: low",
+  "ckb": "گرنگیی بەڕێوەبەر: نزم",
+  "ar": "أولوية المدير: منخفضة",
+  "fa": "اولویت مدیر: پایین"
+ },
+ "app.add.draw": {
+  "en": "Draw area on map",
+  "ckb": "کێشانی ناوچە لەسەر نەخشە",
+  "ar": "رسم منطقة على الخريطة",
+  "fa": "کشیدن محدوده روی نقشه"
+ },
+ "app.add.areaSet": {
+  "en": "Area: {count} corners",
+  "ckb": "ناوچە: {count} گۆشە",
+  "ar": "المنطقة: {count} زوايا",
+  "fa": "محدوده: {count} گوشه"
+ },
+ "app.add.areaClear": {
+  "en": "Remove area",
+  "ckb": "لابردنی ناوچە",
+  "ar": "إزالة المنطقة",
+  "fa": "حذف محدوده"
+ },
+ "app.area.title": {
+  "en": "Draw the area",
+  "ckb": "ناوچەکە بکێشە",
+  "ar": "ارسم المنطقة",
+  "fa": "محدوده را بکشید"
+ },
+ "app.area.hint": {
+  "en": "Tap the map to add corners (at least three). Customers inside the shape are found.",
+  "ckb": "پەنجە بە نەخشەکەدا بنێ بۆ زیادکردنی گۆشە (لانیکەم سێ). کڕیارە ناو شێوەکە دەدۆزرێنەوە.",
+  "ar": "المس الخريطة لإضافة زوايا (ثلاث على الأقل). يتم البحث عن العملاء داخل الشكل.",
+  "fa": "روی نقشه بزنید تا گوشه اضافه شود (دست‌کم سه). مشتریان داخل شکل پیدا می‌شوند."
+ },
+ "app.area.undo": {
+  "en": "Undo",
+  "ckb": "گەڕانەوە",
+  "ar": "تراجع",
+  "fa": "بازگشت"
+ },
+ "app.area.clear": {
+  "en": "Clear",
+  "ckb": "پاککردنەوە",
+  "ar": "مسح",
+  "fa": "پاک کردن"
+ },
+ "app.area.use": {
+  "en": "Use this area",
+  "ckb": "ئەم ناوچەیە بەکاربهێنە",
+  "ar": "استخدم هذه المنطقة",
+  "fa": "از این محدوده استفاده شود"
+ },
+ "app.area.tooFew": {
+  "en": "Draw at least three corners.",
+  "ckb": "لانیکەم سێ گۆشە بکێشە.",
+  "ar": "ارسم ثلاث زوايا على الأقل.",
+  "fa": "دست‌کم سه گوشه بکشید."
+ },
+ "app.area.invalid": {
+  "en": "The shape is too big (over about 50 km) or has no surface.",
+  "ckb": "شێوەکە زۆر گەورەیە (نزیکەی ٥٠ کم) یان ڕووبەری نییە.",
+  "ar": "الشكل كبير جداً (أكثر من 50 كم تقريباً) أو بلا مساحة.",
+  "fa": "شکل خیلی بزرگ است (بیش از حدود ۵۰ کیلومتر) یا سطح ندارد."
  }
 }

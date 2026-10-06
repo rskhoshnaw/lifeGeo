@@ -15,6 +15,7 @@ import { t, type TextKey } from '../i18n.ts'
 
 const visitStatuses = ['Planned', 'EnRoute', 'Arrived', 'InVisit', 'Completed', 'Failed', 'Cancelled']
 const statusText = (status: string) => (visitStatuses.includes(status) ? t(`web.visitStatus.${status}` as TextKey) : status)
+import { PlanFromPlaces } from '../components/PlanFromPlaces.tsx'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 const visitTypes: VisitType[] = ['pharmacy', 'doctor', 'wholesaler', 'other']
@@ -100,6 +101,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                     <td className="py-2">{visit.plannedTime?.slice(0, 5) ?? '—'}</td>
                     <td>
                       {label} · {visit.customerName ?? ''}
+                      {visit.customerPriority !== 'normal' && <div className="text-xs text-blue-700">★ {t('web.visits.customerPriority', { priority: t(`web.priority.${visit.customerPriority}`) })}</div>}
                       {visit.windowStatus === 'outside' && <div className="text-xs text-amber-700">⚠ {t('web.visits.outsideHours')}</div>}
                       {visit.postponeCount > 0 && (
                         <div className="text-xs text-slate-600">
@@ -149,6 +151,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </table>
         )}
       </div>
+      {can(me, ...Permissions.planVisits) && users.data && <PlanFromPlaces admin={admin} me={me} date={date} users={users.data} onCreated={plan.reload} />}
       {can(me, ...Permissions.customers) && users.data && <NewVisitForm admin={admin} date={date} users={users.data} onCreated={plan.reload} />}
     </section>
   )

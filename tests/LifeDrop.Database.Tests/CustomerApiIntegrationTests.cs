@@ -117,7 +117,9 @@ public class CustomerApiIntegrationTests
                 var m19 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0019_live_map.sql"));
                 var m20 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0020_flexible_planning.sql"));
                 var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21;
+                var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
+                var m23 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0023_customer_priority.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1989,7 +1991,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[]
         {
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
-            "SalesRep:own:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
+            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
         Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
@@ -3664,6 +3666,162 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task RegionReps_EditRegionCustomersAndTheResponsibleAreNotified()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), sv = Guid.NewGuid(), sv2 = Guid.NewGuid();
+        Guid repA = Guid.NewGuid(), repA2 = Guid.NewGuid(), repB = Guid.NewGuid(), repB2 = Guid.NewGuid(), repX = Guid.NewGuid(), tenant2Manager = Guid.NewGuid();
+        Guid cA = Guid.NewGuid(), cA2 = Guid.NewGuid(), cB = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id, email) VALUES
+                    (@m, @t1, 'manager@t1'), (@m2, @t1, 'manager2@t1'), (@sv, @t1, 'sv@t1'), (@sv2, @t1, 'sv2@t1'),
+                    (@ra, @t1, 'repa@t1'), (@ra2, @t1, 'repa2@t1'), (@rb, @t1, 'repb@t1'), (@rb2, @t1, 'repb2@t1'), (@rx, @t1, 'repx@t1'), (@tm, @t2, 'manager@t2');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, u.id, r.id FROM (VALUES (@m, 'SalesManager'), (@m2, 'SalesManager'), (@sv, 'Supervisor'), (@sv2, 'Supervisor'),
+                    (@ra, 'SalesRep'), (@ra2, 'SalesRep'), (@rb, 'SalesRep'), (@rb2, 'SalesRep'), (@rx, 'SalesRep')) AS u(id, role)
+                JOIN roles r ON r.tenant_id = @t1 AND r.name = u.role
+                UNION ALL SELECT @t2, @tm, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES ('55555555-0000-0000-0000-0000000000e1', @t1, 'Erbil'), ('55555555-0000-0000-0000-0000000000b1', @t1, 'Sulaymaniyah');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, '55555555-0000-0000-0000-0000000000e1', 'Team Erbil'),
+                    ('55555555-0000-0000-0000-0000000000a2', @t1, '55555555-0000-0000-0000-0000000000b1', 'Team Sulaymaniyah');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @sv2, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra2, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @rb, '55555555-0000-0000-0000-0000000000a2'), (@t1, @rb2, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id) VALUES
+                    (@ca, @t1, 'Pharmacy', 'CA', 'Erbil One', '55555555-0000-0000-0000-0000000000e1', @ra),
+                    (@ca2, @t1, 'Pharmacy', 'CA2', 'Erbil Two', '55555555-0000-0000-0000-0000000000e1', @ra2),
+                    (@cb, @t1, 'Pharmacy', 'CB', 'Sulaymaniyah One', '55555555-0000-0000-0000-0000000000b1', @rb);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("m2", manager2), ("sv", sv), ("sv2", sv2), ("ra", repA), ("ra2", repA2), ("rb", repB), ("rb2", repB2), ("rx", repX), ("tm", tenant2Manager),
+                ("ca", cA), ("ca2", cA2), ("cb", cB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Profile(Guid customer, string phone) => client.PutAsJsonAsync($"/customers/{customer}/profile", new { Phone = phone });
+        Task<HttpResponseMessage> Location(Guid customer) => client.PutAsJsonAsync($"/customers/{customer}/location", new { Latitude = 36.19, Longitude = 44.0, Source = "manual" });
+        async Task<List<LifeDrop.Application.Notifications.NotificationDto>> Inbox(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Notifications.NotificationDto>>("/notifications" + query))!;
+        async Task<int> Unread() => (await client.GetFromJsonAsync<UnreadCountDto>("/notifications/unread-count"))!.Count;
+
+        // A rep sees and changes the customers of the region of their team, not those of another region
+        As(t1, repA);
+        Assert.Equal(new[] { "CA", "CA2" }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>("/customers?limit=10"))!.Select(c => c.Code).OrderBy(c => c, StringComparer.Ordinal).ToArray());
+        await AssertProblemAsync(await Profile(cB, "1"), HttpStatusCode.NotFound, "NOT_FOUND");
+        // A rep without a team keeps to the customers they added
+        As(t1, repX);
+        Assert.Empty(await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>("/customers?limit=10") ?? new());
+        await AssertProblemAsync(await Profile(cA2, "1"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Region with supervisors: a rep's change of a colleague's customer is told to both supervisors, nobody else
+        As(t1, repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 111")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA, "0750 222")).StatusCode);   // the rep's own customer: nobody is told
+        Assert.Equal(0, await Unread());
+        foreach (var supervisor in new[] { sv, sv2 })
+        {
+            As(t1, supervisor);
+            var message = Assert.Single(await Inbox());
+            Assert.Equal(("customer.profile_changed", cA2.ToString(), repA, "repa@t1", "CA2", "Erbil Two"), (message.Kind, message.EntityId, message.ActorId, message.ActorEmail, message.CustomerCode, message.CustomerName));
+            Assert.Null(message.ReadAt);
+            Assert.Equal(1, await Unread());
+        }
+        As(t1, manager);
+        Assert.Empty(await Inbox());   // the region has supervisors, so the sales manager is not told
+
+        // A supervisor's own change tells the other supervisor, not the manager and not themselves
+        As(t1, sv);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 333")).StatusCode);
+        As(t1, sv2);
+        Assert.Equal(2, (await Inbox()).Count);
+        As(t1, sv);
+        Assert.Equal(1, (await Inbox()).Count);
+
+        // Region without a supervisor: the sales managers are told (profile and location changes alike)
+        As(t1, repB2);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 444")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Location(cB)).StatusCode);
+        As(t1, repB);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 555")).StatusCode);   // the owner: nobody is told
+        foreach (var salesManager in new[] { manager, manager2 })
+        {
+            As(t1, salesManager);
+            var inbox = await Inbox();
+            Assert.Equal(new[] { "customer.location_changed", "customer.profile_changed" }, inbox.Select(n => n.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+            Assert.All(inbox, n => Assert.Equal(("repb2@t1", "CB"), (n.ActorEmail, n.CustomerCode)));
+            Assert.True(inbox[0].CreatedAt >= inbox[1].CreatedAt);   // newest first
+        }
+        // The sales manager's own change tells the other manager only if the region has none... it has none, so the other manager
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 666")).StatusCode);
+        As(t1, manager2);
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, manager);
+        Assert.Equal(2, (await Inbox()).Count);
+
+        // Everybody reads and marks only their own messages
+        As(t1, manager2);
+        var mine = await Inbox("?unread=true&limit=2");
+        Assert.Equal(2, mine.Count);
+        Assert.Equal(3, await Unread());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);   // again: harmless
+        Assert.Equal(2, await Unread());
+        Assert.Equal(2, (await Inbox("?unread=true")).Count);
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, manager);
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{mine[0].Id}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");   // not the manager's message
+        Assert.Equal(2, await Unread());
+        As(t1, manager2);
+        await AssertProblemAsync(await client.GetAsync("/notifications?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/notifications?limit=201"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{Guid.NewGuid()}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/notifications/read-all", null)).StatusCode);
+        Assert.Equal(0, await Unread());
+        Assert.Empty(await Inbox("?unread=true"));
+        Assert.Equal(3, (await Inbox()).Count);
+        As(t1, sv);
+        Assert.Equal(1, await Unread());   // marking one's own messages did not touch the others'
+
+        // Another company sees none of it
+        As(t2, tenant2Manager);
+        Assert.Empty(await Inbox());
+        Assert.Equal(0, await Unread());
+        await AssertProblemAsync(await client.PostAsync($"/notifications/{mine[1].Id}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");
+    }
+
+    private sealed record UnreadCountDto(int Count);
+
+    [SkippableFact]
     public async Task VisitHistory_RecordsEveryTransitionWithActorAndIsReadableWithinScope()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
@@ -4083,6 +4241,381 @@ public class CustomerApiIntegrationTests
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "LifeDrop.slnx")))
             dir = dir.Parent;
         return dir?.FullName ?? throw new InvalidOperationException("Repository root (LifeDrop.slnx) not found.");
+    }
+
+    [SkippableFact]
+    public async Task PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid();
+        Guid erbil = Guid.Parse("55555555-0000-0000-0000-0000000000e1"), baghdad = Guid.Parse("55555555-0000-0000-0000-0000000000b1");
+        Guid city = Guid.NewGuid(), n1 = Guid.NewGuid(), n2 = Guid.NewGuid(), street = Guid.NewGuid();
+        var c = Enumerable.Range(0, 10).Select(_ => Guid.NewGuid()).ToArray();   // c[1]..c[9] = C1..C9
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A'), ('55555555-0000-0000-0000-0000000000a2', @t1, @baghdad, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @rb, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES
+                    (@city, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @city, 'neighbourhood', 'N1'), (@n2, @t1, @city, 'neighbourhood', 'N2'),
+                    (@street, @t1, @n1, 'street', 'S1');
+                -- C1 accepts visits only on Wednesday; C2, C3 are in the street; C4, C5 in the neighbourhood; C6 in N2;
+                -- C7 is pending; C8 already has a visit that day; C9 belongs to the other region.
+                INSERT INTO customers (id, tenant_id, type, code, name, place_id, region_id, approval_status) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Name 1', @n1, @erbil, 'approved'),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Name 2', @street, @erbil, 'approved'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Name 3', @street, @erbil, 'approved'),
+                    (@c4, @t1, 'Pharmacy', 'C4', 'Name 4', @n1, @erbil, 'approved'),
+                    (@c5, @t1, 'Doctor', 'C5', 'Name 5', @n1, @erbil, 'approved'),
+                    (@c6, @t1, 'Pharmacy', 'C6', 'Name 6', @n2, @erbil, 'approved'),
+                    (@c7, @t1, 'Pharmacy', 'C7', 'Name 7', @n1, @erbil, 'pending'),
+                    (@c8, @t1, 'Pharmacy', 'C8', 'Name 8', @n1, @erbil, 'approved'),
+                    (@c9, @t1, 'Pharmacy', 'C9', 'Name 9', @n1, @baghdad, 'approved');
+                INSERT INTO customer_visit_windows (tenant_id, customer_id, weekday, opens_at, closes_at) VALUES (@t1, @c1, 3, '09:00', '17:00');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (gen_random_uuid(), @t1, @ra, @c2, 'Completed', '2026-09-01', now()),
+                    (gen_random_uuid(), @t1, @ra, @c3, 'Completed', '2026-09-20', now()),
+                    (gen_random_uuid(), @t1, @ra, @c8, 'Planned', '2026-10-06', now()),
+                    (gen_random_uuid(), @t1, @ra, @c6, 'Cancelled', '2026-10-06', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("rb", repB),
+                ("erbil", erbil), ("baghdad", baghdad), ("city", city), ("n1", n1), ("n2", n2), ("street", street) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 1; i <= 9; i++) cmd.Parameters.AddWithValue("c" + i, c[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Preview(object body) => client.PostAsJsonAsync("/visit-plan/preview", body);
+        Task<HttpResponseMessage> Generate(object body) => client.PostAsJsonAsync("/visit-plan/generate", body);
+        async Task<LifeDrop.Application.Visits.PlanPreviewDto> PreviewOk(object body)
+        {
+            var response = await Preview(body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanPreviewDto>())!;
+        }
+        static string[] Codes(IEnumerable<LifeDrop.Application.Visits.PlanCandidateDto> list) => list.Select(x => x.Code).ToArray();
+
+        // Who may plan: finance has no visits.write; a rep (visits.plan only) only for themselves (below).
+        As(finance);
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(repA);
+        await AssertProblemAsync(await Generate(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        As(supervisor);
+        // Bad requests
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-04", PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Count = 0 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "random" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = Guid.NewGuid(), ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.NotFound, "USER_NOT_FOUND");
+        // The supervisor of Erbil cannot plan for a rep of Baghdad
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // A neighbourhood includes its streets. Order: never visited first (by code), then the oldest last visit. C1 accepts only
+        // Wednesdays (this day is Tuesday); C7 pending, C8 planned already, C6 elsewhere, C9 in another region: all left out.
+        var all = await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1 });
+        Assert.Equal(new[] { "C1", "C4", "C5", "C2", "C3" }, Codes(all.Candidates));
+        Assert.Equal(5, all.Matching);
+        Assert.Equal(4, all.Included);
+        Assert.Equal("outside_hours", all.Candidates[0].SkipReason);
+        Assert.Equal("Erbil › N1", all.Candidates[1].Place);
+        Assert.Equal("Erbil › N1 › S1", all.Candidates[3].Place);
+        Assert.Equal(new DateOnly(2026, 9, 1), all.Candidates[3].LastVisitDate);
+
+        // Only the street
+        Assert.Equal(new[] { "C2", "C3" }, Codes((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = street })).Candidates));
+        // A cancelled visit on that day does not block a customer (C6)
+        Assert.Equal(new[] { "C6" }, Codes((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n2 })).Candidates));
+        // Limit: the first two that fit; the rest are marked over the limit
+        var two = await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Count = 2 });
+        Assert.Equal(2, two.Included);
+        Assert.Equal(new[] { "C4", "C5" }, Codes(two.Candidates.Where(x => x.Included)));
+        Assert.Equal("over_limit", two.Candidates.Single(x => x.Code == "C2").SkipReason);
+        // Order by name (descending names do not exist: ascending), hours ignored on request
+        var byCode = await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "code", RespectWindows = false });
+        Assert.Equal(new[] { "C1", "C2", "C3", "C4", "C5" }, Codes(byCode.Candidates));
+        Assert.Equal(5, byCode.Included);
+        // On Wednesday C1 is within its hours
+        Assert.Equal("within", (await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-07", PlaceId = n1 })).Candidates.Single(x => x.Code == "C1").WindowStatus);
+        // The supervisor's scope: Erbil customers only, so a region filter for Baghdad finds nothing; the manager sees C9
+        Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", RegionId = baghdad })).Candidates);
+        As(manager);
+        Assert.Equal(new[] { "C9" }, Codes((await PreviewOk(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", RegionId = baghdad })).Candidates));
+
+        // Create the first two for rep A: after the visit already in the plan (C8), type by customer type, one audit row per visit
+        As(supervisor);
+        var created = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Count = 2, Priority = "high" });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var result = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!;
+        Assert.Equal(2, result.Created);
+        As(repA);
+        var plan = (await (await client.GetAsync("/visits?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        Assert.Equal(new[] { c[8], c[4], c[5], c[6] }.Take(3).ToArray(), plan.Where(v => v.Status == "Planned").Select(v => v.CustomerId).ToArray());
+        Assert.Equal(new[] { "normal", "high", "high" }, plan.Where(v => v.Status == "Planned").Select(v => v.Priority).ToArray());
+        Assert.Equal(new[] { "pharmacy", "doctor" }, plan.Where(v => v.CustomerId == c[4] || v.CustomerId == c[5]).Select(v => v.VisitType).ToArray());
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                SELECT (SELECT count(*) FROM audit_logs WHERE action = 'visit.created' AND actor_id = @sv),
+                       (SELECT count(*) FROM audit_logs WHERE action = 'visit.plan_generated' AND entity_id = @ra::text AND actor_id = @sv);", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            cmd.Parameters.AddWithValue("sv", supervisor);
+            cmd.Parameters.AddWithValue("ra", repA);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.Equal(1L, reader.GetInt64(1));
+        }
+
+        // Again: the two planned ones are no longer candidates. Chosen customers only (C6 is outside the place and is skipped)
+        As(supervisor);
+        var rest = await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1 });
+        Assert.Equal(new[] { "C1", "C2", "C3" }, Codes(rest.Candidates));
+        var chosen = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, CustomerIds = new[] { c[2], c[6] } });
+        var chosenResult = (await chosen.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!;
+        Assert.Equal(1, chosenResult.Created);
+        Assert.Equal(1, chosenResult.Skipped);
+
+        // A rep plans for themselves (plan step 1.25): a search text is enough, only customers of their region, never for somebody else
+        As(repA);
+        Assert.Equal(new[] { "C6" }, Codes((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6" })).Candidates));
+        Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "Name 9" })).Candidates);   // other region
+        Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "%" })).Candidates);       // no wildcard
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", Query = "Name" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var own = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6", CustomerIds = new[] { c[6] } });
+        Assert.Equal(1, (await own.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+    }
+
+    [SkippableFact]
+    public async Task CustomerPriority_ManagerSetsByIdsOrPlaceWithinScopeAndPlansShowAndUseIt()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), city = Guid.NewGuid(), n1 = Guid.NewGuid(), street = Guid.NewGuid();
+        var c = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();   // C1..C4
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES
+                    (@city, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @city, 'neighbourhood', 'N1'), (@street, @t1, @n1, 'street', 'S1');
+                -- C1, C2 in the street; C3 in the neighbourhood; C4 in the same neighbourhood but in another region
+                INSERT INTO customers (id, tenant_id, type, code, name, place_id, region_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Name 1', @street, @erbil), (@c2, @t1, 'Pharmacy', 'C2', 'Name 2', @street, @erbil),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Name 3', @n1, @erbil), (@c4, @t1, 'Pharmacy', 'C4', 'Name 4', @n1, @baghdad);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("erbil", erbil), ("baghdad", baghdad),
+                ("city", city), ("n1", n1), ("street", street) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 1; i <= 4; i++) cmd.Parameters.AddWithValue("c" + i, c[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> SetPriority(object body) => client.PutAsJsonAsync("/customers/priority", body);
+        async Task<int> Updated(object body)
+        {
+            var response = await SetPriority(body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Customers.CustomerPriorityDto>())!.Updated;
+        }
+        async Task<string> PriorityOf(Guid customer) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{customer}"))!.Priority;
+
+        // Who may: reps and finance have no visits.write
+        As(repA);
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] } }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(finance);
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] } }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        As(supervisor);
+        // Bad requests: both or none of ids and place, unknown or missing priority, too many ids
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] }, PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "high" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "urgent", PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = Enumerable.Range(0, 201).Select(_ => Guid.NewGuid()).ToArray() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // By ids; the same again changes nothing; the customer shows it
+        Assert.Equal(1, await Updated(new { Priority = "high", CustomerIds = new[] { c[1] } }));
+        Assert.Equal(0, await Updated(new { Priority = "high", CustomerIds = new[] { c[1] } }));
+        Assert.Equal("high", await PriorityOf(c[1]));
+        Assert.Equal("normal", await PriorityOf(c[2]));
+
+        // By place: everything below it, but only inside the supervisor's region (C4 is in another region)
+        Assert.Equal(3, await Updated(new { Priority = "low", PlaceId = n1 }));
+        Assert.All(new[] { c[1], c[2], c[3] }, id => Assert.Equal("low", PriorityOf(id).Result));
+        // A customer outside the scope is not changed even when named
+        Assert.Equal(0, await Updated(new { Priority = "high", CustomerIds = new[] { c[4] } }));
+        As(manager);
+        Assert.Equal("normal", await PriorityOf(c[4]));
+        Assert.Equal(4, await Updated(new { Priority = "high", PlaceId = n1 }));
+        Assert.Equal(4, await Updated(new { Priority = "normal", PlaceId = n1 }));
+        Assert.Equal(1, await Updated(new { Priority = "high", CustomerIds = new[] { c[3] } }));
+        As(supervisor);
+        Assert.Equal(1, await Updated(new { Priority = "low", CustomerIds = new[] { c[1] } }));
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); SELECT count(*) FROM audit_logs WHERE action = 'customer.priority_set'", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal(1L + 3 + 4 + 4 + 1 + 1, reader.GetInt64(0));   // one row per changed customer
+        }
+
+        // Suggestions: high first, then normal, then low, whatever the order inside a level (by name: C1, C2, C3)
+        var preview = await client.PostAsJsonAsync("/visit-plan/preview", new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "name" });
+        var found = (await preview.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanPreviewDto>())!;
+        Assert.Equal(new[] { "C3", "C2", "C1" }, found.Candidates.Select(x => x.Code).ToArray());
+        Assert.Equal(new[] { "high", "normal", "low" }, found.Candidates.Select(x => x.CustomerPriority).ToArray());
+        // With a limit the high one is taken first
+        var one = await client.PostAsJsonAsync("/visit-plan/generate", new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "name", Count = 1 });
+        Assert.Equal(1, (await one.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+
+        // The rep sees the manager's priority in the plan (not the priority of the visit, which stays normal)
+        As(repA);
+        var plan = (await (await client.GetAsync("/visits?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        var visit = Assert.Single(plan);
+        Assert.Equal((c[3], "high", "normal"), (visit.CustomerId, visit.CustomerPriority, visit.Priority));
+    }
+
+    [SkippableFact]
+    public async Task PlanFromArea_DrawnAreaFindsLocatedApprovedCustomersInScopeAndRefusesBadShapes()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid supervisor = Guid.NewGuid(), repA = Guid.NewGuid(), erbil = Guid.NewGuid(), baghdad = Guid.NewGuid();
+        var c = Enumerable.Range(0, 8).Select(_ => Guid.NewGuid()).ToArray();   // C1..C7
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@sv, @t1), (@ra, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                -- The area is the square lon 44.00-44.02, lat 36.18-36.20.
+                -- C1, C2 inside; C3 inside but pending; C4 outside; C5 without a position; C6 inside, other region; C7 on the border
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status, geom, status) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Name 1', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.010, 36.190), 4326)::geography, 'located'),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Name 2', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.005, 36.185), 4326)::geography, 'located'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Name 3', @erbil, 'pending', ST_SetSRID(ST_MakePoint(44.015, 36.195), 4326)::geography, 'located'),
+                    (@c4, @t1, 'Pharmacy', 'C4', 'Name 4', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.050, 36.190), 4326)::geography, 'located'),
+                    (@c5, @t1, 'Pharmacy', 'C5', 'Name 5', @erbil, 'approved', NULL, 'no_location'),
+                    (@c6, @t1, 'Pharmacy', 'C6', 'Name 6', @baghdad, 'approved', ST_SetSRID(ST_MakePoint(44.012, 36.192), 4326)::geography, 'located'),
+                    (@c7, @t1, 'Pharmacy', 'C7', 'Name 7', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.020, 36.190), 4326)::geography, 'located');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("sv", supervisor), ("ra", repA), ("erbil", erbil), ("baghdad", baghdad) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 1; i <= 7; i++) cmd.Parameters.AddWithValue("c" + i, c[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        static object[] Square(double west = 44.00, double east = 44.02, double south = 36.18, double north = 36.20) => new object[]
+        {
+            new { Latitude = south, Longitude = west }, new { Latitude = south, Longitude = east },
+            new { Latitude = north, Longitude = east }, new { Latitude = north, Longitude = west }
+        };
+        Task<HttpResponseMessage> Preview(object area, object? assignee = null) => client.PostAsJsonAsync("/visit-plan/preview",
+            new { AssignedUserId = assignee, ScheduleDate = "2026-10-06", Area = area });
+        async Task<string[]> Codes(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanPreviewDto>())!.Candidates.Select(x => x.Code).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        }
+
+        // The supervisor of Erbil: located and approved customers inside the area and in their region (the border counts as inside)
+        As(supervisor);
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square(), repA)));
+        // A smaller area
+        Assert.Equal(new[] { "C2" }, await Codes(await Preview(Square(east: 44.008), repA)));
+        // The drawing may start at any corner and go either way round
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square().Reverse().ToArray(), repA)));
+
+        // A rep plans for themselves from the area (no assignee) and the customers are added
+        As(repA);
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square())));
+        var created = await client.PostAsJsonAsync("/visit-plan/generate", new { ScheduleDate = "2026-10-06", Area = Square(), CustomerIds = new[] { c[1], c[2] } });
+        Assert.Equal(2, (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+        Assert.Equal(new[] { "C7" }, await Codes(await Preview(Square())));   // the planned ones are not offered again
+
+        // Bad shapes: two points, a line, a spot, a coordinate that does not exist, over 100 points, a box wider than 0.5 degrees
+        await AssertProblemAsync(await Preview(Square().Take(2).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new object[] { new { Latitude = 36.19, Longitude = 44.00 }, new { Latitude = 36.19, Longitude = 44.01 }, new { Latitude = 36.19, Longitude = 44.02 } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new object[] { new { Latitude = 36.19, Longitude = 44.0 }, new { Latitude = 36.19, Longitude = 44.0 }, new { Latitude = 36.19, Longitude = 44.0 } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Square(south: 99, north: 100)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Enumerable.Range(0, 101).Select(i => (object)new { Latitude = 36.18 + (i % 2) * 0.01, Longitude = 44.0 + i * 0.0001 }).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Square(west: 43.0, east: 44.02)), HttpStatusCode.BadRequest, "INVALID_DATA");
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

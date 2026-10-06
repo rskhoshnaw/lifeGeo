@@ -24,6 +24,7 @@ public partial class DailyPlanPage : ContentPage
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.plan.title");
         RetryBtn.Text = Texts.Get("app.tryAgain");
+        AddBtn.Text = Texts.Get("app.plan.add");
     }
 
     protected override async void OnAppearing()
@@ -40,6 +41,18 @@ public partial class DailyPlanPage : ContentPage
     }
 
     private async void OnRetryClicked(object? sender, EventArgs e) => await LoadAsync();
+
+    // Adding customers to the user's own plan (plan step 1.25), for the day on screen.
+    private async void OnAddClicked(object? sender, EventArgs e)
+    {
+        TrackingHost.GetOrCreate();
+        if (TrackingHost.VisitsApi is not ISelfPlanApiClient api)
+        {
+            ShowSessionEnded();
+            return;
+        }
+        await Navigation.PushAsync(new AddToPlanPage(api, _plan?.Date is { } day && day != default ? day : IraqTime.Today(TimeProvider.System)));
+    }
 
     // Plan changes (plan step 1.23): the server must accept them, so they need a connection.
     private async void OnMoveUp(object? sender, EventArgs e) => await ChangeAsync(sender, (plan, row) => plan.MoveAsync(row.Visit.Id, -1));

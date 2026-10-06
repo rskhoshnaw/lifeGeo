@@ -19,9 +19,14 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.23 flexible planning part 1 (order, move to another day, customer visit hours) | in PR; plan section 1-ه lists 1.23-ب … 1.27 |
 | 1.23-ب part 1 (places tree, customer profile: server + panel) | ✅ merged (PR #34) |
 | 1.23-ب part 2 (app: place pickers with suggestions, customer details, new customer) | in PR; map suggestions moved to 1.27 |
-| Next | **1.24** plan from region/street/neighbourhood (panel), 1.25–1.27; **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 1.23-ج reps edit region customers + notifications | in PR |
+| 1.24 plan from places (panel) | in PR |
+| 1.25 rep plans own day in the app | in PR (same branch as 1.24); real-device check pending |
+| 1.26 customer priority from managers | in PR (same branch); migration 0023 |
+| 1.27 draw area on map (app, online only) | in PR (same branch); real-device check pending |
+| Next | **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
-Migrations: 0001–0021. Owner must apply 0006–0021 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0023 (1.24, 1.25 have none). Owner must apply 0006–0023 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 
 ## Log (one line per step, newest last)
@@ -36,4 +41,9 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.23: migration 0020, `PlanOperations.cs` (`PlanVisits`), `PUT /visit-plan/order`, `POST /visits/{id}/postpone`, `/customers/{id}/visit-windows` (`CustomerVisitWindows`), `windowStatus` in plans; panel Visits/Customers, app plan buttons (online only); DB 39/39, Domain 172, Application 52, Mobile.Visits 162, panel 37 tests.
 - 1.23-ب (part 1): migration 0021 (`places` tree + trigger, `customers.place_id`, `places.manage`), `Places/PlaceOperations.cs` (`PlaceService`, `PlaceExport`), `PostgresPlaceStore`, `PlaceEndpoints.cs`, `CustomerProfileService`; panel Places tab (tree, import/export CSV/JSON) + profile editor; no approval step (owner 2026-10-06); DB 41/41, Application 68, panel 46 tests.
 - 1.23-ب (part 2, app): `Mobile.Visits/Customers/` (`CustomersApiClient`, `PlacePicker`, `NewCustomerFlow`, `CustomerCodes`), pages `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`, buttons on Home and Visit details; online only; DB 42/42, Mobile.Visits 211 tests; **real-device check pending**.
+- 1.23-ج: migration 0022 (`notifications`, SalesRep scope `region`), `Notifications/NotificationOperations.cs`, `PostgresNotificationStore`, `NotificationEndpoints.cs`, `PostgresCustomerStore.NotifyAsync` (same transaction as the change), panel Notifications tab; DB 43/43, panel 49 tests.
 - Local setup (not a plan step): Docker DB, seed, PowerShell scripts, `docs/LOCAL-SETUP.md`; checked here: migrations + seed on the compose DB, API as lifedrop_app, register → approve → rep login, DB tests 37/37 against it.
+- 1.24: `Visits/PlanGeneration.cs` (`PlanGenerator`), `PostgresPlanGenerationStore`, `POST /visit-plan/preview` + `/generate` (place subtree and/or region, count/order/hours, new visits after the existing order); panel `PlanFromPlaces` + shared `PlaceCascade`; DB 44/44, panel 50 tests.
+- 1.25: `/visit-plan/preview|generate` also for `visits.plan` users (self only, `query` text, scope = customers.read); app `SelfPlan.cs` (`SelfPlanner`, `ISelfPlanApiClient` on `VisitsApiClient`), `AddToPlanPage`, button on the plan page; Mobile.Visits 224 tests, DB 44/44.
+- 1.26: migration 0023 (`customers.priority`), `Customers/CustomerPriority.cs` + `PostgresCustomerPriorityStore`, `PUT /customers/priority` (ids or place, `visits.write` scope), `customerPriority` on visits and candidates, high-first ordering in plan suggestions; panel `CustomerPriorityBar`; app shows it in plan/add list; DB 45/45, panel 51, Mobile.Visits 226.
+- 1.27: `area` filter on `/visit-plan/preview|generate` (PostGIS `ST_Covers`, limits 3-100 points / 0.5 degrees), app `AreaDrawing.cs` (rules, parse, map HTML), `DrawAreaPage` (WebView + Leaflet/OSM from the internet), button on the add-customers page; offline map left to 3.3; JS checked in headless Chromium (tap/undo/clear); DB 46/46, Mobile.Visits 233.

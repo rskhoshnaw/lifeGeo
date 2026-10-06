@@ -54,6 +54,21 @@ export interface Customer {
   address: string | null
   placeId: string | null
   placePath: PlacePathItem[] | null
+  // Priority a manager gave the customer (step 1.26).
+  priority: VisitPriority
+}
+
+// A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
+export interface Notification {
+  id: string
+  kind: 'customer.profile_changed' | 'customer.location_changed'
+  entityId: string
+  actorId: string
+  actorEmail: string | null
+  customerCode: string | null
+  customerName: string | null
+  createdAt: string
+  readAt: string | null
 }
 
 export interface PlacePathItem {
@@ -133,6 +148,8 @@ export interface PlannedVisit {
   postponeCount: number
   postponeReason: string | null
   windowStatus: 'none' | 'within' | 'outside'
+  // The customer's priority from a manager (step 1.26), not the visit's own.
+  customerPriority: VisitPriority
 }
 
 // Day (0 = Sunday .. 6 = Saturday) and local hours (HH:mm:ss) in which a customer accepts visits.
@@ -149,6 +166,47 @@ export interface NewVisit {
   visitType: VisitType
   priority: VisitPriority
   plannedTime: string | null
+}
+
+export interface PriorityRequest {
+  priority: VisitPriority
+  customerIds?: string[]
+  placeId?: string
+}
+export type PlanOrder = 'least_recent' | 'name' | 'code'
+export interface PlanRequest {
+  assignedUserId: string
+  scheduleDate: string
+  placeId?: string | null
+  regionId?: string | null
+  count?: number | null
+  order?: PlanOrder
+  respectWindows?: boolean
+  visitType?: VisitType | null
+  priority?: VisitPriority | null
+  customerIds?: string[] | null
+}
+export interface PlanCandidate {
+  customerId: string
+  code: string
+  name: string
+  type: string
+  place: string | null
+  lastVisitDate: string | null
+  windowStatus: string
+  included: boolean
+  skipReason: 'outside_hours' | 'over_limit' | null
+  customerPriority: VisitPriority
+}
+export interface PlanPreview {
+  matching: number
+  included: number
+  candidates: PlanCandidate[]
+}
+export interface PlanGenerated {
+  created: number
+  skipped: number
+  visitIds: string[]
 }
 
 export interface Region {
@@ -299,6 +357,15 @@ export class AdminApi {
 
   visitPlan = (date: string, assignedUserId?: string) =>
     this.get<PlannedVisit[]>(`/visit-plan?scheduleDate=${date}${assignedUserId ? `&assignedUserId=${assignedUserId}` : ''}`)
+  // Plan from places (step 1.24): the list first, then the visits for the customers that were chosen.
+  previewPlan = (request: PlanRequest) => this.postJson<PlanPreview>('/visit-plan/preview', request)
+  generatePlan = (request: PlanRequest) => this.postJson<PlanGenerated>('/visit-plan/generate', request)
+  // Priority a manager gives customers: by ids or every customer under a place (step 1.26). Returns how many changed.
+  setCustomerPriority = async (request: PriorityRequest): Promise<{ updated: number }> => {
+    const response = await this.api.request('/customers/priority', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as { updated: number }
+  }
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })
@@ -330,6 +397,10 @@ export class AdminApi {
     return response.text()
   }
   setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
+  notifications = (unreadOnly = false) => this.get<Notification[]>(`/notifications?limit=200${unreadOnly ? '&unread=true' : ''}`)
+  unreadCount = async () => (await this.get<{ count: number }>('/notifications/unread-count')).count
+  markRead = (id: string) => this.post(`/notifications/${id}/read`)
+  markAllRead = () => this.post('/notifications/read-all')
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')
@@ -342,6 +413,12 @@ export class AdminApi {
 
   private async get<T>(path: string): Promise<T> {
     const response = await this.api.request(path)
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as T
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    const response = await this.api.request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (!response.ok) throw await toError(response)
     return (await response.json()) as T
   }

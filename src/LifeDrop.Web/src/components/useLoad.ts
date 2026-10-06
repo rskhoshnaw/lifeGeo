@@ -23,18 +23,20 @@ export function useLoad<T>(load: () => Promise<T>) {
 }
 
 // Runs one action at a time; returns its error message, if any, for display.
-export function useAction(after: () => void) {
+export function useAction(after: () => void = () => {}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const run = async (action: () => Promise<void>) => {
-    if (busy) return
+  const run = async <T,>(action: () => Promise<T>): Promise<T | undefined> => {
+    if (busy) return undefined
     setBusy(true)
     setError(null)
     try {
-      await action()
+      const result = await action()
       after()
+      return result
     } catch (e) {
       setError(errorMessage(e))
+      return undefined
     } finally {
       setBusy(false)
     }

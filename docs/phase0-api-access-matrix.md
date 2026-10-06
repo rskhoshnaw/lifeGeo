@@ -289,3 +289,46 @@ One tree per company: city -> neighbourhood -> street -> alley (an alley sits un
 | `PUT /customers/{id}/profile` | `customers.write`, customer inside the data scope (else 404) | Replaces `phone` (max 40), `address` (max 300) and `placeId` (the most precise place known: any kind; null clears). The place must be active and not merged (else 400 `INVALID_DATA`) | `customer.profile_changed` |
 
 `GET /customers` and `GET /customers/{id}` also return `phone`, `address`, `placeId` and `placePath` (the place and the ones above it, from the city down: `id`, `kind`, `name`). Migration 0021 adds the table `places` (RLS, one live name per kind under one parent, tree trigger), `customers.place_id` and the permission `places.manage` (SalesManager, Supervisor; also backfilled); the grants file covers the new table. Tests: `Places_TreeImportAddAndEditByPermissionAndCustomerProfile`, `Places_MergeExportAndImportAgainWithinTenantAndTreeRulesInTheDatabase`, `PlaceExportTests`; panel tests in `Panel.test.tsx` and `csv.test.ts`. Starter list: `docs/places-starter.csv`.
+
+## Region reps and notifications (step 1.23-c)
+
+The default `SalesRep` role now has data scope `region` (migration 0022, also for existing tenants that kept the default): `customers.read`, `customers.write` and `customers.location.write` cover the customers of the region of the rep's team (a customer is in the region when its `region_id` is that region) and the ones the rep added; a rep without a team keeps to the customers they added. `ScientificRep` is unchanged (`own`).
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /notifications?unread=&limit=` | Signed-in user; only their own messages | Newest first, limit 1-200 (default 50). Each: `id`, `kind` (`customer.profile_changed` / `customer.location_changed`), `entityId` (customer id), `actorId`, `actorEmail`, `customerCode`, `customerName`, `createdAt`, `readAt` | — |
+| `GET /notifications/unread-count` | same | `{count}` | — |
+| `POST /notifications/{id}/read` | same | Marks one of the user's own messages read (again: harmless); somebody else's or unknown: 404 | — |
+| `POST /notifications/read-all` | same | Marks all of the user's messages read | — |
+
+Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
+
+## Plan from places (step 1.24)
+
+No migration. Both routes need `visits.write` (SalesManager, Supervisor) and apply the caller's data scope twice: the assignee must be inside the scope (as for `POST /visits`), and only customers inside the scope are candidates.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `POST /visit-plan/preview` | `visits.write`; assignee and customers in scope | Body: `assignedUserId`, `scheduleDate` (today or later, Iraq time), `placeId` and/or `regionId` (at least one), optional `count` (1-200; empty = all), `order` (`least_recent` default / `name` / `code`), `respectWindows` (default true), `visitType`, `priority`. A `placeId` includes every place below it. Candidates: approved customers that have no visit (other than Cancelled/Failed) on that day, max 2000. Result `{matching, included, candidates[]}`; each candidate has `code`, `name`, `type`, `place` path, `lastVisitDate` (last Completed visit), `windowStatus`, `included`, `skipReason` (`outside_hours` = the customer's weekly hours do not include that weekday; `over_limit`). Creates nothing. 400 `INVALID_DATA`, 403, 404 `USER_NOT_FOUND` | — |
+| `POST /visit-plan/generate` | same | Same body plus `customerIds` (the rows kept in the preview; `count` is then ignored). The server recomputes the candidates and creates visits only for those that are still included; `{created, skipped, visitIds}`. Visit type = by customer type unless given; priority default normal. New visits go after the ones already in the assignee's day (their current order is fixed first). One transaction | `visit.created` per visit and one `visit.plan_generated` (entity = assignee) |
+
+Test: `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; panel: the "Plan from places" form on the Visits tab (`Panel.test.tsx`).
+
+### Planning for oneself (step 1.25)
+
+The same two routes also serve a field user **without** `visits.write` but with `visits.plan` (SalesRep, ScientificRep), for their own plan only: `assignedUserId` is left out (= the caller) or is the caller; any other assignee is 403. The candidates are limited to the customers the caller may read (`customers.read` scope: region customers for a rep in a team, otherwise the ones they added). New optional field `query`: only customers whose code or name contains the text (max 60 characters, `%` and `_` are plain characters); a request needs `placeId`, `regionId` or `query`. Test: the last part of `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; app: `SelfPlannerTests`, page `AddToPlanPage` (button on the plan page).
+
+## Customer priority from a manager (step 1.26)
+
+Migration 0023: `customers.priority` (`high` / `normal` / `low`, default `normal`), `priority_set_by`, `priority_set_at`. No new permission: it needs `visits.write` (SalesManager, Supervisor) and only customers inside that data scope change.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /customers/priority` | `visits.write`; customers in scope | Body: `priority` and exactly one of `customerIds` (1-200) or `placeId` (every customer in that place and below it). Only customers whose priority differs change. 200 `{updated}`; 400 `INVALID_DATA` (both or none of the two, unknown priority, over 200 ids); 403 | `customer.priority_set` per changed customer |
+
+Where it shows: `priority` on `GET /customers`, `customerPriority` on every visit of `GET /visits` and `/visit-plan` (the customer's priority; the visit's own `priority` is unchanged) and on every candidate of `/visit-plan/preview`. Planning from places and the rep's own add-customers list put `high` first, then `normal`, then `low`, before the chosen order (also when a count limits the list). Visits that already exist keep their own priority. Test: `CustomerPriority_ManagerSetsByIdsOrPlaceWithinScopeAndPlansShowAndUseIt`; panel: Customers tab priority bar; app: `PriorityNoteTests`.
+
+## Plan from a drawn area (step 1.27)
+
+No migration. `POST /visit-plan/preview` and `/generate` (both for `visits.write` users and, for themselves, `visits.plan` users) take a new filter `area`: the corners `[{latitude, longitude}]` of a shape drawn on the map: 3-100 points, real coordinates, a real surface, a box of at most 0.5 degrees (about 50 km) in each direction, else 400 `INVALID_DATA`. The server closes the shape (any start corner, either direction) and returns only customers with a position inside or on its border, approved, in the caller's scope and not yet planned that day. `area` counts as a filter like `placeId`, `regionId` and `query` and can be combined with them. Customers without a position are never found this way. Test: `PlanFromArea_DrawnAreaFindsLocatedApprovedCustomersInScopeAndRefusesBadShapes`; app: `AreaDrawingTests`, pages `DrawAreaPage` (Leaflet + OpenStreetMap in a WebView, online only) and the button on the add-customers page.
+

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Account, ApiClient } from './api/client.ts'
 import { AdminApi, can, errorMessage, Permissions, type Me } from './api/admin.ts'
 import { LoginPage } from './pages/LoginPage.tsx'
@@ -11,10 +11,11 @@ import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { PlacesPage } from './pages/PlacesPage.tsx'
+import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'regions' | 'audit'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'regions' | 'audit' | 'notifications'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -39,6 +40,18 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('home')
+  const [unread, setUnread] = useState(0)
+
+  // The unread count next to the Notifications tab: read when the page opens and again every minute. A failure is ignored (the tab
+  // still works, the number just stays).
+  const refreshUnread = useCallback(() => {
+    admin.unreadCount().then(setUnread, () => {})
+  }, [admin])
+  useEffect(() => {
+    refreshUnread()
+    const timer = setInterval(refreshUnread, 60_000)
+    return () => clearInterval(timer)
+  }, [refreshUnread])
 
   useEffect(() => {
     admin.me().then(setMe, (e: unknown) => setError(errorMessage(e)))
@@ -55,6 +68,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'places', label: t('web.tab.places'), visible: can(me, ...Permissions.places) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
+    { id: 'notifications', label: unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications'), visible: true },
   ]
 
   return (
@@ -87,6 +101,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'places' && <PlacesPage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
+      {me && tab === 'notifications' && <NotificationsPage admin={admin} onChanged={refreshUnread} />}
     </div>
   )
 }
