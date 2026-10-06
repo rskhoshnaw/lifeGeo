@@ -34,9 +34,12 @@ export function TvPage({ admin, me }: { admin: AdminApi; me: Me }) {
   }, [admin, showShift])
 
   useEffect(() => {
-    void load()
+    const first = setTimeout(() => void load(), 0)
     const timer = setInterval(() => void load(), refreshMs)
-    return () => clearInterval(timer)
+    return () => {
+      clearTimeout(first)
+      clearInterval(timer)
+    }
   }, [load])
 
   const total = report?.total
