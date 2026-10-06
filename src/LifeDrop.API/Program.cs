@@ -86,6 +86,8 @@ public partial class Program
         builder.Services.AddHostedService<LifeDrop.API.AlertScanService>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
+        builder.Services.AddScoped<LifeDrop.Application.Platform.IPlatformStore, LifeDrop.Infrastructure.Platform.PostgresPlatformStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Platform.PlatformService>();
         builder.Services.AddScoped<LifeDrop.Application.Push.IPushStore, LifeDrop.Infrastructure.Push.PostgresPushStore>();
         builder.Services.AddScoped<LifeDrop.Application.Push.PushTokenService>();
         builder.Services.AddScoped<LifeDrop.Application.Push.PushDispatcher>();
@@ -661,6 +663,7 @@ public partial class Program
         LifeDrop.API.Endpoints.ReportEndpoints.MapReportEndpoints(app);
         LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.PushEndpoints.MapPushEndpoints(app);
+        LifeDrop.API.Endpoints.PlatformEndpoints.MapPlatformEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);

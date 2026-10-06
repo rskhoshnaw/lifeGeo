@@ -136,7 +136,8 @@ public class CustomerApiIntegrationTests
                 var m35 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0035_route_history.sql"));
                 var m36 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0036_reports.sql"));
                 var m37 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0037_push.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37;
+                var m38 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0038_platform.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -6890,6 +6891,132 @@ public class CustomerApiIntegrationTests
             await reader.NextResultAsync();
             await reader.ReadAsync();
             Assert.Equal("order.delivered,order.on_the_way,order.picked_up", reader.GetString(0));
+        }
+    }
+
+    [SkippableFact]
+    public async Task Platform_SuperAdminManagesCompaniesAndEveryCrossCompanyReadIsAudited()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var platform = LifeDrop.Application.Platform.PlatformTenant.Id.Value;
+        Guid t1 = Guid.NewGuid(), admin = Guid.NewGuid(), t1Manager = Guid.NewGuid(), t1Rep = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'Company One', 'one');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@admin, @p, 'root@platform'), (@m, @t1, 'm@one'), (@r, @t1, 'r@one');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @p, @admin, id FROM roles WHERE tenant_id = @p AND name = 'SuperAdmin'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                -- A role of an ordinary company that carries the platform permission keys still gives nothing.
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key)
+                SELECT @t1, id, k FROM roles, (VALUES ('platform.tenants.manage'), ('platform.tenants.access')) AS x(k) WHERE tenant_id = @t1 AND name = 'SalesManager';
+                INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at) VALUES
+                    (gen_random_uuid(), @t1, @m, 'customer.created', 'c-1', now() - interval '2 minutes'), (gen_random_uuid(), @t1, @r, 'payment.recorded', 'p-1', now() - interval '1 minute');", conn);
+            cmd.Parameters.AddWithValue("t1", t1); cmd.Parameters.AddWithValue("p", platform); cmd.Parameters.AddWithValue("admin", admin);
+            cmd.Parameters.AddWithValue("m", t1Manager); cmd.Parameters.AddWithValue("r", t1Rep);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object NewTenant(string code = "acme", string password = "a-long-password-1") => new { Code = code, Name = "Acme Pharma", ManagerEmail = "boss@acme.test", ManagerPassword = password };
+        async Task<List<LifeDrop.Application.Platform.TenantSummaryDto>> Tenants() => (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantSummaryDto>>("/platform/tenants"))!;
+        async Task<List<LifeDrop.Application.Platform.PlatformAuditEntryDto>> PlatformAudit(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.PlatformAuditEntryDto>>("/platform/audit-logs" + query))!;
+
+        // Only the platform company's Super Admin: not an ordinary company's manager, even with the same permission keys; not another platform-less user
+        foreach (var other in new[] { t1Manager, t1Rep })
+        {
+            As(t1, other);
+            await AssertProblemAsync(await client.GetAsync("/platform/tenants"), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", NewTenant("sneaky")), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{t1}", new { IsActive = false, Reason = "just because" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=curiosity+about+others"), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync("/platform/audit-logs"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+
+        As(platform, admin);
+        Assert.Equal(new[] { "one", "platform" }, (await Tenants()).Select(t => t.Code).ToArray());
+        Assert.Empty(await PlatformAudit());   // nothing was done yet; the refused calls above changed nothing
+
+        // Creating a company: validated, seeded with roles and a first CompanyManager, audited; the code is unique
+        foreach (var bad in new object[]
+        {
+            NewTenant("platform"), NewTenant("A"), NewTenant("has space"), NewTenant("UPPER_case"), NewTenant("acme", "short"),
+            new { Code = "acme", Name = " ", ManagerEmail = "boss@acme.test", ManagerPassword = "a-long-password-1" },
+            new { Code = "acme", Name = "Acme", ManagerEmail = "not-an-email", ManagerPassword = "a-long-password-1" }
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var created = await client.PostAsJsonAsync("/platform/tenants", NewTenant());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var acme = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Platform.CreatedTenantDto>())!;
+        await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", NewTenant("acme")), HttpStatusCode.Conflict, "CONFLICT");
+        var list = await Tenants();
+        Assert.Equal(new[] { "acme", "one", "platform" }, list.Select(t => t.Code).ToArray());
+        Assert.Equal((true, 1, 1), (list[0].IsActive, list[0].Users, list[0].ActiveUsers));
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT (SELECT count(*) FROM roles WHERE tenant_id = @t), (SELECT string_agg(r.name, ',') FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id WHERE ur.tenant_id = @t AND ur.user_id = @u),
+                (SELECT password_hash FROM users WHERE id = @u)", conn);
+            cmd.Parameters.AddWithValue("t", acme.Id); cmd.Parameters.AddWithValue("u", acme.ManagerId);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(8L, reader.GetInt64(0));
+            Assert.Equal("CompanyManager", reader.GetString(1));
+            Assert.StartsWith("pbkdf2-sha256$", reader.GetString(2));   // the password is stored hashed
+        }
+
+        // Rename and deactivate need a reason; the platform company never goes off; unknown companies are 404
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Name = "Acme 2" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Reason = "nothing to change" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{platform}", new { IsActive = false, Reason = "switch off" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{Guid.NewGuid()}", new { Name = "x", Reason = "does not exist" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Name = " Acme Pharma Iraq ", Reason = "legal name changed" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { IsActive = false, Reason = "unpaid invoice" })).StatusCode);
+        var acmeNow = (await Tenants()).Single(t => t.Code == "acme");
+        Assert.Equal(("Acme Pharma Iraq", false), (acmeNow.Name, acmeNow.IsActive));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { IsActive = true, Reason = "invoice paid" })).StatusCode);
+        Assert.True((await Tenants()).Single(t => t.Code == "acme").IsActive);
+
+        // The explicit cross-company read: a reason is needed, the audit row is written with it, an unknown company is 404 and writes nothing
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=short"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711&limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{Guid.NewGuid()}/audit-logs?reason=support+ticket+4711"), HttpStatusCode.NotFound, "NOT_FOUND");
+        var read = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantAuditEntryDto>>($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711"))!;
+        Assert.Equal(new[] { "payment.recorded", "customer.created" }, read.Select(r => r.Action).ToArray());   // newest first, only that company
+        Assert.Equal("r@one", read[0].ActorEmail);
+        var filtered = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantAuditEntryDto>>($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711&action=customer.created"))!;
+        Assert.Equal(new[] { "customer.created" }, filtered.Select(r => r.Action).ToArray());
+
+        var audit = await PlatformAudit();
+        Assert.Equal(new[] { "platform.tenant_audit_read", "platform.tenant_audit_read", "platform.tenant_activated", "platform.tenant_deactivated", "platform.tenant_renamed", "platform.tenant_created" },
+            audit.Select(a => a.Action).ToArray());   // two reads, then the changes; the refused and invalid calls left nothing
+        Assert.All(audit, a => Assert.Equal(("root@platform", admin), (a.ActorEmail, a.ActorId)));
+        Assert.Equal(("one", "support ticket 4711"), (audit[0].TargetTenantCode, audit[0].Reason));
+        Assert.Equal("action=customer.created", audit[0].Detail);
+        Assert.Equal("unpaid invoice", audit.Single(a => a.Action == "platform.tenant_deactivated").Reason);
+        Assert.Equal(new[] { "platform.tenant_audit_read", "platform.tenant_audit_read" }, (await PlatformAudit($"?tenantId={t1}")).Select(a => a.Action).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/platform/audit-logs?limit=500"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // The platform audit cannot be changed or removed, not even by the application's own database role
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("DELETE FROM platform_audit_logs", conn); await cmd.ExecuteNonQueryAsync(); });
+            await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("UPDATE platform_audit_logs SET reason = 'x'", conn); await cmd.ExecuteNonQueryAsync(); });
         }
     }
 

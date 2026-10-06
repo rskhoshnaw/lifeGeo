@@ -30,7 +30,8 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 2.4 delivery by the driver | in PR; migration 0028; real-device test pending |
 | 2.14 push (Firebase, free; no SMS) | in PR; migration 0037; no .NET in the cloud here, so tests ran only in CI/locally |
 | 2.15 phase 2 exit test | in PR (same branch); one chained DB test |
-| Next | **3.1** (phase 3 starts; phase 2 exit) (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 3.1 tenants + audited Super Admin access | in PR (same branch); migration 0038 |
+| Next | **3.2** (form/report builder) — check the plan; 3.6/3.8 wait for D9/D8 (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
@@ -69,3 +70,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 2.13: no migration. Server: `detach*` flags on payments/samples/orders, idempotent follow-up steps. App: `Offline/WorkQueue.cs` (`WorkQueue`, `WorkExecutor`, `ReferenceCache`), `PendingWorkPage` (+ Home button), offline save in Order/Payment/Sample/FollowUp/VisitForm/MyFollowUps pages, sync after the visit queue in `TrackingHost`; `docs/OFFLINE.md`. Test infra: idle test connections close after 3 s (the DB suite hit PostgreSQL's 100-connection limit at 59 tests). DB 59/59, Mobile.Visits 325.
 - 2.14: migration 0037 (`push_tokens`, `notifications.pushed_at/push_attempts`), `Push/PushOperations.cs` (`PushTokenService`, `PushDispatcher`, `IPushSender`), `PostgresPushStore`, `FcmPushSender` (HTTP v1, free; SMS not built), `PushDispatchService` (every 30 s, idle without key), `PushEndpoints.cs` (`PUT /push-token`, `POST /push-token/remove`), `docs/PUSH.md`; data-only push (kind + entity id); Android token capture + local notification later; DB 60 tests expected (not run here: no .NET in this container; openapi snapshot to regenerate).
 - 2.15: no migration. DB test `Phase2Exit_OrderToDeliveryPaymentAndReportRespectRoleRegionAndCompany` (order → warehouse → delivery → payment/confirm → balance → KPI → audit; roles, supervisor region, second company); `docs/PHASE2-EXIT-REPORT.md`; DB 61 tests expected (not run here: no .NET in this container).
+- 3.1: migration 0038 (platform company, `SuperAdmin` role, `platform_audit_logs` append-only, grants INSERT tenants/users/roles/role_permissions + UPDATE tenants), `Platform/PlatformOperations.cs` (`PlatformService`), `PostgresPlatformStore`, `PlatformEndpoints.cs` (`/platform/tenants*`, `/platform/audit-logs`), dev seed `root@platform.local`, `docs/PLATFORM.md`; DB 62 tests expected + openapi snapshot to regenerate (no .NET in this container, so not run here).

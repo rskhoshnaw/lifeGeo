@@ -171,7 +171,7 @@
 
 | گام | هدف | PRD |
 | --- | --- | --- |
-| 3.1 | مدیریت Tenant و دسترسی بین‌مستأجری صریح و Audit‌شدهٔ Super Admin | §۲، §۳ |
+| 3.1 | مدیریت Tenant و دسترسی بین‌مستأجری صریح و Audit‌شدهٔ Super Admin | §۲، §۳ | ✅ migration 0038: شرکت `platform` با نقش `SuperAdmin` (مجوزهای `platform.tenants.manage/access`)؛ `/platform/tenants` (فهرست، ساخت با نقش‌ها و اولین CompanyManager، تغییر نام، فعال/غیرفعال با دلیل)، خواندن Audit شرکت دیگر فقط با دلیل، `platform_audit_logs` غیرقابل تغییر؛ `docs/PLATFORM.md` |
 | 3.2 | فرم‌ساز و گزارش‌ساز پیشرفته، زمان‌بندی گزارش | §۱۴ |
 | 3.3 | مسیریابی و Geocoding خودمیزبان پس از آزمون پوشش عراق؛ نقشهٔ آفلاین | §۱۰ |
 | 3.4 | یکپارچه‌سازی ERP/SMS/WhatsApp | §۱ |

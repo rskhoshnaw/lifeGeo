@@ -5,7 +5,7 @@
 -- audit_logs: SELECT/INSERT only; the append-only trigger also blocks UPDATE/DELETE/TRUNCATE.
 GRANT SELECT ON
     tenants, users, roles, role_permissions, user_roles, devices, refresh_tokens,
-    customers, audit_logs, visits, regions, teams, team_members, visit_reports, visit_location_events, visit_status_history, shifts, tracking_points, customer_visit_windows, places, notifications, products, city_prices, customer_discounts, warehouses, order_counters, orders, order_items, warehouse_staff, order_status_history, payment_counters, payments, sample_counters, sample_distributions, visit_report_details, follow_ups, alerts, shift_summaries, payment_history, push_tokens
+    customers, audit_logs, visits, regions, teams, team_members, visit_reports, visit_location_events, visit_status_history, shifts, tracking_points, customer_visit_windows, places, notifications, products, city_prices, customer_discounts, warehouses, order_counters, orders, order_items, warehouse_staff, order_status_history, payment_counters, payments, sample_counters, sample_distributions, visit_report_details, follow_ups, alerts, shift_summaries, payment_history, push_tokens, platform_audit_logs
 TO lifedrop_app;
 
 GRANT INSERT ON
@@ -16,5 +16,8 @@ TO lifedrop_app;
 GRANT UPDATE ON devices, refresh_tokens, visits, teams, team_members, customers, visit_reports, shifts, visit_location_events, places, notifications, products, city_prices, customer_discounts, warehouses, order_counters, orders, order_items, payment_counters, payments, sample_counters, sample_distributions, visit_report_details, follow_ups, alerts TO lifedrop_app;
 
 GRANT UPDATE ON push_tokens TO lifedrop_app;
+-- Step 3.1: only the platform endpoints (Super Admin of the platform company) create and change companies.
+GRANT INSERT ON tenants, users, roles, role_permissions, platform_audit_logs TO lifedrop_app;
+GRANT UPDATE ON tenants TO lifedrop_app;
 GRANT DELETE ON push_tokens TO lifedrop_app;
 GRANT DELETE ON team_members, customer_visit_windows, warehouse_staff, tracking_points TO lifedrop_app;
