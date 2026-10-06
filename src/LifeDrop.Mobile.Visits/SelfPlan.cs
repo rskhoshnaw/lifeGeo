@@ -6,7 +6,7 @@ public sealed record SelfPlanQuery(DateOnly Day, Guid? PlaceId, string? Text);
 
 // One customer of the list. Included = false: the server would leave it out (SkipReason: outside_hours | over_limit); the
 // customer is shown but cannot be ticked, except outside_hours which only warns (the user knows the customer).
-public sealed record SelfPlanCandidate(Guid CustomerId, string Code, string Name, string? Place, DateOnly? LastVisitDate, string WindowStatus);
+public sealed record SelfPlanCandidate(Guid CustomerId, string Code, string Name, string? Place, DateOnly? LastVisitDate, string WindowStatus, string CustomerPriority = "normal");
 
 // Add customers to the caller's own plan: POST /visit-plan/preview and /visit-plan/generate with no assignee (= the caller).
 // Online only; the server checks the caller's customers again.

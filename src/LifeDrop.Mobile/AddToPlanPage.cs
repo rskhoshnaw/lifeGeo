@@ -180,6 +180,7 @@ public sealed class AddToPlanPage : ContentPage
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(c.Place)) parts.Add(c.Place);
         parts.Add(c.LastVisitDate is { } last ? Texts.Get("app.add.lastVisit", ("date", last.ToString("d MMM yyyy", Texts.Culture))) : Texts.Get("app.add.neverVisited"));
+        if (c.CustomerPriority != "normal") parts.Add(DailyPlan.PriorityNote(c.CustomerPriority).TrimStart(' ', '·', ' '));
         if (c.WindowStatus == "outside") parts.Add("⚠ " + Texts.Get("app.add.closed"));
         return string.Join(" · ", parts);
     }

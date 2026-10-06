@@ -118,7 +118,8 @@ public class CustomerApiIntegrationTests
                 var m20 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0020_flexible_planning.sql"));
                 var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
                 var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22;
+                var m23 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0023_customer_priority.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -4412,6 +4413,124 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         var own = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6", CustomerIds = new[] { c[6] } });
         Assert.Equal(1, (await own.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+    }
+
+    [SkippableFact]
+    public async Task CustomerPriority_ManagerSetsByIdsOrPlaceWithinScopeAndPlansShowAndUseIt()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), city = Guid.NewGuid(), n1 = Guid.NewGuid(), street = Guid.NewGuid();
+        var c = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();   // C1..C4
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES
+                    (@city, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @city, 'neighbourhood', 'N1'), (@street, @t1, @n1, 'street', 'S1');
+                -- C1, C2 in the street; C3 in the neighbourhood; C4 in the same neighbourhood but in another region
+                INSERT INTO customers (id, tenant_id, type, code, name, place_id, region_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Name 1', @street, @erbil), (@c2, @t1, 'Pharmacy', 'C2', 'Name 2', @street, @erbil),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Name 3', @n1, @erbil), (@c4, @t1, 'Pharmacy', 'C4', 'Name 4', @n1, @baghdad);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("erbil", erbil), ("baghdad", baghdad),
+                ("city", city), ("n1", n1), ("street", street) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 1; i <= 4; i++) cmd.Parameters.AddWithValue("c" + i, c[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> SetPriority(object body) => client.PutAsJsonAsync("/customers/priority", body);
+        async Task<int> Updated(object body)
+        {
+            var response = await SetPriority(body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Customers.CustomerPriorityDto>())!.Updated;
+        }
+        async Task<string> PriorityOf(Guid customer) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Customers.CustomerDto>($"/customers/{customer}"))!.Priority;
+
+        // Who may: reps and finance have no visits.write
+        As(repA);
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] } }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(finance);
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] } }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        As(supervisor);
+        // Bad requests: both or none of ids and place, unknown or missing priority, too many ids
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = new[] { c[1] }, PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "high" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "urgent", PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { PlaceId = n1 }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await SetPriority(new { Priority = "high", CustomerIds = Enumerable.Range(0, 201).Select(_ => Guid.NewGuid()).ToArray() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // By ids; the same again changes nothing; the customer shows it
+        Assert.Equal(1, await Updated(new { Priority = "high", CustomerIds = new[] { c[1] } }));
+        Assert.Equal(0, await Updated(new { Priority = "high", CustomerIds = new[] { c[1] } }));
+        Assert.Equal("high", await PriorityOf(c[1]));
+        Assert.Equal("normal", await PriorityOf(c[2]));
+
+        // By place: everything below it, but only inside the supervisor's region (C4 is in another region)
+        Assert.Equal(3, await Updated(new { Priority = "low", PlaceId = n1 }));
+        Assert.All(new[] { c[1], c[2], c[3] }, id => Assert.Equal("low", PriorityOf(id).Result));
+        // A customer outside the scope is not changed even when named
+        Assert.Equal(0, await Updated(new { Priority = "high", CustomerIds = new[] { c[4] } }));
+        As(manager);
+        Assert.Equal("normal", await PriorityOf(c[4]));
+        Assert.Equal(4, await Updated(new { Priority = "high", PlaceId = n1 }));
+        Assert.Equal(4, await Updated(new { Priority = "normal", PlaceId = n1 }));
+        Assert.Equal(1, await Updated(new { Priority = "high", CustomerIds = new[] { c[3] } }));
+        As(supervisor);
+        Assert.Equal(1, await Updated(new { Priority = "low", CustomerIds = new[] { c[1] } }));
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); SELECT count(*) FROM audit_logs WHERE action = 'customer.priority_set'", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal(1L + 3 + 4 + 4 + 1 + 1, reader.GetInt64(0));   // one row per changed customer
+        }
+
+        // Suggestions: high first, then normal, then low, whatever the order inside a level (by name: C1, C2, C3)
+        var preview = await client.PostAsJsonAsync("/visit-plan/preview", new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "name" });
+        var found = (await preview.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanPreviewDto>())!;
+        Assert.Equal(new[] { "C3", "C2", "C1" }, found.Candidates.Select(x => x.Code).ToArray());
+        Assert.Equal(new[] { "high", "normal", "low" }, found.Candidates.Select(x => x.CustomerPriority).ToArray());
+        // With a limit the high one is taken first
+        var one = await client.PostAsJsonAsync("/visit-plan/generate", new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1, Order = "name", Count = 1 });
+        Assert.Equal(1, (await one.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+
+        // The rep sees the manager's priority in the plan (not the priority of the visit, which stays normal)
+        As(repA);
+        var plan = (await (await client.GetAsync("/visits?scheduleDate=2026-10-06")).Content.ReadFromJsonAsync<List<LifeDrop.Application.Visits.VisitDto>>())!;
+        var visit = Assert.Single(plan);
+        Assert.Equal((c[3], "high", "normal"), (visit.CustomerId, visit.CustomerPriority, visit.Priority));
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

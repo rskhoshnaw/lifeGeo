@@ -150,7 +150,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
                    SELECT p.id, p.parent_id, p.kind, p.name, 0 FROM places p WHERE p.id = customers.place_id
                    UNION ALL
                    SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
-               SELECT * FROM chain) a)
+               SELECT * FROM chain) a),
+        priority
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -163,7 +164,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
         reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
         reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
-        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)));
+        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)), reader.GetString(18));
 
     private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

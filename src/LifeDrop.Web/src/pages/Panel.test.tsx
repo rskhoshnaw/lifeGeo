@@ -28,9 +28,9 @@ function server(me: Me, data: Record<string, unknown>, posts: Record<string, Res
 const manager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['customers.approve', 'customers.read', 'device.approve', 'sessions.kill', 'user.manageroles'] }
 const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamId: 't', teamName: 'Team A', regionId: 'r', activeSessions: 2 }
 const device = (id: string, status: Device['status']): Device => ({ id, userId: 'u1', userEmail: 'rep@t1', label: `Phone ${id}`, platform: 'android', appVersion: '1.0', status, registeredAt: '2026-10-04T08:00:00Z' })
-const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending', phone: null, address: null, placeId: null, placePath: null }
+const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending', phone: null, address: null, placeId: null, placePath: null, priority: 'normal' }
 
-const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1', sortOrder: null, postponeCount: 0, postponeReason: null, windowStatus: 'none' })
+const visit = (id: string, status: string): PlannedVisit => ({ id, userId: 'u1', customerId: 'c1', status, exceptionReason: null, scheduleDate: '2026-10-04', visitType: 'pharmacy', priority: 'normal', plannedTime: '09:00:00', isUnplanned: false, customerName: 'Shifa', customerCode: 'P-1', assigneeEmail: 'rep@t1', sortOrder: null, postponeCount: 0, postponeReason: null, windowStatus: 'none', customerPriority: 'normal' })
 
 const place = (id: string, kind: Place['kind'], name: string, parentId: string | null = null, status: Place['status'] = 'active', mergedInto: string | null = null, childCount = 0): Place =>
   ({ id, parentId, kind, name, nameCkb: null, nameAr: null, nameEn: null, status, mergedInto, childCount })
@@ -200,7 +200,7 @@ describe('panel management screens', () => {
   it('plans from a place: shows the list first, skips what the server marks and creates only the ticked customers', async () => {
     const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
     const today = iraqToday()
-    const candidate = (code: string, extra: object = {}) => ({ customerId: `id-${code}`, code, name: `Name ${code}`, type: 'Pharmacy', place: 'Erbil › N1', lastVisitDate: null, windowStatus: 'none', included: true, skipReason: null, ...extra })
+    const candidate = (code: string, extra: object = {}) => ({ customerId: `id-${code}`, code, name: `Name ${code}`, type: 'Pharmacy', place: 'Erbil › N1', lastVisitDate: null, windowStatus: 'none', included: true, skipReason: null, customerPriority: 'normal', ...extra })
     const preview = { matching: 3, included: 2, candidates: [candidate('C1'), candidate('C2', { lastVisitDate: '2026-09-01' }), candidate('C3', { included: false, skipReason: 'outside_hours' })] }
     const { api, calls } = server(
       planner,
@@ -228,6 +228,35 @@ describe('panel management screens', () => {
     expect(await screen.findByText('1 visits created, 0 skipped')).toBeInTheDocument()
     expect(posts(calls).map((c) => c.path)).toEqual(['/visit-plan/preview', '/visit-plan/generate'])
     expect(posts(calls)[1]!.body).toMatchObject({ assignedUserId: 'u1', scheduleDate: today, placeId: 'p2', count: 2, order: 'least_recent', respectWindows: true, customerIds: ['id-C2'] })
+  })
+
+  it('gives customers a priority: the ticked ones, or everything in a place', async () => {
+    const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['customers.read', 'visits.write'] }
+    const { api, calls } = server(
+      planner,
+      { '/customers?limit=100': [{ ...customer, approvalStatus: 'approved', priority: 'low' }], '/places?limit=2000&kind=city': [place('p1', 'city', 'Erbil')] },
+      { '/customers/priority': json({ updated: 2 }) },
+    )
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    expect(await screen.findByRole('cell', { name: 'low' })).toBeInTheDocument()   // the customer's priority is listed
+
+    // Nothing to apply before something is ticked or a place chosen
+    expect(screen.getByRole('button', { name: 'Apply to 0 ticked' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Apply to all customers of the place' })).toBeDisabled()
+    await user.click(screen.getByRole('checkbox', { name: 'Select P-1' }))
+    await user.click(screen.getByRole('button', { name: 'Apply to 1 ticked' }))
+    expect(await screen.findByText('2 customers changed')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Priority to set' }), 'low')
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'City' }), 'p1')
+    await user.click(screen.getByRole('button', { name: 'Apply to all customers of the place' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/customers/priority', body: { priority: 'high', customerIds: ['c1'] } },
+      { method: 'PUT', path: '/customers/priority', body: { priority: 'low', placeId: 'p1' } },
+    ])
   })
 
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {

@@ -138,6 +138,7 @@ export function PlanFromPlaces({ admin, me, date, users, onCreated }: { admin: A
                     <th>{t('web.customers.name')}</th>
                     <th>{t('web.planGen.place')}</th>
                     <th>{t('web.planGen.lastVisit')}</th>
+                    <th>{t('web.customers.priority')}</th>
                     <th />
                   </tr>
                 </thead>
@@ -151,6 +152,7 @@ export function PlanFromPlaces({ admin, me, date, users, onCreated }: { admin: A
                       <td>{c.name}</td>
                       <td>{c.place ?? ''}</td>
                       <td>{c.lastVisitDate ?? t('web.planGen.never')}</td>
+                      <td>{t(`web.priority.${c.customerPriority}`)}</td>
                       <td>{c.skipReason ? t(`web.planGen.skip.${c.skipReason}` as TextKey) : ''}</td>
                     </tr>
                   ))}

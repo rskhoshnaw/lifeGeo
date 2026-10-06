@@ -2734,5 +2734,71 @@
   "ckb": "هەرگیز سەردان نەکراوە",
   "ar": "لم تتم زيارته",
   "fa": "هرگز ویزیت نشده"
+ },
+ "web.customers.priority": {
+  "en": "Priority",
+  "ckb": "گرنگی",
+  "ar": "الأولوية",
+  "fa": "اولویت"
+ },
+ "web.customers.tick": {
+  "en": "Select {code}",
+  "ckb": "هەڵبژاردنی {code}",
+  "ar": "تحديد {code}",
+  "fa": "انتخاب {code}"
+ },
+ "web.priorityBar.title": {
+  "en": "Priority of customers",
+  "ckb": "گرنگیی کڕیارەکان",
+  "ar": "أولوية العملاء",
+  "fa": "اولویت مشتریان"
+ },
+ "web.priorityBar.hint": {
+  "en": "Reps see it in their plan and get these customers first in suggestions. Tick customers below, or choose a place to cover all customers in it.",
+  "ckb": "نوێنەرەکان لە پلانەکەیاندا دەیبینن و ئەم کڕیارانە لە پێشنیارەکاندا یەکەم دەبن. کڕیارەکان لە خوارەوە هەڵبژێرە، یان شوێنێک هەڵبژێرە بۆ هەموو کڕیارەکانی.",
+  "ar": "يرى المندوبون ذلك في خطتهم ويظهر هؤلاء العملاء أولاً في الاقتراحات. حدّد العملاء أدناه أو اختر مكاناً ليشمل كل عملائه.",
+  "fa": "نمایندگان آن را در برنامه می‌بینند و این مشتریان در پیشنهادها اول می‌آیند. مشتریان را پایین تیک بزنید یا مکانی را برای همهٔ مشتریانش انتخاب کنید."
+ },
+ "web.priorityBar.value": {
+  "en": "Priority to set",
+  "ckb": "اولویەتی دیاریکراو",
+  "ar": "الأولوية المراد تعيينها",
+  "fa": "اولویت مورد نظر"
+ },
+ "web.priorityBar.applyTicked": {
+  "en": "Apply to {count} ticked",
+  "ckb": "جێبەجێکردن بۆ {count} هەڵبژێردراو",
+  "ar": "تطبيق على {count} محدد",
+  "fa": "اعمال برای {count} تیک‌خورده"
+ },
+ "web.priorityBar.applyPlace": {
+  "en": "Apply to all customers of the place",
+  "ckb": "جێبەجێکردن بۆ هەموو کڕیارەکانی شوێنەکە",
+  "ar": "تطبيق على كل عملاء المكان",
+  "fa": "اعمال برای همهٔ مشتریان مکان"
+ },
+ "web.priorityBar.done": {
+  "en": "{updated} customers changed",
+  "ckb": "{updated} کڕیار گۆڕدرا",
+  "ar": "تم تغيير {updated} عملاء",
+  "fa": "{updated} مشتری تغییر کرد"
+ },
+ "web.visits.customerPriority": {
+  "en": "Customer priority: {priority}",
+  "ckb": "گرنگیی کڕیار: {priority}",
+  "ar": "أولوية العميل: {priority}",
+  "fa": "اولویت مشتری: {priority}"
+ },
+ "app.priority.high": {
+  "en": "manager priority: high",
+  "ckb": "گرنگیی بەڕێوەبەر: بەرز",
+  "ar": "أولوية المدير: عالية",
+  "fa": "اولویت مدیر: بالا"
+ },
+ "app.priority.low": {
+  "en": "manager priority: low",
+  "ckb": "گرنگیی بەڕێوەبەر: نزم",
+  "ar": "أولوية المدير: منخفضة",
+  "fa": "اولویت مدیر: پایین"
  }
 }

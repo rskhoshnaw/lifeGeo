@@ -46,7 +46,8 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
                     WHEN NOT EXISTS (SELECT 1 FROM customer_visit_windows w WHERE w.tenant_id = c.tenant_id AND w.customer_id = c.id) THEN 'none'
                     WHEN EXISTS (SELECT 1 FROM customer_visit_windows w WHERE w.tenant_id = c.tenant_id AND w.customer_id = c.id
                                  AND w.weekday = EXTRACT(DOW FROM @day::date)::int) THEN 'within'
-                    ELSE 'outside' END AS window_status
+                    ELSE 'outside' END AS window_status,
+                c.priority
             FROM customers c
             WHERE c.tenant_id = @tenant AND c.approval_status = 'approved' AND {scopeFilter}
               AND (@place::uuid IS NULL OR c.place_id IN (SELECT id FROM sub))
@@ -54,7 +55,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
               AND (@query::text IS NULL OR c.name ILIKE @query ESCAPE '\' OR c.code ILIKE @query ESCAPE '\')
               AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.tenant_id = c.tenant_id AND v.customer_id = c.id AND v.schedule_date = @day
                               AND v.status NOT IN ('Cancelled', 'Failed'))
-            ORDER BY {orderBy}
+            ORDER BY CASE c.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, {orderBy}
             LIMIT @max
             """;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -81,7 +82,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new PlanCandidateRow(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateOnly>(5), reader.GetString(6)));
+                reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateOnly>(5), reader.GetString(6), reader.GetString(7)));
         return rows;
     }
 

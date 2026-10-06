@@ -54,6 +54,8 @@ export interface Customer {
   address: string | null
   placeId: string | null
   placePath: PlacePathItem[] | null
+  // Priority a manager gave the customer (step 1.26).
+  priority: VisitPriority
 }
 
 // A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
@@ -146,6 +148,8 @@ export interface PlannedVisit {
   postponeCount: number
   postponeReason: string | null
   windowStatus: 'none' | 'within' | 'outside'
+  // The customer's priority from a manager (step 1.26), not the visit's own.
+  customerPriority: VisitPriority
 }
 
 // Day (0 = Sunday .. 6 = Saturday) and local hours (HH:mm:ss) in which a customer accepts visits.
@@ -164,6 +168,11 @@ export interface NewVisit {
   plannedTime: string | null
 }
 
+export interface PriorityRequest {
+  priority: VisitPriority
+  customerIds?: string[]
+  placeId?: string
+}
 export type PlanOrder = 'least_recent' | 'name' | 'code'
 export interface PlanRequest {
   assignedUserId: string
@@ -187,6 +196,7 @@ export interface PlanCandidate {
   windowStatus: string
   included: boolean
   skipReason: 'outside_hours' | 'over_limit' | null
+  customerPriority: VisitPriority
 }
 export interface PlanPreview {
   matching: number
@@ -350,6 +360,12 @@ export class AdminApi {
   // Plan from places (step 1.24): the list first, then the visits for the customers that were chosen.
   previewPlan = (request: PlanRequest) => this.postJson<PlanPreview>('/visit-plan/preview', request)
   generatePlan = (request: PlanRequest) => this.postJson<PlanGenerated>('/visit-plan/generate', request)
+  // Priority a manager gives customers: by ids or every customer under a place (step 1.26). Returns how many changed.
+  setCustomerPriority = async (request: PriorityRequest): Promise<{ updated: number }> => {
+    const response = await this.api.request('/customers/priority', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as { updated: number }
+  }
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })

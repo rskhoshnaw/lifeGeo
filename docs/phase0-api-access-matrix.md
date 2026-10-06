@@ -318,3 +318,13 @@ Test: `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; panel: 
 
 The same two routes also serve a field user **without** `visits.write` but with `visits.plan` (SalesRep, ScientificRep), for their own plan only: `assignedUserId` is left out (= the caller) or is the caller; any other assignee is 403. The candidates are limited to the customers the caller may read (`customers.read` scope: region customers for a rep in a team, otherwise the ones they added). New optional field `query`: only customers whose code or name contains the text (max 60 characters, `%` and `_` are plain characters); a request needs `placeId`, `regionId` or `query`. Test: the last part of `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; app: `SelfPlannerTests`, page `AddToPlanPage` (button on the plan page).
 
+## Customer priority from a manager (step 1.26)
+
+Migration 0023: `customers.priority` (`high` / `normal` / `low`, default `normal`), `priority_set_by`, `priority_set_at`. No new permission: it needs `visits.write` (SalesManager, Supervisor) and only customers inside that data scope change.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /customers/priority` | `visits.write`; customers in scope | Body: `priority` and exactly one of `customerIds` (1-200) or `placeId` (every customer in that place and below it). Only customers whose priority differs change. 200 `{updated}`; 400 `INVALID_DATA` (both or none of the two, unknown priority, over 200 ids); 403 | `customer.priority_set` per changed customer |
+
+Where it shows: `priority` on `GET /customers`, `customerPriority` on every visit of `GET /visits` and `/visit-plan` (the customer's priority; the visit's own `priority` is unchanged) and on every candidate of `/visit-plan/preview`. Planning from places and the rep's own add-customers list put `high` first, then `normal`, then `low`, before the chosen order (also when a count limits the list). Visits that already exist keep their own priority. Test: `CustomerPriority_ManagerSetsByIdsOrPlaceWithinScopeAndPlansShowAndUseIt`; panel: Customers tab priority bar; app: `PriorityNoteTests`.
+

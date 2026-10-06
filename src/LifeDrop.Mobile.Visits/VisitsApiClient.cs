@@ -25,7 +25,9 @@ public sealed record PlannedVisit(
     int? SortOrder = null,
     int PostponeCount = 0,
     string? PostponeReason = null,
-    string WindowStatus = "none");
+    string WindowStatus = "none",
+    // The priority a manager gave the customer (plan step 1.26): high | normal | low.
+    string CustomerPriority = "normal");
 
 public enum PlanLoadStatus { Success, SessionExpired, NetworkError, ServerError }
 
@@ -170,7 +172,7 @@ public sealed class VisitsApiClient : IVisitsApiClient, ISelfPlanApiClient
         if (dto?.Candidates is null || dto.Candidates.Any(c => c is null || c.CustomerId == Guid.Empty || string.IsNullOrWhiteSpace(c.Code)))
             return (VisitActionResult.ServerError, Array.Empty<SelfPlanCandidate>());
         // The user knows the customer: "closed that weekday" only warns; a customer already over a limit does not exist here (no count is sent).
-        return (result, dto.Candidates.Select(c => new SelfPlanCandidate(c.CustomerId, c.Code!, c.Name ?? "", c.Place, c.LastVisitDate, c.WindowStatus ?? "none")).ToList());
+        return (result, dto.Candidates.Select(c => new SelfPlanCandidate(c.CustomerId, c.Code!, c.Name ?? "", c.Place, c.LastVisitDate, c.WindowStatus ?? "none", c.CustomerPriority ?? "normal")).ToList());
     }
 
     public async Task<(VisitActionResult Result, int Created)> AddAsync(SelfPlanQuery query, IReadOnlyList<Guid> customerIds, CancellationToken cancellationToken = default)
@@ -196,7 +198,7 @@ public sealed class VisitsApiClient : IVisitsApiClient, ISelfPlanApiClient
         customerIds
     };
 
-    private sealed record SelfPlanCandidateDto(Guid CustomerId, string? Code, string? Name, string? Place, DateOnly? LastVisitDate, string? WindowStatus);
+    private sealed record SelfPlanCandidateDto(Guid CustomerId, string? Code, string? Name, string? Place, DateOnly? LastVisitDate, string? WindowStatus, string? CustomerPriority);
     private sealed record SelfPlanPreviewDto(List<SelfPlanCandidateDto>? Candidates);
     private sealed record SelfPlanGeneratedDto(int Created);
 

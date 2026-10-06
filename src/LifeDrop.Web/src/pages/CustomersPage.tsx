@@ -6,13 +6,14 @@ const approvalText = (status: string) =>
   ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
+import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   return (
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
-      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} />}
+      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
     </section>
   )
 }
@@ -64,13 +65,14 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   )
 }
 
-function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean }) {
+function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canEdit: boolean; canPrioritise: boolean }) {
   const first = useLoad(useCallback(() => admin.customers(), [admin]))
   const [more, setMore] = useState<Customer[]>([])
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hoursFor, setHoursFor] = useState<Customer | null>(null)
   const [profileFor, setProfileFor] = useState<Customer | null>(null)
+  const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
 
   async function loadMore() {
@@ -87,24 +89,49 @@ function CustomerList({ admin, canEdit }: { admin: AdminApi; canEdit: boolean })
     <div>
       <h2 className="mb-4 text-xl font-semibold">{t('web.customers.title')}</h2>
       {(error ?? first.error) && <p role="alert" className="mb-3 text-sm text-red-700">{error ?? first.error}</p>}
+      {canPrioritise && (
+        <CustomerPriorityBar
+          admin={admin}
+          ticked={ticked}
+          onDone={() => {
+            setTicked([])
+            setMore([])
+            setDone(false)
+            first.reload()
+          }}
+        />
+      )}
       {first.data && (
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
+              {canPrioritise && <th />}
               <th className="py-2">{t('web.customers.code')}</th>
               <th>{t('web.customers.name')}</th>
               <th>{t('web.customers.type')}</th>
               <th>{t('web.customers.approval')}</th>
+              <th>{t('web.customers.priority')}</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {items.map((customer) => (
               <tr key={customer.id} className="border-b">
+                {canPrioritise && (
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={t('web.customers.tick', { code: customer.code })}
+                      checked={ticked.includes(customer.id)}
+                      onChange={(e) => setTicked(e.target.checked ? [...ticked, customer.id] : ticked.filter((id) => id !== customer.id))}
+                    />
+                  </td>
+                )}
                 <td className="py-2">{customer.code}</td>
                 <td>{customer.name}</td>
                 <td>{customer.type}</td>
                 <td>{approvalText(customer.approvalStatus)}</td>
+                <td>{t(`web.priority.${customer.priority}`)}</td>
                 <td className="space-x-2 text-end">
                   <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.profile')} ${customer.code}`} onClick={() => setProfileFor(customer)}>
                     {t('web.customers.profile')}

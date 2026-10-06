@@ -91,7 +91,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         const string sql = @"
             SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
                 v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code,
-                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @"
+                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @", c.priority
             FROM visits v
             LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
             WHERE v.user_id = @userId AND v.schedule_date = @scheduleDate
@@ -121,7 +121,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
         const string sql = @"
             SELECT v.id, v.user_id, v.customer_id, v.status, v.exception_reason, v.schedule_date, v.created_at,
                 v.visit_type, v.priority, v.planned_time, v.is_unplanned, v.unplanned_reason, c.name, c.code,
-                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @", u.email
+                v.sort_order, v.postpone_count, v.postpone_reason, " + WindowStatusSql + @", u.email, c.priority
             FROM visits v
             LEFT JOIN customers c ON c.tenant_id = v.tenant_id AND c.id = v.customer_id
             LEFT JOIN users u ON u.tenant_id = v.tenant_id AND u.id = v.user_id
@@ -172,7 +172,8 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 SortOrder: reader.IsDBNull(14) ? null : reader.GetInt32(14),
                 PostponeCount: reader.GetInt32(15),
                 PostponeReason: reader.IsDBNull(16) ? null : reader.GetString(16),
-                WindowStatus: reader.GetString(17)
+                WindowStatus: reader.GetString(17),
+                CustomerPriority: reader.IsDBNull(withAssigneeEmail ? 19 : 18) ? "normal" : reader.GetString(withAssigneeEmail ? 19 : 18)
             ));
         }
         return results;

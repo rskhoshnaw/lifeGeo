@@ -11,7 +11,7 @@ namespace LifeDrop.Application.Visits;
 
 // Plan from places (plan step 1.24): a planner picks a field user, a day and where the customers are (a place of the tree and
 // everything below it, and/or a region), optionally how many ("all" when empty) and in which order, sees the list first and then
-// creates the visits in one step. Order: least_recent (never visited first, then the oldest last visit; default) | name | code.
+// creates the visits in one step. A priority a manager gave a customer (plan step 1.26) always comes first: high, normal, low. Order: least_recent (never visited first, then the oldest last visit; default) | name | code.
 // RespectWindows (default true): customers whose accepted visit days (plan step 1.23) do not include that weekday are left out.
 // VisitType / Priority: for every visit (default: by customer type / normal). CustomerIds: only these customers (as chosen in the
 // preview); Count is ignored then.
@@ -20,14 +20,14 @@ public sealed record GeneratePlanRequest(Guid? AssignedUserId, DateOnly Schedule
 
 // SkipReason (not included): outside_hours | over_limit. LastVisitDate: the day of the last completed visit.
 public sealed record PlanCandidateDto(Guid CustomerId, string Code, string Name, string Type, string? Place, DateOnly? LastVisitDate, string WindowStatus,
-    bool Included, string? SkipReason);
+    bool Included, string? SkipReason, string CustomerPriority = "normal");
 
 // Matching: customers that fit the filters and are not yet planned that day (before the limit and the hours rule).
 public sealed record PlanPreviewDto(int Matching, int Included, IReadOnlyList<PlanCandidateDto> Candidates);
 
 public sealed record PlanGeneratedDto(int Created, int Skipped, IReadOnlyList<Guid> VisitIds);
 
-public sealed record PlanCandidateRow(Guid CustomerId, string Code, string Name, string Type, string? Place, DateOnly? LastVisitDate, string WindowStatus);
+public sealed record PlanCandidateRow(Guid CustomerId, string Code, string Name, string Type, string? Place, DateOnly? LastVisitDate, string WindowStatus, string CustomerPriority = "normal");
 
 public sealed record PlanVisitToCreate(Guid CustomerId, string VisitType);
 
@@ -121,7 +121,7 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
             if (respect && row.WindowStatus == "outside") reason = "outside_hours";
             else if (wanted is null && remaining <= 0) reason = "over_limit";
             if (reason is null && wanted is null) remaining--;
-            candidates.Add(new PlanCandidateDto(row.CustomerId, row.Code, row.Name, row.Type, row.Place, row.LastVisitDate, row.WindowStatus, reason is null, reason));
+            candidates.Add(new PlanCandidateDto(row.CustomerId, row.Code, row.Name, row.Type, row.Place, row.LastVisitDate, row.WindowStatus, reason is null, reason, row.CustomerPriority));
         }
         return (null, new PlanPreviewDto(rows.Count, candidates.Count(c => c.Included), candidates));
     }

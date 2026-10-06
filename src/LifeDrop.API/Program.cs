@@ -74,6 +74,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerPriorityStore, LifeDrop.Infrastructure.Customers.PostgresCustomerPriorityStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();

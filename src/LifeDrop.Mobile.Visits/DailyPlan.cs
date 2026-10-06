@@ -160,10 +160,19 @@ public sealed class DailyPlan
         _ => Texts.Get("app.plan.changeFailed")
     };
 
+    // " · ★ manager priority: high" for a customer a manager marked high or low; nothing for normal.
+    public static string PriorityNote(string priority) => priority switch
+    {
+        "high" => " · ★ " + Texts.Get("app.priority.high"),
+        "low" => " · " + Texts.Get("app.priority.low"),
+        _ => ""
+    };
+
     // The extra text of a plan row: outside the customer's hours, moved before.
     public static string PlanNotes(PlannedVisit visit)
     {
         var notes = "";
+        notes += PriorityNote(visit.CustomerPriority);
         if (visit.WindowStatus == "outside") notes += " · " + Texts.Get("app.plan.outsideHours");
         if (visit.PostponeCount > 0) notes += " · " + Texts.Get("app.plan.moved", ("count", visit.PostponeCount.ToString()));
         return notes;
