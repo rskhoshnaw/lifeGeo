@@ -14,12 +14,15 @@ INSERT INTO users (id, tenant_id, email, password_hash) VALUES
     ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-00000000d001', 'supervisor@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g='),
     ('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-00000000d001', 'finance@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g='),
     ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-00000000d001', 'rep1@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g='),
-    ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-00000000d001', 'rep2@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g=');
+    ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-00000000d001', 'rep2@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g='),
+    ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-00000000d001', 'warehouse@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g='),
+    ('00000000-0000-0000-0000-000000000107', '00000000-0000-0000-0000-00000000d001', 'driver@dev.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g=');
 
 INSERT INTO user_roles (tenant_id, user_id, role_id)
 SELECT '00000000-0000-0000-0000-00000000d001', u.id, r.id
 FROM (VALUES ('00000000-0000-0000-0000-000000000101'::uuid, 'SalesManager'), ('00000000-0000-0000-0000-000000000102'::uuid, 'Supervisor'), ('00000000-0000-0000-0000-000000000103'::uuid, 'FinanceManager'),
-             ('00000000-0000-0000-0000-000000000104'::uuid, 'SalesRep'), ('00000000-0000-0000-0000-000000000105'::uuid, 'SalesRep')) AS u(id, role_name)
+             ('00000000-0000-0000-0000-000000000104'::uuid, 'SalesRep'), ('00000000-0000-0000-0000-000000000105'::uuid, 'SalesRep'),
+             ('00000000-0000-0000-0000-000000000106'::uuid, 'WarehouseManager'), ('00000000-0000-0000-0000-000000000107'::uuid, 'Driver')) AS u(id, role_name)
 JOIN roles r ON r.tenant_id = '00000000-0000-0000-0000-00000000d001' AND r.name = u.role_name;
 
 -- Tables below use row-level security by tenant.
@@ -54,3 +57,15 @@ INSERT INTO places (id, tenant_id, parent_id, kind, name, name_ckb, name_ar, nam
 INSERT INTO places (tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en) VALUES
     ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Ankawa', 'عەنکاوە', 'عنكاوا', 'Ankawa'),
     ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Bakhtiari', 'بەختیاری', 'بختياري', 'Bakhtiari');
+
+-- Sample catalogue and warehouse (plan steps 2.1, 2.2) so an order can be tried at once: two products in IQD, a city price for
+-- Erbil, one warehouse. Sample customers have no place, so they pay the general price until a place is chosen for them.
+INSERT INTO products (id, tenant_id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price) VALUES
+    ('00000000-0000-0000-0000-0000000006a1', '00000000-0000-0000-0000-00000000d001', 'PAR-500', 'Paracetamol 500 mg', 'پاراسیتامۆل ٥٠٠', 'باراسيتامول 500', 'Paracetamol 500 mg', 'box', 'IQD', 1500),
+    ('00000000-0000-0000-0000-0000000006a2', '00000000-0000-0000-0000-00000000d001', 'AMX-250', 'Amoxicillin 250 mg', 'ئامۆکسیسیلین ٢٥٠', 'أموكسيسيلين 250', 'Amoxicillin 250 mg', 'box', 'IQD', 4000);
+INSERT INTO city_prices (tenant_id, product_id, city_id, price, valid_from) VALUES
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000006a1', '00000000-0000-0000-0000-0000000005c1', 1800, '2026-01-01');
+INSERT INTO warehouses (id, tenant_id, code, name) VALUES
+    ('00000000-0000-0000-0000-0000000006b1', '00000000-0000-0000-0000-00000000d001', 'W1', 'Erbil warehouse');
+INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000006b1', '00000000-0000-0000-0000-000000000106');

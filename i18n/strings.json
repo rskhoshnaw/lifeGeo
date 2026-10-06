@@ -2860,5 +2860,923 @@
   "ckb": "شێوەکە زۆر گەورەیە (نزیکەی ٥٠ کم) یان ڕووبەری نییە.",
   "ar": "الشكل كبير جداً (أكثر من 50 كم تقريباً) أو بلا مساحة.",
   "fa": "شکل خیلی بزرگ است (بیش از حدود ۵۰ کیلومتر) یا سطح ندارد."
+ },
+ "web.tab.catalog": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "web.catalog.title": {
+  "en": "Products and prices",
+  "ckb": "بەرهەم و نرخ",
+  "ar": "المنتجات والأسعار",
+  "fa": "محصولات و قیمت‌ها"
+ },
+ "web.catalog.search": {
+  "en": "Search code or name",
+  "ckb": "گەڕان بە کۆد یان ناو",
+  "ar": "بحث بالرمز أو الاسم",
+  "fa": "جستجوی کد یا نام"
+ },
+ "web.catalog.showInactive": {
+  "en": "Show inactive",
+  "ckb": "نیشاندانی ناچالاکەکان",
+  "ar": "إظهار غير النشطة",
+  "fa": "نمایش غیرفعال‌ها"
+ },
+ "web.catalog.code": {
+  "en": "Code",
+  "ckb": "کۆد",
+  "ar": "الرمز",
+  "fa": "کد"
+ },
+ "web.catalog.name": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.catalog.nameCkb": {
+  "en": "Name (Kurdish)",
+  "ckb": "ناو (کوردی)",
+  "ar": "الاسم (كردي)",
+  "fa": "نام (کردی)"
+ },
+ "web.catalog.nameAr": {
+  "en": "Name (Arabic)",
+  "ckb": "ناو (عەرەبی)",
+  "ar": "الاسم (عربي)",
+  "fa": "نام (عربی)"
+ },
+ "web.catalog.nameEn": {
+  "en": "Name (English)",
+  "ckb": "ناو (ئینگلیزی)",
+  "ar": "الاسم (إنجليزي)",
+  "fa": "نام (انگلیسی)"
+ },
+ "web.catalog.unit": {
+  "en": "Unit",
+  "ckb": "یەکە",
+  "ar": "الوحدة",
+  "fa": "واحد"
+ },
+ "web.catalog.currency": {
+  "en": "Currency",
+  "ckb": "دراو",
+  "ar": "العملة",
+  "fa": "ارز"
+ },
+ "web.catalog.price": {
+  "en": "Price",
+  "ckb": "نرخ",
+  "ar": "السعر",
+  "fa": "قیمت"
+ },
+ "web.catalog.basePrice": {
+  "en": "Base price",
+  "ckb": "نرخی بنەڕەت",
+  "ar": "السعر الأساسي",
+  "fa": "قیمت پایه"
+ },
+ "web.catalog.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.catalog.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشط",
+  "fa": "فعال"
+ },
+ "web.catalog.inactive": {
+  "en": "Inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.catalog.newProduct": {
+  "en": "New product",
+  "ckb": "بەرهەمی نوێ",
+  "ar": "منتج جديد",
+  "fa": "محصول جدید"
+ },
+ "web.catalog.editProduct": {
+  "en": "Edit {code}",
+  "ckb": "دەستکاریکردنی {code}",
+  "ar": "تعديل {code}",
+  "fa": "ویرایش {code}"
+ },
+ "web.catalog.save": {
+  "en": "Save product",
+  "ckb": "پاشەکەوتکردنی بەرهەم",
+  "ar": "حفظ المنتج",
+  "fa": "ذخیرهٔ محصول"
+ },
+ "web.catalog.codeFixed": {
+  "en": "The code cannot be changed.",
+  "ckb": "کۆد ناگۆڕدرێت.",
+  "ar": "لا يمكن تغيير الرمز.",
+  "fa": "کد قابل تغییر نیست."
+ },
+ "web.catalog.chooseCustomer": {
+  "en": "Choose a customer…",
+  "ckb": "کڕیارێک هەڵبژێرە…",
+  "ar": "اختر عميلاً…",
+  "fa": "مشتری را انتخاب کنید…"
+ },
+ "web.catalog.from": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.catalog.to": {
+  "en": "Until (empty = open)",
+  "ckb": "تا (بەتاڵ = کراوە)",
+  "ar": "حتى (فارغ = مفتوح)",
+  "fa": "تا (خالی = باز)"
+ },
+ "web.catalog.open": {
+  "en": "open",
+  "ckb": "کراوە",
+  "ar": "مفتوح",
+  "fa": "باز"
+ },
+ "web.catalog.addRule": {
+  "en": "Add rule",
+  "ckb": "زیادکردنی یاسا",
+  "ar": "إضافة قاعدة",
+  "fa": "افزودن قاعده"
+ },
+ "web.catalog.endRule": {
+  "en": "End",
+  "ckb": "کۆتایی",
+  "ar": "إنهاء",
+  "fa": "پایان"
+ },
+ "web.catalog.checkDate": {
+  "en": "Day",
+  "ckb": "ڕۆژ",
+  "ar": "اليوم",
+  "fa": "روز"
+ },
+ "web.catalog.cityPrices": {
+  "en": "City prices",
+  "ckb": "نرخی شارەکان",
+  "ar": "أسعار المدن",
+  "fa": "قیمت شهرها"
+ },
+ "web.catalog.cityPricesFor": {
+  "en": "City prices of {code}",
+  "ckb": "نرخی شارەکانی {code}",
+  "ar": "أسعار مدن {code}",
+  "fa": "قیمت شهرهای {code}"
+ },
+ "web.catalog.cityHint": {
+  "en": "The general price applies everywhere. Give a city its own price for a period, or keep the general price. A price is ended, never deleted.",
+  "ckb": "نرخی گشتی لە هەموو شوێنێک. بۆ شارێک نرخی تایبەت بۆ ماوەیەک دابنێ، یان نرخی گشتی بهێڵەوە. نرخ کۆتایی پێدێت و ناسڕێتەوە.",
+  "ar": "السعر العام ينطبق في كل مكان. أعطِ مدينة سعراً خاصاً لفترة أو أبقِ السعر العام. يُنهى السعر ولا يُحذف.",
+  "fa": "قیمت کلی همه‌جا اعمال می‌شود. برای یک شهر برای مدتی قیمت جدا بگذارید یا قیمت کلی را نگه دارید. قیمت پایان می‌یابد و حذف نمی‌شود."
+ },
+ "web.catalog.noCityPrices": {
+  "en": "No city prices: every city pays the general price.",
+  "ckb": "نرخی شار نییە: هەموو شارەکان نرخی گشتی دەدەن.",
+  "ar": "لا أسعار مدن: كل المدن بالسعر العام.",
+  "fa": "قیمت شهری نیست: همهٔ شهرها قیمت کلی می‌پردازند."
+ },
+ "web.catalog.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.catalog.chooseCity": {
+  "en": "Choose a city…",
+  "ckb": "شارێک هەڵبژێرە…",
+  "ar": "اختر مدينة…",
+  "fa": "شهر را انتخاب کنید…"
+ },
+ "web.catalog.endPriceFor": {
+  "en": "End price for {target}",
+  "ckb": "کۆتایی نرخ بۆ {target}",
+  "ar": "إنهاء السعر لـ {target}",
+  "fa": "پایان قیمت برای {target}"
+ },
+ "web.catalog.endPrompt": {
+  "en": "Last valid day (YYYY-MM-DD) for {target}:",
+  "ckb": "دوایین ڕۆژی کاریگەر (YYYY-MM-DD) بۆ {target}:",
+  "ar": "آخر يوم صالح (YYYY-MM-DD) لـ {target}:",
+  "fa": "آخرین روز معتبر (YYYY-MM-DD) برای {target}:"
+ },
+ "web.catalog.checkTitle": {
+  "en": "Prices and discounts of a customer",
+  "ckb": "نرخ و داشکاندنی کڕیار",
+  "ar": "أسعار وخصومات عميل",
+  "fa": "قیمت‌ها و تخفیف‌های مشتری"
+ },
+ "web.catalog.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.catalog.listPrice": {
+  "en": "General or city price",
+  "ckb": "نرخی گشتی یان شار",
+  "ar": "السعر العام أو سعر المدينة",
+  "fa": "قیمت کلی یا شهر"
+ },
+ "web.catalog.finalPrice": {
+  "en": "Price to pay",
+  "ckb": "نرخی دانەوە",
+  "ar": "السعر المطلوب",
+  "fa": "قیمت پرداختی"
+ },
+ "web.catalog.source.base": {
+  "en": "general price",
+  "ckb": "نرخی گشتی",
+  "ar": "السعر العام",
+  "fa": "قیمت کلی"
+ },
+ "web.catalog.source.city": {
+  "en": "city price",
+  "ckb": "نرخی شار",
+  "ar": "سعر المدينة",
+  "fa": "قیمت شهر"
+ },
+ "web.catalog.discounts": {
+  "en": "Discounts",
+  "ckb": "داشکاندن",
+  "ar": "الخصومات",
+  "fa": "تخفیف‌ها"
+ },
+ "web.catalog.discountHint": {
+  "en": "Several discounts can apply together: oldest first, each on the price left, never below 0. An amount is per unit and belongs to one product; a percentage can cover all products.",
+  "ckb": "چەند داشکاندن پێکەوە: کۆنترین یەکەم، هەرکەسێک لەسەر نرخی ماوە، هەرگیز کەمتر لە ٠. بڕ بۆ هەر یەکە و بۆ یەک بەرهەمە؛ ڕێژە دەکرێت هەموو بەرهەمەکان بگرێتەوە.",
+  "ar": "يمكن أن تُطبَّق عدة خصومات معاً: الأقدم أولاً وكل منها على السعر المتبقي ولا ينزل عن 0. المبلغ لكل وحدة ولمنتج واحد، والنسبة قد تشمل كل المنتجات.",
+  "fa": "چند تخفیف می‌تواند با هم اعمال شود: قدیمی‌تر اول، هر کدام روی قیمت باقی‌مانده، هرگز زیر ۰. مبلغ برای هر واحد و برای یک محصول است؛ درصد می‌تواند همهٔ محصولات را بگیرد."
+ },
+ "web.catalog.noDiscounts": {
+  "en": "No discounts.",
+  "ckb": "داشکاندن نییە.",
+  "ar": "لا خصومات.",
+  "fa": "تخفیفی نیست."
+ },
+ "web.catalog.allProducts": {
+  "en": "All products",
+  "ckb": "هەموو بەرهەمەکان",
+  "ar": "كل المنتجات",
+  "fa": "همهٔ محصولات"
+ },
+ "web.catalog.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.catalog.discountKind": {
+  "en": "Kind",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.catalog.percent": {
+  "en": "Percent",
+  "ckb": "ڕێژە",
+  "ar": "نسبة",
+  "fa": "درصد"
+ },
+ "web.catalog.amount": {
+  "en": "Amount per unit",
+  "ckb": "بڕ بۆ هەر یەکە",
+  "ar": "مبلغ لكل وحدة",
+  "fa": "مبلغ برای هر واحد"
+ },
+ "web.catalog.value": {
+  "en": "Value",
+  "ckb": "بەها",
+  "ar": "القيمة",
+  "fa": "مقدار"
+ },
+ "web.catalog.addDiscount": {
+  "en": "Add discount",
+  "ckb": "زیادکردنی داشکاندن",
+  "ar": "إضافة خصم",
+  "fa": "افزودن تخفیف"
+ },
+ "web.catalog.endDiscountFor": {
+  "en": "End discount {value}",
+  "ckb": "کۆتایی داشکاندنی {value}",
+  "ar": "إنهاء الخصم {value}",
+  "fa": "پایان تخفیف {value}"
+ },
+ "web.tab.orders": {
+  "en": "Orders",
+  "ckb": "داواکاری",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "web.orders.title": {
+  "en": "Orders",
+  "ckb": "داواکاری",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "web.orders.none": {
+  "en": "No orders yet.",
+  "ckb": "هێشتا داواکاری نییە.",
+  "ar": "لا طلبات بعد.",
+  "fa": "هنوز سفارشی نیست."
+ },
+ "web.orders.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "الرقم",
+  "fa": "شماره"
+ },
+ "web.orders.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.orders.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.orders.total": {
+  "en": "Total",
+  "ckb": "کۆ",
+  "ar": "المجموع",
+  "fa": "جمع"
+ },
+ "web.orders.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.orders.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.orders.status.placed": {
+  "en": "placed",
+  "ckb": "تۆمارکراو",
+  "ar": "مسجّل",
+  "fa": "ثبت‌شده"
+ },
+ "web.orders.status.cancelled": {
+  "en": "cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "لغوشده"
+ },
+ "web.orders.details": {
+  "en": "Details of {number}",
+  "ckb": "وردەکاریی {number}",
+  "ar": "تفاصيل {number}",
+  "fa": "جزئیات {number}"
+ },
+ "web.orders.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.orders.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "web.orders.unitPrice": {
+  "en": "Unit price",
+  "ckb": "نرخی یەکە",
+  "ar": "سعر الوحدة",
+  "fa": "قیمت واحد"
+ },
+ "web.orders.lineTotal": {
+  "en": "Line total",
+  "ckb": "کۆی دێڕ",
+  "ar": "مجموع السطر",
+  "fa": "جمع ردیف"
+ },
+ "web.orders.discounts": {
+  "en": "Discounts",
+  "ckb": "داشکاندن",
+  "ar": "الخصومات",
+  "fa": "تخفیف‌ها"
+ },
+ "web.orders.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.orders.cancelled": {
+  "en": "Cancelled: {reason}",
+  "ckb": "هەڵوەشێنراوە: {reason}",
+  "ar": "ملغى: {reason}",
+  "fa": "لغو شد: {reason}"
+ },
+ "web.orders.cancel": {
+  "en": "Cancel order",
+  "ckb": "هەڵوەشاندنەوەی داواکاری",
+  "ar": "إلغاء الطلب",
+  "fa": "لغو سفارش"
+ },
+ "web.orders.cancelPrompt": {
+  "en": "Reason for cancelling {number}:",
+  "ckb": "هۆکاری هەڵوەشاندنەوەی {number}:",
+  "ar": "سبب إلغاء {number}:",
+  "fa": "دلیل لغو {number}:"
+ },
+ "web.orders.new": {
+  "en": "New order",
+  "ckb": "داواکاریی نوێ",
+  "ar": "طلب جديد",
+  "fa": "سفارش جدید"
+ },
+ "web.orders.chooseCustomer": {
+  "en": "Choose a customer…",
+  "ckb": "کڕیارێک هەڵبژێرە…",
+  "ar": "اختر عميلاً…",
+  "fa": "مشتری را انتخاب کنید…"
+ },
+ "web.orders.chooseWarehouse": {
+  "en": "Choose a warehouse…",
+  "ckb": "کۆگایەک هەڵبژێرە…",
+  "ar": "اختر مستودعاً…",
+  "fa": "انبار را انتخاب کنید…"
+ },
+ "web.orders.chooseProduct": {
+  "en": "Choose a product…",
+  "ckb": "بەرهەمێک هەڵبژێرە…",
+  "ar": "اختر منتجاً…",
+  "fa": "محصول را انتخاب کنید…"
+ },
+ "web.orders.addLine": {
+  "en": "Add line",
+  "ckb": "زیادکردنی دێڕ",
+  "ar": "إضافة سطر",
+  "fa": "افزودن ردیف"
+ },
+ "web.orders.removeLine": {
+  "en": "Remove {code}",
+  "ckb": "لابردنی {code}",
+  "ar": "إزالة {code}",
+  "fa": "حذف {code}"
+ },
+ "web.orders.estimate": {
+  "en": "Prices shown are what the server gives now; it sets the final price when the order is placed.",
+  "ckb": "نرخەکان ئەوەن کە ئێستا سێرڤەر دەیدات؛ نرخی کۆتایی لە کاتی تۆمارکردن دیاری دەکرێت.",
+  "ar": "الأسعار المعروضة هي ما يعطيه الخادم الآن؛ والسعر النهائي يحدده عند تسجيل الطلب.",
+  "fa": "قیمت‌های نمایش‌داده‌شده همان است که سرور اکنون می‌دهد؛ قیمت نهایی هنگام ثبت سفارش تعیین می‌شود."
+ },
+ "web.orders.mixedCurrency": {
+  "en": "All lines of one order must use the same currency.",
+  "ckb": "هەموو دێڕەکانی یەک داواکاری دەبێت یەک دراویان هەبێت.",
+  "ar": "يجب أن تكون كل أسطر الطلب بنفس العملة.",
+  "fa": "همهٔ ردیف‌های یک سفارش باید یک ارز داشته باشند."
+ },
+ "web.orders.place": {
+  "en": "Place order",
+  "ckb": "تۆمارکردنی داواکاری",
+  "ar": "تسجيل الطلب",
+  "fa": "ثبت سفارش"
+ },
+ "web.orders.placed": {
+  "en": "Order {number} placed: {total}",
+  "ckb": "داواکاری {number} تۆمارکرا: {total}",
+  "ar": "تم تسجيل الطلب {number}: {total}",
+  "fa": "سفارش {number} ثبت شد: {total}"
+ },
+ "web.orders.warehouses": {
+  "en": "Warehouses",
+  "ckb": "کۆگاکان",
+  "ar": "المستودعات",
+  "fa": "انبارها"
+ },
+ "web.orders.warehouseCode": {
+  "en": "Code",
+  "ckb": "کۆد",
+  "ar": "الرمز",
+  "fa": "کد"
+ },
+ "web.orders.warehouseName": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.orders.addWarehouse": {
+  "en": "Add warehouse",
+  "ckb": "زیادکردنی کۆگا",
+  "ar": "إضافة مستودع",
+  "fa": "افزودن انبار"
+ },
+ "web.orders.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.orders.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.orders.inactive": {
+  "en": "inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.orders.view": {
+  "en": "View",
+  "ckb": "بینین",
+  "ar": "عرض",
+  "fa": "مشاهده"
+ },
+ "app.outcome.order_placed": {
+  "en": "Order placed",
+  "ckb": "داواکاری تۆمارکرا",
+  "ar": "تم تسجيل الطلب",
+  "fa": "سفارش ثبت شد"
+ },
+ "app.result.OrderRequired": {
+  "en": "Place the order first, then choose “Order placed”.",
+  "ckb": "سەرەتا داواکارییەکە تۆمار بکە، پاشان «داواکاری تۆمارکرا» هەڵبژێرە.",
+  "ar": "سجّل الطلب أولاً ثم اختر «تم تسجيل الطلب».",
+  "fa": "ابتدا سفارش را ثبت کنید، بعد «سفارش ثبت شد» را انتخاب کنید."
+ },
+ "app.result.CurrencyMismatch": {
+  "en": "All products of one order must use the same currency. Remove the others or make a second order.",
+  "ckb": "هەموو بەرهەمەکانی یەک داواکاری دەبێت یەک دراویان هەبێت. ئەوانی تر لابە یان داواکارییەکی دووەم دروست بکە.",
+  "ar": "يجب أن تكون كل منتجات الطلب بنفس العملة. أزل الأخرى أو أنشئ طلباً ثانياً.",
+  "fa": "همهٔ محصولات یک سفارش باید یک ارز داشته باشند. بقیه را حذف کنید یا سفارش دوم بسازید."
+ },
+ "app.result.CustomerNotApproved": {
+  "en": "This customer is not approved yet; orders cannot be placed.",
+  "ckb": "ئەم کڕیارە هێشتا پەسەند نەکراوە؛ داواکاری ناتوانرێت تۆمار بکرێت.",
+  "ar": "هذا العميل لم تتم الموافقة عليه بعد؛ لا يمكن تسجيل طلب.",
+  "fa": "این مشتری هنوز تأیید نشده؛ سفارش نمی‌توان ثبت کرد."
+ },
+ "app.order.title": {
+  "en": "New order",
+  "ckb": "داواکاریی نوێ",
+  "ar": "طلب جديد",
+  "fa": "سفارش جدید"
+ },
+ "app.order.button": {
+  "en": "Order",
+  "ckb": "داواکاری",
+  "ar": "طلب",
+  "fa": "سفارش"
+ },
+ "app.order.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "app.order.chooseWarehouse": {
+  "en": "Choose the warehouse",
+  "ckb": "کۆگا هەڵبژێرە",
+  "ar": "اختر المستودع",
+  "fa": "انبار را انتخاب کنید"
+ },
+ "app.order.search": {
+  "en": "Search product",
+  "ckb": "گەڕان بۆ بەرهەم",
+  "ar": "بحث عن منتج",
+  "fa": "جستجوی محصول"
+ },
+ "app.order.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "app.order.note": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (ئارەزوومەندانە)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "یادداشت (اختیاری)"
+ },
+ "app.order.total": {
+  "en": "Total: {total} {currency}",
+  "ckb": "کۆ: {total} {currency}",
+  "ar": "المجموع: {total} {currency}",
+  "fa": "جمع: {total} {currency}"
+ },
+ "app.order.prices": {
+  "en": "Prices come from the server and are set again when the order is placed.",
+  "ckb": "نرخەکان لە سێرڤەرەوە دێن و لە کاتی تۆمارکردن دووبارە دیاری دەکرێنەوە.",
+  "ar": "الأسعار من الخادم وتُحدَّد مجدداً عند تسجيل الطلب.",
+  "fa": "قیمت‌ها از سرور می‌آید و هنگام ثبت دوباره تعیین می‌شود."
+ },
+ "app.order.place": {
+  "en": "Place order",
+  "ckb": "تۆمارکردنی داواکاری",
+  "ar": "تسجيل الطلب",
+  "fa": "ثبت سفارش"
+ },
+ "app.order.placed": {
+  "en": "Order {number} placed: {total} {currency}",
+  "ckb": "داواکاری {number} تۆمارکرا: {total} {currency}",
+  "ar": "تم تسجيل الطلب {number}: {total} {currency}",
+  "fa": "سفارش {number} ثبت شد: {total} {currency}"
+ },
+ "app.order.noProducts": {
+  "en": "No products with a price for this customer.",
+  "ckb": "هیچ بەرهەمێکی نرخدار بۆ ئەم کڕیارە نییە.",
+  "ar": "لا منتجات مسعّرة لهذا العميل.",
+  "fa": "محصول قیمت‌دار برای این مشتری نیست."
+ },
+ "app.order.noWarehouse": {
+  "en": "No warehouse is set up. Ask the sales manager.",
+  "ckb": "هیچ کۆگایەک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد مستودع. اسأل مدير المبيعات.",
+  "fa": "انباری تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "web.tab.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.orders.status.preparing": {
+  "en": "preparing",
+  "ckb": "ئامادەکردن",
+  "ar": "قيد التجهيز",
+  "fa": "در حال آماده‌سازی"
+ },
+ "web.orders.status.ready": {
+  "en": "ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده"
+ },
+ "web.orders.status.handed_over": {
+  "en": "handed to driver",
+  "ckb": "دراوە بە شوفێر",
+  "ar": "سُلّم للسائق",
+  "fa": "تحویل راننده"
+ },
+ "web.orders.prepared": {
+  "en": "Prepared",
+  "ckb": "ئامادەکراو",
+  "ar": "المجهّز",
+  "fa": "آماده‌شده"
+ },
+ "web.orders.shortage": {
+  "en": "Shortage reason",
+  "ckb": "هۆکاری کەمی",
+  "ar": "سبب النقص",
+  "fa": "دلیل کمبود"
+ },
+ "web.orders.history": {
+  "en": "Steps",
+  "ckb": "هەنگاوەکان",
+  "ar": "المراحل",
+  "fa": "مراحل"
+ },
+ "web.orders.driver": {
+  "en": "Driver",
+  "ckb": "شوفێر",
+  "ar": "السائق",
+  "fa": "راننده"
+ },
+ "web.orders.staff": {
+  "en": "Staff",
+  "ckb": "کارمەندان",
+  "ar": "العاملون",
+  "fa": "کارکنان"
+ },
+ "web.orders.staffOf": {
+  "en": "Staff of {name}",
+  "ckb": "کارمەندانی {name}",
+  "ar": "عاملو {name}",
+  "fa": "کارکنان {name}"
+ },
+ "web.orders.chooseStaff": {
+  "en": "Choose a warehouse worker…",
+  "ckb": "کارمەندی کۆگایەک هەڵبژێرە…",
+  "ar": "اختر عامل مستودع…",
+  "fa": "کارمند انبار را انتخاب کنید…"
+ },
+ "web.orders.addStaff": {
+  "en": "Add",
+  "ckb": "زیادکردن",
+  "ar": "إضافة",
+  "fa": "افزودن"
+ },
+ "web.orders.removeStaff": {
+  "en": "Remove {name}",
+  "ckb": "لابردنی {name}",
+  "ar": "إزالة {name}",
+  "fa": "حذف {name}"
+ },
+ "web.orders.noStaff": {
+  "en": "Nobody works in this warehouse yet.",
+  "ckb": "هێشتا کەس لەم کۆگایە کار ناکات.",
+  "ar": "لا أحد يعمل في هذا المستودع بعد.",
+  "fa": "هنوز کسی در این انبار کار نمی‌کند."
+ },
+ "web.warehouse.title": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "web.warehouse.none": {
+  "en": "No orders for your warehouse.",
+  "ckb": "هیچ داواکارییەک بۆ کۆگاکەت نییە.",
+  "ar": "لا طلبات لمستودعك.",
+  "fa": "سفارشی برای انبار شما نیست."
+ },
+ "web.warehouse.open": {
+  "en": "Open orders",
+  "ckb": "داواکارییە کراوەکان",
+  "ar": "الطلبات المفتوحة",
+  "fa": "سفارش‌های باز"
+ },
+ "web.warehouse.filter": {
+  "en": "Show",
+  "ckb": "نیشاندان",
+  "ar": "عرض",
+  "fa": "نمایش"
+ },
+ "web.warehouse.start": {
+  "en": "Start preparing",
+  "ckb": "دەستپێکردنی ئامادەکردن",
+  "ar": "بدء التجهيز",
+  "fa": "شروع آماده‌سازی"
+ },
+ "web.warehouse.ready": {
+  "en": "Mark ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده است"
+ },
+ "web.warehouse.quantityFor": {
+  "en": "Prepared quantity of {code}",
+  "ckb": "بڕی ئامادەکراوی {code}",
+  "ar": "الكمية المجهّزة من {code}",
+  "fa": "تعداد آماده‌شدهٔ {code}"
+ },
+ "web.warehouse.reasonFor": {
+  "en": "Reason for {code}",
+  "ckb": "هۆکار بۆ {code}",
+  "ar": "السبب لـ {code}",
+  "fa": "دلیل برای {code}"
+ },
+ "web.warehouse.needReason": {
+  "en": "Less than ordered: write the reason.",
+  "ckb": "کەمتر لە داواکراو: هۆکارەکەی بنووسە.",
+  "ar": "أقل من المطلوب: اكتب السبب.",
+  "fa": "کمتر از سفارش: دلیل را بنویسید."
+ },
+ "web.warehouse.chooseDriver": {
+  "en": "Choose a driver…",
+  "ckb": "شوفێرێک هەڵبژێرە…",
+  "ar": "اختر سائقاً…",
+  "fa": "راننده را انتخاب کنید…"
+ },
+ "web.warehouse.handOver": {
+  "en": "Hand over to driver",
+  "ckb": "دانەوە بە شوفێر",
+  "ar": "تسليم للسائق",
+  "fa": "تحویل به راننده"
+ },
+ "web.warehouse.noDrivers": {
+  "en": "No driver is set up. Ask the sales manager.",
+  "ckb": "هیچ شوفێرێک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد سائق. اسأل مدير المبيعات.",
+  "fa": "راننده‌ای تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "app.home.warehouse": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "app.warehouse.title": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "app.warehouse.open": {
+  "en": "Open orders",
+  "ckb": "داواکارییە کراوەکان",
+  "ar": "الطلبات المفتوحة",
+  "fa": "سفارش‌های باز"
+ },
+ "app.warehouse.none": {
+  "en": "No orders for your warehouse.",
+  "ckb": "هیچ داواکارییەک بۆ کۆگاکەت نییە.",
+  "ar": "لا طلبات لمستودعك.",
+  "fa": "سفارشی برای انبار شما نیست."
+ },
+ "app.warehouse.status.placed": {
+  "en": "placed",
+  "ckb": "تۆمارکراو",
+  "ar": "مسجّل",
+  "fa": "ثبت‌شده"
+ },
+ "app.warehouse.status.preparing": {
+  "en": "preparing",
+  "ckb": "ئامادەکردن",
+  "ar": "قيد التجهيز",
+  "fa": "در حال آماده‌سازی"
+ },
+ "app.warehouse.status.ready": {
+  "en": "ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده"
+ },
+ "app.warehouse.status.handed_over": {
+  "en": "handed to driver",
+  "ckb": "دراوە بە شوفێر",
+  "ar": "سُلّم للسائق",
+  "fa": "تحویل راننده"
+ },
+ "app.warehouse.status.cancelled": {
+  "en": "cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "لغوشده"
+ },
+ "app.warehouse.start": {
+  "en": "Start preparing",
+  "ckb": "دەستپێکردنی ئامادەکردن",
+  "ar": "بدء التجهيز",
+  "fa": "شروع آماده‌سازی"
+ },
+ "app.warehouse.ready": {
+  "en": "Mark ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده است"
+ },
+ "app.warehouse.ordered": {
+  "en": "Ordered: {quantity} {unit}",
+  "ckb": "داواکراو: {quantity} {unit}",
+  "ar": "المطلوب: {quantity} {unit}",
+  "fa": "سفارش: {quantity} {unit}"
+ },
+ "app.warehouse.prepared": {
+  "en": "Prepared",
+  "ckb": "ئامادەکراو",
+  "ar": "المجهّز",
+  "fa": "آماده‌شده"
+ },
+ "app.warehouse.reason": {
+  "en": "Reason (less than ordered)",
+  "ckb": "هۆکار (کەمتر لە داواکراو)",
+  "ar": "السبب (أقل من المطلوب)",
+  "fa": "دلیل (کمتر از سفارش)"
+ },
+ "app.warehouse.needReason": {
+  "en": "Write a reason for every line that is less than ordered.",
+  "ckb": "بۆ هەر دێڕێک کە کەمترە لە داواکراو هۆکار بنووسە.",
+  "ar": "اكتب سبباً لكل سطر أقل من المطلوب.",
+  "fa": "برای هر ردیفی که کمتر از سفارش است دلیل بنویسید."
+ },
+ "app.warehouse.chooseDriver": {
+  "en": "Choose the driver",
+  "ckb": "شوفێر هەڵبژێرە",
+  "ar": "اختر السائق",
+  "fa": "راننده را انتخاب کنید"
+ },
+ "app.warehouse.handOver": {
+  "en": "Hand over to driver",
+  "ckb": "دانەوە بە شوفێر",
+  "ar": "تسليم للسائق",
+  "fa": "تحویل به راننده"
+ },
+ "app.warehouse.noDrivers": {
+  "en": "No driver is set up. Ask the sales manager.",
+  "ckb": "هیچ شوفێرێک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد سائق. اسأل مدير المبيعات.",
+  "fa": "راننده‌ای تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "app.warehouse.done": {
+  "en": "Done.",
+  "ckb": "تەواو بوو.",
+  "ar": "تم.",
+  "fa": "انجام شد."
  }
 }

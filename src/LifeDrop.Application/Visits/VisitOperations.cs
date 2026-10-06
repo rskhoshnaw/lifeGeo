@@ -300,7 +300,7 @@ public sealed class MarkVisitFailed(IVisitStore store, LifeDrop.Application.Role
 public sealed record ReassignVisitRequest(Guid AssignedUserId);
 public sealed record CancelVisitRequest(string Reason);
 
-public enum ManageVisitResult { Success, NotFound, Forbidden, InvalidState, InvalidData, Conflict, UserNotFound }
+public enum ManageVisitResult { Success, NotFound, Forbidden, InvalidState, InvalidData, Conflict, UserNotFound, OrderRequired }
 
 // Manager actions on a visit (plan step 1.4, PRD §5.1, §5.2). The visit must be within the actor's data scope
 // for the permission (otherwise it is reported as not found); a new assignee must also be within that scope.
@@ -372,7 +372,7 @@ public sealed record VisitReportDto(Guid VisitId, string Outcome, string Note, i
 
 // Visit report (plan step 1.6, PRD §5.3): written by the assigned user while InVisit; editable until check-out.
 // Readable by the assignee and by users whose visits.write scope covers the assignee.
-public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions)
+public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.IPermissionStore permissions, LifeDrop.Application.Orders.IOrderStore orders)
 {
     public async Task<ManageVisitResult> SaveAsync(TenantId tenantId, UserId actorId, Guid visitId, SaveVisitReportRequest request, CancellationToken cancellationToken)
     {
@@ -383,6 +383,9 @@ public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.I
         if (visit.Status != VisitStatus.InVisit) return ManageVisitResult.InvalidState;
         if (!VisitReport.TryCreate(request.Outcome, request.Note, request.ContractVersion, out var report))
             return ManageVisitResult.InvalidData;
+        // "Order placed" needs a real order of this visit (plan step 2.2).
+        if (report!.Outcome == VisitOutcome.OrderPlaced && !await orders.HasPlacedOrderForVisitAsync(tenantId, visit.Id.Value, cancellationToken))
+            return ManageVisitResult.OrderRequired;
 
         return await store.TrySaveReportAsync(tenantId, actorId, visit.Id, report!, cancellationToken)
             ? ManageVisitResult.Success : ManageVisitResult.Conflict;

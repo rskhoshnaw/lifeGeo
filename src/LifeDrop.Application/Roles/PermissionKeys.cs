@@ -31,6 +31,18 @@ public static class PermissionKeys
     // Reference list of cities, neighbourhoods and streets (plan step 1.23-b): add, rename, approve, merge, import.
     public const string PlacesManage = "places.manage";
 
+    // Products and prices (plan step 2.1): read for sales, supervisors and finance; manage for the sales manager.
+    public const string CatalogRead = "catalog.read";
+    public const string CatalogManage = "catalog.manage";
+
+    // Orders and warehouses (plan step 2.2).
+    public const string OrdersCreate = "orders.create";
+    public const string OrdersRead = "orders.read";
+    public const string OrdersCancel = "orders.cancel";
+    public const string WarehousesManage = "warehouses.manage";
+    // Plan step 2.3: prepare orders and hand them to a driver, in the warehouses the user works in.
+    public const string WarehouseWork = "warehouse.work";
+
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
     public const string TrackingSummary = "tracking.summary";

@@ -259,6 +259,223 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('manages products, city prices and discounts, and reads the price a customer pays', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' 2026-12-31 ')
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage', 'customers.read'] }
+    const product = { id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }
+    const cityPrice = { id: 'cp1', productId: 'pr1', cityId: 'p1', cityName: 'Erbil', price: 1800, validFrom: '2026-10-01', validTo: null }
+    const discount = { id: 'd1', customerId: 'c1', productId: null, productCode: null, kind: 'percent', value: 10, validFrom: '2026-10-01', validTo: null }
+    const { api, calls } = server(seller, {
+      '/products?': [product],
+      '/products?q=': [product],
+      '/products/pr1/city-prices': [cityPrice],
+      '/places?limit=2000&kind=city': [place('p1', 'city', 'Erbil')],
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
+      '/customers/c1/discounts': [discount],
+      '/customers/c1/prices?date=2026-10-06': [{ productId: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', unit: 'box', currency: 'IQD', listPrice: 1800, listSource: 'city', discounts: [{ id: 'd1', kind: 'percent', value: 10, productId: null }], price: 1620 }],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Products' }))
+    expect(await screen.findByText('1,500 IQD')).toBeInTheDocument()
+
+    // A new product: names are trimmed only when saved
+    await user.click(screen.getByRole('button', { name: 'New product' }))
+    expect(screen.getByRole('button', { name: 'Save product' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Code'), 'AMX-250')
+    await user.type(screen.getByLabelText('Name'), ' Amoxicillin 250 ')
+    await user.type(screen.getByLabelText('Unit'), 'box')
+    await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
+    await user.type(screen.getByLabelText('Base price'), '3.5')
+    await user.click(screen.getByRole('button', { name: 'Save product' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/products', body: { code: 'AMX-250', name: 'Amoxicillin 250', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'USD', basePrice: 3.5, status: 'active' } })
+
+    // City prices of a product: end one, add one for a city (no start day = today on the server)
+    await user.click(screen.getByRole('button', { name: 'City prices of PAR-500' }))
+    expect(await screen.findByText('Erbil', { selector: 'td' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'End price for Erbil' }))
+    await user.selectOptions(await screen.findByLabelText('City', { selector: 'select' }), 'p1')
+    await user.type(screen.getByLabelText('Price'), '1750')
+    await user.click(screen.getByRole('button', { name: 'Add rule' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls).slice(1)).toEqual([
+      { method: 'POST', path: '/city-prices/cp1/end', body: { validTo: '2026-12-31' } },
+      { method: 'POST', path: '/products/pr1/city-prices', body: { cityId: 'p1', price: 1750, validFrom: null, validTo: null } },
+    ])
+
+    // What a customer pays that day comes from the server, with the discounts
+    await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
+    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-10-06' } })
+    expect(await screen.findByText('1,620 IQD / box')).toBeInTheDocument()
+    expect(screen.getByText('1,800 IQD (city price)')).toBeInTheDocument()
+    expect(await screen.findByText('Several discounts', { exact: false })).toBeInTheDocument()
+
+    // Discounts: an amount needs a product; add one for all products as a percentage; end one
+    expect(screen.getByLabelText('Kind')).toBeDisabled()
+    await user.type(screen.getByLabelText('Value'), '5')
+    await user.click(screen.getByRole('button', { name: 'Add discount' }))
+    await user.click(await screen.findByRole('button', { name: 'End discount -10%' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(5))
+    expect(posts(calls).slice(3)).toEqual([
+      { method: 'POST', path: '/customers/c1/discounts', body: { productId: null, kind: 'percent', value: 5, validFrom: null, validTo: null } },
+      { method: 'POST', path: '/discounts/d1/end', body: { validTo: '2026-12-31' } },
+    ])
+  })
+
+  it('shows a reader the products without any change buttons', async () => {
+    const reader: Me = { id: 'r', email: 'rep@t1', roles: ['SalesRep'], permissions: ['catalog.read'] }
+    const { api } = server(reader, { '/products?': [{ id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }], '/products/pr1/city-prices': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await screen.findByText('PAR-500')
+    expect(screen.queryByRole('button', { name: 'New product' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit PAR-500' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'City prices of PAR-500' }))
+    expect(await screen.findByText('No city prices: every city pays the general price.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add rule' })).not.toBeInTheDocument()
+  })
+
+  it('lists orders, shows one with its lines and cancels it, and the order form shows server prices and blocks mixed currencies', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' Customer changed his mind ')
+    const rep2: Me = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], permissions: ['orders.read', 'orders.create', 'customers.read', 'catalog.read'] }
+    const order = {
+      id: 'o1', number: 'O-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', visitId: null, warehouseId: 'w1', warehouseName: 'Erbil warehouse', createdBy: 'u1',
+      createdByEmail: 'rep@t1', status: 'placed', currency: 'IQD', total: 4860, note: 'Leave at the door', cancelReason: null, createdAt: '2026-10-06T08:00:00Z',
+      items: [{ lineNo: 1, productId: 'pr1', productCode: 'PAR-500', productName: 'Paracetamol 500', unit: 'box', quantity: 3, listPrice: 1800, unitPrice: 1620, lineTotal: 4860, discounts: [{ id: 'd1', kind: 'percent', value: 10 }] }],
+    }
+    const price = (id: string, code: string, currency: string, amount: number) => ({ productId: id, code, name: `Name ${code}`, unit: 'box', currency, listPrice: amount, listSource: 'base', discounts: [], price: amount })
+    const { api, calls } = server(rep2, {
+      '/orders?limit=50': [{ ...order, items: [] }],
+      '/orders/o1': order,
+      '/warehouses': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }],
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
+      [`/customers/c1/prices?date=${iraqToday()}`]: [price('pr1', 'PAR-500', 'IQD', 1620), price('pr2', 'AMX-250', 'USD', 4)],
+    }, { '/orders': json({ id: 'o2', number: 'O-000002', currency: 'IQD', total: 3240, replayed: false }, 201) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Orders' }))
+    expect(await screen.findByText('O-000001')).toBeInTheDocument()
+    expect(screen.getByText('4,860 IQD')).toBeInTheDocument()
+
+    // One order: lines with the discounts the server applied; the creator may cancel it with a reason
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    expect(await screen.findByText('-10%')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel order' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/orders/o1/cancel', body: { reason: 'Customer changed his mind' } })
+
+    // A new order: prices are the server's, a second currency blocks the order, the order carries no price at all
+    await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
+    await user.selectOptions(screen.getByLabelText('Warehouse', { selector: 'select' }), 'w1')
+    await user.selectOptions(await screen.findByLabelText('Product', { selector: 'select' }), 'pr1')
+    await user.type(screen.getByLabelText('Quantity'), '2')
+    await user.click(screen.getByRole('button', { name: 'Add line' }))
+    expect(await screen.findByText('Total: 3,240 IQD')).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Product', { selector: 'select' }), 'pr2')
+    await user.type(screen.getByLabelText('Quantity'), '1')
+    await user.click(screen.getByRole('button', { name: 'Add line' }))
+    expect(screen.getByText('All lines of one order must use the same currency.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Place order' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Remove AMX-250' }))
+    await user.type(screen.getByLabelText('Note'), ' at noon ')
+    await user.click(screen.getByRole('button', { name: 'Place order' }))
+    expect(await screen.findByText('Order O-000002 placed: 3,240 IQD')).toBeInTheDocument()
+    const sent = posts(calls)[1]!
+    expect(sent.path).toBe('/orders')
+    expect(sent.body).toMatchObject({ customerId: 'c1', warehouseId: 'w1', note: 'at noon', items: [{ productId: 'pr1', quantity: 2 }] })
+    expect(JSON.stringify(sent.body)).not.toMatch(/price/i)
+    expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('lets the sales manager add and switch off warehouses', async () => {
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'orders.create', 'warehouses.manage', 'orders.cancel', 'customers.read'] }
+    const { api, calls } = server(seller, { '/orders?limit=50': [], '/warehouses': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Orders' }))
+    expect(await screen.findByText('Erbil warehouse')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+    await user.type(screen.getByLabelText('Code', { selector: 'input' }), 'W2')
+    await user.type(screen.getByLabelText('Name', { selector: 'input' }), ' Basra warehouse ')
+    await user.click(screen.getByRole('button', { name: 'Add warehouse' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/warehouses/w1', body: { name: 'Erbil warehouse', status: 'inactive' } },
+      { method: 'POST', path: '/warehouses', body: { code: 'W2', name: 'Basra warehouse' } },
+    ])
+  })
+
+  it('warehouse work: start preparing, report less with a reason, hand over to a driver', async () => {
+    const worker: Me = { id: 'w1', email: 'wh@t1', roles: ['WarehouseManager'], permissions: ['warehouse.work'] }
+    const line = (lineNo: number, code: string, quantity: number): Record<string, unknown> => ({ lineNo, productId: `p${lineNo}`, productCode: code, productName: `Name ${code}`, unit: 'box', quantity, listPrice: 1000, unitPrice: 1000, lineTotal: 1000 * quantity, discounts: [] })
+    const base = { id: 'o1', number: 'O-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', visitId: null, warehouseId: 'w1', warehouseName: 'Erbil warehouse', createdBy: 'u1', createdByEmail: 'rep@t1', currency: 'IQD', total: 14000, note: null, cancelReason: null, createdAt: '2026-10-06T08:00:00Z', items: [line(1, 'PAR-500', 10), line(2, 'AMX-250', 4)], history: [] }
+    let current: Record<string, unknown> = { ...base, status: 'placed' }
+    const { api, calls } = server(worker, { '/warehouse/orders?limit=50': [{ ...base, status: 'placed', items: [] }], '/warehouse/drivers': [{ id: 'd1', email: 'driver@t1' }] })
+    // The detail follows the status the fake server is in
+    const original = api.request.bind(api)
+    api.request = async (path: string, init?: RequestInit) => (path === '/warehouse/orders/o1' ? json(current) : original(path, init))
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Warehouse' }))
+    await user.click(await screen.findByRole('button', { name: 'Details of O-000001' }))
+    await user.click(await screen.findByRole('button', { name: 'Start preparing' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/start', body: undefined })
+
+    // Preparing: less than ordered needs a reason before "ready" works
+    current = { ...base, status: 'preparing' }
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.type(await screen.findByLabelText('Prepared quantity of AMX-250'), '3')
+    expect(screen.getByRole('button', { name: 'Mark ready' })).toBeDisabled()
+    expect(screen.getByText('Less than ordered: write the reason.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Reason for AMX-250'), ' only 3 in stock ')
+    await user.click(screen.getByRole('button', { name: 'Mark ready' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/ready', body: { lines: [{ lineNo: 1, quantity: 10, reason: null }, { lineNo: 2, quantity: 3, reason: 'only 3 in stock' }] } })
+
+    // Ready: choose the driver and hand over
+    current = { ...base, status: 'ready', items: [{ ...line(1, 'PAR-500', 10), preparedQuantity: 10 }, { ...line(2, 'AMX-250', 4), preparedQuantity: 3, shortageReason: 'only 3 in stock' }] }
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    expect(await screen.findByText('3 (only 3 in stock)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hand over to driver' })).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('Driver'), 'd1')
+    await user.click(screen.getByRole('button', { name: 'Hand over to driver' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(posts(calls)[2]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/handover', body: { driverId: 'd1' } })
+  })
+
+  it('assigns warehouse workers to a warehouse (only workers can be chosen)', async () => {
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'warehouses.manage', 'customers.read', 'user.manageroles'] }
+    const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0 })
+    const { api, calls } = server(seller, {
+      '/orders?limit=50': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [],
+      '/warehouses/w1/staff': [{ userId: 'u9', email: 'old@t1' }],
+      '/users': [wh('u1', 'worker@t1', ['WarehouseManager']), wh('u2', 'rep@t1', ['SalesRep']), wh('u9', 'old@t1', ['WarehouseManager'])],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Orders' }))
+    await user.click(await screen.findByRole('button', { name: 'Staff of Erbil warehouse' }))
+    expect(await screen.findByText('old@t1')).toBeInTheDocument()
+    const choose = screen.getByRole('combobox', { name: 'Choose a warehouse worker…' })
+    expect(within(choose).queryByRole('option', { name: 'rep@t1' })).not.toBeInTheDocument()   // not a warehouse worker
+    expect(within(choose).queryByRole('option', { name: 'old@t1' })).not.toBeInTheDocument()   // already there
+    await user.selectOptions(choose, 'u1')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: 'Remove old@t1' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)).toEqual([
+      { method: 'POST', path: '/warehouses/w1/staff', body: { userId: 'u1' } },
+      { method: 'DELETE', path: '/warehouses/w1/staff/u9', body: undefined },
+    ])
+  })
+
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {
     const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
     const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]

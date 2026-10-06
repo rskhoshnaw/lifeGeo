@@ -10,12 +10,15 @@ import { VisitsPage } from './pages/VisitsPage.tsx'
 import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
+import { CatalogPage } from './pages/CatalogPage.tsx'
+import { OrdersPage } from './pages/OrdersPage.tsx'
+import { WarehousePage } from './pages/WarehousePage.tsx'
 import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'regions' | 'audit' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'warehouse' | 'regions' | 'audit' | 'notifications'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -66,6 +69,9 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'devices', label: t('web.tab.devices'), visible: can(me, ...Permissions.devices) },
     { id: 'customers', label: t('web.tab.customers'), visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
     { id: 'places', label: t('web.tab.places'), visible: can(me, ...Permissions.places) },
+    { id: 'catalog', label: t('web.tab.catalog'), visible: can(me, ...Permissions.catalog) },
+    { id: 'orders', label: t('web.tab.orders'), visible: can(me, ...Permissions.orders) },
+    { id: 'warehouse', label: t('web.tab.warehouse'), visible: can(me, ...Permissions.warehouseWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
     { id: 'notifications', label: unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications'), visible: true },
@@ -99,6 +105,9 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'map' && <LiveMapPage admin={admin} />}
       {me && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
       {me && tab === 'places' && <PlacesPage admin={admin} />}
+      {me && tab === 'catalog' && <CatalogPage admin={admin} me={me} />}
+      {me && tab === 'orders' && <OrdersPage admin={admin} me={me} />}
+      {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
       {me && tab === 'notifications' && <NotificationsPage admin={admin} onChanged={refreshUnread} />}

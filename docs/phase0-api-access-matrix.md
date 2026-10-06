@@ -332,3 +332,66 @@ Where it shows: `priority` on `GET /customers`, `customerPriority` on every visi
 
 No migration. `POST /visit-plan/preview` and `/generate` (both for `visits.write` users and, for themselves, `visits.plan` users) take a new filter `area`: the corners `[{latitude, longitude}]` of a shape drawn on the map: 3-100 points, real coordinates, a real surface, a box of at most 0.5 degrees (about 50 km) in each direction, else 400 `INVALID_DATA`. The server closes the shape (any start corner, either direction) and returns only customers with a position inside or on its border, approved, in the caller's scope and not yet planned that day. `area` counts as a filter like `placeId`, `regionId` and `query` and can be combined with them. Customers without a position are never found this way. Test: `PlanFromArea_DrawnAreaFindsLocatedApprovedCustomersInScopeAndRefusesBadShapes`; app: `AreaDrawingTests`, pages `DrawAreaPage` (Leaflet + OpenStreetMap in a WebView, online only) and the button on the add-customers page.
 
+## Products, city prices and customer discounts (step 2.1)
+
+Migration 0024: `products`, permissions `catalog.read` (SalesManager, Supervisor, FinanceManager, CompanyManager, SalesRep, ScientificRep) and `catalog.manage` (SalesManager); default roles and existing companies get them. Migration 0025 (owner decision 2026-10-07; replaces the region/customer price rules of 0024, which were never released): `city_prices`, `customer_discounts`. Both tables have RLS and grants. One currency per product (`IQD` or `USD`, no conversion), one unit per product. Money is `numeric(18,3)`.
+
+**Which price a customer pays on a day:** the general price (`products.base_price`), or the price of the customer's **city** when that city has one for that day (the city is the place of kind `city` found above the customer's place; a customer without a place pays the general price); then every valid discount of the customer, oldest first, each on the price left (a percentage takes that share, an amount takes that much per unit), never below 0, rounded to three decimals. A discount on all products must be a percentage; an amount belongs to one product.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /products?includeInactive=&q=` | `catalog.read` | Active products by code; `includeInactive` only counts for `catalog.manage`; `q` matches code and names (`%` and `_` are plain characters); max 1000 | — |
+| `POST /products` | `catalog.manage` | Body: `code` (1-40, letters, digits, `.` `_` `-`), `name`, optional `nameCkb/Ar/En`, `unit`, `currency`, `basePrice`, `status`. 201 `{id}`; 400; 409 `CONFLICT` for a repeated code | `product.created` |
+| `PUT /products/{id}` | `catalog.manage` | Same fields (the code never changes); 204; 404 | `product.updated` |
+| `GET /products/{id}/city-prices` | `catalog.read` | Newest start first, with `cityName`; 404 | — |
+| `POST /products/{id}/city-prices` | `catalog.manage` | `cityId` (a place of kind city), `price`, `validFrom` (default today, Iraq), `validTo` (empty = open; both days count). 409 when the days overlap a price of the same product and city (checked under a lock on the product); 404 unknown product or city; 400 (also when the place is not a city) | `city_price.created` |
+| `POST /city-prices/{id}/end` | `catalog.manage` | `validTo`: not before the start, not later than an end it has; prices are never deleted | `city_price.ended` |
+| `GET /customers/{id}/discounts` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | All discounts of the customer, newest start first | — |
+| `POST /customers/{id}/discounts` | `catalog.manage` | `productId` (empty = all products), `kind` (`percent` 0-100 or `amount` per unit; amount needs a product), `value` (> 0, three decimals), `validFrom`, `validTo`. Several can be valid together. 404 unknown customer or product; 400 | `discount.created` |
+| `POST /discounts/{id}/end` | `catalog.manage` | Same end rule as city prices | `discount.ended` |
+| `GET /customers/{id}/prices?date=` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | Every active product: `listPrice`, `listSource` (`base` or `city`), `cityPriceId`, the `discounts` applied in order and the final `price`. Later steps (orders) take prices from here, never from the phone | — |
+
+Test: `Catalog_ManagerMaintainsProductsCityPricesAndDiscountsAndEveryoneGetsTheServerPrice`; unit: `PriceCalculatorTests`; panel: the Products tab (`Panel.test.tsx`).
+
+## Warehouses and orders (step 2.2)
+
+Migration 0026: `warehouses`, `order_counters`, `orders`, `order_items` (RLS, grants file updated), permissions `orders.create` (SalesManager, Supervisor, SalesRep), `orders.read` (those and FinanceManager, CompanyManager), `orders.cancel` (SalesManager, Supervisor), `warehouses.manage` (SalesManager); default roles and existing companies get them. Owner decisions 2026-10-07: orders are placed from the rep's app **and** the panel; **the person who places the order chooses the warehouse**; discounts apply per product or on all products as a percentage (the "on the total" case), see step 2.1. All lines of an order have one currency. Migration 0026 also lets `visit_reports.outcome` be `order_placed`.
+
+Prices: the request carries **no price**. The server takes the general or city price of today (Iraq) and the customer's valid discounts (`PriceCalculator`), writes them on each line (`listPrice`, `unitPrice`, `lineTotal`, the applied `discounts`) and the order `total`, so a later price change never rewrites an order.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /warehouses?includeInactive=` | `orders.read` or `orders.create` | Active warehouses by code; inactive ones only for `warehouses.manage` | — |
+| `POST /warehouses` | `warehouses.manage` | `code` (1-40), `name`, `status`. 201 `{id}`; 400; 409 repeated code | `warehouse.created` |
+| `PUT /warehouses/{id}` | `warehouses.manage` | `name`, `status` (the code never changes); 204; 404 | `warehouse.updated` |
+| `POST /orders` | `orders.create`; the customer must be inside the caller's data scope and approved | Body: `customerId`, `warehouseId` (active), optional `visitId` (a visit of that customer, of the caller or of someone in a `visits.write` scope, not cancelled or failed), `clientRef` (a new guid per order; a retry with the same one returns the same order with 200 and `replayed: true`, another person or customer with it: 409), `items` (1-100 lines, one per product, `quantity` > 0, at most three decimals, at most 100000; inactive or unknown products 400), optional `note` (500). 201 `{id, number, currency, total, replayed}`; `number` is `O-000001`... without gaps; 400 `INVALID_DATA` / `CURRENCY_MISMATCH`; 404 customer, warehouse or visit; 409 `CUSTOMER_NOT_APPROVED` | `order.created` |
+| `GET /orders?customerId=&status=&limit=&before=&beforeId=` | `orders.read`; tenant: all; region: orders of the region's customers, of the user's customers and the ones the user placed; own: the user's own | Newest first, `limit` 1-100 (default 50), `before` + `beforeId` continue after the last row; `status` is `placed` or `cancelled` | — |
+| `GET /orders/{id}` | same scope (else 404) | The order with its lines | — |
+| `POST /orders/{id}/cancel` | `orders.read` scope; `orders.cancel` holders cancel any order in scope, the creator cancels their own | `reason` (1-500). 204; 409 when the order is not `placed` any more; 403 for someone who is neither; 404 out of scope | `order.cancelled` |
+
+The visit report accepts the outcome `order_placed` only when the visit has a `placed` order (`409 ORDER_REQUIRED` otherwise).
+
+Tests: `Orders_ServerPricesWarehouseChosenByVisitorScopeCancelAndRetry` (also runs the phone's `OrdersApiClient` against the API), `OrdersTests` (app), panel tests in `Panel.test.tsx`.
+
+## Warehouse work (step 2.3)
+
+Migration 0027: `warehouse_staff`, `order_status_history`; orders get the statuses `preparing`, `ready`, `handed_over` and a `driver_id`; order lines get `prepared_quantity` and `shortage_reason`; permission `warehouse.work` (WarehouseManager role; also for existing companies). Owner decisions 2026-10-07: steps **placed → preparing → ready → handed over to a driver**; the worker may report a smaller prepared quantity per line **with a reason** (the order total does not change; finance decides later); the work is done **in the panel and in the app**, so the `WarehouseManager` role no longer requires an approved phone (the `Driver` role still does).
+
+A warehouse worker sees and handles **only the orders of the warehouses they are assigned to**; an order of another warehouse is "not found" (404), a user without `warehouse.work` gets 403.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /warehouses/{id}/staff` | `warehouses.manage` | Users who work in that warehouse | — |
+| `POST /warehouses/{id}/staff` | `warehouses.manage` | `userId`; only a user whose roles give `warehouse.work` (else 400); again for the same user: 204, nothing changes; 404 unknown warehouse or user | `warehouse.staff_added` |
+| `DELETE /warehouses/{id}/staff/{userId}` | `warehouses.manage` | 204, or 404 when the user is not there | `warehouse.staff_removed` |
+| `GET /warehouse/orders?status=&limit=&before=&beforeId=` | `warehouse.work`; own warehouses | Newest first; without `status` the open ones (`placed`, `preparing`, `ready`) | — |
+| `GET /warehouse/orders/{id}` | same | The order with lines (ordered and prepared quantity, shortage reason), driver and the steps (`history`) | — |
+| `POST /warehouse/orders/{id}/start` | same | `placed` → `preparing`; 409 in any other status | `order.preparing` |
+| `POST /warehouse/orders/{id}/ready` | same | Body `lines`: every line once with `lineNo`, `quantity` (0 up to the ordered quantity, three decimals) and a `reason` when it is less. `preparing` → `ready`; 400 for missing, repeated or unknown lines, more than ordered, or no reason; 409 in another status | `order.ready` (+ `order.shortage` when something is short) |
+| `POST /warehouse/orders/{id}/handover` | same | `driverId` of a user with the `Driver` role (else 400). `ready` → `handed_over`; 409 in another status | `order.handed_over` |
+| `GET /warehouse/drivers` | `warehouse.work` | Users with the Driver role | — |
+
+Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
+
+Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).
+

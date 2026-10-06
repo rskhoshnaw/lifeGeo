@@ -119,7 +119,11 @@ public class CustomerApiIntegrationTests
                 var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
                 var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
                 var m23 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0023_customer_priority.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23;
+                var m24 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0024_catalog_prices.sql"));
+                var m25 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0025_city_prices_discounts.sql"));
+                var m26 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0026_orders_warehouses.sql"));
+                var m27 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0027_warehouse_work.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -970,7 +974,7 @@ public class CustomerApiIntegrationTests
 
         // An invalid report is refused by the server and check-out is not started
         Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.InvalidData,
-            await api.SaveReportAsync(visit, new LifeDrop.Mobile.Visits.VisitReportDraft("order_placed", "Ordered")));
+            await api.SaveReportAsync(visit, new LifeDrop.Mobile.Visits.VisitReportDraft("order_confirmed", "Ordered")));
         Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.ReportRequired, await api.CheckOutAsync(visit, inside, "no-report"));
 
         // Report saved, check-out refused outside: partial success, then check-out alone succeeds inside
@@ -1991,12 +1995,12 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[]
         {
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
-            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
+            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "orders.create", "orders.read", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "45" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b)
+        Assert.Equal(new[] { "64" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -4119,7 +4123,7 @@ public class CustomerApiIntegrationTests
         foreach (var invalid in new object[]
         {
             new { },
-            new { Outcome = "order_placed", Note = "No such outcome" },
+            new { Outcome = "order_confirmed", Note = "No such outcome" },
             new { Outcome = "other", Note = " " },
             new { Outcome = "other", Note = "?!." },
             new { Outcome = "other", Note = "Valid note", ContractVersion = 2 }
@@ -4616,6 +4620,598 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Preview(Square(south: 99, north: 100)), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await Preview(Enumerable.Range(0, 101).Select(i => (object)new { Latitude = 36.18 + (i % 2) * 0.01, Longitude = 44.0 + i * 0.0001 }).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await Preview(Square(west: 43.0, east: 44.02)), HttpStatusCode.BadRequest, "INVALID_DATA");
+    }
+
+    [SkippableFact]
+    public async Task Catalog_ManagerMaintainsProductsCityPricesAndDiscountsAndEveryoneGetsTheServerPrice()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid erbilRegion = Guid.NewGuid(), baghdadRegion = Guid.NewGuid(), erbil = Guid.NewGuid(), n1 = Guid.NewGuid(), suli = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1), (@dr, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @dr, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil team region'), (@br, @t1, 'Baghdad team region');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @er, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES
+                    (@erbil, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @erbil, 'neighbourhood', 'N1'), (@suli, @t1, NULL, 'city', 'Sulaymaniyah');
+                -- C1 lives in a neighbourhood of Erbil, C2 in Sulaymaniyah, C3 has no place
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, place_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @er, @n1), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @br, @suli),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Customer 3', @br, NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("dr", driver), ("er", erbilRegion), ("br", baghdadRegion),
+                ("erbil", erbil), ("n1", n1), ("suli", suli), ("c1", c1), ("c2", c2), ("c3", c3) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Product(string code = "PAR-500", string name = "Paracetamol 500", string currency = "IQD", decimal price = 1500m, string? status = null, string unit = "box") =>
+            new { Code = code, Name = name, NameCkb = "پاراسیتامۆل", Unit = unit, Currency = currency, BasePrice = price, Status = status };
+        async Task<Guid> CreateProduct(object body)
+        {
+            var response = await client.PostAsJsonAsync("/products", body);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        }
+        async Task<List<LifeDrop.Application.Catalog.ProductDto>> Products(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products" + query))!;
+        Task<HttpResponseMessage> AddCityPrice(Guid product, object body) => client.PostAsJsonAsync($"/products/{product}/city-prices", body);
+        Task<HttpResponseMessage> AddDiscount(Guid customer, object body) => client.PostAsJsonAsync($"/customers/{customer}/discounts", body);
+        async Task<List<LifeDrop.Application.Catalog.EffectivePriceDto>> Prices(Guid customer, string date) =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.EffectivePriceDto>>($"/customers/{customer}/prices?date={date}"))!;
+        async Task<(decimal List, string Source, decimal Price)> PriceOf(Guid customer, string date, string code = "PAR-500")
+        {
+            var row = (await Prices(customer, date)).Single(p => p.Code == code);
+            return (row.ListPrice, row.ListSource, row.Price);
+        }
+
+        // Who may: nobody without catalog.read; reading roles cannot change anything
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync("/products"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        foreach (var reader in new[] { supervisor, finance, repA })
+        {
+            As(reader);
+            Assert.Empty(await Products());
+            await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product()), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+
+        As(manager);
+        // Bad data: missing name, bad currency, negative price, more than three decimals, bad code, no unit
+        foreach (var bad in new object[]
+        {
+            new { Code = "A1", Name = "", Unit = "box", Currency = "IQD", BasePrice = 1m },
+            Product(currency: "EUR"), Product(price: -1m), Product(price: 1.2345m), Product(code: "has space"), Product(code: "  "), Product(unit: " ")
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/products", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        var p1 = await CreateProduct(Product());
+        var p2 = await CreateProduct(Product(code: "AMX-250", name: "Amoxicillin 250", currency: "USD", price: 3.5m));
+        var p3 = await CreateProduct(Product(code: "ZZZ-10", name: "Zinc 10", currency: "USD", price: 10m));
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(name: "Same code again")), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(new[] { "AMX-250", "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
+        Assert.Equal("پاراسیتامۆل", (await Products("?q=par")).Single().NameCkb);
+        Assert.Empty(await Products("?q=%25"));   // a % is a plain character
+
+        // Edit: the code never changes; an inactive product leaves the lists and the prices (managers can still list it)
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p2}", Product(code: "IGNORED", name: "Amoxicillin 250 mg", currency: "USD", price: 4m, status: "inactive"))).StatusCode);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{Guid.NewGuid()}", Product()), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}", Product(price: -5m)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(new[] { "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
+        var all = await Products("?includeInactive=true");
+        Assert.Equal(("AMX-250", "Amoxicillin 250 mg", 4m, "inactive"), (all[0].Code, all[0].Name, all[0].BasePrice, all[0].Status));
+        As(repA);
+        Assert.Equal(2, (await Products("?includeInactive=true")).Count);   // only managers see inactive ones
+
+        // Without city prices everybody pays the general price
+        As(manager);
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2026-10-06"));
+
+        // City prices: Erbil from 1 Oct (open), Sulaymaniyah only until the end of the year
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = erbil, Price = 1800m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = suli, Price = 1600m, ValidFrom = "2026-10-01", ValidTo = "2026-12-31" })).StatusCode);
+        Assert.Equal((1800m, "city", 1800m), await PriceOf(c1, "2026-10-06"));      // the city is found from the neighbourhood
+        Assert.Equal((1600m, "city", 1600m), await PriceOf(c2, "2026-10-06"));
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c3, "2026-10-06"));      // no place: the general price
+        Assert.Equal((1600m, "city", 1600m), await PriceOf(c2, "2026-12-31"));      // last day counts
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c2, "2027-01-01"));      // the city price has ended
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2026-09-30"));      // before it starts
+        Assert.Equal((10m, "base", 10m), await PriceOf(c1, "2026-10-06", "ZZZ-10")); // other products are not touched
+
+        // Overlap, bad prices, and what is not a city
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1000m, ValidFrom = "2026-12-31", ValidTo = "2027-02-01" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = erbil, Price = 1000m, ValidFrom = "2027-03-01" }), HttpStatusCode.Conflict, "CONFLICT");   // the open price covers it
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = suli, Price = 1650m, ValidFrom = "2027-01-01", ValidTo = "2027-03-31" })).StatusCode);
+        Assert.Equal((1650m, "city", 1650m), await PriceOf(c2, "2027-01-15"));
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = n1, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");   // a neighbourhood is not a city
+        await AssertProblemAsync(await AddCityPrice(p1, new { Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = -1m, ValidFrom = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1m, ValidFrom = "2027-06-05", ValidTo = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = Guid.NewGuid(), Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddCityPrice(Guid.NewGuid(), new { CityId = suli, Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Ending a city price (never deleting): not before its start, not later than the end it has
+        var prices = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CityPriceDto>>($"/products/{p1}/city-prices"))!;
+        Assert.Equal(3, prices.Count);
+        var open = prices.Single(r => r.CityName == "Erbil");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-09-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{Guid.NewGuid()}/end", new { ValidTo = "2026-12-31" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-12-31" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2027-01-31" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2027-01-15"));
+        Assert.Equal((1800m, "city", 1800m), await PriceOf(c1, "2026-12-31"));
+        // The city can get a new price after the old one ended (the manager keeps it or changes it, month by month)
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = erbil, Price = 1750m, ValidFrom = "2027-01-01" })).StatusCode);
+        Assert.Equal((1750m, "city", 1750m), await PriceOf(c1, "2027-01-15"));
+
+        // Discounts of C1, oldest first on the price left: 10 % on everything, then 100 off PAR-500, then 5 % on PAR-500
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { Kind = "percent", Value = 10m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal((1800m, "city", 1620m), await PriceOf(c1, "2026-10-06"));
+        Assert.Equal((10m, "base", 9m), await PriceOf(c1, "2026-10-06", "ZZZ-10"));
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { ProductId = p1, Kind = "amount", Value = 100m, ValidFrom = "2026-10-01" })).StatusCode);
+        var third = await AddDiscount(c1, new { ProductId = p1, Kind = "percent", Value = 5m, ValidFrom = "2026-10-01", ValidTo = "2026-10-20" });
+        Assert.Equal(HttpStatusCode.Created, third.StatusCode);
+        var row = (await Prices(c1, "2026-10-06")).Single(p => p.Code == "PAR-500");
+        Assert.Equal(1444m, row.Price);   // 1800 -10 % = 1620, -100 = 1520, -5 % = 1444
+        Assert.Equal(new[] { "percent", "amount", "percent" }, row.Discounts.Select(d => d.Kind).ToArray());
+        Assert.Equal(9m, (await Prices(c1, "2026-10-06")).Single(p => p.Code == "ZZZ-10").Price);   // the amount belongs to PAR-500 only
+        Assert.Equal(1520m, (await PriceOf(c1, "2026-10-21")).Price);                                // the third discount has ended by then
+        Assert.Equal(1500m, (await PriceOf(c1, "2026-09-30")).Price);                                // before any discount
+
+        // Ending a discount; discounts of another customer are separate; a price never goes below 0
+        var discounts = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CustomerDiscountDto>>($"/customers/{c1}/discounts"))!;
+        Assert.Equal(3, discounts.Count);
+        Assert.Equal("PAR-500", discounts.First(d => d.Kind == "amount").ProductCode);
+        var tenPercent = discounts.Single(d => d.ProductId is null);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-10-31" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-11-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{Guid.NewGuid()}/end", new { ValidTo = "2026-11-30" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(1700m, (await PriceOf(c1, "2026-11-05")).Price);                                // only the 100 off is left
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c3, "2026-10-06"));
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c3, new { ProductId = p1, Kind = "amount", Value = 5000m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal((1500m, "base", 0m), await PriceOf(c3, "2026-10-06"));
+
+        // Bad discounts: an amount without a product, over 100 %, zero, unknown kind, more than three decimals, unknown customer or product
+        foreach (var bad in new object[]
+        {
+            new { Kind = "amount", Value = 5m }, new { Kind = "percent", Value = 100.5m }, new { Kind = "percent", Value = 0m }, new { Kind = "gift", Value = 5m },
+            new { Kind = "percent", Value = 1.2345m }, new { ProductId = p1, Kind = "percent", Value = 5m, ValidFrom = "2026-11-05", ValidTo = "2026-11-01" }, new { Value = 5m }
+        })
+            await AssertProblemAsync(await AddDiscount(c1, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddDiscount(Guid.NewGuid(), new { Kind = "percent", Value = 5m }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddDiscount(c1, new { ProductId = Guid.NewGuid(), Kind = "percent", Value = 5m }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // A rep sees prices and discounts of customers in their own region only, and changes nothing
+        As(repA);
+        Assert.Equal((1800m, "city", 1520m), await PriceOf(c1, "2026-10-21"));
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CustomerDiscountDto>>($"/customers/{c1}/discounts"))!.Count);
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c2}/prices"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c2}/discounts"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddDiscount(c1, new { Kind = "percent", Value = 50m }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = erbil, Price = 1m, ValidFrom = "2028-06-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-10-15" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-11-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c1}/prices"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'product.%' OR action LIKE 'city_price.%' OR action LIKE 'discount.%' GROUP BY action) a)", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.updated=1", reader.GetString(0));
+        }
+    }
+
+    [SkippableFact]
+    public async Task Orders_ServerPricesWarehouseChosenByVisitorScopeCancelAndRetry()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid erbilRegion = Guid.NewGuid(), baghdadRegion = Guid.NewGuid(), erbil = Guid.NewGuid(), n1 = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid();
+        Guid p1 = Guid.NewGuid(), p2 = Guid.NewGuid(), p3 = Guid.NewGuid(), p4 = Guid.NewGuid();
+        Guid visitA = Guid.NewGuid(), visitOther = Guid.NewGuid(), visitB = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1), (@rb, @t1), (@dr, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @dr, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil team region'), (@br, @t1, 'Baghdad team region');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES
+                    ('55555555-0000-0000-0000-0000000000a1', @t1, @er, 'Team A'), ('55555555-0000-0000-0000-0000000000a2', @t1, @br, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1'),
+                    (@t1, @rb, '55555555-0000-0000-0000-0000000000a2');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES (@erbil, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @erbil, 'neighbourhood', 'N1');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, place_id, approval_status) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @er, @n1, 'approved'),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @br, NULL, 'approved'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Customer 3', @er, @n1, 'pending');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price, status) VALUES
+                    (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1500, 'active'), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 2000, 'active'),
+                    (@p3, @t1, 'P3', 'Product 3', 'box', 'USD', 10, 'active'), (@p4, @t1, 'P4', 'Product 4', 'box', 'IQD', 500, 'inactive');
+                INSERT INTO city_prices (tenant_id, product_id, city_id, price, valid_from) VALUES (@t1, @p1, @erbil, 1800, '2026-10-01');
+                INSERT INTO customer_discounts (tenant_id, customer_id, kind, value, valid_from) VALUES (@t1, @c1, 'percent', 10, '2026-10-01');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (@va, @t1, @ra, @c1, 'InVisit', '2026-10-05', now()), (@vo, @t1, @ra, @c3, 'InVisit', '2026-10-05', now()),
+                    (@vb, @t1, @rb, @c2, 'InVisit', '2026-10-05', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("rb", repB), ("dr", driver), ("er", erbilRegion), ("br", baghdadRegion),
+                ("erbil", erbil), ("n1", n1), ("c1", c1), ("c2", c2), ("c3", c3), ("p1", p1), ("p2", p2), ("p3", p3), ("p4", p4), ("va", visitA), ("vo", visitOther), ("vb", visitB) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Place(object body) => client.PostAsJsonAsync("/orders", body);
+        object Body(Guid customer, Guid warehouse, Guid? clientRef = null, Guid? visit = null, params (Guid Product, decimal Quantity)[] lines) => new
+        {
+            CustomerId = customer, WarehouseId = warehouse, VisitId = visit, ClientRef = clientRef ?? Guid.NewGuid(), Note = " leave at the door ",
+            Items = lines.Select(l => new { ProductId = l.Product, l.Quantity }).ToArray()
+        };
+        async Task<LifeDrop.Application.Orders.CreatedOrderDto> PlaceOk(object body, HttpStatusCode status = HttpStatusCode.Created)
+        {
+            var response = await Place(body);
+            Assert.Equal(status, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!;
+        }
+        async Task<List<LifeDrop.Application.Orders.OrderDto>> Orders(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.OrderDto>>("/orders" + query))!;
+
+        // Warehouses: only the sales manager maintains them; everybody who orders can list the active ones
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync("/warehouses"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(repA);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/warehouses", new { Code = "W1", Name = "Main" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        async Task<Guid> AddWarehouse(string code, string name)
+        {
+            var response = await client.PostAsJsonAsync("/warehouses", new { Code = code, Name = name });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        }
+        var w1 = await AddWarehouse("W1", "Erbil warehouse");
+        var w2 = await AddWarehouse("W2", "Old warehouse");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/warehouses", new { Code = "W1", Name = "Again" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/warehouses", new { Code = "W3", Name = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/warehouses/{w2}", new { Code = "ignored", Name = "Old warehouse", Status = "inactive" })).StatusCode);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/warehouses/{Guid.NewGuid()}", new { Name = "x" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(2, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses?includeInactive=true"))!.Count);
+        As(repA);
+        Assert.Equal(new[] { "W1" }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses?includeInactive=true"))!.Select(w => w.Code).ToArray());
+
+        // "Order placed" is a result of the report only when the visit has a real order
+        Task<HttpResponseMessage> Report(Guid visit) => client.PutAsJsonAsync($"/visits/{visit}/report", new { Outcome = "order_placed", Note = "Ordered three boxes" });
+        await AssertProblemAsync(await Report(visitA), HttpStatusCode.Conflict, "ORDER_REQUIRED");
+
+        // A rep places an order for a visit: the server prices every line (city price 1800 for P1 then 10 % off; P2 general 2000 then 10 % off)
+        var clientRef = Guid.NewGuid();
+        var created = await PlaceOk(Body(c1, w1, clientRef, visitA, (p1, 3m), (p2, 2m)));
+        Assert.Equal(("O-000001", "IQD", 8460m, false), (created.Number, created.Currency, created.Total, created.Replayed));
+        Assert.Equal(HttpStatusCode.NoContent, (await Report(visitA)).StatusCode);
+        var order = (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{created.Id}"))!;
+        Assert.Equal(("placed", "Erbil warehouse", visitA, "leave at the door"), (order.Status, order.WarehouseName, order.VisitId, order.Note));
+        Assert.Equal(new[] { (1, "P1", 3m, 1800m, 1620m, 4860m), (2, "P2", 2m, 2000m, 1800m, 3600m) },
+            order.Items.Select(i => (i.LineNo, i.ProductCode, i.Quantity, i.ListPrice, i.UnitPrice, i.LineTotal)).ToArray());
+        Assert.Equal("percent", order.Items[0].Discounts.Single().Kind);
+
+        // A retry of the same send gives the same order (200); the same reference from another person is refused
+        var again = await PlaceOk(Body(c1, w1, clientRef, visitA, (p1, 3m), (p2, 2m)), HttpStatusCode.OK);
+        Assert.Equal((created.Id, true), (again.Id, again.Replayed));
+        As(supervisor);
+        await AssertProblemAsync(await Place(Body(c1, w1, clientRef, null, (p1, 1m))), HttpStatusCode.Conflict, "CONFLICT");   // another person with the same reference
+        As(repA);
+        Assert.Single(await Orders());
+
+        // The order keeps the price it was made with when the catalogue changes later
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p2}", new { Name = "Product 2", Unit = "box", Currency = "IQD", BasePrice = 9999m })).StatusCode);
+        As(repA);
+        Assert.Equal(1800m, (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{created.Id}"))!.Items[1].UnitPrice);
+
+        // The phone's own client (what the app really sends and reads) against this API: prices, warehouses, an order, and a retry of it
+        var phone = new LifeDrop.Mobile.Visits.OrdersApiClient(factory.CreateClient(), new StaticMobileSession(
+            GenerateToken(t1, repA, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!)));
+        var (priceResult, priced) = await phone.GetPricesAsync(c1, new DateOnly(2026, 10, 6));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Success, priceResult);
+        Assert.Equal((1800m, 1620m), (priced.Single(p => p.Code == "P1").ListPrice, priced.Single(p => p.Code == "P1").Price));
+        var (warehouseResult, phoneWarehouses) = await phone.GetWarehousesAsync();
+        Assert.Equal(("W1", LifeDrop.Mobile.Visits.VisitActionResult.Success), (phoneWarehouses.Single().Code, warehouseResult));
+        var phoneRef = Guid.NewGuid();
+        var lines = new[] { new LifeDrop.Mobile.Visits.OrderLineInput(priced.Single(p => p.Code == "P1").ProductId, 2m) };
+        var (placeResult, phoneOrder) = await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, phoneRef, null, lines);
+        Assert.Equal((LifeDrop.Mobile.Visits.VisitActionResult.Success, "O-000002", 3240m, false), (placeResult, phoneOrder!.Number, phoneOrder.Total, phoneOrder.Replayed));
+        var (_, replay) = await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, phoneRef, null, lines);
+        Assert.Equal((phoneOrder.Id, true), (replay!.Id, replay.Replayed));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.CurrencyMismatch, (await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, Guid.NewGuid(), null,
+            new[] { lines[0], new LifeDrop.Mobile.Visits.OrderLineInput(p3, 1m) })).Result);
+
+        // Bad orders: no lines, the same product twice, bad quantities, two currencies, inactive or unknown product, bad warehouse, bad visit
+        var bad = new[]
+        {
+            Body(c1, w1), Body(c1, w1, null, null, (p1, 1m), (p1, 2m)), Body(c1, w1, null, null, (p1, 0m)), Body(c1, w1, null, null, (p1, -1m)),
+            Body(c1, w1, null, null, (p1, 1.2345m)), Body(c1, w1, null, null, (p1, 100001m)), Body(c1, w1, null, null, (p4, 1m)), Body(c1, w1, null, null, (Guid.NewGuid(), 1m)),
+            Body(c1, w2, null, null, (p1, 1m)),   // an inactive warehouse
+            (object)new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.Empty, Items = new[] { new { ProductId = p1, Quantity = 1m } } },
+            (object)new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Note = new string('x', 501), Items = new[] { new { ProductId = p1, Quantity = 1m } } }
+        };
+        foreach (var body in bad) await AssertProblemAsync(await Place(body), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Place(Body(c1, w1, null, null, (p1, 1m), (p3, 1m))), HttpStatusCode.BadRequest, "CURRENCY_MISMATCH");
+        await AssertProblemAsync(await Place(Body(c1, Guid.NewGuid(), null, null, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Place(Body(Guid.NewGuid(), w1, null, null, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Place(Body(c2, w1, null, null, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");                 // another region
+        await AssertProblemAsync(await Place(Body(c3, w1, null, null, (p1, 1m))), HttpStatusCode.Conflict, "CUSTOMER_NOT_APPROVED");
+        await AssertProblemAsync(await Place(Body(c1, w1, null, visitOther, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");           // a visit of another customer
+        await AssertProblemAsync(await Place(Body(c1, w1, null, Guid.NewGuid(), (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(finance);
+        await AssertProblemAsync(await Place(Body(c1, w1, null, null, (p1, 1m))), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(driver);
+        await AssertProblemAsync(await Place(Body(c1, w1, null, null, (p1, 1m))), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.GetAsync("/orders"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        // The visit of rep B is not usable by rep A
+        As(repB);
+        await AssertProblemAsync(await Place(Body(c2, w1, null, visitA, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal("O-000003", (await PlaceOk(Body(c2, w1, null, visitB, (p3, 5m)))).Number);   // a Baghdad order in USD: general price, no discount
+
+        // Reading: a rep sees the orders of their own region and their own; the other region does not; finance and managers read
+        Assert.Empty((await Orders()).Where(o => o.CustomerId == c1));
+        await AssertProblemAsync(await client.GetAsync($"/orders/{created.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(supervisor);
+        Assert.Equal(new[] { phoneOrder.Id, created.Id }, (await Orders()).Select(o => o.Id).ToArray());
+        As(finance);
+        Assert.Equal(3, (await Orders()).Count);
+        Assert.Equal(new[] { "O-000003", "O-000002", "O-000001" }, (await Orders()).Select(o => o.Number).ToArray());   // newest first
+        Assert.Equal(new[] { "O-000002", "O-000001" }, (await Orders($"?customerId={c1}")).Select(o => o.Number).ToArray());
+        var firstPage = await Orders("?limit=2");
+        var next = await Orders($"?limit=2&before={Uri.EscapeDataString(firstPage[1].CreatedAt.ToString("O"))}&beforeId={firstPage[1].Id}");
+        Assert.Equal(new[] { "O-000003", "O-000002", "O-000001" }, firstPage.Concat(next).Select(o => o.Number).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/orders?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/orders?status=sent"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Cancelling: the creator while it is placed, managers in their area; others cannot
+        As(supervisor);
+        var supervisorsOrder = await PlaceOk(Body(c1, w1, null, null, (p2, 1m)));
+        As(repA);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/orders/{supervisorsOrder.Id}/cancel", new { Reason = "no" }), HttpStatusCode.Forbidden, "FORBIDDEN");   // sees it, did not place it
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/orders/{created.Id}/cancel", new { Reason = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        As(repB);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/orders/{created.Id}/cancel", new { Reason = "no" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(repA);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/orders/{created.Id}/cancel", new { Reason = "Customer changed his mind" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/orders/{created.Id}/cancel", new { Reason = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        var cancelled = (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{created.Id}"))!;
+        Assert.Equal(("cancelled", "Customer changed his mind"), (cancelled.Status, cancelled.CancelReason));
+        As(supervisor);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/orders/{supervisorsOrder.Id}/cancel", new { Reason = "Wrong customer" })).StatusCode);
+        As(finance);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/orders/{created.Id}/cancel", new { Reason = "x" }), HttpStatusCode.Forbidden, "FORBIDDEN" /* finance reads but has no orders.cancel and did not place it */);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'order.%' OR action LIKE 'warehouse.%' GROUP BY action) a),
+                       (SELECT last_number FROM order_counters WHERE tenant_id = @t)", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal("order.cancelled=2,order.created=4,warehouse.created=2,warehouse.updated=1", reader.GetString(0));
+            Assert.Equal(4L, reader.GetInt64(1));   // retries and refused orders did not use a number
+        }
+    }
+
+    [SkippableFact]
+    public async Task WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), worker1 = Guid.NewGuid(), worker2 = Guid.NewGuid(), driver = Guid.NewGuid(), rep = Guid.NewGuid(), stranger = Guid.NewGuid();
+        Guid w1 = Guid.NewGuid(), w2 = Guid.NewGuid(), c1 = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@w1u, @t1), (@w2u, @t1), (@dr, @t1), (@rep, @t1), (@st, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @w1u, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @w2u, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @dr, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @st, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w1, @t1, 'W1', 'Erbil warehouse'), (@w2, @t1, 'W2', 'Basra warehouse');
+                INSERT INTO customers (id, tenant_id, type, code, name) VALUES (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES
+                    (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 2000);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("w1u", worker1), ("w2u", worker2), ("dr", driver), ("rep", rep), ("st", stranger), ("w1", w1), ("w2", w2), ("c1", c1), ("p1", p1), ("p2", p2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<LifeDrop.Application.Orders.CreatedOrderDto> PlaceOrder(Guid warehouse)
+        {
+            var response = await client.PostAsJsonAsync("/orders", new { CustomerId = c1, WarehouseId = warehouse, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = p1, Quantity = 10m }, new { ProductId = p2, Quantity = 4m } } });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!;
+        }
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        async Task<List<LifeDrop.Application.Orders.OrderDto>> Queue(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.OrderDto>>("/warehouse/orders" + query))!;
+        async Task<LifeDrop.Application.Orders.OrderDto> Detail(Guid id) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/warehouse/orders/{id}"))!;
+
+        As(manager);
+        var order1 = await PlaceOrder(w1);   // for the Erbil warehouse
+        var order2 = await PlaceOrder(w2);   // for the Basra warehouse
+
+        // Nobody works anywhere yet; only the sales manager decides who works where, and only a warehouse worker can be put to work
+        As(worker1);
+        Assert.Empty(await Queue());
+        await AssertProblemAsync(await client.GetAsync($"/warehouse/orders/{order1.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/start"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/warehouses/{w1}/staff", new { UserId = worker1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync("/warehouse/orders"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.GetAsync("/warehouse/drivers"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/start"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouses/{w1}/staff", new { UserId = worker1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouses/{w1}/staff", new { UserId = worker1 })).StatusCode);   // again: nothing changes
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouses/{w2}/staff", new { UserId = worker2 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouses/{w2}/staff", new { UserId = stranger })).StatusCode);
+        await AssertProblemAsync(await Post($"/warehouses/{w1}/staff", new { UserId = rep }), HttpStatusCode.BadRequest, "INVALID_DATA");   // a rep is no warehouse worker
+        await AssertProblemAsync(await Post($"/warehouses/{w1}/staff", new { UserId = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/warehouses/{Guid.NewGuid()}/staff", new { UserId = worker1 }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/warehouses/{w1}/staff", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(2, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.StaffMemberDto>>($"/warehouses/{w2}/staff"))!.Count);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/warehouses/{w2}/staff/{stranger}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/warehouses/{w2}/staff/{stranger}")).StatusCode);
+
+        // A worker sees only the orders of their own warehouse
+        As(worker1);
+        Assert.Equal(new[] { order1.Id }, (await Queue()).Select(o => o.Id).ToArray());
+        await AssertProblemAsync(await client.GetAsync($"/warehouse/orders/{order2.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order2.Id}/start"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(worker2);
+        Assert.Equal(new[] { order2.Id }, (await Queue()).Select(o => o.Id).ToArray());
+        As(stranger);
+        Assert.Empty(await Queue());   // removed from the warehouse
+        As(worker1);
+
+        // The steps come in order
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/ready", new { Lines = new[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 4m } } }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/handover", new { DriverId = driver }), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{order1.Id}/start")).StatusCode);
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/start"), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal("preparing", (await Detail(order1.Id)).Status);
+
+        // Reporting what was prepared: every line once, never more than ordered, less needs a reason
+        foreach (var bad in new object[]
+        {
+            new { Lines = new[] { new { LineNo = 1, Quantity = 10m } } },                                                       // line 2 missing
+            new { Lines = new[] { new { LineNo = 1, Quantity = 11m }, new { LineNo = 2, Quantity = 4m } } },                    // more than ordered
+            new { Lines = new[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 3m } } },                    // less, no reason
+            new { Lines = new[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 3, Quantity = 4m } } },                    // no such line
+            new { Lines = new[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 1, Quantity = 10m } } },                   // twice
+            new { Lines = new[] { new { LineNo = 1, Quantity = -1m }, new { LineNo = 2, Quantity = 4m } } },
+            new { Lines = Array.Empty<object>() }
+        })
+            await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/ready", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal("preparing", (await Detail(order1.Id)).Status);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{order1.Id}/ready", new { Lines = new object[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 3m, Reason = " only 3 in stock " } } })).StatusCode);
+
+        var ready = await Detail(order1.Id);
+        Assert.Equal("ready", ready.Status);
+        Assert.Equal(new decimal?[] { 10m, 3m }, ready.Items.Select(i => i.PreparedQuantity).ToArray());
+        Assert.Equal(new string?[] { null, "only 3 in stock" }, ready.Items.Select(i => i.ShortageReason).ToArray());
+        Assert.Equal(18000m, ready.Total);   // the total of the order is not changed by a shortage
+        Assert.Equal(new[] { "placed", "preparing", "ready" }, ready.History!.Select(h => h.Status).ToArray());
+
+        // Hand over: only to a driver, only when ready
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/handover", new { DriverId = rep }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/handover", new { DriverId = Guid.NewGuid() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order1.Id}/handover", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(new[] { driver }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.DriverDto>>("/warehouse/drivers"))!.Select(d => d.Id).ToArray());
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{order1.Id}/handover", new { DriverId = driver })).StatusCode);
+        var handed = await Detail(order1.Id);
+        Assert.Equal(("handed_over", driver), (handed.Status, handed.DriverId));
+        Assert.Equal(new[] { "placed", "preparing", "ready", "handed_over" }, handed.History!.Select(h => h.Status).ToArray());
+        Assert.Empty(await Queue());                                                                        // no longer open work
+        Assert.Single(await Queue("?status=handed_over"));
+        await AssertProblemAsync(await client.GetAsync("/warehouse/orders?status=sent"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // The people who sell see the new steps; the creator can no longer cancel; a manager cannot cancel after the hand-over
+        As(manager);
+        var seen = (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{order1.Id}"))!;
+        Assert.Equal(("handed_over", 3m), (seen.Status, seen.Items[1].PreparedQuantity!.Value));
+        await AssertProblemAsync(await Post($"/orders/{order1.Id}/cancel", new { Reason = "too late" }), HttpStatusCode.Conflict, "CONFLICT");
+        // A third order: the manager can cancel it while it is being prepared, and the warehouse can do nothing with it afterwards
+        var order3 = await PlaceOrder(w1);
+        As(worker1);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{order3.Id}/start")).StatusCode);
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/orders/{order3.Id}/cancel", new { Reason = "Customer left" })).StatusCode);
+        As(worker1);
+        await AssertProblemAsync(await Post($"/warehouse/orders/{order3.Id}/ready", new { Lines = new[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 4m } } }), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal("cancelled", (await Detail(order3.Id)).Status);
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'order.%' OR action LIKE 'warehouse.staff%' GROUP BY action) a)", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
+        }
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

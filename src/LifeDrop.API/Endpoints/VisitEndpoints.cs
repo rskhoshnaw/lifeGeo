@@ -234,6 +234,7 @@ public static class VisitEndpoints
         ManageVisitResult.InvalidState => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidState),
         ManageVisitResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         ManageVisitResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ConcurrencyConflict),
+        ManageVisitResult.OrderRequired => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.OrderRequired),
         _ => Results.Forbid()
     };
 

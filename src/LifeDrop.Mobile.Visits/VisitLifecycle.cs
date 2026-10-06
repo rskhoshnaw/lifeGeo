@@ -26,7 +26,7 @@ public interface ILocationSource
 public sealed class VisitLifecycle
 {
     public static readonly IReadOnlyList<string> Outcomes =
-        ["products_presented", "order_intent", "follow_up_needed", "no_interest", "other"];
+        ["products_presented", "order_intent", "order_placed", "follow_up_needed", "no_interest", "other"];
     public const int MinNoteLength = 3;
     public const int MaxNoteLength = 2000;
 
@@ -339,6 +339,9 @@ public sealed class VisitLifecycle
         VisitActionResult.DeviceRequired => "app.result.DeviceRequired",
         VisitActionResult.CustomerLocationMissing => "app.result.CustomerLocationMissing",
         VisitActionResult.ReportRequired => "app.result.ReportRequired",
+        VisitActionResult.OrderRequired => "app.result.OrderRequired",
+        VisitActionResult.CurrencyMismatch => "app.result.CurrencyMismatch",
+        VisitActionResult.CustomerNotApproved => "app.result.CustomerNotApproved",
         VisitActionResult.InvalidData => "app.result.InvalidData",
         VisitActionResult.OutsideGeofence => "app.result.OutsideGeofence",
         VisitActionResult.GpsLowAccuracy => "app.result.GpsLowAccuracy",

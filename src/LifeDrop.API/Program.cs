@@ -71,6 +71,10 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Regions.RegionTeamService>();
         builder.Services.AddScoped<LifeDrop.Application.Places.IPlaceStore, LifeDrop.Infrastructure.Places.PostgresPlaceStore>();
         builder.Services.AddScoped<LifeDrop.Application.Places.PlaceService>();
+        builder.Services.AddScoped<LifeDrop.Application.Catalog.IProductStore, LifeDrop.Infrastructure.Catalog.PostgresProductStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Catalog.CatalogService>();
+        builder.Services.AddScoped<LifeDrop.Application.Orders.IOrderStore, LifeDrop.Infrastructure.Orders.PostgresOrderStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Orders.OrderService>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
@@ -618,6 +622,8 @@ public partial class Program
 
         LifeDrop.API.Endpoints.RegionTeamEndpoints.MapRegionTeamEndpoints(app);
         LifeDrop.API.Endpoints.PlaceEndpoints.MapPlaceEndpoints(app);
+        LifeDrop.API.Endpoints.CatalogEndpoints.MapCatalogEndpoints(app);
+        LifeDrop.API.Endpoints.OrderEndpoints.MapOrderEndpoints(app);
         LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
