@@ -405,6 +405,59 @@ export interface Alert {
 }
 // Security alerts about behaviour: handling them needs the result of the review (step 2.10).
 export const reviewedAlertKinds = ['gps_mocked', 'impossible_speed', 'clock_tamper', 'outside_area', 'poor_accuracy', 'device_mismatch']
+// Route history of one user on one day (step 2.11, decision D6): points in time order, stops (5 minutes within 50 m), check-ins/outs and shifts.
+export interface RoutePoint {
+  latitude: number
+  longitude: number
+  accuracyMeters: number
+  capturedAt: string
+  isMocked: boolean
+}
+export interface RouteStop {
+  from: string
+  to: string
+  seconds: number
+  latitude: number
+  longitude: number
+  customerName: string | null
+  customerDistanceMeters: number | null
+}
+export interface RouteVisitEvent {
+  kind: 'check_in' | 'check_out'
+  accepted: boolean
+  rejectionReason: string | null
+  capturedAt: string
+  latitude: number
+  longitude: number
+  customerName: string | null
+  radiusMeters: number | null
+  isMocked: boolean
+}
+export interface RouteHistory {
+  userId: string
+  email: string | null
+  date: string
+  shifts: { shiftId: string; startedAt: string; endedAt: string | null; pointCount: number; pointsPurged: boolean }[]
+  points: RoutePoint[]
+  stops: RouteStop[]
+  events: RouteVisitEvent[]
+  truncated: boolean
+}
+export interface TrackableUser {
+  id: string
+  email: string | null
+  teamName: string | null
+}
+// A located customer of the reader's area for the map: clustered, with the check-in circle (radius in metres).
+export interface MapCustomer {
+  id: string
+  code: string
+  name: string
+  type: string
+  latitude: number
+  longitude: number
+  geofenceRadiusMeters: number
+}
 export interface Sample {
   id: string
   number: string
@@ -573,6 +626,7 @@ export const Permissions = {
   readTeams: ['teams.read'],
   manageTeams: ['teams.manage'],
   liveMap: ['tracking.read', 'tracking.summary'],
+  routeHistory: ['tracking.read'],
   audit: ['audit.read'],
 } as const
 
@@ -734,6 +788,10 @@ export class AdminApi {
   markRead = (id: string) => this.post(`/notifications/${id}/read`)
   markAllRead = () => this.post('/notifications/read-all')
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
+  // Route history (step 2.11): needs tracking.read; every read is audited by the server.
+  trackingUsers = () => this.get<TrackableUser[]>('/tracking/users')
+  routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)
+  mapCustomers = () => this.get<MapCustomer[]>('/customers/map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
   regions = () => this.get<Region[]>('/regions')
   teams = () => this.get<Team[]>('/teams')

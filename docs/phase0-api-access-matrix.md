@@ -484,3 +484,13 @@ No new route or permission: the new signals are alert kinds made by the alert sc
 |---|---|
 | `GET /alerts`, `GET /alerts/{id}` | The alert also carries `evidence` (JSON text kept by the scan) and `handledOutcome` |
 | `POST /alerts/{id}/handle` | Body `{note, outcome?}`. `outcome` (`valid`, `suspicious`, `fraud`) is **required** for `gps_mocked`, `impossible_speed`, `clock_tamper`, `outside_area`, `poor_accuracy`, `device_mismatch` and refused (400) for other kinds; an unknown value is 400 |
+
+### Route history, playback and the customer map (plan step 2.11, decision D6)
+
+Retention: exact tracking points are kept 90 days. The background job (same loop as the alert scan) deletes the points of shifts that ended more than 90 days ago after writing `shift_summaries`. Stops are computed when a route is read: at least 5 minutes within 50 m of the first point of the stop; the nearest customer within 150 m is named.
+
+| Route | Who | Rules | Audit |
+|---|---|---|---|
+| `GET /tracking/users` | `tracking.read` | Active users inside the caller's area that have had a shift | — |
+| `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) |
+| `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — |

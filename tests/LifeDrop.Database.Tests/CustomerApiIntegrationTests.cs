@@ -130,7 +130,8 @@ public class CustomerApiIntegrationTests
                 var m32 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0032_follow_ups.sql"));
                 var m33 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0033_alerts.sql"));
                 var m34 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0034_antifraud.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34;
+                var m35 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0035_route_history.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5218,6 +5219,160 @@ public class CustomerApiIntegrationTests
             await reader.NextResultAsync();
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
+        }
+    }
+
+    [SkippableFact]
+    public async Task RouteHistory_ReadWithinTheAreaAuditedWithStopsEventsCustomerMapAndNinetyDayRetention()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), finance = Guid.NewGuid();
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), v1 = Guid.NewGuid(), d1 = Guid.NewGuid(), d2 = Guid.NewGuid(), s1 = Guid.NewGuid(), s2 = Guid.NewGuid(), sOld = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sup, @t1), (@m, @t1), (@f, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil'), (@r2, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A'), (@tb, @t1, @r2, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @ta), (@t1, @sup, @ta), (@t1, @rep2, @tb);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id, region_id, geofence_radius_m) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep, @r1, 50),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', ST_SetSRID(ST_MakePoint(44.4000, 33.3000), 4326)::geography, 'located', @rep2, @r2, NULL),
+                    (gen_random_uuid(), @t1, 'Pharmacy', 'C3', 'No location', NULL, 'no_location', @rep, @r1, NULL);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@d1, @t1, @rep, 'Rep phone', 'android', 'i1', '1.0', '\x00', 'approved'), (@d2, @t1, @rep2, 'Rep2 phone', 'android', 'i2', '1.0', '\x00', 'approved');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES (@v1, @t1, @rep, @c1, 'Completed', '2026-10-05', now());
+                INSERT INTO visit_location_events (id, tenant_id, visit_id, user_id, device_id, kind, accepted, geom, accuracy_m, radius_m, captured_at)
+                VALUES (gen_random_uuid(), @t1, @v1, @rep, @d1, 'check_in', true, ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 5, 50, '2026-10-05 04:10:00+00');
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at, ended_at) VALUES
+                    (@s1, @t1, @rep, @d1, '2026-10-05 04:00:00+00', '2026-10-05 05:30:00+00'),
+                    (@s2, @t1, @rep2, @d2, '2026-10-05 04:00:00+00', '2026-10-05 05:30:00+00'),
+                    (@so, @t1, @rep, @d1, '2026-06-01 04:00:00+00', '2026-06-01 06:00:00+00');
+                -- the day of the route: a stop of 5.5 minutes at the customer, then three points while driving, one point the phone says is fake
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at)
+                SELECT @t1, @s1, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 8, '2026-10-05 04:10:00+00'::timestamptz + n * interval '30 seconds'
+                FROM generate_series(0, 11) n;
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at, is_mocked)
+                SELECT @t1, @s1, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0092 + n * 0.01, 36.1911), 4326)::geography, 8, '2026-10-05 04:17:00+00'::timestamptz + n * interval '30 seconds', n = 3
+                FROM generate_series(1, 3) n;
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at) VALUES
+                    (@t1, @s2, @rep2, @d2, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.4, 33.3), 4326)::geography, 8, '2026-10-05 04:10:00+00'),
+                    (@t1, @so, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0, 36.0), 4326)::geography, 8, '2026-06-01 04:10:00+00'),
+                    (@t1, @so, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0, 36.001), 4326)::geography, 8, '2026-06-01 04:20:00+00'),
+                    (@t1, @so, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0, 36.002), 4326)::geography, 8, '2026-06-01 05:20:00+00');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sup", sup), ("m", manager), ("f", finance), ("r1", r1), ("r2", r2), ("ta", teamA), ("tb", teamB), ("c1", c1), ("c2", c2),
+                ("v1", v1), ("d1", d1), ("d2", d2), ("s1", s1), ("s2", s2), ("so", sOld) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<LifeDrop.Application.Tracking.RouteHistoryDto> Route(Guid user, string date)
+        {
+            var response = await client.GetAsync($"/tracking/history?userId={user}&date={date}");
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Tracking.RouteHistoryDto>())!;
+        }
+
+        // Without tracking.read nothing is shown (the finance manager has only tracking.summary)
+        As(finance);
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={rep}&date=2026-10-05"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.GetAsync("/tracking/users"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // The manager reads the whole route of one day: points in order, the stop with its customer, the check-in with the customer's radius
+        As(manager);
+        Assert.Equal(new[] { rep, rep2 }.OrderBy(i => i).ToArray(), (await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.TrackableUserDto>>("/tracking/users"))!.Select(u => u.Id).OrderBy(i => i).ToArray());
+        var route = await Route(rep, "2026-10-05");
+        Assert.Equal(15, route.Points.Count);
+        Assert.Equal(route.Points.OrderBy(p => p.CapturedAt).Select(p => p.CapturedAt), route.Points.Select(p => p.CapturedAt));
+        Assert.Single(route.Points, p => p.IsMocked);
+        var stop = Assert.Single(route.Stops);
+        Assert.Equal(("Customer 1", 330), (stop.CustomerName, stop.Seconds));
+        Assert.InRange(stop.CustomerDistanceMeters!.Value, 0, 5);
+        var checkIn = Assert.Single(route.Events);
+        Assert.Equal(("check_in", true, "Customer 1", 50), (checkIn.Kind, checkIn.Accepted, checkIn.CustomerName, checkIn.RadiusMeters));
+        var shift = Assert.Single(route.Shifts);
+        Assert.Equal((s1, 15, false), (shift.ShiftId, shift.PointCount, shift.PointsPurged));
+        Assert.False(route.Truncated);
+        Assert.Empty((await Route(rep, "2026-10-04")).Points);   // another day: nothing
+
+        // A supervisor reads only their region; limits of the date and the user
+        As(sup);
+        Assert.Equal(new[] { rep }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.TrackableUserDto>>("/tracking/users"))!.Select(u => u.Id).ToArray());
+        Assert.Equal(15, (await Route(rep, "2026-10-05")).Points.Count);
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={rep2}&date=2026-10-05"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(manager);
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={rep}&date=2026-10-06"), HttpStatusCode.BadRequest, "INVALID_DATA");   // a day that has not come
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={rep}&date=2026-06-01"), HttpStatusCode.BadRequest, "INVALID_DATA");   // beyond 90 days
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={Guid.NewGuid()}&date=2026-10-05"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // The customer map: located customers of the area only, with the check-in radius (the default when the customer has none)
+        var map = (await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.MapCustomerDto>>("/customers/map"))!;
+        Assert.Equal(new[] { ("C1", 50), ("C2", 20) }, map.OrderBy(c => c.Code, StringComparer.Ordinal).Select(c => (c.Code, c.GeofenceRadiusMeters)).ToArray());
+        As(sup);
+        Assert.Equal(new[] { "C1" }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.MapCustomerDto>>("/customers/map"))!.Select(c => c.Code).ToArray());
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync($"/tracking/history?userId={rep}&date=2026-10-05"), HttpStatusCode.Forbidden, "FORBIDDEN");   // a visitor cannot read even their own route
+
+        // Every successful read is in the audit log
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using (var audit = new NpgsqlCommand("SELECT actor_id, entity_id FROM audit_logs WHERE action = 'tracking.history_viewed' ORDER BY entity_id, actor_id", verify))
+        {
+            var reads = new List<string>();
+            await using var reader = await audit.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) reads.Add($"{reader.GetGuid(0) == manager}:{reader.GetString(1)}");
+            Assert.Equal(new[] { true, true, false }.Length, reads.Count);   // manager twice (two days), supervisor once
+            Assert.Equal(2, reads.Count(r => r.StartsWith("True:")));
+        }
+
+        // Retention: the points of a shift that ended more than 90 days ago go, a summary stays; recent points are untouched
+        using (var scope = factory.Services.CreateScope())
+        {
+            var retention = scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Tracking.TrackingRetention>();
+            Assert.Equal(3, await retention.PurgeAsync(new LifeDrop.Domain.Common.TenantId(t1), CancellationToken.None));
+            Assert.Equal(0, await retention.PurgeAsync(new LifeDrop.Domain.Common.TenantId(t1), CancellationToken.None));
+        }
+        await using (var check = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); SELECT point_count, max_gap_seconds, distance_m, mocked_points FROM shift_summaries WHERE shift_id = @s", verify))
+        {
+            check.Parameters.AddWithValue("t", t1);
+            check.Parameters.AddWithValue("s", sOld);
+            await using var reader = await check.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal((3, 3600), (reader.GetInt32(0), reader.GetInt32(1)));
+            Assert.InRange(reader.GetDecimal(2), 200m, 300m);   // 0.002 degrees of latitude is about 222 m
+            Assert.Equal(0, reader.GetInt32(3));
+        }
+        await using (var left = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); SELECT count(*) FROM tracking_points WHERE shift_id = @s", verify))
+        {
+            left.Parameters.AddWithValue("t", t1);
+            left.Parameters.AddWithValue("s", s1);
+            await using var reader = await left.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal(15L, reader.GetInt64(0));
         }
     }
 

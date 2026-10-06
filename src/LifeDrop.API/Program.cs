@@ -110,6 +110,10 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Tracking.ShiftTracking>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.ILiveMapStore, LifeDrop.Infrastructure.Tracking.PostgresLiveMapStore>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.LiveMap>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.IRouteHistoryStore, LifeDrop.Infrastructure.Tracking.PostgresRouteHistoryStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.RouteHistory>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.TrackingRetention>();
+        builder.Services.AddScoped<LifeDrop.Application.Tracking.CustomerMap>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerLocationService>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.IAuditLogStore, LifeDrop.Infrastructure.Audit.PostgresAuditLogStore>();
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
@@ -639,6 +643,7 @@ public partial class Program
         LifeDrop.API.Endpoints.SampleEndpoints.MapSampleEndpoints(app);
         LifeDrop.API.Endpoints.FollowUpEndpoints.MapFollowUpEndpoints(app);
         LifeDrop.API.Endpoints.AlertEndpoints.MapAlertEndpoints(app);
+        LifeDrop.API.Endpoints.RouteHistoryEndpoints.MapRouteHistoryEndpoints(app);
         LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);

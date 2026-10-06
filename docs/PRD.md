@@ -173,7 +173,7 @@ Step-level breakdown: `docs/IMPLEMENTATION-PLAN.md`.
 | D3 | Finance Manager tracking detail | Decided 2026-10-04 | Summary only (`tracking.summary`: on shift, last update time, last customer; no coordinates). Exact positions need `tracking.read`, which a tenant can grant later without code changes |
 | D4 | Backup deletion by Sales Manager | Open | Optional explicit grant; which copies and what confirmation |
 | D5 | Offline check-in/check-out | Open | Temporary unconfirmed record; whether late acceptance is allowed and how it is validated against D2 |
-| D6 | GPS history retention | Open | Short-term playback plus long-term reports; earlier proposal 90 days, needs privacy decision and staff consent |
+| D6 | GPS history retention | **Decided 2026-10-07** | Exact tracking points are kept 90 days, then deleted; a per-shift summary stays. Reading a route needs tracking.read, only inside the reader's area, and is audited. (Staff consent text still to be confirmed for go-live.) |
 | D7 | Failed and Cancelled | **Decided** | From all four active states with a reason; Failed by assignee, Cancelled by manager; terminal |
 | D8 | iOS timing | Open | Android validates the MVP; iOS needs an Apple account and build environment |
 | D9 | Backup RPO/RTO | Open | Business-acceptable values before launch |
