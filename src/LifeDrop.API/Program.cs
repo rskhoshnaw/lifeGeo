@@ -1,3 +1,4 @@
+using LifeDrop.API.Observability;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -105,6 +106,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<LifeDrop.API.Observability.RequestMetrics>();
+        builder.Services.AddSingleton<LifeDrop.API.Observability.JobHealth>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.CreateUnplannedVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanVisits>();
@@ -252,6 +255,7 @@ public partial class Program
             return new SessionIdentity(new TenantId(tenantId), new UserId(userId),
                 familyId, device is null ? null : Guid.Parse(device));
         }
+        app.UseRequestObservability();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         if (app.Environment.IsDevelopment()) app.MapOpenApi();
@@ -260,6 +264,8 @@ public partial class Program
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapObservabilityEndpoints();
 
         app.MapGet("/", () => Results.Ok(new
         {

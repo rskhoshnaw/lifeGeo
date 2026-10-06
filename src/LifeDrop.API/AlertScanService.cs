@@ -1,10 +1,11 @@
+using LifeDrop.API.Observability;
 using LifeDrop.Application.Alerts;
 
 namespace LifeDrop.API;
 
 // Looks for new alerts and removes tracking points older than 90 days in every active company every few minutes (Alerts:ScanIntervalSeconds, default 300; 0 turns it off). The first scan comes one interval
 // after the start. One company failing never stops the others.
-public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<AlertScanService> logger) : BackgroundService
+public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<AlertScanService> logger, JobHealth jobs, TimeProvider clock) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -13,6 +14,7 @@ public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(seconds));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            var ok = true;
             try
             {
                 using var scope = scopes.CreateScope();
@@ -28,14 +30,17 @@ public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration
                     }
                     catch (Exception e) when (e is not OperationCanceledException)
                     {
+                        ok = false;
                         logger.LogWarning(e, "Alert scan failed for one company");
                     }
                 }
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
+                ok = false;
                 logger.LogWarning(e, "Alert scan failed");
             }
+            jobs.Report("alert_scan", ok, TimeSpan.FromSeconds(seconds), clock.GetUtcNow());
         }
     }
 }
