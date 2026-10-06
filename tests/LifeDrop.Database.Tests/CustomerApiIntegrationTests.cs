@@ -2016,7 +2016,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "97" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12)
+        Assert.Equal(new[] { "99" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -6807,6 +6807,8 @@ public class CustomerApiIntegrationTests
         void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
             GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
         Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        // Another company never gets the data: refused as not found or as forbidden, whichever the role's own permissions decide first.
+        static void Hidden(HttpResponseMessage response) => Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.Forbidden });
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         string Range() => $"/reports/kpis?from={today.AddDays(-1):yyyy-MM-dd}&to={today.AddDays(1):yyyy-MM-dd}";
 
@@ -6821,7 +6823,7 @@ public class CustomerApiIntegrationTests
         foreach (var other in new[] { manager2, finance2, worker2 })
         {
             As(t2, other);
-            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/orders/{orderId}")).StatusCode);
+            Hidden(await client.GetAsync($"/orders/{orderId}"));
         }
         As(t2, manager2);
         await AssertProblemAsync(await client.PostAsJsonAsync("/orders", new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = p1, Quantity = 1m } } }), HttpStatusCode.NotFound, "NOT_FOUND");   // not its customer, warehouse or product
@@ -6859,9 +6861,9 @@ public class CustomerApiIntegrationTests
         var paymentId = (await paid.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!.Id;
         await AssertProblemAsync(await Post($"/payments/{paymentId}/confirm"), HttpStatusCode.Forbidden, "FORBIDDEN");
         As(t2, finance2);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/payments/{paymentId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await Post($"/payments/{paymentId}/confirm")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/customers/{c1}/balance")).StatusCode);
+        Hidden(await client.GetAsync($"/payments/{paymentId}"));
+        Hidden(await Post($"/payments/{paymentId}/confirm"));
+        Hidden(await client.GetAsync($"/customers/{c1}/balance"));
         Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments"))!);
         As(t1, finance);
         Assert.Equal(HttpStatusCode.NoContent, (await Post($"/payments/{paymentId}/confirm")).StatusCode);
@@ -7128,7 +7130,7 @@ public class CustomerApiIntegrationTests
 
         // The schedule: nothing is due yet; when due, it runs once as a scheduled run and moves to the next Monday
         Assert.Equal(0, await Due(t1));
-        await Sql("UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("id", reportId));
+        await Sql("UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("id", reportId));
         Assert.Equal(1, await Due(t1));
         Assert.Equal(0, await Due(t1));
         var after = await Runs(reportId);
@@ -7141,7 +7143,7 @@ public class CustomerApiIntegrationTests
             Schedule = new { Frequency = "daily", Hour = 12, IsActive = false } })).StatusCode);
         var paused = (await Mine()).Single();
         Assert.Equal(("fixed", (DateOnly?)new DateOnly(2026, 10, 1), false, (DateTimeOffset?)null), (paused.Range, paused.From, paused.Schedule!.IsActive, paused.Schedule.NextRunAt));
-        await Sql("UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("id", reportId));
+        await Sql("UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("id", reportId));
         Assert.Equal(0, await Due(t1));   // paused: never due
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = "Weekly KPIs", Range = "yesterday" })).StatusCode);
         Assert.Null((await Mine()).Single().Schedule);
@@ -7150,7 +7152,7 @@ public class CustomerApiIntegrationTests
         // An owner who lost reports.read: the scheduled run is kept as failed and the schedule moves on
         As(t1, temp);
         var tempReport = (await (await client.PostAsJsonAsync("/saved-reports", new { Name = "Daily", Range = "yesterday", Schedule = new { Frequency = "daily", Hour = 7 } })).Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
-        await Sql("DELETE FROM user_roles WHERE user_id = @u; UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("u", temp), ("id", tempReport));
+        await Sql("DELETE FROM user_roles WHERE user_id = @u; UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("u", temp), ("id", tempReport));
         Assert.Equal(1, await Due(t1));
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
