@@ -11,17 +11,19 @@ public interface ISamplesApiClient
 {
     Task<(VisitActionResult Result, IReadOnlyList<SampleProduct> Products)> GetProductsAsync(CancellationToken cancellationToken = default);
     // The draft's ClientRef stays the same for every retry, so a lost answer never records two distributions.
-    Task<(VisitActionResult Result, RecordedSample? Sample)> RecordAsync(SampleDraft draft, PhoneLocation? location, CancellationToken cancellationToken = default);
+    // offline: kept on the phone without internet; the server records it even when its visit was cancelled meanwhile (without the visit), plan step 2.13.
+    Task<(VisitActionResult Result, RecordedSample? Sample)> RecordAsync(SampleDraft draft, PhoneLocation? location, CancellationToken cancellationToken = default, bool offline = false);
 }
 
 // The distribution a field user is typing. Only the product and the quantity are required.
-public sealed class SampleDraft(Guid customerId, Guid? visitId = null)
+public sealed class SampleDraft(Guid customerId, Guid? visitId = null, Guid? clientRef = null)
 {
     public const decimal MaxQuantity = 100_000m;
 
     public Guid CustomerId { get; } = customerId;
     public Guid? VisitId { get; } = visitId;
-    public Guid ClientRef { get; } = Guid.NewGuid();
+    public Guid ClientRef { get; } = clientRef ?? Guid.NewGuid();
+    public bool Queued { get; set; }
     public Guid? ProductId { get; set; }
     public string? QuantityText { get; set; }
     public string? Recipient { get; set; }
@@ -58,7 +60,7 @@ public sealed class SampleDraft(Guid customerId, Guid? visitId = null)
 
     public decimal? Quantity => ParseQuantity(QuantityText);
 
-    public bool CanSave(DateOnly today) => Recorded is null && ProductId is not null && Quantity is not null && TryParseExpiry(ExpiryText, today, out _) &&
+    public bool CanSave(DateOnly today) => Recorded is null && !Queued && ProductId is not null && Quantity is not null && TryParseExpiry(ExpiryText, today, out _) &&
         (Recipient?.Trim().Length ?? 0) <= 100 && (Batch?.Trim().Length ?? 0) <= 50 && (Note?.Trim().Length ?? 0) <= 500;
 }
 
@@ -77,7 +79,7 @@ public sealed class SamplesApiClient : ISamplesApiClient
         return (result, items.Select(p => new SampleProduct(p.Id, p.Code!, p.Name ?? "", p.Unit ?? "")).ToList());
     }
 
-    public async Task<(VisitActionResult Result, RecordedSample? Sample)> RecordAsync(SampleDraft draft, PhoneLocation? location, CancellationToken cancellationToken = default)
+    public async Task<(VisitActionResult Result, RecordedSample? Sample)> RecordAsync(SampleDraft draft, PhoneLocation? location, CancellationToken cancellationToken = default, bool offline = false)
     {
         if (!draft.CanSave(DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3)))) return (VisitActionResult.InvalidData, null);
         string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
@@ -93,6 +95,7 @@ public sealed class SamplesApiClient : ISamplesApiClient
             expiryDate = expiry?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             note = Clean(draft.Note),
             clientRef = draft.ClientRef,
+            detachVisitIfInvalid = offline ? true : (bool?)null,
             location = location is null ? null : new { latitude = location.Latitude, longitude = location.Longitude, accuracyMeters = location.AccuracyMeters, isMocked = location.IsMocked }
         }, cancellationToken);
         if (result != VisitActionResult.Success) return (result, null);

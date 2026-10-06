@@ -82,6 +82,9 @@ public class CustomerApiIntegrationTests
             await create.ExecuteNonQueryAsync();
 
         builder.SearchPath = $"{schema},public"; // PostGIS types and functions live in public
+        // Every test has its own pools; idle connections close after a few seconds, so the whole run stays under PostgreSQL's limit of 100 connections (also in CI).
+        builder.ConnectionIdleLifetime = 3;
+        builder.ConnectionPruningInterval = 1;
         var connectionString = builder.ConnectionString;
 
         try
@@ -5224,6 +5227,112 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task OfflineRules_SavedWorkIsKeptWithoutItsCancelledOrderOrVisitAndStepsSentAgainAreNotConflicts()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), w1 = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), p1 = Guid.NewGuid(), vOpen = Guid.NewGuid(), vCancelled = Guid.NewGuid(), oCancelled = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@m, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w1, @t1, 'W1', 'Warehouse');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price, status) VALUES (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000, 'active');
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', 'no_location', @rep), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', 'no_location', @rep2);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (@vo, @t1, @rep, @c1, 'Planned', '2026-10-05', now()), (@vc, @t1, @rep, @c1, 'Cancelled', '2026-10-05', now());
+                INSERT INTO orders (id, tenant_id, number, customer_id, warehouse_id, created_by, status, currency, total, client_ref, cancelled_at, cancel_reason)
+                VALUES (@oc, @t1, 900, @c1, @w1, @rep, 'cancelled', 'IQD', 1000, gen_random_uuid(), now(), 'mistake');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("m", manager), ("w1", w1), ("c1", c1), ("c2", c2), ("p1", p1), ("vo", vOpen), ("vc", vCancelled), ("oc", oCancelled) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+
+        // Payment: with the order cancelled, a normal request is refused; the one the phone kept offline is recorded without the order and says so
+        As(rep);
+        object Pay(Guid cr, decimal amount = 5000m, Guid? customer = null, bool? detach = true) =>
+            new { CustomerId = customer ?? c1, OrderId = oCancelled, Method = "cash", Currency = "IQD", Amount = amount, ClientRef = cr, DetachOrderIfInvalid = detach };
+        await AssertProblemAsync(await Post("/payments", Pay(Guid.NewGuid(), detach: null)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var ref1 = Guid.NewGuid();
+        var paid = await Post("/payments", Pay(ref1));
+        Assert.Equal(HttpStatusCode.Created, paid.StatusCode);
+        var paymentDto = (await paid.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal(("collected", true), (paymentDto.Status, paymentDto.Detached));
+        var mine = (await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments/mine"))!;
+        Assert.Null(Assert.Single(mine).OrderId);                                       // recorded on the customer, not on the cancelled order
+        var again = await Post("/payments", Pay(ref1));                                 // sent again after a lost answer: the same payment
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(paymentDto.Id, (await again.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!.Id);
+        await AssertProblemAsync(await Post("/payments", Pay(Guid.NewGuid(), amount: 0m)), HttpStatusCode.BadRequest, "INVALID_DATA");   // a wrong amount is still refused
+        await AssertProblemAsync(await Post("/payments", Pay(Guid.NewGuid(), customer: c2)), HttpStatusCode.NotFound, "NOT_FOUND");      // and a customer outside the area
+
+        // Sample: the visit was cancelled meanwhile
+        object Sample(Guid cr, bool? detach) => new { CustomerId = c1, VisitId = vCancelled, ProductId = p1, Quantity = 2m, ClientRef = cr, DetachVisitIfInvalid = detach };
+        await AssertProblemAsync(await Post("/samples", Sample(Guid.NewGuid(), null)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var sample = await Post("/samples", Sample(Guid.NewGuid(), true));
+        Assert.Equal(HttpStatusCode.Created, sample.StatusCode);
+        var sampleDto = (await sample.Content.ReadFromJsonAsync<LifeDrop.Application.Samples.CreatedSampleDto>())!;
+        Assert.True(sampleDto.Detached);
+        Assert.Null((await client.GetFromJsonAsync<LifeDrop.Application.Samples.SampleDto>($"/samples/{sampleDto.Id}"))!.VisitId);
+        var linked = await Post("/samples", new { CustomerId = c1, VisitId = vOpen, ProductId = p1, Quantity = 1m, ClientRef = Guid.NewGuid(), DetachVisitIfInvalid = true });   // a good visit stays linked
+        Assert.False((await linked.Content.ReadFromJsonAsync<LifeDrop.Application.Samples.CreatedSampleDto>())!.Detached);
+
+        // Order: the same for its visit; a customer that is not approved or an unknown product is still refused
+        object Order(Guid cr, bool? detach) => new { CustomerId = c1, WarehouseId = w1, VisitId = vCancelled, ClientRef = cr, Items = new[] { new { ProductId = p1, Quantity = 3m } }, DetachVisitIfInvalid = detach };
+        await AssertProblemAsync(await Post("/orders", Order(Guid.NewGuid(), null)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var order = await Post("/orders", Order(Guid.NewGuid(), true));
+        Assert.True(order.StatusCode == HttpStatusCode.Created, await order.Content.ReadAsStringAsync());
+        var orderDto = (await order.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!;
+        Assert.Equal((3000m, true), (orderDto.Total, orderDto.VisitDetached));         // the server priced it when it arrived
+        Assert.Null((await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{orderDto.Id}"))!.VisitId);
+        await AssertProblemAsync(await Post("/orders", new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = Guid.NewGuid(), Quantity = 3m } }, DetachVisitIfInvalid = true }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Follow-up steps sent again are not conflicts, other texts or other statuses are
+        async Task<Guid> Followup(string subject) => (await (await Post("/followups", new { CustomerId = c1, Subject = subject, DueDate = "2026-10-12", ClientRef = Guid.NewGuid() })).Content.ReadFromJsonAsync<LifeDrop.Application.FollowUps.CreatedFollowUpDto>())!.Id;
+        var f1 = await Followup("one");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f1}/start")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f1}/start")).StatusCode);                         // sent again: still fine
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f1}/complete", new { ResultNote = "got it" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f1}/complete", new { ResultNote = "got it" })).StatusCode);   // the same note: the same step
+        await AssertProblemAsync(await Post($"/followups/{f1}/complete", new { ResultNote = "something else" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/followups/{f1}/start"), HttpStatusCode.Conflict, "CONFLICT");                   // completed: a start is a real conflict
+        var f2 = await Followup("two");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/cancel", new { Reason = "closed" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/cancel", new { Reason = "closed" })).StatusCode);
+        await AssertProblemAsync(await Post($"/followups/{f2}/cancel", new { Reason = "other reason" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/followups/{Guid.NewGuid()}/start"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using var audit = new NpgsqlCommand("SELECT action, count(*) FROM audit_logs WHERE action LIKE 'followup.%' OR action = 'payment.recorded_detached' GROUP BY action ORDER BY action", verify);
+        var actions = new List<string>();
+        await using (var reader = await audit.ExecuteReaderAsync())
+            while (await reader.ReadAsync()) actions.Add($"{reader.GetString(0)}={reader.GetInt64(1)}");
+        Assert.Equal(new[] { "followup.cancelled=1", "followup.completed=1", "followup.created=2", "followup.started=1", "payment.recorded_detached=1" }, actions);   // a step sent again writes nothing twice
+    }
+
+    [SkippableFact]
     public async Task Reports_KpisAreCountedFromRealDataWithDocumentedNumeratorsAndDenominatorsInsideTheReadersArea()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
@@ -5851,7 +5960,7 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Post($"/followups/{f2}/start"), HttpStatusCode.Forbidden, "FORBIDDEN");   // sees it, but it is not theirs
         As(rep2);
         Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/start")).StatusCode);
-        await AssertProblemAsync(await Post($"/followups/{f2}/start"), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/start")).StatusCode);   // the same step sent again is not a conflict (2.13); nothing is written twice
         Assert.Equal("in_progress", (await Get(f2)).Status);
         await AssertProblemAsync(await Post($"/followups/{f2}/complete", new { ResultNote = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
         Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/complete", new { ResultNote = " got the form " })).StatusCode);

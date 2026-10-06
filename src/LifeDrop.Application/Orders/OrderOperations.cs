@@ -21,7 +21,7 @@ public sealed record WarehouseDto(Guid Id, string Code, string Name, string Stat
 public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null);
 
 public sealed record OrderLineRequest(Guid? ProductId, decimal? Quantity);
-public sealed record CreateOrderRequest(Guid? CustomerId, Guid? WarehouseId, Guid? VisitId, Guid? ClientRef, IReadOnlyList<OrderLineRequest>? Items, string? Note = null);
+public sealed record CreateOrderRequest(Guid? CustomerId, Guid? WarehouseId, Guid? VisitId, Guid? ClientRef, IReadOnlyList<OrderLineRequest>? Items, string? Note = null, bool? DetachVisitIfInvalid = null);
 public sealed record CancelOrderRequest(string? Reason);
 
 public sealed record OrderLineDto(int LineNo, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity,
@@ -47,7 +47,8 @@ public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string Cu
     Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null, DeliveryInfo? Delivery = null);
 
 // Replayed: the same ClientRef was sent before and the order that exists is returned.
-public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
+// VisitDetached: an order saved without internet whose visit was cancelled or failed by the time it arrived is placed without the visit (plan step 2.13).
+public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false);
 
 public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked }
 
@@ -166,12 +167,21 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         if (customer.ApprovalStatus != "approved") return (OrderResult.CustomerNotApproved, null);
 
         // A visit is linked only when it is of this customer and of the caller (or a manager's scope), and it is not cancelled or failed.
+        var visitIdToUse = request.VisitId;
+        var visitDetached = false;
         if (request.VisitId is { } visitId)
         {
             var visit = await visits.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
-            if (visit is null || visit.CustomerId.Value != customer.Id) return (OrderResult.NotFound, null);
-            if (visit.UserId != actorId && await ScopeAsync(tenantId, actorId, PermissionKeys.VisitsWrite, cancellationToken) is null) return (OrderResult.NotFound, null);
-            if (visit.Status is VisitStatus.Cancelled or VisitStatus.Failed) return (OrderResult.InvalidData, null);
+            var problem = visit is null || visit.CustomerId.Value != customer.Id ? OrderResult.NotFound
+                : visit.UserId != actorId && await ScopeAsync(tenantId, actorId, PermissionKeys.VisitsWrite, cancellationToken) is null ? OrderResult.NotFound
+                : visit.Status is VisitStatus.Cancelled or VisitStatus.Failed ? OrderResult.InvalidData : OrderResult.Success;
+            if (problem != OrderResult.Success)
+            {
+                // An order the phone kept without internet is still wanted when its visit was cancelled meanwhile: it is placed without the visit (plan step 2.13).
+                if (request.DetachVisitIfInvalid != true) return (problem, null);
+                visitIdToUse = null;
+                visitDetached = true;
+            }
         }
 
         // Prices of today (Iraq) from the server, never from the phone.
@@ -190,8 +200,9 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var currency = pricing.Products.First(p => p.Product.Id == items[0].ProductId).Product.Currency;
         if (items.Any(i => pricing.Products.First(p => p.Product.Id == i.ProductId).Product.Currency != currency)) return (OrderResult.CurrencyMismatch, null);
 
-        return await store.CreateAsync(tenantId, actorId, new NewOrder(customer.Id, request.WarehouseId.Value, request.VisitId, request.ClientRef.Value, currency,
+        var (created, order) = await store.CreateAsync(tenantId, actorId, new NewOrder(customer.Id, request.WarehouseId.Value, visitIdToUse, request.ClientRef.Value, currency,
             lines.Sum(l => l.LineTotal), note, lines), cancellationToken);
+        return (created, order is not null && visitDetached && !order.Replayed ? order with { VisitDetached = true } : order);
     }
 
     public async Task<(OrderResult Result, OrderDto? Order)> GetAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)

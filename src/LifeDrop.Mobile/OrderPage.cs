@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -122,6 +123,19 @@ public sealed class OrderPage : ContentPage
             var (priceResult, products) = await api.GetPricesAsync(_draft.CustomerId, IraqTime.Today(TimeProvider.System), cts.Token);
             var (warehouseResult, warehouses) = await api.GetWarehousesAsync(cts.Token);
             var failed = priceResult != VisitActionResult.Success ? priceResult : warehouseResult;
+            if (failed == VisitActionResult.Success)
+            {
+                // What the phone keeps for working without internet (plan step 2.13): the catalogue without prices and the warehouses.
+                TrackingHost.Cache?.SaveProducts(products);
+                TrackingHost.Cache?.SaveWarehouses(warehouses);
+            }
+            else if (failed == VisitActionResult.NetworkError && TrackingHost.Cache is { } cache && cache.Products.Count > 0 && cache.Warehouses.Count > 0)
+            {
+                // No internet: the order is written from the phone's lists; the prices are set by the server when the order arrives.
+                (products, warehouses) = (cache.Products, cache.Warehouses);
+                _draft.PricesKnown = false;
+                failed = VisitActionResult.Success;
+            }
             if (failed != VisitActionResult.Success)
             {
                 _loaded = false;   // the next time the page appears it tries again
@@ -144,7 +158,7 @@ public sealed class OrderPage : ContentPage
         _warehouse.ItemsSource = _draft.Warehouses.Select(w => $"{w.Code} · {w.Name}").ToList();
         if (_draft.WarehouseId is { } id) _warehouse.SelectedIndex = _draft.Warehouses.ToList().FindIndex(w => w.Id == id);
         ShowProducts();
-        Show(_draft.Warehouses.Count == 0 ? Texts.Get("app.order.noWarehouse") : _draft.Products.Count == 0 ? Texts.Get("app.order.noProducts") : null);
+        Show(!_draft.PricesKnown ? Texts.Get("app.order.offline") : _draft.Warehouses.Count == 0 ? Texts.Get("app.order.noWarehouse") : _draft.Products.Count == 0 ? Texts.Get("app.order.noProducts") : null);
     }
 
     private void ShowProducts()
@@ -155,7 +169,7 @@ public sealed class OrderPage : ContentPage
         {
             if (!_byProduct.TryGetValue(p.ProductId, out var row))
             {
-                var discount = p.Price < p.ListPrice ? $" ({Format(p.ListPrice)} → {Format(p.Price)})" : $" {Format(p.Price)}";
+                var discount = !_draft.PricesKnown ? "" : p.Price < p.ListPrice ? $" ({Format(p.ListPrice)} → {Format(p.Price)})" : $" {Format(p.Price)}";
                 row = new OrderRow(p, $"{p.Code} · {p.DisplayName(language)}", $"{p.Unit}{discount} {p.Currency}");
                 if (_draft.QuantityOf(p.ProductId) > 0) row.Quantity = _draft.QuantityOf(p.ProductId).ToString(CultureInfo.InvariantCulture);
                 _byProduct[p.ProductId] = row;
@@ -179,7 +193,7 @@ public sealed class OrderPage : ContentPage
 
     private void Refresh()
     {
-        _total.Text = _draft.Lines.Count == 0 ? "" : Texts.Get("app.order.total", ("total", Format(_draft.Total)), ("currency", _draft.Currency));
+        _total.Text = _draft.Lines.Count == 0 ? "" : !_draft.PricesKnown ? Texts.Get("app.order.priceLater") : Texts.Get("app.order.total", ("total", Format(_draft.Total)), ("currency", _draft.Currency));
         _place.IsEnabled = _draft.CanPlace;
         if (_draft.MixedCurrency) Show(VisitLifecycle.Describe(VisitActionResult.CurrencyMismatch));
         else if (_message.Text == VisitLifecycle.Describe(VisitActionResult.CurrencyMismatch)) Show(null);
@@ -201,6 +215,15 @@ public sealed class OrderPage : ContentPage
             result = VisitActionResult.NetworkError;   // the same reference is sent again on the next try
         }
         SetBusy(false);
+        // No internet: the order is kept on the phone and sent later, with the same reference (plan step 2.13).
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(WorkKind.Order, $"{Texts.Get("app.order.title")}: {_customerName}", _draft.ToPayload(), null);
+            _draft.Queued = true;
+            await DisplayAlertAsync(Texts.Get("app.order.title"), Texts.Get("app.offline.saved"), Texts.Get("app.ok"));
+            await Navigation.PopAsync();
+            return;
+        }
         if (result != VisitActionResult.Success)
         {
             Show(VisitLifecycle.Describe(result));

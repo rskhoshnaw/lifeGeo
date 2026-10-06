@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -7,6 +8,7 @@ namespace LifeDrop.Mobile;
 public sealed class FollowUpPage : ContentPage
 {
     private readonly FollowUpDraft _draft;
+    private readonly string? _customerName;
     private readonly Entry _subject = new() { MaxLength = FollowUpDraft.MaxSubjectLength };
     private readonly DatePicker _due = new();
     private readonly Button _save = new() { IsEnabled = false };
@@ -19,6 +21,7 @@ public sealed class FollowUpPage : ContentPage
     public FollowUpPage(Guid customerId, string? customerName)
     {
         _draft = new FollowUpDraft(customerId) { DueDate = Today.AddDays(7) };
+        _customerName = customerName;
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.followup.new");
         _subject.Placeholder = Texts.Get("app.followup.subject");
@@ -74,6 +77,15 @@ public sealed class FollowUpPage : ContentPage
         _busy = false;
         _spinner.IsVisible = _spinner.IsRunning = false;
         if (result == VisitActionResult.Success) _draft.Created = true;
+        // No internet: kept on the phone and sent later (plan step 2.13).
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(WorkKind.FollowUpCreate, $"{Texts.Get("app.followup.new")}: {_customerName}", new FollowUpPayload(_draft.CustomerId, _draft.ClientRef, _draft.Subject, _draft.DueDate));
+            _draft.Queued = true;
+            Show(Texts.Get("app.offline.saved"));
+            Refresh();
+            return;
+        }
         Show(result == VisitActionResult.Success ? Texts.Get("app.followup.saved") : VisitLifecycle.Describe(result));
         if (result == VisitActionResult.SessionExpired) AppLanguage.ShowRoot(new MainPage());
         Refresh();

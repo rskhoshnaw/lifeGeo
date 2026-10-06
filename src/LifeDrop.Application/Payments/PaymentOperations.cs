@@ -21,12 +21,14 @@ public sealed record PaymentDto(Guid Id, string Number, Guid CustomerId, string 
     string Currency, decimal Amount, string? Reference, string? Note, string Status, Guid ReceivedBy, string? ReceivedByEmail, Guid RecordedBy, string? ConfirmedByEmail,
     DateTimeOffset? ConfirmedAt, string? ClosedReason, Guid? ReplacesPaymentId, Guid? ReplacedByPaymentId, DateTimeOffset CreatedAt, IReadOnlyList<PaymentHistoryDto>? History = null);
 
-public sealed record RecordPaymentRequest(Guid? CustomerId, Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, Guid? ClientRef);
+// DetachOrderIfInvalid (plan step 2.13, sent by the phone for a payment that was saved without internet): when the order is cancelled, another customer's or in another currency by now, the
+// payment is still recorded, without the order, and the answer says Detached. The customer and the amount must still be valid.
+public sealed record RecordPaymentRequest(Guid? CustomerId, Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, Guid? ClientRef, bool? DetachOrderIfInvalid = null);
 public sealed record CorrectPaymentRequest(Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, string? Reason);
 public sealed record ClosePaymentRequest(string? Reason);
 
 // Replayed: the same ClientRef was sent before and the payment that exists is returned.
-public sealed record CreatedPaymentDto(Guid Id, string Number, string Status, bool Replayed);
+public sealed record CreatedPaymentDto(Guid Id, string Number, string Status, bool Replayed, bool Detached = false);
 
 // Delivered: the value of what was delivered (delivered quantity x unit price of delivered orders). Confirmed: payments the finance manager has. Collected:
 // money a visitor took and has not given in yet. Balance = Delivered - Confirmed (what the customer still owes).
@@ -44,7 +46,7 @@ public interface IPaymentStore
 {
     // NotFound: order missing. InvalidData: the order is another customer's, cancelled, or in another currency. Replays an earlier send with the same
     // ClientRef (same recorder and customer; else Conflict). Number, history and audit row in one transaction.
-    Task<(PaymentResult Result, CreatedPaymentDto? Payment)> CreateAsync(TenantId tenantId, UserId actorId, NewPayment payment, string status, CancellationToken cancellationToken);
+    Task<(PaymentResult Result, CreatedPaymentDto? Payment)> CreateAsync(TenantId tenantId, UserId actorId, NewPayment payment, string status, bool detachOrderIfInvalid, CancellationToken cancellationToken);
     Task<IReadOnlyList<PaymentDto>> ListAsync(TenantId tenantId, UserId actorId, PaymentView view, Guid? regionId, Guid? customerId, string? status, int limit,
         DateTimeOffset? before, Guid? beforeId, CancellationToken cancellationToken);
     Task<PaymentDto?> GetAsync(TenantId tenantId, UserId actorId, PaymentView view, Guid? regionId, Guid paymentId, CancellationToken cancellationToken);
@@ -75,7 +77,7 @@ public sealed class PaymentService(IPaymentStore store, IPermissionStore permiss
         if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken) is null) return (PaymentResult.NotFound, null);
         // The finance manager's payment counts at once; a visitor's waits for the finance manager.
         var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.PaymentsManage, cancellationToken) is not null;
-        return await store.CreateAsync(tenantId, actorId, payment!, manager ? "confirmed" : "collected", cancellationToken);
+        return await store.CreateAsync(tenantId, actorId, payment!, manager ? "confirmed" : "collected", request.DetachOrderIfInvalid == true, cancellationToken);
     }
 
     public async Task<(PaymentResult Result, IReadOnlyList<PaymentDto> Items)> ListAsync(TenantId tenantId, UserId actorId, Guid? customerId, string? status, int? limit,

@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -18,11 +19,13 @@ public sealed class PaymentPage : ContentPage
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private readonly Guid _customerId;
+    private readonly string? _customerName;
     private bool _busy;
 
     public PaymentPage(Guid customerId, string? customerName)
     {
         _customerId = customerId;
+        _customerName = customerName;
         _draft = new PaymentDraft(customerId);
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.payment.title");
@@ -111,6 +114,16 @@ public sealed class PaymentPage : ContentPage
         {
             _draft.Recorded = payment;
             Show(Texts.Get(payment.Status == "confirmed" ? "app.payment.savedConfirmed" : "app.payment.saved", ("number", payment.Number)));
+            Refresh();
+            return;
+        }
+        // No internet: the payment is kept on the phone and sent later (plan step 2.13); the money was taken, so it must not be lost.
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(WorkKind.Payment, $"{Texts.Get("app.payment.title")}: {_customerName}",
+                new PaymentPayload(_customerId, _draft.OrderId, _draft.ClientRef, _draft.Method, _draft.Currency, _draft.AmountText, _draft.Reference, _draft.Note));
+            _draft.Queued = true;
+            Show(Texts.Get("app.offline.saved"));
             Refresh();
             return;
         }

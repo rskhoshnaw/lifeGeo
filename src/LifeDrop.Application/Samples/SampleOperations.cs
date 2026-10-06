@@ -20,9 +20,10 @@ public sealed record SampleDto(Guid Id, string Number, Guid CustomerId, string C
     double? Longitude, string Status, string? VoidReason, DateTimeOffset CreatedAt);
 
 public sealed record RecordSampleRequest(Guid? CustomerId, Guid? VisitId, Guid? ProductId, decimal? Quantity, string? RecipientName, string? BatchNumber, DateOnly? ExpiryDate,
-    string? Note, Guid? ClientRef, DeliveryLocation? Location = null);
+    string? Note, Guid? ClientRef, DeliveryLocation? Location = null, bool? DetachVisitIfInvalid = null);
 public sealed record VoidSampleRequest(string? Reason);
-public sealed record CreatedSampleDto(Guid Id, string Number, bool Replayed);
+// Detached: the visit was cancelled or failed by the time a sample saved without internet arrived (plan step 2.13); the sample is recorded without the visit.
+public sealed record CreatedSampleDto(Guid Id, string Number, bool Replayed, bool Detached = false);
 
 public enum SampleResult { Success, Forbidden, NotFound, InvalidData, Conflict, GpsMocked }
 public enum SampleView { Everything, Region, Mine }
@@ -61,14 +62,23 @@ public sealed class SampleService(ISampleStore store, IPermissionStore permissio
 
         var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken);
         if (customer is null) return (SampleResult.NotFound, null);
+        var visitIdToUse = request.VisitId;
+        var detached = false;
         if (request.VisitId is { } visitId)
         {
             var visit = await visits.GetAsync(tenantId, new VisitId(visitId), cancellationToken);
-            if (visit is null || visit.CustomerId.Value != customer.Id || visit.UserId != actorId) return (SampleResult.NotFound, null);
-            if (visit.Status is VisitStatus.Cancelled or VisitStatus.Failed) return (SampleResult.InvalidData, null);
+            var visitProblem = visit is null || visit.CustomerId.Value != customer.Id || visit.UserId != actorId ? SampleResult.NotFound
+                : visit.Status is VisitStatus.Cancelled or VisitStatus.Failed ? SampleResult.InvalidData : SampleResult.Success;
+            if (visitProblem != SampleResult.Success)
+            {
+                if (request.DetachVisitIfInvalid != true) return (visitProblem, null);
+                visitIdToUse = null;
+                detached = true;
+            }
         }
-        return await store.CreateAsync(tenantId, actorId, new NewSample(customer.Id, request.VisitId, request.ProductId.Value, request.Quantity.Value, recipient, batch,
+        var (result, created) = await store.CreateAsync(tenantId, actorId, new NewSample(customer.Id, visitIdToUse, request.ProductId.Value, request.Quantity.Value, recipient, batch,
             request.ExpiryDate, note, request.ClientRef.Value, location), cancellationToken);
+        return (result, created is not null && detached ? created with { Detached = true } : created);
     }
 
     public async Task<(SampleResult Result, IReadOnlyList<SampleDto> Items)> ListAsync(TenantId tenantId, UserId actorId, Guid? customerId, Guid? productId, int? limit,

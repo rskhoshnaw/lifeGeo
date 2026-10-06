@@ -107,21 +107,26 @@ public sealed class PostgresFollowUpStore(NpgsqlDataSource dataSource) : IFollow
         return await reader.ReadAsync(cancellationToken) ? Read(reader) : null;
     }
 
+    // A step the phone sends again after a lost answer is not a conflict (plan step 2.13): starting a follow-up that is in progress, or completing / cancelling one that already
+    // has the same note or reason, answers Success without writing again. Any other status or another text is a conflict.
     public Task<FollowUpResult> StartAsync(TenantId tenantId, UserId actorId, Guid id, CancellationToken cancellationToken) =>
-        ChangeAsync(tenantId, actorId, id, "followup.started", "status = 'in_progress', started_at = now()", "status = 'pending'", _ => { }, cancellationToken);
+        ChangeAsync(tenantId, actorId, id, "followup.started", "status = 'in_progress', started_at = now()", "status = 'pending'", _ => { },
+            "status = 'in_progress'", null, cancellationToken);
 
     public Task<FollowUpResult> CompleteAsync(TenantId tenantId, UserId actorId, Guid id, string resultNote, CancellationToken cancellationToken) =>
         ChangeAsync(tenantId, actorId, id, "followup.completed", "status = 'completed', result_note = @note, completed_at = now()", "status IN ('pending', 'in_progress')",
-            c => c.Parameters.AddWithValue("note", resultNote), cancellationToken);
+            c => c.Parameters.AddWithValue("note", resultNote), "status = 'completed' AND result_note = @note", c => c.Parameters.AddWithValue("note", resultNote), cancellationToken);
 
     public Task<FollowUpResult> CancelAsync(TenantId tenantId, UserId actorId, Guid id, string reason, CancellationToken cancellationToken) =>
         ChangeAsync(tenantId, actorId, id, "followup.cancelled", "status = 'cancelled', cancel_reason = @reason, cancelled_at = now()", "status IN ('pending', 'in_progress')",
-            c => c.Parameters.AddWithValue("reason", reason), cancellationToken);
+            c => c.Parameters.AddWithValue("reason", reason), "status = 'cancelled' AND cancel_reason = @reason", c => c.Parameters.AddWithValue("reason", reason), cancellationToken);
 
     public Task<FollowUpResult> ReassignAsync(TenantId tenantId, UserId actorId, Guid id, Guid assigneeId, CancellationToken cancellationToken) =>
-        ChangeAsync(tenantId, actorId, id, "followup.reassigned", "assignee_id = @assignee", "status IN ('pending', 'in_progress')", c => c.Parameters.AddWithValue("assignee", assigneeId), cancellationToken);
+        ChangeAsync(tenantId, actorId, id, "followup.reassigned", "assignee_id = @assignee", "status IN ('pending', 'in_progress')", c => c.Parameters.AddWithValue("assignee", assigneeId),
+            null, null, cancellationToken);
 
-    private async Task<FollowUpResult> ChangeAsync(TenantId tenantId, UserId actorId, Guid id, string action, string set, string whenStatus, Action<NpgsqlCommand> bind, CancellationToken cancellationToken)
+    private async Task<FollowUpResult> ChangeAsync(TenantId tenantId, UserId actorId, Guid id, string action, string set, string whenStatus, Action<NpgsqlCommand> bind,
+        string? alreadyDone, Action<NpgsqlCommand>? bindDone, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
@@ -132,10 +137,12 @@ public sealed class PostgresFollowUpStore(NpgsqlDataSource dataSource) : IFollow
             bind(update);
             if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
             {
-                await using var exists = new NpgsqlCommand("SELECT 1 FROM follow_ups WHERE tenant_id = @tenant AND id = @id", connection, transaction);
+                await using var exists = new NpgsqlCommand($"SELECT {(alreadyDone is null ? "false" : alreadyDone)} FROM follow_ups WHERE tenant_id = @tenant AND id = @id", connection, transaction);
                 exists.Parameters.AddWithValue("tenant", tenantId.Value);
                 exists.Parameters.AddWithValue("id", id);
-                return await exists.ExecuteScalarAsync(cancellationToken) is null ? FollowUpResult.NotFound : FollowUpResult.Conflict;
+                bindDone?.Invoke(exists);
+                var done = await exists.ExecuteScalarAsync(cancellationToken);
+                return done is null ? FollowUpResult.NotFound : done is true ? FollowUpResult.Success : FollowUpResult.Conflict;
             }
         }
         await AuditAsync(connection, transaction, tenantId, actorId, action, id, cancellationToken);

@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Offline;
 using System.Globalization;
 
 namespace LifeDrop.Mobile.Visits;
@@ -21,6 +22,10 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     public Guid? WarehouseId { get; set; }
     public string? Note { get; set; }
     public PlacedOrder? Placed { get; private set; }
+    // False while the lists come from the phone's memory (no internet): the prices are unknown and the server sets them when the order arrives (plan step 2.13).
+    public bool PricesKnown { get; set; } = true;
+    // The order is kept on the phone to be sent later: the draft offers no second place.
+    public bool Queued { get; set; }
 
     public void Load(IReadOnlyList<PricedProduct> products, IReadOnlyList<OrderWarehouse> warehouses)
     {
@@ -66,7 +71,7 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     public string Currency => Lines.Count == 0 ? "" : Lines[0].Product.Currency;
     public decimal Total => Lines.Sum(l => l.LineTotal);
 
-    public bool CanPlace => Placed is null && Lines.Count > 0 && !MixedCurrency && WarehouseId is { } id && Warehouses.Any(w => w.Id == id) && (Note?.Trim().Length ?? 0) <= MaxNoteLength;
+    public bool CanPlace => Placed is null && !Queued && Lines.Count > 0 && !MixedCurrency && WarehouseId is { } id && Warehouses.Any(w => w.Id == id) && (Note?.Trim().Length ?? 0) <= MaxNoteLength;
 
     // Products matching a search text (code or any name), at most max; everything when the text is empty.
     public IReadOnlyList<PricedProduct> Find(string? text, string language, int max = 200)
@@ -90,12 +95,17 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
         return result;
     }
 
+    // What is needed to send this order later (the same reference, so a retry never makes a second order).
+    public OrderPayload ToPayload() => new(CustomerId, WarehouseId!.Value, VisitId, ClientRef, string.IsNullOrWhiteSpace(Note) ? null : Note.Trim(),
+        Lines.Select(l => new OrderLineInput(l.Product.ProductId, l.Quantity)).ToList());
+
     // After a successful order: an empty draft with a new reference (the warehouse stays).
     public void StartNext()
     {
         _quantities.Clear();
         Note = null;
         Placed = null;
+        Queued = false;
         ClientRef = Guid.NewGuid();
     }
 }
