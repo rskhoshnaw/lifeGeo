@@ -34,6 +34,9 @@ public sealed class AddToPlanPage : ContentPage
     private readonly Entry _text = new() { MaxLength = SelfPlanner.MaxTextLength };
     private readonly Button _dayButton = new();
     private readonly Button _search = new();
+    private readonly Button _draw = new();
+    private readonly Button _clearArea = new() { IsVisible = false };
+    private IReadOnlyList<AreaPoint>? _area;
     private readonly Button _add = new() { IsVisible = false };
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
@@ -52,6 +55,10 @@ public sealed class AddToPlanPage : ContentPage
         _search.Text = Texts.Get("app.add.searchBtn");
         _search.Clicked += async (_, _) => await SearchAsync();
         _dayButton.Clicked += async (_, _) => await ChooseDayAsync();
+        _draw.Text = Texts.Get("app.add.draw");
+        _draw.Clicked += async (_, _) => await Navigation.PushAsync(new DrawAreaPage(SetArea));
+        _clearArea.Text = Texts.Get("app.add.areaClear");
+        _clearArea.Clicked += (_, _) => SetArea(null);
         _add.Clicked += async (_, _) => await AddAsync();
         ShowDay();
 
@@ -88,7 +95,7 @@ public sealed class AddToPlanPage : ContentPage
                     Content = new VerticalStackLayout
                     {
                         Spacing = 8,
-                        Children = { new Label { Text = Texts.Get("app.add.place"), FontAttributes = FontAttributes.Bold }, _places, _text, _dayButton, _search, _spinner, _message }
+                        Children = { new Label { Text = Texts.Get("app.add.place"), FontAttributes = FontAttributes.Bold }, _places, _text, _draw, _clearArea, _dayButton, _search, _spinner, _message }
                     }
                 },
                 _list,
@@ -123,6 +130,14 @@ public sealed class AddToPlanPage : ContentPage
         }
     }
 
+    // The drawn area (null = none) is searched together with the place and the text.
+    private void SetArea(IReadOnlyList<AreaPoint>? area)
+    {
+        _area = area;
+        _clearArea.IsVisible = area is not null;
+        _draw.Text = area is null ? Texts.Get("app.add.draw") : Texts.Get("app.add.areaSet", ("count", area.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
     private void ShowDay() => _dayButton.Text = Texts.Get("app.add.day", ("day", _day.ToString("dddd d MMMM", Texts.Culture)));
 
     private async Task ChooseDayAsync()
@@ -141,7 +156,7 @@ public sealed class AddToPlanPage : ContentPage
 
     private async Task SearchAsync()
     {
-        if (!SelfPlanner.CanSearch(_places.PlaceId, _text.Text))
+        if (!SelfPlanner.CanSearch(_places.PlaceId, _text.Text, _area))
         {
             Show(Texts.Get("app.add.needSearch"));
             return;
@@ -151,7 +166,7 @@ public sealed class AddToPlanPage : ContentPage
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            result = await _planner.SearchAsync(_day, _places.PlaceId, _text.Text, cts.Token);
+            result = await _planner.SearchAsync(_day, _places.PlaceId, _text.Text, _area, cts.Token);
         }
         catch (OperationCanceledException)
         {

@@ -193,6 +193,7 @@ public sealed class VisitsApiClient : IVisitsApiClient, ISelfPlanApiClient
         scheduleDate = query.Day.ToString("yyyy-MM-dd"),
         placeId = query.PlaceId,
         query = query.Text,
+        area = query.Area?.Select(p => new { latitude = p.Latitude, longitude = p.Longitude }).ToList(),
         order = "least_recent",
         respectWindows = false,
         customerIds

@@ -4533,6 +4533,91 @@ public class CustomerApiIntegrationTests
         Assert.Equal((c[3], "high", "normal"), (visit.CustomerId, visit.CustomerPriority, visit.Priority));
     }
 
+    [SkippableFact]
+    public async Task PlanFromArea_DrawnAreaFindsLocatedApprovedCustomersInScopeAndRefusesBadShapes()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid supervisor = Guid.NewGuid(), repA = Guid.NewGuid(), erbil = Guid.NewGuid(), baghdad = Guid.NewGuid();
+        var c = Enumerable.Range(0, 8).Select(_ => Guid.NewGuid()).ToArray();   // C1..C7
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@sv, @t1), (@ra, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                -- The area is the square lon 44.00-44.02, lat 36.18-36.20.
+                -- C1, C2 inside; C3 inside but pending; C4 outside; C5 without a position; C6 inside, other region; C7 on the border
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status, geom, status) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Name 1', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.010, 36.190), 4326)::geography, 'located'),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Name 2', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.005, 36.185), 4326)::geography, 'located'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Name 3', @erbil, 'pending', ST_SetSRID(ST_MakePoint(44.015, 36.195), 4326)::geography, 'located'),
+                    (@c4, @t1, 'Pharmacy', 'C4', 'Name 4', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.050, 36.190), 4326)::geography, 'located'),
+                    (@c5, @t1, 'Pharmacy', 'C5', 'Name 5', @erbil, 'approved', NULL, 'no_location'),
+                    (@c6, @t1, 'Pharmacy', 'C6', 'Name 6', @baghdad, 'approved', ST_SetSRID(ST_MakePoint(44.012, 36.192), 4326)::geography, 'located'),
+                    (@c7, @t1, 'Pharmacy', 'C7', 'Name 7', @erbil, 'approved', ST_SetSRID(ST_MakePoint(44.020, 36.190), 4326)::geography, 'located');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("sv", supervisor), ("ra", repA), ("erbil", erbil), ("baghdad", baghdad) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 1; i <= 7; i++) cmd.Parameters.AddWithValue("c" + i, c[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        static object[] Square(double west = 44.00, double east = 44.02, double south = 36.18, double north = 36.20) => new object[]
+        {
+            new { Latitude = south, Longitude = west }, new { Latitude = south, Longitude = east },
+            new { Latitude = north, Longitude = east }, new { Latitude = north, Longitude = west }
+        };
+        Task<HttpResponseMessage> Preview(object area, object? assignee = null) => client.PostAsJsonAsync("/visit-plan/preview",
+            new { AssignedUserId = assignee, ScheduleDate = "2026-10-06", Area = area });
+        async Task<string[]> Codes(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanPreviewDto>())!.Candidates.Select(x => x.Code).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        }
+
+        // The supervisor of Erbil: located and approved customers inside the area and in their region (the border counts as inside)
+        As(supervisor);
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square(), repA)));
+        // A smaller area
+        Assert.Equal(new[] { "C2" }, await Codes(await Preview(Square(east: 44.008), repA)));
+        // The drawing may start at any corner and go either way round
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square().Reverse().ToArray(), repA)));
+
+        // A rep plans for themselves from the area (no assignee) and the customers are added
+        As(repA);
+        Assert.Equal(new[] { "C1", "C2", "C7" }, await Codes(await Preview(Square())));
+        var created = await client.PostAsJsonAsync("/visit-plan/generate", new { ScheduleDate = "2026-10-06", Area = Square(), CustomerIds = new[] { c[1], c[2] } });
+        Assert.Equal(2, (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
+        Assert.Equal(new[] { "C7" }, await Codes(await Preview(Square())));   // the planned ones are not offered again
+
+        // Bad shapes: two points, a line, a spot, a coordinate that does not exist, over 100 points, a box wider than 0.5 degrees
+        await AssertProblemAsync(await Preview(Square().Take(2).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new object[] { new { Latitude = 36.19, Longitude = 44.00 }, new { Latitude = 36.19, Longitude = 44.01 }, new { Latitude = 36.19, Longitude = 44.02 } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(new object[] { new { Latitude = 36.19, Longitude = 44.0 }, new { Latitude = 36.19, Longitude = 44.0 }, new { Latitude = 36.19, Longitude = 44.0 } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Square(south: 99, north: 100)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Enumerable.Range(0, 101).Select(i => (object)new { Latitude = 36.18 + (i % 2) * 0.01, Longitude = 44.0 + i * 0.0001 }).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Preview(Square(west: 43.0, east: 44.02)), HttpStatusCode.BadRequest, "INVALID_DATA");
+    }
+
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)
     {
         Assert.Equal(expectedStatus, response.StatusCode);

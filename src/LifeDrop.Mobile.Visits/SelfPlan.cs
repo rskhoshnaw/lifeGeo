@@ -1,8 +1,11 @@
 namespace LifeDrop.Mobile.Visits;
 
 // What the field user searches for when adding customers to their own plan (plan step 1.25): a place (and everything below it)
-// and/or a text in the customer's code or name.
-public sealed record SelfPlanQuery(DateOnly Day, Guid? PlaceId, string? Text);
+// and/or a text in the customer's code or name and/or an area drawn on the map (plan step 1.27).
+public sealed record SelfPlanQuery(DateOnly Day, Guid? PlaceId, string? Text, IReadOnlyList<AreaPoint>? Area = null);
+
+// A corner of an area drawn on the map (plan step 1.27).
+public sealed record AreaPoint(double Latitude, double Longitude);
 
 // One customer of the list. Included = false: the server would leave it out (SkipReason: outside_hours | over_limit); the
 // customer is shown but cannot be ticked, except outside_hours which only warns (the user knows the customer).
@@ -31,19 +34,21 @@ public sealed class SelfPlanner(ISelfPlanApiClient api)
     public VisitActionResult Result { get; private set; } = VisitActionResult.Success;
 
     // A search needs a place or at least two letters, so the whole customer list is never fetched by accident.
-    public static bool CanSearch(Guid? placeId, string? text) => placeId is not null || (text?.Trim().Length ?? 0) >= MinTextLength;
+    public static bool CanSearch(Guid? placeId, string? text, IReadOnlyList<AreaPoint>? area = null) =>
+        placeId is not null || (text?.Trim().Length ?? 0) >= MinTextLength || AreaDrawing.IsValid(area);
 
-    public async Task<VisitActionResult> SearchAsync(DateOnly day, Guid? placeId, string? text, CancellationToken cancellationToken = default)
+    public async Task<VisitActionResult> SearchAsync(DateOnly day, Guid? placeId, string? text, IReadOnlyList<AreaPoint>? area = null, CancellationToken cancellationToken = default)
     {
         _selected.Clear();
         var trimmed = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         if (trimmed is { Length: > MaxTextLength }) trimmed = trimmed[..MaxTextLength];
-        if (!CanSearch(placeId, trimmed))
+        if (area is not null && !AreaDrawing.IsValid(area)) area = null;
+        if (!CanSearch(placeId, trimmed, area))
         {
             Candidates = Array.Empty<SelfPlanCandidate>();
             return Result = VisitActionResult.InvalidData;
         }
-        var query = new SelfPlanQuery(day, placeId, trimmed);
+        var query = new SelfPlanQuery(day, placeId, trimmed, area);
         var (result, candidates) = await api.SearchAsync(query, cancellationToken);
         Result = result;
         Query = result == VisitActionResult.Success ? query : null;

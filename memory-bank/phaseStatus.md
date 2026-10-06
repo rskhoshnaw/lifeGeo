@@ -23,7 +23,8 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.24 plan from places (panel) | in PR |
 | 1.25 rep plans own day in the app | in PR (same branch as 1.24); real-device check pending |
 | 1.26 customer priority from managers | in PR (same branch); migration 0023 |
-| Next | 1.27; **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 1.27 draw area on map (app, online only) | in PR (same branch); real-device check pending |
+| Next | **2.1** catalog and price (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
 Migrations: 0001–0023 (1.24, 1.25 have none). Owner must apply 0006–0023 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
@@ -45,3 +46,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.24: `Visits/PlanGeneration.cs` (`PlanGenerator`), `PostgresPlanGenerationStore`, `POST /visit-plan/preview` + `/generate` (place subtree and/or region, count/order/hours, new visits after the existing order); panel `PlanFromPlaces` + shared `PlaceCascade`; DB 44/44, panel 50 tests.
 - 1.25: `/visit-plan/preview|generate` also for `visits.plan` users (self only, `query` text, scope = customers.read); app `SelfPlan.cs` (`SelfPlanner`, `ISelfPlanApiClient` on `VisitsApiClient`), `AddToPlanPage`, button on the plan page; Mobile.Visits 224 tests, DB 44/44.
 - 1.26: migration 0023 (`customers.priority`), `Customers/CustomerPriority.cs` + `PostgresCustomerPriorityStore`, `PUT /customers/priority` (ids or place, `visits.write` scope), `customerPriority` on visits and candidates, high-first ordering in plan suggestions; panel `CustomerPriorityBar`; app shows it in plan/add list; DB 45/45, panel 51, Mobile.Visits 226.
+- 1.27: `area` filter on `/visit-plan/preview|generate` (PostGIS `ST_Covers`, limits 3-100 points / 0.5 degrees), app `AreaDrawing.cs` (rules, parse, map HTML), `DrawAreaPage` (WebView + Leaflet/OSM from the internet), button on the add-customers page; offline map left to 3.3; JS checked in headless Chromium (tap/undo/clear); DB 46/46, Mobile.Visits 233.
