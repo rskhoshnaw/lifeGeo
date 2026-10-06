@@ -458,6 +458,43 @@ export interface MapCustomer {
   longitude: number
   geofenceRadiusMeters: number
 }
+// KPI report (step 2.12): counts per user and in total; a rate is null when its denominator is 0. docs/KPI.md has every definition.
+export interface KpiCounts {
+  visitsPlanned: number
+  visitsCompleted: number
+  visitsFailed: number
+  delayBase: number
+  delayedVisits: number
+  newCustomers: number
+  approvedNewCustomers: number
+  orders: number
+  ordersDelivered: number
+  ordersDeliveryFailed: number
+  orderTotals: { currency: string; total: number }[]
+  followUpBase: number
+  followUpsOverdue: number
+}
+export interface KpiRates {
+  visitCompletion: number | null
+  visitFailure: number | null
+  delay: number | null
+  orderDelivery: number | null
+  followUpOverdue: number | null
+}
+export interface KpiRow {
+  userId: string
+  email: string | null
+  teamName: string | null
+  counts: KpiCounts
+  rates: KpiRates
+}
+export interface KpiReport {
+  from: string
+  to: string
+  total: KpiRow
+  users: KpiRow[]
+  alerts: { kind: string; category: string; total: number; handled: number; valid: number; suspicious: number; fraud: number }[]
+}
 export interface Sample {
   id: string
   number: string
@@ -627,6 +664,7 @@ export const Permissions = {
   manageTeams: ['teams.manage'],
   liveMap: ['tracking.read', 'tracking.summary'],
   routeHistory: ['tracking.read'],
+  reports: ['reports.read'],
   audit: ['audit.read'],
 } as const
 
@@ -788,6 +826,9 @@ export class AdminApi {
   markRead = (id: string) => this.post(`/notifications/${id}/read`)
   markAllRead = () => this.post('/notifications/read-all')
   liveMap = () => this.get<LiveMapEntry[]>('/live-map')
+  // KPI report (step 2.12): reports.read, only the users inside the reader's area.
+  kpis = (from: string, to: string, regionId: string, teamId: string, customerType: string) =>
+    this.get<KpiReport>(`/reports/kpis?from=${from}&to=${to}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
   // Route history (step 2.11): needs tracking.read; every read is audited by the server.
   trackingUsers = () => this.get<TrackableUser[]>('/tracking/users')
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)

@@ -131,7 +131,8 @@ public class CustomerApiIntegrationTests
                 var m33 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0033_alerts.sql"));
                 var m34 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0034_antifraud.sql"));
                 var m35 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0035_route_history.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35;
+                var m36 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0036_reports.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2008,7 +2009,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "94" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9)
+        Assert.Equal(new[] { "97" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5220,6 +5221,126 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task Reports_KpisAreCountedFromRealDataWithDocumentedNumeratorsAndDenominatorsInsideTheReadersArea()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), finance = Guid.NewGuid();
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid(), w1 = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid();
+        var v = Enumerable.Range(0, 9).Select(_ => Guid.NewGuid()).ToArray();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sup, @t1), (@m, @t1), (@f, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil'), (@r2, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A'), (@tb, @t1, @r2, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @ta), (@t1, @sup, @ta), (@t1, @rep2, @tb);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w1, @t1, 'W1', 'Warehouse');
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status, created_at) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', 'no_location', @rep, @r1, 'approved', '2026-10-03 08:00:00+00'),
+                    (@c2, @t1, 'Doctor', 'C2', 'Customer 2', 'no_location', @rep, @r1, 'pending', '2026-10-04 08:00:00+00'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Customer 3', 'no_location', @rep2, @r2, 'approved', '2026-09-01 08:00:00+00');
+                -- visits of rep: on time, late, failed (no time), never started and overdue, cancelled, never started but not yet due, a doctor visit
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, planned_time, created_at) VALUES
+                    (@v0, @t1, @rep, @c1, 'Completed', '2026-10-01', '09:00', now()), (@v1, @t1, @rep, @c1, 'Completed', '2026-10-02', '09:00', now()),
+                    (@v2, @t1, @rep, @c1, 'Failed', '2026-10-03', NULL, now()), (@v3, @t1, @rep, @c1, 'Planned', '2026-10-04', '10:00', now()),
+                    (@v4, @t1, @rep, @c1, 'Cancelled', '2026-10-04', NULL, now()), (@v5, @t1, @rep, @c1, 'Planned', '2026-10-05', '15:00', now()),
+                    (@v6, @t1, @rep, @c2, 'Completed', '2026-10-05', NULL, now()), (@v7, @t1, @rep2, @c3, 'Completed', '2026-10-02', NULL, now()),
+                    (@v8, @t1, @rep, @c1, 'Completed', '2026-09-20', NULL, now());
+                INSERT INTO visit_status_history (tenant_id, visit_id, to_status, occurred_at) VALUES
+                    (@t1, @v0, 'InVisit', '2026-10-01 06:10:00+00'), (@t1, @v1, 'InVisit', '2026-10-02 06:50:00+00');
+                INSERT INTO orders (tenant_id, number, customer_id, warehouse_id, created_by, status, currency, total, client_ref, created_at, driver_id, receiver_name, failure_reason, cancelled_at, cancel_reason) VALUES
+                    (@t1, 1, @c1, @w1, @rep, 'delivered', 'IQD', 1000, gen_random_uuid(), '2026-10-02 08:00:00+00', @rep, 'Ali', NULL, NULL, NULL),
+                    (@t1, 2, @c1, @w1, @rep, 'delivery_failed', 'IQD', 2000, gen_random_uuid(), '2026-10-03 08:00:00+00', @rep, NULL, 'closed', NULL, NULL),
+                    (@t1, 3, @c1, @w1, @rep, 'placed', 'USD', 5, gen_random_uuid(), '2026-10-04 08:00:00+00', NULL, NULL, NULL, NULL, NULL),
+                    (@t1, 4, @c1, @w1, @rep, 'cancelled', 'IQD', 500, gen_random_uuid(), '2026-10-04 09:00:00+00', NULL, NULL, NULL, '2026-10-04 10:00:00+00', 'mistake');
+                INSERT INTO follow_ups (tenant_id, customer_id, subject, due_date, assignee_id, created_by, status, result_note, completed_at, cancel_reason, cancelled_at, client_ref) VALUES
+                    (@t1, @c1, 'open and overdue', '2026-10-02', @rep, @rep, 'pending', NULL, NULL, NULL, NULL, gen_random_uuid()),
+                    (@t1, @c1, 'completed', '2026-10-03', @rep, @rep, 'completed', 'done', '2026-10-03 08:00:00+00', NULL, NULL, gen_random_uuid()),
+                    (@t1, @c1, 'open, due today', '2026-10-05', @rep, @rep, 'pending', NULL, NULL, NULL, NULL, gen_random_uuid()),
+                    (@t1, @c1, 'cancelled', '2026-10-04', @rep, @rep, 'cancelled', NULL, NULL, 'no', '2026-10-04 08:00:00+00', gen_random_uuid()),
+                    (@t1, @c1, 'after the range', '2026-10-06', @rep, @rep, 'pending', NULL, NULL, NULL, NULL, gen_random_uuid());
+                INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, entity_id, dedupe_key, occurred_at, status, handled_at, handled_by, handled_note, handled_outcome) VALUES
+                    (@t1, 'gps_mocked', 'security', 'warning', @rep, 'x', 'k1', '2026-10-03 08:00:00+00', 'handled', now(), @m, 'checked', 'fraud'),
+                    (@t1, 'followup_overdue', 'operational', 'warning', @rep, 'y', 'k2', '2026-10-04 08:00:00+00', 'new', NULL, NULL, NULL, NULL),
+                    (@t1, 'followup_overdue', 'operational', 'warning', @rep2, 'z', 'k3', '2026-10-04 08:00:00+00', 'new', NULL, NULL, NULL, NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sup", sup), ("m", manager), ("f", finance), ("r1", r1), ("r2", r2), ("ta", teamA), ("tb", teamB), ("w1", w1), ("c1", c1), ("c2", c2), ("c3", c3) })
+                cmd.Parameters.AddWithValue(name, value);
+            for (var i = 0; i < v.Length; i++) cmd.Parameters.AddWithValue($"v{i}", v[i]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<LifeDrop.Application.Reports.KpiReportDto> Kpis(string query = "") =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>("/reports/kpis?from=2026-10-01&to=2026-10-05" + query))!;
+
+        As(finance);
+        await AssertProblemAsync(await client.GetAsync("/reports/kpis?from=2026-10-01&to=2026-10-05"), HttpStatusCode.Forbidden, "FORBIDDEN");   // no reports.read
+
+        // The sales manager sees everything: counts with the numerators and denominators of docs/KPI.md
+        As(manager);
+        var report = await Kpis();
+        var row = report.Users.Single(u => u.UserId == rep);
+        var c = row.Counts;
+        Assert.Equal((6, 3, 1), (c.VisitsPlanned, c.VisitsCompleted, c.VisitsFailed));   // the cancelled visit and the one of 20 September are not counted
+        Assert.Equal((3, 2), (c.DelayBase, c.DelayedVisits));                           // on time, late, never started and overdue; the visit of 15:00 is not due yet
+        Assert.Equal((2, 1), (c.NewCustomers, c.ApprovedNewCustomers));
+        Assert.Equal((3, 1, 1), (c.Orders, c.OrdersDelivered, c.OrdersDeliveryFailed));   // the cancelled order is not counted
+        Assert.Equal(new[] { ("IQD", 3000m), ("USD", 5m) }, c.OrderTotals.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal((3, 1), (c.FollowUpBase, c.FollowUpsOverdue));                     // cancelled and later-than-range follow-ups are not counted
+        Assert.Equal((50.0, 16.7, 66.7, 50.0, 33.3), (row.Rates.VisitCompletion, row.Rates.VisitFailure, row.Rates.Delay, row.Rates.OrderDelivery, row.Rates.FollowUpOverdue));
+        Assert.Equal(new[] { rep, rep2 }.OrderBy(i => i).ToArray(), report.Users.Select(u => u.UserId).OrderBy(i => i).ToArray());   // users without any data are not listed
+        Assert.Equal(("Team A", "Team B"), (row.TeamName, report.Users.Single(u => u.UserId == rep2).TeamName));
+
+        // The total adds numerators and denominators of the users (6 + 1 planned, 3 + 1 completed)
+        Assert.Equal((7, 4), (report.Total.Counts.VisitsPlanned, report.Total.Counts.VisitsCompleted));
+        Assert.Equal(57.1, report.Total.Rates.VisitCompletion);
+        Assert.Null(report.Users.Single(u => u.UserId == rep2).Rates.OrderDelivery);   // nothing to measure is no value, never 0 %
+
+        // Alerts by kind with the result of the review; the sales manager may read both categories
+        Assert.Equal(new[] { "followup_overdue=2/0", "gps_mocked=1/1" }, report.Alerts.OrderBy(a => a.Kind, StringComparer.Ordinal).Select(a => $"{a.Kind}={a.Total}/{a.Fraud + a.Valid + a.Suspicious}").ToArray());
+        Assert.Equal(1, report.Alerts.Single(a => a.Kind == "gps_mocked").Fraud);
+
+        // Filters: customer type, team and region
+        Assert.Equal((1, 1), ((await Kpis("&customerType=Doctor")).Total.Counts.VisitsPlanned, (await Kpis("&customerType=Doctor")).Total.Counts.VisitsCompleted));
+        Assert.Equal(new[] { rep2 }, (await Kpis($"&teamId={teamB}")).Users.Select(u => u.UserId).ToArray());
+        Assert.Equal(new[] { rep }, (await Kpis($"&regionId={r1}")).Users.Select(u => u.UserId).ToArray());
+        Assert.Empty((await Kpis($"&teamId={teamA}&regionId={r2}")).Users);   // a team that is not in that region
+
+        // A supervisor sees the users of the region only, and only the alert categories they may read (operational)
+        As(sup);
+        var region = await Kpis();
+        Assert.Equal(new[] { rep }, region.Users.Select(u => u.UserId).ToArray());
+        Assert.Equal(new[] { "followup_overdue=1" }, region.Alerts.Select(a => $"{a.Kind}={a.Total}").ToArray());
+
+        // What is refused
+        As(manager);
+        await AssertProblemAsync(await client.GetAsync("/reports/kpis?from=2026-10-05&to=2026-10-01"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/reports/kpis?from=2025-01-01&to=2026-10-05"), HttpStatusCode.BadRequest, "INVALID_DATA");   // more than a year
+        await AssertProblemAsync(await client.GetAsync("/reports/kpis?from=2026-10-01"), HttpStatusCode.BadRequest, "BAD_REQUEST");   // the end of the range is missing
     }
 
     [SkippableFact]

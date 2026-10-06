@@ -12,6 +12,7 @@ import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { CatalogPage } from './pages/CatalogPage.tsx'
 import { OrdersPage } from './pages/OrdersPage.tsx'
+import { ReportsPage } from './pages/ReportsPage.tsx'
 import { RouteHistoryPage } from './pages/RouteHistoryPage.tsx'
 import { AlertsPage } from './pages/AlertsPage.tsx'
 import { FollowUpsPage } from './pages/FollowUpsPage.tsx'
@@ -23,7 +24,7 @@ import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'warehouse' | 'regions' | 'audit' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'notifications'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -92,6 +93,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'followups', label: t('web.tab.followups'), visible: can(me, ...Permissions.followUps) },
     { id: 'alerts', label: alertCount > 0 ? `${t('web.tab.alerts')} (${alertCount})` : t('web.tab.alerts'), visible: canAlerts },
     { id: 'route', label: t('web.tab.route'), visible: can(me, ...Permissions.routeHistory) },
+    { id: 'reports', label: t('web.tab.reports'), visible: can(me, ...Permissions.reports) },
     { id: 'warehouse', label: t('web.tab.warehouse'), visible: can(me, ...Permissions.warehouseWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
@@ -133,6 +135,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'followups' && <FollowUpsPage admin={admin} me={me} />}
       {me && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}
       {me && tab === 'route' && <RouteHistoryPage admin={admin} />}
+      {me && tab === 'reports' && <ReportsPage admin={admin} />}
       {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
