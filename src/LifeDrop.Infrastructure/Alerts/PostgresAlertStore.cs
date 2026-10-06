@@ -43,7 +43,7 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
 
     private const string Columns = """
         a.id, a.kind, a.category, a.severity, a.subject_user_id, u.email, a.customer_id, c.code, c.name, a.entity_id, a.detail, a.status, a.occurred_at, a.created_at, a.seen_at,
-        s.email, a.handled_at, h.email, a.handled_note
+        s.email, a.handled_at, h.email, a.handled_note, a.evidence::text, a.handled_outcome
         """;
 
     private const string Joins = """
@@ -57,7 +57,8 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
     private static AlertDto Read(NpgsqlDataReader r) => new(r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetGuid(4), r.IsDBNull(5) ? null : r.GetString(5),
         r.IsDBNull(6) ? null : r.GetGuid(6), r.IsDBNull(7) ? null : r.GetString(7), r.IsDBNull(8) ? null : r.GetString(8), r.GetString(9), r.IsDBNull(10) ? null : r.GetString(10), r.GetString(11),
         r.GetFieldValue<DateTimeOffset>(12), r.GetFieldValue<DateTimeOffset>(13), r.IsDBNull(14) ? null : r.GetFieldValue<DateTimeOffset>(14), r.IsDBNull(15) ? null : r.GetString(15),
-        r.IsDBNull(16) ? null : r.GetFieldValue<DateTimeOffset>(16), r.IsDBNull(17) ? null : r.GetString(17), r.IsDBNull(18) ? null : r.GetString(18));
+        r.IsDBNull(16) ? null : r.GetFieldValue<DateTimeOffset>(16), r.IsDBNull(17) ? null : r.GetString(17), r.IsDBNull(18) ? null : r.GetString(18),
+        r.IsDBNull(19) ? null : r.GetString(19), r.IsDBNull(20) ? null : r.GetString(20));
 
     public async Task<IReadOnlyList<AlertDto>> ListAsync(TenantId tenantId, IReadOnlyList<AlertAudience> audiences, string? category, string? status, string? kind, int limit, CancellationToken cancellationToken)
     {
@@ -107,9 +108,13 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
     public Task<AlertResult> MarkSeenAsync(TenantId tenantId, UserId actorId, Guid alertId, DateTimeOffset now, CancellationToken cancellationToken) =>
         ChangeAsync(tenantId, actorId, alertId, "alert.seen", "status = 'seen', seen_at = @now, seen_by = @actor", "status = 'new'", now, _ => { }, cancellationToken);
 
-    public Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, string note, DateTimeOffset now, CancellationToken cancellationToken) =>
-        ChangeAsync(tenantId, actorId, alertId, "alert.handled", "status = 'handled', handled_at = @now, handled_by = @actor, handled_note = @note", "status IN ('new', 'seen')", now,
-            c => c.Parameters.AddWithValue("note", note), cancellationToken);
+    public Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, string note, string? outcome, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ChangeAsync(tenantId, actorId, alertId, "alert.handled", "status = 'handled', handled_at = @now, handled_by = @actor, handled_note = @note, handled_outcome = @outcome", "status IN ('new', 'seen')", now,
+            c =>
+            {
+                c.Parameters.AddWithValue("note", note);
+                c.Parameters.Add(P("outcome", NpgsqlDbType.Text, outcome));
+            }, cancellationToken);
 
     private async Task<AlertResult> ChangeAsync(TenantId tenantId, UserId actorId, Guid alertId, string action, string set, string whenStatus, DateTimeOffset now, Action<NpgsqlCommand> bind,
         CancellationToken cancellationToken)
@@ -158,6 +163,13 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             command.Parameters.Add(P("delay", NpgsqlDbType.Interval, AlertRules.VisitDelay));
             command.Parameters.Add(P("stay", NpgsqlDbType.Interval, AlertRules.LongStay));
             command.Parameters.Add(P("gap", NpgsqlDbType.Interval, AlertRules.TrackingGap));
+            command.Parameters.Add(P("window", NpgsqlDbType.Interval, AlertRules.ScanWindow));
+            command.Parameters.Add(P("clockAhead", NpgsqlDbType.Interval, AlertRules.ClockAhead));
+            command.Parameters.AddWithValue("maxSpeed", AlertRules.MaxSpeedKmh);
+            command.Parameters.AddWithValue("minJump", AlertRules.MinJumpMeters);
+            command.Parameters.AddWithValue("areaRadius", AlertRules.AreaRadiusMeters);
+            command.Parameters.AddWithValue("poorMeters", AlertRules.PoorAccuracyMeters);
+            command.Parameters.AddWithValue("poorCount", AlertRules.PoorAccuracyCount);
             created += await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -214,6 +226,98 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             SELECT p.tenant_id, 'gps_mocked', 'security', 'warning', p.user_id, {string.Format(RegionOf, "p.user_id")}, p.shift_id::text, 'tracking', 'gps_mocked:shift:' || p.shift_id, min(p.captured_at)
             FROM tracking_points p WHERE p.tenant_id = @tenant AND p.is_mocked
             GROUP BY p.tenant_id, p.user_id, p.shift_id
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        // Anti-fraud (plan step 2.10): signals from the tracking points of shifts that started in the last 48 hours. Evidence is kept in the alert.
+        // The first point that breaks the rule in a shift is the evidence; one alert per shift and signal.
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'impossible_speed', 'security', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.shift_id::text, round(x.speed)::text || ' km/h',
+                   jsonb_build_object('fromPointId', x.prev_id, 'toPointId', x.id, 'fromAt', x.prev_at, 'toAt', x.captured_at, 'distanceM', round(x.dist), 'seconds', round(x.dt), 'speedKmh', round(x.speed),
+                                      'fromLat', ST_Y(x.prev_geom::geometry), 'fromLng', ST_X(x.prev_geom::geometry), 'toLat', ST_Y(x.geom::geometry), 'toLng', ST_X(x.geom::geometry)),
+                   'impossible_speed:' || x.shift_id, x.captured_at
+            FROM (
+                SELECT DISTINCT ON (q.shift_id) q.*, ST_Distance(q.geom, q.prev_geom) AS dist, extract(epoch FROM q.captured_at - q.prev_at) AS dt,
+                       ST_Distance(q.geom, q.prev_geom) / extract(epoch FROM q.captured_at - q.prev_at) * 3.6 AS speed
+                FROM (
+                    SELECT p.tenant_id, p.shift_id, p.user_id, p.id, p.geom, p.captured_at,
+                           lag(p.id) OVER w AS prev_id, lag(p.geom) OVER w AS prev_geom, lag(p.captured_at) OVER w AS prev_at
+                    FROM tracking_points p JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                    WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window
+                    WINDOW w AS (PARTITION BY p.shift_id ORDER BY p.captured_at, p.id)
+                ) q
+                WHERE q.prev_at IS NOT NULL AND q.captured_at > q.prev_at
+                  AND ST_Distance(q.geom, q.prev_geom) > @minJump
+                  AND ST_Distance(q.geom, q.prev_geom) / extract(epoch FROM q.captured_at - q.prev_at) * 3.6 > @maxSpeed
+                ORDER BY q.shift_id, q.captured_at
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'clock_tamper', 'security', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.shift_id::text, round(extract(epoch FROM x.captured_at - x.received_at) / 60)::text || ' min ahead',
+                   jsonb_build_object('pointId', x.id, 'capturedAt', x.captured_at, 'receivedAt', x.received_at, 'aheadSeconds', round(extract(epoch FROM x.captured_at - x.received_at))),
+                   'clock_tamper:shift:' || x.shift_id, x.captured_at
+            FROM (
+                SELECT DISTINCT ON (p.shift_id) p.tenant_id, p.shift_id, p.user_id, p.id, p.captured_at, p.received_at
+                FROM tracking_points p JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window AND p.captured_at > p.received_at + @clockAhead
+                ORDER BY p.shift_id, p.captured_at
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, customer_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT e.tenant_id, 'clock_tamper', 'security', 'warning', e.user_id, {string.Format(RegionOf, "e.user_id")}, v.customer_id, e.visit_id::text, e.kind,
+                   jsonb_build_object('eventId', e.id, 'kind', e.kind, 'capturedAt', e.captured_at, 'receivedAt', e.received_at),
+                   'clock_tamper:event:' || e.id, e.captured_at
+            FROM visit_location_events e JOIN visits v ON v.tenant_id = e.tenant_id AND v.id = e.visit_id
+            WHERE e.tenant_id = @tenant AND e.rejection_reason = 'clock_skew' AND e.received_at > @now - @window
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'outside_area', 'security', 'warning', x.user_id, x.region_id, x.shift_id::text, round(x.nearest / 1000)::text || ' km',
+                   jsonb_build_object('pointId', x.id, 'capturedAt', x.captured_at, 'lat', ST_Y(x.geom::geometry), 'lng', ST_X(x.geom::geometry), 'regionId', x.region_id,
+                                      'nearestCustomerM', round(x.nearest), 'radiusM', @areaRadius),
+                   'outside_area:' || x.shift_id, x.captured_at
+            FROM (
+                SELECT DISTINCT ON (p.shift_id) p.tenant_id, p.shift_id, p.user_id, p.id, p.geom, p.captured_at, r.region_id,
+                       (SELECT min(ST_Distance(c.geom, p.geom)) FROM customers c WHERE c.tenant_id = p.tenant_id AND c.region_id = r.region_id AND c.geom IS NOT NULL) AS nearest
+                FROM tracking_points p
+                JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                CROSS JOIN LATERAL (SELECT t.region_id FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = p.user_id AND t.region_id IS NOT NULL LIMIT 1) r(region_id)
+                WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window
+                  AND EXISTS (SELECT 1 FROM customers c WHERE c.tenant_id = p.tenant_id AND c.region_id = r.region_id AND c.geom IS NOT NULL)
+                  AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.tenant_id = p.tenant_id AND c.region_id = r.region_id AND c.geom IS NOT NULL AND ST_DWithin(c.geom, p.geom, @areaRadius))
+                ORDER BY p.shift_id, p.captured_at
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'poor_accuracy', 'security', 'info', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.shift_id::text, x.n::text || ' points',
+                   jsonb_build_object('points', x.n, 'worseThanM', @poorMeters, 'worstM', x.worst, 'firstAt', x.first_at),
+                   'poor_accuracy:' || x.shift_id, x.first_at
+            FROM (
+                SELECT p.tenant_id, p.shift_id, p.user_id, count(*) AS n, max(p.accuracy_m) AS worst, min(p.captured_at) AS first_at
+                FROM tracking_points p JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window AND p.accuracy_m > @poorMeters
+                GROUP BY p.tenant_id, p.shift_id, p.user_id HAVING count(*) >= @poorCount
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'device_mismatch', 'security', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.shift_id::text, x.n::text || ' points',
+                   jsonb_build_object('shiftDeviceId', x.shift_device, 'otherDeviceIds', x.others, 'points', x.n, 'firstAt', x.first_at),
+                   'device_mismatch:' || x.shift_id, x.first_at
+            FROM (
+                SELECT p.tenant_id, p.shift_id, p.user_id, sh.device_id AS shift_device, count(*) AS n, array_agg(DISTINCT p.device_id) AS others, min(p.captured_at) AS first_at
+                FROM tracking_points p JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window AND p.device_id <> sh.device_id
+                GROUP BY p.tenant_id, p.shift_id, p.user_id, sh.device_id
+            ) x
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
         await transaction.CommitAsync(cancellationToken);

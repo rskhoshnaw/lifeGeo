@@ -5182,5 +5182,71 @@
   "ckb": "{count} ئاگادارکردنەوەی نوێ",
   "ar": "{count} تنبيهات جديدة",
   "fa": "{count} هشدار جدید"
+ },
+ "web.alerts.kind.impossible_speed": {
+  "en": "Impossible speed between two points",
+  "ckb": "خێرایی نەگونجاو لە نێوان دوو خاڵ",
+  "ar": "سرعة غير ممكنة بين نقطتين",
+  "fa": "سرعت غیرممکن بین دو نقطه"
+ },
+ "web.alerts.kind.clock_tamper": {
+  "en": "Phone clock ahead of the server",
+  "ckb": "کاتژمێری مۆبایل پێش سێرڤەرە",
+  "ar": "ساعة الهاتف متقدمة عن الخادم",
+  "fa": "ساعت گوشی جلوتر از سرور"
+ },
+ "web.alerts.kind.outside_area": {
+  "en": "Far from the work area",
+  "ckb": "دوور لە ناوچەی کار",
+  "ar": "بعيد عن منطقة العمل",
+  "fa": "دور از محدودهٔ کار"
+ },
+ "web.alerts.kind.poor_accuracy": {
+  "en": "Many inaccurate points",
+  "ckb": "چەند خاڵی نادروست",
+  "ar": "نقاط كثيرة غير دقيقة",
+  "fa": "نقاط نادقیق زیاد"
+ },
+ "web.alerts.kind.device_mismatch": {
+  "en": "Points from another phone in one shift",
+  "ckb": "خاڵ لە مۆبایلێکی تر لە یەک شیفت",
+  "ar": "نقاط من هاتف آخر في وردية واحدة",
+  "fa": "نقطه از گوشی دیگر در یک شیفت"
+ },
+ "web.alerts.evidence": {
+  "en": "Evidence",
+  "ckb": "بەڵگە",
+  "ar": "الدليل",
+  "fa": "مدرک"
+ },
+ "web.alerts.outcome": {
+  "en": "Result of the review",
+  "ckb": "ئەنجامی پشکنین",
+  "ar": "نتيجة المراجعة",
+  "fa": "نتیجهٔ بررسی"
+ },
+ "web.alerts.outcomeFor": {
+  "en": "Result of the review of {kind}",
+  "ckb": "ئەنجامی پشکنینی {kind}",
+  "ar": "نتيجة مراجعة {kind}",
+  "fa": "نتیجهٔ بررسی {kind}"
+ },
+ "web.alerts.outcome.valid": {
+  "en": "Valid",
+  "ckb": "دروستە",
+  "ar": "صحيح",
+  "fa": "معتبر"
+ },
+ "web.alerts.outcome.suspicious": {
+  "en": "Suspicious",
+  "ckb": "گوماناوییە",
+  "ar": "مشبوه",
+  "fa": "مشکوک"
+ },
+ "web.alerts.outcome.fraud": {
+  "en": "Fraud",
+  "ckb": "فێڵە",
+  "ar": "احتيال",
+  "fa": "تقلب"
  }
 }

@@ -475,3 +475,12 @@ Permissions: `alerts.read` (SalesManager, CompanyManager: all; Supervisor: the r
 | `POST /alerts/{id}/seen` | `alerts.handle` | `new` → `seen`; 409 otherwise; 404 outside the area | `alert.seen` |
 | `POST /alerts/{id}/handle` | `alerts.handle` | `{note}` (1-500); `new`/`seen` → `handled`; 409 when handled | `alert.handled` |
 | `POST /alerts/scan` | `alerts.handle` | Looks at the caller's company now and makes the missing alerts; `{created}`. The background scan does the same every `Alerts:ScanIntervalSeconds` (default 300, 0 = off; first scan after one interval) | — |
+
+### Anti-fraud (plan step 2.10)
+
+No new route or permission: the new signals are alert kinds made by the alert scan (see 2.9 and `docs/ANTIFRAUD.md`), all in the **security** category (`alerts.security.read`): `impossible_speed`, `clock_tamper`, `outside_area`, `poor_accuracy`, `device_mismatch`. Changes to the alert routes:
+
+| Route | Change |
+|---|---|
+| `GET /alerts`, `GET /alerts/{id}` | The alert also carries `evidence` (JSON text kept by the scan) and `handledOutcome` |
+| `POST /alerts/{id}/handle` | Body `{note, outcome?}`. `outcome` (`valid`, `suspicious`, `fraud`) is **required** for `gps_mocked`, `impossible_speed`, `clock_tamper`, `outside_area`, `poor_accuracy`, `device_mismatch` and refused (400) for other kinds; an unknown value is 400 |

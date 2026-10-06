@@ -389,7 +389,7 @@ export interface FollowUp {
 }
 export interface Alert {
   id: string
-  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked'
+  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch'
   category: 'operational' | 'security'
   severity: 'info' | 'warning' | 'critical'
   subjectEmail: string | null
@@ -400,7 +400,11 @@ export interface Alert {
   occurredAt: string
   handledByEmail: string | null
   handledNote: string | null
+  evidence?: string | null
+  handledOutcome?: 'valid' | 'suspicious' | 'fraud' | null
 }
+// Security alerts about behaviour: handling them needs the result of the review (step 2.10).
+export const reviewedAlertKinds = ['gps_mocked', 'impossible_speed', 'clock_tamper', 'outside_area', 'poor_accuracy', 'device_mismatch']
 export interface Sample {
   id: string
   number: string
@@ -677,7 +681,7 @@ export class AdminApi {
   alerts = (category: string, status: string) => this.get<Alert[]>(`/alerts?limit=200${category ? `&category=${category}` : ''}${status ? `&status=${status}` : ''}`)
   alertCount = async () => (await this.get<{ new: number }>('/alerts/count')).new
   seeAlert = (id: string) => this.post(`/alerts/${id}/seen`)
-  handleAlert = (id: string, note: string) => this.post(`/alerts/${id}/handle`, { note })
+  handleAlert = (id: string, note: string, outcome: string | null = null) => this.post(`/alerts/${id}/handle`, { note, outcome })
   scanAlerts = () => this.postJson<{ created: number }>('/alerts/scan', {})
   // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
   samples = (before?: Sample) =>
