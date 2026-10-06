@@ -4319,11 +4319,11 @@ public class CustomerApiIntegrationTests
         }
         static string[] Codes(IEnumerable<LifeDrop.Application.Visits.PlanCandidateDto> list) => list.Select(x => x.Code).ToArray();
 
-        // Who may plan: finance has no visits.write; a rep (visits.plan only) neither.
+        // Who may plan: finance has no visits.write; a rep (visits.plan only) only for themselves (below).
         As(finance);
         await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
         As(repA);
-        await AssertProblemAsync(await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Generate(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", PlaceId = n1 }), HttpStatusCode.Forbidden, "FORBIDDEN");
 
         As(supervisor);
         // Bad requests
@@ -4402,6 +4402,16 @@ public class CustomerApiIntegrationTests
         var chosenResult = (await chosen.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!;
         Assert.Equal(1, chosenResult.Created);
         Assert.Equal(1, chosenResult.Skipped);
+
+        // A rep plans for themselves (plan step 1.25): a search text is enough, only customers of their region, never for somebody else
+        As(repA);
+        Assert.Equal(new[] { "C6" }, Codes((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6" })).Candidates));
+        Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "Name 9" })).Candidates);   // other region
+        Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "%" })).Candidates);       // no wildcard
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", Query = "Name" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var own = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6", CustomerIds = new[] { c[6] } });
+        Assert.Equal(1, (await own.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

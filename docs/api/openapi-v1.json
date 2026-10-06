@@ -6318,7 +6318,10 @@
         "type": "object",
         "properties": {
           "assignedUserId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "scheduleDate": {
@@ -6381,6 +6384,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "query": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

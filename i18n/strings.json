@@ -2656,5 +2656,83 @@
   "ckb": "گرنگی بۆ هەمووان",
   "ar": "الأولوية للجميع",
   "fa": "اولویت برای همه"
+ },
+ "app.plan.add": {
+  "en": "Add customers",
+  "ckb": "زیادکردنی کڕیار",
+  "ar": "إضافة عملاء",
+  "fa": "افزودن مشتری"
+ },
+ "app.add.title": {
+  "en": "Add to my plan",
+  "ckb": "زیادکردن بۆ پلانەکەم",
+  "ar": "إضافة إلى خطتي",
+  "fa": "افزودن به برنامهٔ من"
+ },
+ "app.add.place": {
+  "en": "Where are the customers?",
+  "ckb": "کڕیارەکان لە کوێن؟",
+  "ar": "أين العملاء؟",
+  "fa": "مشتریان کجا هستند؟"
+ },
+ "app.add.search": {
+  "en": "Name or code",
+  "ckb": "ناو یان کۆد",
+  "ar": "الاسم أو الرمز",
+  "fa": "نام یا کد"
+ },
+ "app.add.searchBtn": {
+  "en": "Search",
+  "ckb": "گەڕان",
+  "ar": "بحث",
+  "fa": "جستجو"
+ },
+ "app.add.day": {
+  "en": "Day: {day}",
+  "ckb": "ڕۆژ: {day}",
+  "ar": "اليوم: {day}",
+  "fa": "روز: {day}"
+ },
+ "app.add.needSearch": {
+  "en": "Choose a place or type at least two letters.",
+  "ckb": "شوێنێک هەڵبژێرە یان بەلایەنی کەمەوە دوو پیت بنووسە.",
+  "ar": "اختر مكاناً أو اكتب حرفين على الأقل.",
+  "fa": "یک مکان انتخاب کنید یا دست‌کم دو حرف بنویسید."
+ },
+ "app.add.none": {
+  "en": "No customer found, or all are already in the plan.",
+  "ckb": "هیچ کڕیارێک نەدۆزرایەوە، یان هەموویان لە پلانەکەدان.",
+  "ar": "لا يوجد عميل، أو أن الجميع في الخطة.",
+  "fa": "مشتری پیدا نشد یا همه در برنامه هستند."
+ },
+ "app.add.addBtn": {
+  "en": "Add {count}",
+  "ckb": "{count} زیاد بکە",
+  "ar": "أضف {count}",
+  "fa": "{count} مورد اضافه شود"
+ },
+ "app.add.added": {
+  "en": "{count} visits added.",
+  "ckb": "{count} سەردان زیادکرا.",
+  "ar": "تمت إضافة {count} زيارات.",
+  "fa": "{count} ویزیت اضافه شد."
+ },
+ "app.add.closed": {
+  "en": "closed that day",
+  "ckb": "ئەو ڕۆژە کراوە نییە",
+  "ar": "مغلق في ذلك اليوم",
+  "fa": "آن روز نمی‌پذیرد"
+ },
+ "app.add.lastVisit": {
+  "en": "last visit {date}",
+  "ckb": "دوایین سەردان {date}",
+  "ar": "آخر زيارة {date}",
+  "fa": "آخرین ویزیت {date}"
+ },
+ "app.add.neverVisited": {
+  "en": "never visited",
+  "ckb": "هەرگیز سەردان نەکراوە",
+  "ar": "لم تتم زيارته",
+  "fa": "هرگز ویزیت نشده"
  }
 }

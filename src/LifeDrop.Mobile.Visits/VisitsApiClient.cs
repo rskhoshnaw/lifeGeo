@@ -88,7 +88,7 @@ public interface IVisitsApiClient
         throw new NotSupportedException();
 }
 
-public sealed class VisitsApiClient : IVisitsApiClient
+public sealed class VisitsApiClient : IVisitsApiClient, ISelfPlanApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -157,6 +157,48 @@ public sealed class VisitsApiClient : IVisitsApiClient
 
     public Task<VisitActionResult> ReorderPlanAsync(DateOnly scheduleDate, IReadOnlyList<Guid> visitIds, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Put, "/visit-plan/order", new { scheduleDate = scheduleDate.ToString("yyyy-MM-dd"), visitIds }, null, cancellationToken);
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<SelfPlanCandidate> Candidates)> SearchAsync(SelfPlanQuery query, CancellationToken cancellationToken = default)
+    {
+        SelfPlanPreviewDto? dto = null;
+        var result = await SendActionAsync(HttpMethod.Post, "/visit-plan/preview", SelfPlanBody(query, null), null, cancellationToken, async response =>
+        {
+            try { dto = await response.Content.ReadFromJsonAsync<SelfPlanPreviewDto>(JsonOptions, cancellationToken); }
+            catch (Exception e) when (e is JsonException or NotSupportedException) { }
+        });
+        if (result != VisitActionResult.Success) return (result, Array.Empty<SelfPlanCandidate>());
+        if (dto?.Candidates is null || dto.Candidates.Any(c => c is null || c.CustomerId == Guid.Empty || string.IsNullOrWhiteSpace(c.Code)))
+            return (VisitActionResult.ServerError, Array.Empty<SelfPlanCandidate>());
+        // The user knows the customer: "closed that weekday" only warns; a customer already over a limit does not exist here (no count is sent).
+        return (result, dto.Candidates.Select(c => new SelfPlanCandidate(c.CustomerId, c.Code!, c.Name ?? "", c.Place, c.LastVisitDate, c.WindowStatus ?? "none")).ToList());
+    }
+
+    public async Task<(VisitActionResult Result, int Created)> AddAsync(SelfPlanQuery query, IReadOnlyList<Guid> customerIds, CancellationToken cancellationToken = default)
+    {
+        SelfPlanGeneratedDto? dto = null;
+        var result = await SendActionAsync(HttpMethod.Post, "/visit-plan/generate", SelfPlanBody(query, customerIds), null, cancellationToken, async response =>
+        {
+            try { dto = await response.Content.ReadFromJsonAsync<SelfPlanGeneratedDto>(JsonOptions, cancellationToken); }
+            catch (Exception e) when (e is JsonException or NotSupportedException) { }
+        });
+        if (result != VisitActionResult.Success) return (result, 0);
+        return dto is null ? (VisitActionResult.ServerError, 0) : (result, dto.Created);
+    }
+
+    // No assignee: the server plans for the caller. Hours are not applied; the order is the longest time since the last visit.
+    private static object SelfPlanBody(SelfPlanQuery query, IReadOnlyList<Guid>? customerIds) => new
+    {
+        scheduleDate = query.Day.ToString("yyyy-MM-dd"),
+        placeId = query.PlaceId,
+        query = query.Text,
+        order = "least_recent",
+        respectWindows = false,
+        customerIds
+    };
+
+    private sealed record SelfPlanCandidateDto(Guid CustomerId, string? Code, string? Name, string? Place, DateOnly? LastVisitDate, string? WindowStatus);
+    private sealed record SelfPlanPreviewDto(List<SelfPlanCandidateDto>? Candidates);
+    private sealed record SelfPlanGeneratedDto(int Created);
 
     public Task<VisitActionResult> PostponeAsync(Guid visitId, DateOnly newDate, string? reason, CancellationToken cancellationToken = default) =>
         SendActionAsync(HttpMethod.Post, $"/visits/{visitId}/postpone", new { scheduleDate = newDate.ToString("yyyy-MM-dd"), reason }, null, cancellationToken);

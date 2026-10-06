@@ -13,7 +13,7 @@ namespace LifeDrop.Infrastructure.Visits;
 public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : IPlanGenerationStore
 {
     public async Task<IReadOnlyList<PlanCandidateRow>> FindCandidatesAsync(TenantId tenantId, AccessScope scope, Guid? placeId, Guid? regionId,
-        DateOnly scheduleDate, string order, CancellationToken cancellationToken)
+        DateOnly scheduleDate, string order, string? query, CancellationToken cancellationToken)
     {
         // The order comes from a whitelist (PlanGenerator.Orders), never from the caller's text.
         var orderBy = order switch
@@ -51,6 +51,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
             WHERE c.tenant_id = @tenant AND c.approval_status = 'approved' AND {scopeFilter}
               AND (@place::uuid IS NULL OR c.place_id IN (SELECT id FROM sub))
               AND (@region::uuid IS NULL OR c.region_id = @region)
+              AND (@query::text IS NULL OR c.name ILIKE @query ESCAPE '\' OR c.code ILIKE @query ESCAPE '\')
               AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.tenant_id = c.tenant_id AND v.customer_id = c.id AND v.schedule_date = @day
                               AND v.status NOT IN ('Cancelled', 'Failed'))
             ORDER BY {orderBy}
@@ -69,6 +70,10 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
         command.Parameters.Add(new NpgsqlParameter("scopeRegion", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)scope.RegionId ?? DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter("place", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)placeId ?? DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter("region", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)regionId ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("query", NpgsqlTypes.NpgsqlDbType.Text)
+        {
+            Value = string.IsNullOrWhiteSpace(query) ? DBNull.Value : "%" + query.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%"
+        });
         command.Parameters.AddWithValue("day", scheduleDate);
         command.Parameters.AddWithValue("max", PlanGenerator.MaxMatching);
 

@@ -15,8 +15,8 @@ namespace LifeDrop.Application.Visits;
 // RespectWindows (default true): customers whose accepted visit days (plan step 1.23) do not include that weekday are left out.
 // VisitType / Priority: for every visit (default: by customer type / normal). CustomerIds: only these customers (as chosen in the
 // preview); Count is ignored then.
-public sealed record GeneratePlanRequest(Guid AssignedUserId, DateOnly ScheduleDate, Guid? PlaceId = null, Guid? RegionId = null, int? Count = null,
-    string? Order = null, bool? RespectWindows = null, string? VisitType = null, string? Priority = null, IReadOnlyList<Guid>? CustomerIds = null);
+public sealed record GeneratePlanRequest(Guid? AssignedUserId, DateOnly ScheduleDate, Guid? PlaceId = null, Guid? RegionId = null, int? Count = null,
+    string? Order = null, bool? RespectWindows = null, string? VisitType = null, string? Priority = null, IReadOnlyList<Guid>? CustomerIds = null, string? Query = null);
 
 // SkipReason (not included): outside_hours | over_limit. LastVisitDate: the day of the last completed visit.
 public sealed record PlanCandidateDto(Guid CustomerId, string Code, string Name, string Type, string? Place, DateOnly? LastVisitDate, string WindowStatus,
@@ -38,7 +38,7 @@ public interface IPlanGenerationStore
     // Approved customers inside scope and the filters that have no visit (other than cancelled or failed) on that day, in the
     // wanted order, at most MaxMatching rows.
     Task<IReadOnlyList<PlanCandidateRow>> FindCandidatesAsync(TenantId tenantId, AccessScope scope, Guid? placeId, Guid? regionId, DateOnly scheduleDate,
-        string order, CancellationToken cancellationToken);
+        string order, string? query, CancellationToken cancellationToken);
     // Creates the visits for the assignee on that day, after the visits that are already in the plan, in one transaction with one
     // audit row per visit and one for the whole generation. Returns the new ids.
     Task<IReadOnlyList<Guid>> CreateAsync(TenantId tenantId, UserId actorId, UserId assigneeId, DateOnly scheduleDate, string priority,
@@ -67,7 +67,7 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
         if (chosen.Count == 0) return (PlanGenerationResult.Success, new PlanGeneratedDto(0, Math.Max(0, skipped), Array.Empty<Guid>()));
 
         var priority = request.Priority ?? "normal";
-        var ids = await store.CreateAsync(tenantId, actorId, new UserId(request.AssignedUserId), request.ScheduleDate, priority,
+        var ids = await store.CreateAsync(tenantId, actorId, new UserId(request.AssignedUserId ?? actorId.Value), request.ScheduleDate, priority,
             chosen.Select(c => new PlanVisitToCreate(c.CustomerId, request.VisitType ?? VisitTypeOf(c.Type))).ToList(), cancellationToken);
         return (PlanGenerationResult.Success, new PlanGeneratedDto(ids.Count, Math.Max(0, skipped), ids));
     }
@@ -86,20 +86,30 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
         if (tenantId.IsEmpty || actorId.IsEmpty) return (PlanGenerationResult.Forbidden, null);
         var order = request.Order ?? "least_recent";
         if (request.AssignedUserId == Guid.Empty || request.ScheduleDate == default || request.ScheduleDate < IraqCalendar.Today(clock) ||
-            (request.PlaceId is null && request.RegionId is null) || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
+            (request.PlaceId is null && request.RegionId is null && string.IsNullOrWhiteSpace(request.Query)) || request.Query?.Trim().Length > 60 || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
             request.Count is < 1 or > MaxCount || !Orders.Contains(order) ||
             !VisitPlanningContract.TryParseType(request.VisitType, out _) || !VisitPlanningContract.TryParsePriority(request.Priority, out _) ||
             (request.CustomerIds is { } ids && (ids.Count == 0 || ids.Count > MaxCount || ids.Any(i => i == Guid.Empty))))
             return (PlanGenerationResult.InvalidData, null);
 
+        var assignee = new UserId(request.AssignedUserId ?? actorId.Value);
         var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.VisitsWrite, cancellationToken);
-        if (scope is null) return (PlanGenerationResult.Forbidden, null);
-        var assignee = new UserId(request.AssignedUserId);
-        var (exists, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, assignee, cancellationToken);
-        if (!exists) return (PlanGenerationResult.UserNotFound, null);
-        if (!ManageVisit.IsUserInScope(scope, assignee, assigneeRegion)) return (PlanGenerationResult.Forbidden, null);
+        if (scope is not null)
+        {
+            var (exists, assigneeRegion) = await permissions.GetUserRegionAsync(tenantId, assignee, cancellationToken);
+            if (!exists) return (PlanGenerationResult.UserNotFound, null);
+            if (!ManageVisit.IsUserInScope(scope, assignee, assigneeRegion)) return (PlanGenerationResult.Forbidden, null);
+        }
+        else
+        {
+            // A field user plans for themselves from the customers they may read.
+            if (assignee != actorId || await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.VisitsPlan, cancellationToken) is null)
+                return (PlanGenerationResult.Forbidden, null);
+            scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersRead, cancellationToken);
+            if (scope is null) return (PlanGenerationResult.Forbidden, null);
+        }
 
-        var rows = await store.FindCandidatesAsync(tenantId, scope, request.PlaceId, request.RegionId, request.ScheduleDate, order, cancellationToken);
+        var rows = await store.FindCandidatesAsync(tenantId, scope, request.PlaceId, request.RegionId, request.ScheduleDate, order, request.Query?.Trim(), cancellationToken);
         var respect = request.RespectWindows ?? true;
         var wanted = request.CustomerIds?.ToHashSet();
         var remaining = request.Count ?? int.MaxValue;

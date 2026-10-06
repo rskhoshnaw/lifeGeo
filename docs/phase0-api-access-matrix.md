@@ -314,3 +314,7 @@ No migration. Both routes need `visits.write` (SalesManager, Supervisor) and app
 
 Test: `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; panel: the "Plan from places" form on the Visits tab (`Panel.test.tsx`).
 
+### Planning for oneself (step 1.25)
+
+The same two routes also serve a field user **without** `visits.write` but with `visits.plan` (SalesRep, ScientificRep), for their own plan only: `assignedUserId` is left out (= the caller) or is the caller; any other assignee is 403. The candidates are limited to the customers the caller may read (`customers.read` scope: region customers for a rep in a team, otherwise the ones they added). New optional field `query`: only customers whose code or name contains the text (max 60 characters, `%` and `_` are plain characters); a request needs `placeId`, `regionId` or `query`. Test: the last part of `PlanFromPlaces_PreviewThenCreateByPlaceRegionCountOrderAndHours`; app: `SelfPlannerTests`, page `AddToPlanPage` (button on the plan page).
+

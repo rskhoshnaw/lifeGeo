@@ -13,8 +13,8 @@
 - `tests/LifeDrop.{Domain,Application,Mobile.Auth,Mobile.Visits}.Tests` — unit tests (`LifeDrop.CI.slnf`).
 
 ## Mobile (.NET MAUI, Android)
-- `src/LifeDrop.Mobile.Auth` — login/session. `src/LifeDrop.Mobile.Visits` — testable logic: `VisitsApiClient`, `DailyPlan`, `VisitLifecycle`, `Tracking/` (ShiftTracker, PointQueue, ShiftApiClient), `Offline/` (Outbox, FileDurableStore), `Customers/` (CustomersApiClient, PlacePicker, NewCustomerFlow: step 1.23-b).
-- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `VisitDetailsPage`, `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`), `TrackingHost.cs` (shared services), `AppLanguage.cs` (language choice, RTL, root pages), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
+- `src/LifeDrop.Mobile.Auth` — login/session. `src/LifeDrop.Mobile.Visits` — testable logic: `VisitsApiClient`, `DailyPlan`, `VisitLifecycle`, `Tracking/` (ShiftTracker, PointQueue, ShiftApiClient), `Offline/` (Outbox, FileDurableStore), `Customers/` (CustomersApiClient, PlacePicker, NewCustomerFlow: step 1.23-b), `SelfPlan.cs` (SelfPlanner: step 1.25).
+- `src/LifeDrop.Mobile` — MAUI pages (`HomePage`, `DailyPlanPage`, `AddToPlanPage`, `VisitDetailsPage`, `CustomerPage`, `NewCustomerPage`, view `PlacePickerView`), `TrackingHost.cs` (shared services), `AppLanguage.cs` (language choice, RTL, root pages), `Platforms/Android/TrackingService.cs`, `AndroidMonotonicClock.cs`.
 
 ## Texts (step 1.21)
 - `i18n/strings.json` — every user-facing text, key → {en, ckb, ar, fa}; read by the panel (`src/LifeDrop.Web/src/i18n.ts`) and the app (`src/LifeDrop.Mobile.Visits/Localization/Texts.cs`, embedded).
