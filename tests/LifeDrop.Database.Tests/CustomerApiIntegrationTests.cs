@@ -136,7 +136,10 @@ public class CustomerApiIntegrationTests
                 var m35 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0035_route_history.sql"));
                 var m36 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0036_reports.sql"));
                 var m37 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0037_push.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37;
+                var m38 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0038_platform.sql"));
+                var m39 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0039_saved_reports.sql"));
+                var m40 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0040_custom_fields.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2013,7 +2016,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "97" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12)
+        Assert.Equal(new[] { "99" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -6740,6 +6743,583 @@ public class CustomerApiIntegrationTests
             await reader.NextResultAsync();
             await reader.ReadAsync();
             Assert.Equal("order.delivered=1,order.delivery_failed=1,order.delivery_shortage=1,order.on_the_way=1,order.picked_up=1", reader.GetString(0));
+        }
+    }
+
+    // Phase 2 exit test (plan step 2.15, PRD §14): one order from the seller to the delivery, the payment and the finance numbers,
+    // with the role, region and company limits checked along the way.
+    [SkippableFact]
+    public async Task Phase2Exit_OrderToDeliveryPaymentAndReportRespectRoleRegionAndCompany()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), worker = Guid.NewGuid(), driver = Guid.NewGuid(), finance = Guid.NewGuid(), rep = Guid.NewGuid(), sup = Guid.NewGuid();
+        Guid manager2 = Guid.NewGuid(), finance2 = Guid.NewGuid(), worker2 = Guid.NewGuid();
+        Guid w1 = Guid.NewGuid(), w2 = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid();
+        Guid region1 = Guid.NewGuid(), team1 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@w, @t1), (@d, @t1), (@f, @t1), (@rep, @t1), (@sup, @t1), (@m2, @t2), (@f2, @t2), (@w2, @t2);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @w, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @d, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver'
+                UNION ALL SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t2, @m2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager'
+                UNION ALL SELECT @t2, @f2, id FROM roles WHERE tenant_id = @t2 AND name = 'FinanceManager'
+                UNION ALL SELECT @t2, @w2, id FROM roles WHERE tenant_id = @t2 AND name = 'WarehouseManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm1, @t1, @r1, 'Team Erbil');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sup, @tm1), (@t1, @rep, @tm1);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w1, @t1, 'W1', 'Erbil warehouse');
+                INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES (@t1, @w1, @w);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep);
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES
+                    (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 2000);
+                SELECT set_config('app.current_tenant', @t2::text, false);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w2x, @t2, 'W1', 'Other warehouse');
+                INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES (@t2, @w2x, @w2);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status) VALUES
+                    (@c2, @t2, 'Pharmacy', 'C1', 'Other customer', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("m", manager), ("w", worker), ("d", driver), ("f", finance), ("rep", rep), ("sup", sup), ("m2", manager2), ("f2", finance2), ("w2", worker2),
+                ("w2x", w2), ("w1", w1), ("c1", c1), ("c2", c2), ("p1", p1), ("p2", p2), ("r1", region1), ("tm1", team1) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        // Another company never gets the data: refused as not found or as forbidden, whichever the role's own permissions decide first.
+        static void Hidden(HttpResponseMessage response) => Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.Forbidden });
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        string Range() => $"/reports/kpis?from={today.AddDays(-1):yyyy-MM-dd}&to={today.AddDays(1):yyyy-MM-dd}";
+
+        // 1. The seller places the order; the server prices it (10 x 1000 + 4 x 2000 = 18000 IQD)
+        As(t1, manager);
+        var created = await client.PostAsJsonAsync("/orders", new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = p1, Quantity = 10m }, new { ProductId = p2, Quantity = 4m } } });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var orderId = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!.Id;
+        Assert.Equal(18000m, (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{orderId}"))!.Total);
+
+        // Another company sees nothing of it, with any role
+        foreach (var other in new[] { manager2, finance2, worker2 })
+        {
+            As(t2, other);
+            Hidden(await client.GetAsync($"/orders/{orderId}"));
+        }
+        As(t2, manager2);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/orders", new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = p1, Quantity = 1m } } }), HttpStatusCode.NotFound, "NOT_FOUND");   // not its customer, warehouse or product
+
+        // 2. Roles: the driver and the finance manager do not do the warehouse work; the warehouse works only on its own orders
+        foreach (var other in new[] { driver, finance })
+        {
+            As(t1, other);
+            await AssertProblemAsync(await Post($"/warehouse/orders/{orderId}/start"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+        As(t2, worker2);
+        Assert.NotEqual(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/start")).StatusCode);
+        As(t1, worker);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/start")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/ready", new { Lines = new object[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 3m, Reason = "stock" } } })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/handover", new { DriverId = driver })).StatusCode);
+
+        // 3. Delivery: only the assigned driver
+        As(t1, rep);
+        await AssertProblemAsync(await Post($"/deliveries/{orderId}/pickup"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t1, driver);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/pickup")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/depart")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/deliver", new
+        {
+            ReceiverName = "Ali", Lines = new object[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 2m, Reason = "refused one" } }
+        })).StatusCode);   // delivered value 10 x 1000 + 2 x 2000 = 14000
+
+        // 4. Payment: the visitor collects, the finance manager confirms; the driver cannot touch money; another company sees nothing
+        As(t1, driver);
+        await AssertProblemAsync(await Post("/payments", new { CustomerId = c1, OrderId = orderId, Method = "cash", Currency = "IQD", Amount = 1m, ClientRef = Guid.NewGuid() }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t1, rep);
+        var paid = await Post("/payments", new { CustomerId = c1, OrderId = orderId, Method = "cash", Currency = "IQD", Amount = 6000m, ClientRef = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.Created, paid.StatusCode);
+        var paymentId = (await paid.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!.Id;
+        await AssertProblemAsync(await Post($"/payments/{paymentId}/confirm"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t2, finance2);
+        Hidden(await client.GetAsync($"/payments/{paymentId}"));
+        Hidden(await Post($"/payments/{paymentId}/confirm"));
+        Hidden(await client.GetAsync($"/customers/{c1}/balance"));
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments"))!);
+        As(t1, finance);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/payments/{paymentId}/confirm")).StatusCode);
+        var balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal(new[] { ("IQD", 14000m, 6000m, 0m, 8000m) }, balance.Items.Select(i => (i.Currency, i.Delivered, i.Confirmed, i.Collected, i.Balance)).ToArray());
+
+        // 5. The report counts the order and its delivery from the real data; every reader sees only their own area and company
+        As(t1, manager);
+        var report = await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>(Range());
+        var row = report!.Users.Single(u => u.UserId == manager).Counts;
+        Assert.Equal((1, 1, 0), (row.Orders, row.OrdersDelivered, row.OrdersDeliveryFailed));
+        Assert.Equal(new[] { ("IQD", 18000m) }, row.OrderTotals.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(100.0, report.Users.Single(u => u.UserId == manager).Rates.OrderDelivery);
+        As(t1, sup);
+        var regional = (await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>(Range()))!;
+        Assert.DoesNotContain(regional.Users, u => u.UserId == manager);   // the seller is not in the supervisor's region: neither the row nor the order count is shown
+        Assert.Equal(0, regional.Total.Counts.Orders);
+        As(t1, finance);
+        await AssertProblemAsync(await client.GetAsync(Range()), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t2, manager2);
+        Assert.Empty((await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>(Range()))!.Users);   // another company: nothing of the first one
+
+        // 6. Every step left its audit row
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT string_agg(DISTINCT action, ',' ORDER BY action) FROM audit_logs WHERE tenant_id = @t AND action IN ('order.delivered', 'order.picked_up', 'order.on_the_way')", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal("order.delivered,order.on_the_way,order.picked_up", reader.GetString(0));
+        }
+    }
+
+    [SkippableFact]
+    public async Task Platform_SuperAdminManagesCompaniesAndEveryCrossCompanyReadIsAudited()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var platform = LifeDrop.Application.Platform.PlatformTenant.Id.Value;
+        Guid t1 = Guid.NewGuid(), admin = Guid.NewGuid(), t1Manager = Guid.NewGuid(), t1Rep = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'Company One', 'one');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@admin, @p, 'root@platform'), (@m, @t1, 'm@one'), (@r, @t1, 'r@one');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @p, @admin, id FROM roles WHERE tenant_id = @p AND name = 'SuperAdmin'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                -- A role of an ordinary company that carries the platform permission keys still gives nothing.
+                INSERT INTO role_permissions (tenant_id, role_id, permission_key)
+                SELECT @t1, id, k FROM roles, (VALUES ('platform.tenants.manage'), ('platform.tenants.access')) AS x(k) WHERE tenant_id = @t1 AND name = 'SalesManager';
+                INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at) VALUES
+                    (gen_random_uuid(), @t1, @m, 'customer.created', 'c-1', now() - interval '2 minutes'), (gen_random_uuid(), @t1, @r, 'payment.recorded', 'p-1', now() - interval '1 minute');", conn);
+            cmd.Parameters.AddWithValue("t1", t1); cmd.Parameters.AddWithValue("p", platform); cmd.Parameters.AddWithValue("admin", admin);
+            cmd.Parameters.AddWithValue("m", t1Manager); cmd.Parameters.AddWithValue("r", t1Rep);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object NewTenant(string code = "acme", string password = "a-long-password-1") => new { Code = code, Name = "Acme Pharma", ManagerEmail = "boss@acme.test", ManagerPassword = password };
+        async Task<List<LifeDrop.Application.Platform.TenantSummaryDto>> Tenants() => (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantSummaryDto>>("/platform/tenants"))!;
+        async Task<List<LifeDrop.Application.Platform.PlatformAuditEntryDto>> PlatformAudit(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.PlatformAuditEntryDto>>("/platform/audit-logs" + query))!;
+
+        // Only the platform company's Super Admin: not an ordinary company's manager, even with the same permission keys; not another platform-less user
+        foreach (var other in new[] { t1Manager, t1Rep })
+        {
+            As(t1, other);
+            await AssertProblemAsync(await client.GetAsync("/platform/tenants"), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", NewTenant("sneaky")), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{t1}", new { IsActive = false, Reason = "just because" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=curiosity+about+others"), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync("/platform/audit-logs"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+
+        As(platform, admin);
+        Assert.Equal(new[] { "one", "platform" }, (await Tenants()).Select(t => t.Code).ToArray());
+        Assert.Empty(await PlatformAudit());   // nothing was done yet; the refused calls above changed nothing
+
+        // Creating a company: validated, seeded with roles and a first CompanyManager, audited; the code is unique
+        foreach (var bad in new object[]
+        {
+            NewTenant("platform"), NewTenant("A"), NewTenant("has space"), NewTenant("UPPER_case"), NewTenant("acme", "short"),
+            new { Code = "acme", Name = " ", ManagerEmail = "boss@acme.test", ManagerPassword = "a-long-password-1" },
+            new { Code = "acme", Name = "Acme", ManagerEmail = "not-an-email", ManagerPassword = "a-long-password-1" }
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var created = await client.PostAsJsonAsync("/platform/tenants", NewTenant());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var acme = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Platform.CreatedTenantDto>())!;
+        await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", NewTenant("acme")), HttpStatusCode.Conflict, "CONFLICT");
+        var list = await Tenants();
+        Assert.Equal(new[] { "acme", "one", "platform" }, list.Select(t => t.Code).ToArray());
+        Assert.Equal((true, 1, 1), (list[0].IsActive, list[0].Users, list[0].ActiveUsers));
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT (SELECT count(*) FROM roles WHERE tenant_id = @t), (SELECT string_agg(r.name, ',') FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id WHERE ur.tenant_id = @t AND ur.user_id = @u),
+                (SELECT password_hash FROM users WHERE id = @u)", conn);
+            cmd.Parameters.AddWithValue("t", acme.Id); cmd.Parameters.AddWithValue("u", acme.ManagerId);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(8L, reader.GetInt64(0));
+            Assert.Equal("CompanyManager", reader.GetString(1));
+            Assert.StartsWith("pbkdf2-sha256$", reader.GetString(2));   // the password is stored hashed
+        }
+
+        // Rename and deactivate need a reason; the platform company never goes off; unknown companies are 404
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Name = "Acme 2" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Reason = "nothing to change" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{platform}", new { IsActive = false, Reason = "switch off" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{Guid.NewGuid()}", new { Name = "x", Reason = "does not exist" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { Name = " Acme Pharma Iraq ", Reason = "legal name changed" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { IsActive = false, Reason = "unpaid invoice" })).StatusCode);
+        var acmeNow = (await Tenants()).Single(t => t.Code == "acme");
+        Assert.Equal(("Acme Pharma Iraq", false), (acmeNow.Name, acmeNow.IsActive));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/platform/tenants/{acme.Id}", new { IsActive = true, Reason = "invoice paid" })).StatusCode);
+        Assert.True((await Tenants()).Single(t => t.Code == "acme").IsActive);
+
+        // The explicit cross-company read: a reason is needed, the audit row is written with it, an unknown company is 404 and writes nothing
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=short"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711&limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{Guid.NewGuid()}/audit-logs?reason=support+ticket+4711"), HttpStatusCode.NotFound, "NOT_FOUND");
+        var read = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantAuditEntryDto>>($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711"))!;
+        Assert.Equal(new[] { "payment.recorded", "customer.created" }, read.Select(r => r.Action).ToArray());   // newest first, only that company
+        Assert.Equal("r@one", read[0].ActorEmail);
+        var filtered = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantAuditEntryDto>>($"/platform/tenants/{t1}/audit-logs?reason=support+ticket+4711&action=customer.created"))!;
+        Assert.Equal(new[] { "customer.created" }, filtered.Select(r => r.Action).ToArray());
+
+        var audit = await PlatformAudit();
+        Assert.Equal(new[] { "platform.tenant_audit_read", "platform.tenant_audit_read", "platform.tenant_activated", "platform.tenant_deactivated", "platform.tenant_renamed", "platform.tenant_created" },
+            audit.Select(a => a.Action).ToArray());   // two reads, then the changes; the refused and invalid calls left nothing
+        Assert.All(audit, a => Assert.Equal(("root@platform", admin), (a.ActorEmail, a.ActorId)));
+        Assert.Equal(("one", "support ticket 4711"), (audit[0].TargetTenantCode, audit[0].Reason));
+        Assert.Equal("action=customer.created", audit[0].Detail);
+        Assert.Equal("unpaid invoice", audit.Single(a => a.Action == "platform.tenant_deactivated").Reason);
+        Assert.Equal(new[] { "platform.tenant_audit_read", "platform.tenant_audit_read" }, (await PlatformAudit($"?tenantId={t1}")).Select(a => a.Action).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/platform/audit-logs?limit=500"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // The platform audit cannot be changed or removed, not even by the application's own database role
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("DELETE FROM platform_audit_logs", conn); await cmd.ExecuteNonQueryAsync(); });
+            await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("UPDATE platform_audit_logs SET reason = 'x'", conn); await cmd.ExecuteNonQueryAsync(); });
+        }
+    }
+
+    [SkippableFact]
+    public async Task SavedReports_OwnerSavesRunsAndSchedulesWithTheirOwnAreaAndFailedRunsAreKept()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);   // clock: Monday 5 October 2026, 09:00 in Baghdad
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), temp = Guid.NewGuid(), rep = Guid.NewGuid(), other2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'manager@t1'), (@m2, @t1, 'manager2@t1'), (@tmp, @t1, 'temp@t1'), (@rep, @t1, 'rep@t1'), (@o2, @t2, 'manager@t2');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, u.id, r.id FROM (VALUES (@m, 'SalesManager'), (@m2, 'SalesManager'), (@tmp, 'SalesManager'), (@rep, 'SalesRep')) AS u(id, role)
+                JOIN roles r ON r.tenant_id = @t1 AND r.name = u.role
+                UNION ALL SELECT @t2, @o2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';", conn);
+            cmd.Parameters.AddWithValue("t1", t1); cmd.Parameters.AddWithValue("t2", t2); cmd.Parameters.AddWithValue("m", manager); cmd.Parameters.AddWithValue("m2", manager2);
+            cmd.Parameters.AddWithValue("tmp", temp); cmd.Parameters.AddWithValue("rep", rep); cmd.Parameters.AddWithValue("o2", other2);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Weekly(string name = "Weekly KPIs") => new { Name = name, Range = "last_7_days", CustomerType = "Pharmacy", Schedule = new { Frequency = "weekly", Weekday = 1, Hour = 8 } };
+        async Task<List<LifeDrop.Application.Reports.SavedReportDto>> Mine() => (await client.GetFromJsonAsync<List<LifeDrop.Application.Reports.SavedReportDto>>("/saved-reports"))!;
+        async Task<List<LifeDrop.Application.Reports.ReportRunDto>> Runs(Guid id) => (await client.GetFromJsonAsync<List<LifeDrop.Application.Reports.ReportRunDto>>($"/saved-reports/{id}/runs"))!;
+        async Task<int> Due(Guid tenant)
+        {
+            using var scope = factory.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Reports.SavedReportService>().RunDueAsync(new LifeDrop.Domain.Common.TenantId(tenant), CancellationToken.None);
+        }
+        async Task Sql(string sql, params (string, object)[] ps)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); " + sql, conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // reports.read is needed
+        As(t1, rep);
+        await AssertProblemAsync(await client.GetAsync("/saved-reports"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", Weekly()), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Validation
+        As(t1, manager);
+        foreach (var bad in new object[]
+        {
+            new { Name = " ", Range = "last_7_days" }, new { Name = "x", Range = "last_year" }, new { Name = "x" },
+            new { Name = "x", Range = "fixed" }, new { Name = "x", Range = "fixed", From = "2026-10-05", To = "2026-10-01" },
+            new { Name = "x", Range = "yesterday", From = "2026-10-01", To = "2026-10-02" },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "weekly", Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "daily", Weekday = 1, Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "daily", Hour = 24 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "monthly", DayOfMonth = 29, Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "hourly", Hour = 8 } },
+            new { Name = "x", Range = "yesterday", RegionId = Guid.Empty }
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Save with a weekly schedule: the next run is Monday 12 October 08:00 Iraq time (05:00 UTC), because this Monday's 08:00 has passed
+        var created = await client.PostAsJsonAsync("/saved-reports", Weekly());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var reportId = (await created.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", Weekly()), HttpStatusCode.Conflict, "CONFLICT");   // same name for the same owner
+        var report = Assert.Single(await Mine());
+        Assert.Equal(("Weekly KPIs", "last_7_days", "Pharmacy"), (report.Name, report.Range, report.CustomerType));
+        Assert.Equal(("weekly", (int?)1, 8, true, (DateTimeOffset?)new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero)), (report.Schedule!.Frequency, report.Schedule.Weekday, report.Schedule.Hour, report.Schedule.IsActive, report.Schedule.NextRunAt));
+        As(t1, manager2);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/saved-reports", Weekly())).StatusCode);   // another owner may use the same name
+
+        // Only the owner: another user of the company and another company get 404 for everything
+        foreach (var (tenant, user) in new[] { (t1, manager2), (t2, other2) })
+        {
+            As(tenant, user);
+            Assert.DoesNotContain(await Mine(), r => r.Id == reportId);
+            await AssertProblemAsync(await client.PostAsync($"/saved-reports/{reportId}/run", null), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs"), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/saved-reports/{reportId}", Weekly("Renamed")), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.DeleteAsync($"/saved-reports/{reportId}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        }
+
+        // Run now: the range is worked out in Iraq days, the result is kept, the schedule does not move
+        As(t1, manager);
+        var run = (await (await client.PostAsync($"/saved-reports/{reportId}/run", null)).Content.ReadFromJsonAsync<LifeDrop.Application.Reports.ReportRunDetailDto>())!;
+        Assert.Equal(("manual", "ok", new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4)), (run.Run.Trigger, run.Run.Status, run.Run.From, run.Run.To));
+        Assert.NotNull(run.Report);
+        Assert.Equal(new[] { run.Run.Id }, (await Runs(reportId)).Select(r => r.Id).ToArray());
+        var stored = (await client.GetFromJsonAsync<LifeDrop.Application.Reports.ReportRunDetailDto>($"/saved-reports/{reportId}/runs/{run.Run.Id}"))!;
+        Assert.Equal((new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4)), (stored.Report!.From, stored.Report.To));
+        Assert.Equal(new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero), (await Mine()).Single().Schedule!.NextRunAt);
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs?limit=31"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs/{Guid.NewGuid()}"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // The schedule: nothing is due yet; when due, it runs once as a scheduled run and moves to the next Monday
+        Assert.Equal(0, await Due(t1));
+        await Sql("UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("id", reportId));
+        Assert.Equal(1, await Due(t1));
+        Assert.Equal(0, await Due(t1));
+        var after = await Runs(reportId);
+        Assert.Equal(new[] { "manual", "schedule" }, after.Select(r => r.Trigger).OrderBy(t => t, StringComparer.Ordinal).ToArray());
+        Assert.All(after, r => Assert.Equal("ok", r.Status));
+        Assert.Equal(new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero), (await Mine()).Single().Schedule!.NextRunAt);
+
+        // Pause, remove and change the schedule
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = "Weekly KPIs", Range = "fixed", From = "2026-10-01", To = "2026-10-03",
+            Schedule = new { Frequency = "daily", Hour = 12, IsActive = false } })).StatusCode);
+        var paused = (await Mine()).Single();
+        Assert.Equal(("fixed", (DateOnly?)new DateOnly(2026, 10, 1), false, (DateTimeOffset?)null), (paused.Range, paused.From, paused.Schedule!.IsActive, paused.Schedule.NextRunAt));
+        await Sql("UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("id", reportId));
+        Assert.Equal(0, await Due(t1));   // paused: never due
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = "Weekly KPIs", Range = "yesterday" })).StatusCode);
+        Assert.Null((await Mine()).Single().Schedule);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // An owner who lost reports.read: the scheduled run is kept as failed and the schedule moves on
+        As(t1, temp);
+        var tempReport = (await (await client.PostAsJsonAsync("/saved-reports", new { Name = "Daily", Range = "yesterday", Schedule = new { Frequency = "daily", Hour = 7 } })).Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        await Sql("DELETE FROM user_roles WHERE user_id = @u; UPDATE saved_reports SET next_run_at = '2026-10-01 00:00+00' WHERE id = @id", ("u", temp), ("id", tempReport));
+        Assert.Equal(1, await Due(t1));
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT r.status, r.error_code, r.result IS NULL, s.next_run_at FROM report_runs r JOIN saved_reports s ON s.id = r.report_id WHERE r.report_id = @id", conn);
+            cmd.Parameters.AddWithValue("t", t1); cmd.Parameters.AddWithValue("id", tempReport);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(("failed", "FORBIDDEN", true), (reader.GetString(0), reader.GetString(1), reader.GetBoolean(2)));
+            Assert.Equal(new DateTimeOffset(2026, 10, 6, 4, 0, 0, TimeSpan.Zero), reader.GetFieldValue<DateTimeOffset>(3));   // tomorrow 07:00 Iraq time
+        }
+
+        // Deleting removes the runs too
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/saved-reports/{reportId}")).StatusCode);
+        await AssertProblemAsync(await client.DeleteAsync($"/saved-reports/{reportId}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Empty(await Mine());
+    }
+
+    [SkippableFact]
+    public async Task FormFields_ManagersDefineFieldsAndTheAssigneeAnswersThemWhileInVisit()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), c1 = Guid.NewGuid();
+        Guid vDoctor = Guid.NewGuid(), vPharmacy = Guid.NewGuid(), vPlanned = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@m, @t1), (@m2, @t2);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t2, @m2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, visit_type, created_at) VALUES
+                    (@vd, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'doctor', now()), (@vp, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'pharmacy', now()),
+                    (@vpl, @t1, @rep, @c1, 'Planned', '2026-10-05', 'doctor', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("rep", rep), ("rep2", rep2), ("m", manager), ("m2", manager2), ("c1", c1), ("vd", vDoctor), ("vp", vPharmacy), ("vpl", vPlanned) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Field(string key, string type, string appliesTo = "all", string[]? options = null, bool required = false, int sort = 0) =>
+            new { Key = key, Type = type, AppliesTo = appliesTo, LabelEn = "Label " + key, Options = options, IsRequired = required, SortOrder = sort };
+        async Task<Guid> CreateField(object body)
+        {
+            var response = await client.PostAsJsonAsync("/form-fields", body);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        }
+        async Task<List<LifeDrop.Application.Forms.FormFieldDto>> Fields(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Forms.FormFieldDto>>("/form-fields" + query))!;
+        Task<HttpResponseMessage> Answer(Guid visit, params (Guid Field, string? Value)[] answers) =>
+            client.PutAsJsonAsync($"/visits/{visit}/report/custom", new { Answers = answers.Select(a => new { FieldId = a.Field, a.Value }).ToArray() });
+        async Task<LifeDrop.Application.Forms.CustomAnswersDto> Saved(Guid visit) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Forms.CustomAnswersDto>($"/visits/{visit}/report/custom"))!;
+
+        // Only forms.manage defines fields; everybody else just reads what they can answer
+        As(t1, rep);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", Field("notes", "text")), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Empty(await Fields());
+
+        // Validation of a definition
+        As(t1, manager);
+        foreach (var bad in new object[]
+        {
+            Field("Bad Key", "text"), Field("1abc", "text"), Field("a", "text"), Field("ok_key", "file"), Field("ok_key", "text", "vet"),
+            new { Key = "ok_key", Type = "text", AppliesTo = "all" },                                                    // no label
+            new { Key = "ok_key", Type = "text", AppliesTo = "all", LabelEn = new string('x', 101) },
+            Field("ok_key", "choice", options: new[] { "only" }), Field("ok_key", "choice", options: new[] { "a", "a" }), Field("ok_key", "choice"),
+            Field("ok_key", "text", options: new[] { "a", "b" }), Field("ok_key", "text", sort: 1001)
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        var chairs = await CreateField(new { Key = "chairs", Type = "number", AppliesTo = "doctor", LabelCkb = "ژمارەی کورسی", IsRequired = true });
+        var rating = await CreateField(Field("rating", "choice", "pharmacy", new[] { "good", "bad" }));
+        var open = await CreateField(Field("open_late", "yes_no", required: true));
+        var next = await CreateField(Field("next_visit", "date"));
+        var notes = await CreateField(Field("notes", "text"));
+        await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", Field("notes", "number")), HttpStatusCode.Conflict, "CONFLICT");   // the key is unique in a company
+        As(t2, manager2);
+        await CreateField(Field("notes", "text"));   // another company may use it
+        Assert.Single(await Fields());
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { IsRequired = true }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // What a rep sees: the fields of the visit type and of all types
+        As(t1, rep);
+        Assert.Equal(new[] { "chairs", "next_visit", "notes", "open_late" }, (await Fields("?visitType=doctor")).Select(f => f.Key).ToArray());
+        Assert.Equal(new[] { "next_visit", "notes", "open_late", "rating" }, (await Fields("?visitType=pharmacy")).Select(f => f.Key).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/form-fields?visitType=vet"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var chairsField = (await Fields("?visitType=doctor")).Single(f => f.Key == "chairs");
+        Assert.Equal(("number", "doctor", true, "ژمارەی کورسی", (string?)null), (chairsField.Type, chairsField.AppliesTo, chairsField.IsRequired, chairsField.LabelCkb, chairsField.LabelEn));
+
+        // Answers: required fields, the visit's type only, valid values, no duplicates
+        foreach (var bad in new[]
+        {
+            new[] { (open, (string?)"true") },                                                                               // chairs is required for a doctor visit
+            new[] { (chairs, (string?)"4"), (open, (string?)"true"), (rating, (string?)"good") },                           // rating is a pharmacy field
+            new[] { (chairs, (string?)"abc"), (open, (string?)"true") }, new[] { (chairs, (string?)"1.2345"), (open, (string?)"true") },
+            new[] { (chairs, (string?)"4"), (open, (string?)"yes") }, new[] { (chairs, (string?)"4"), (open, (string?)"true"), (next, (string?)"2026-13-01") },
+            new[] { (chairs, (string?)"4"), (open, (string?)"true"), (notes, (string?)new string('x', 1001)) },
+            new[] { (chairs, (string?)"4"), (chairs, (string?)"5"), (open, (string?)"true") }, new[] { (Guid.NewGuid(), (string?)"x"), (chairs, (string?)"4"), (open, (string?)"true") }
+        })
+            await AssertProblemAsync(await Answer(vDoctor, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "4.50"), (open, "true"), (notes, "  hello  "), (next, "2026-10-20"))).StatusCode);
+        var answers = await Saved(vDoctor);
+        Assert.Equal(new[] { "chairs=4.5", "next_visit=2026-10-20", "notes=hello", "open_late=true" }, answers.Answers.Select(a => $"{a.Key}={a.Value}").ToArray());
+        As(t1, manager);
+        Assert.Equal(4, (await Saved(vDoctor)).Answers.Count);   // the sales manager reads it
+        As(t1, rep2);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{vDoctor}/report/custom"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Answer(vDoctor, (chairs, "1"), (open, "true")), HttpStatusCode.Forbidden, "FORBIDDEN");   // not the assignee
+
+        // The set is replaced; a blank value removes an answer; a visit that is not in progress takes nothing
+        As(t1, rep);
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "5"), (open, "false"), (notes, ""))).StatusCode);
+        Assert.Equal(new[] { "chairs=5", "open_late=false" }, (await Saved(vDoctor)).Answers.Select(a => $"{a.Key}={a.Value}").ToArray());
+        await AssertProblemAsync(await Answer(vPlanned, (chairs, "1"), (open, "true")), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Answer(Guid.NewGuid(), (open, "true")), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vPharmacy, (open, "true"), (rating, "good"))).StatusCode);   // the pharmacy visit has no required doctor field
+        await AssertProblemAsync(await Answer(vPharmacy, (open, "true"), (rating, "great")), HttpStatusCode.BadRequest, "INVALID_DATA");   // not one of the choices
+
+        // Changing a definition: labels, choices, required, order; never the key, type or visit type; a retired field is hidden and no longer required
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { IsRequired = true }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/form-fields/{rating}", new { LabelCkb = "هەڵسەنگاندن", Options = new[] { "good", "bad", "neutral" }, SortOrder = 7 })).StatusCode);
+        var updated = (await Fields("?visitType=pharmacy")).Single(f => f.Key == "rating");
+        Assert.Equal(new[] { "good", "bad", "neutral" }, updated.Options.ToArray());
+        Assert.Equal(("Label rating", "هەڵسەنگاندن", 7), (updated.LabelEn, updated.LabelCkb, updated.SortOrder));   // a label that is not given keeps its value
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { Options = new[] { "a", "b" } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { LabelEn = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");   // the only label cannot go
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{Guid.NewGuid()}", new { IsRequired = true }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/form-fields/{open}", new { IsActive = false })).StatusCode);
+        Assert.DoesNotContain(await Fields(), f => f.Key == "open_late");
+        Assert.Contains(await Fields("?includeInactive=true"), f => f.Key == "open_late" && !f.IsActive);
+        As(t1, rep);
+        Assert.DoesNotContain(await Fields("?includeInactive=true"), f => f.Key == "open_late");   // inactive definitions are for the managers
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "6"))).StatusCode);   // open_late is no longer required
+
+        // Audit
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"") FROM (SELECT action, count(*) n FROM audit_logs WHERE tenant_id = @t AND action LIKE 'form_field.%' OR action = 'visit.custom_answers_saved' GROUP BY action) a", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            Assert.Equal("form_field.created=5,form_field.deactivated=1,form_field.updated=1,visit.custom_answers_saved=4", (string)(await cmd.ExecuteScalarAsync())!);
         }
     }
 

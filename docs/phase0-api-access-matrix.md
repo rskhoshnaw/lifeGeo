@@ -303,6 +303,46 @@ The default `SalesRep` role now has data scope `region` (migration 0022, also fo
 
 Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
 
+## Custom visit-form fields (step 3.2, part 2)
+
+New permission `forms.manage` (SalesManager, CompanyManager; migration 0040 also grants it to existing companies). Definitions are per company; answers belong to a visit.
+
+| Route | Permission and scope | Behaviour |
+| --- | --- | --- |
+| `GET /form-fields?visitType=&includeInactive=` | Signed-in user | Active fields for that visit type (`pharmacy`/`doctor`/`wholesaler`/`other`; fields for all types always); `includeInactive` only counts for `forms.manage`; bad type 400 |
+| `POST /form-fields` | `forms.manage` | `{key, type, appliesTo, labelEn/Ckb/Ar/Fa (at least one, ≤100), options (choice: 2-20 distinct), isRequired, sortOrder 0-1000}`; key `^[a-z][a-z0-9_]{1,39}$`, unique per company (409); type `text`/`number`/`choice`/`yes_no`/`date`; appliesTo `all` or one visit type; at most 30 active fields (409). Audit `form_field.created` |
+| `PUT /form-fields/{id}` | `forms.manage` | Labels (not given = keep, blank = remove, one must stay), options (choice only), isRequired, sortOrder, isActive. Key, type and visit type never change; fields are never deleted. Audit `form_field.updated` / `form_field.deactivated`; unknown 404 |
+| `PUT /visits/{id}/report/custom` `{answers: [{fieldId, value}]}` | The assigned user, visit `InVisit` (else 403 / 409; unknown visit 404) | Replaces the answer set. Only active fields for the visit's type; every required field answered; values are strings checked by type (number ≤3 decimals, choice from options, yes_no `true`/`false`, date `yyyy-MM-dd`, text ≤1000); a blank value removes an answer; duplicates 400. Audit `visit.custom_answers_saved` |
+| `GET /visits/{id}/report/custom` | Same readers as the visit report | Answers with the field key; 404 when nothing saved or not readable |
+
+## Saved and scheduled reports (step 3.2, part 1)
+
+Permission `reports.read` for every route; everybody reads, runs, changes and deletes **only their own** reports (another user or company gets 404). A run always uses the owner's current area (docs/KPI.md rules).
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /saved-reports` | The caller's reports with their schedule |
+| `POST /saved-reports` | `{name, range, from?, to?, regionId?, teamId?, customerType?, schedule?}`; `range` = `yesterday` / `last_7_days` / `last_30_days` / `this_month` / `last_month` (Iraq days, worked out when it runs) or `fixed` (from + to, at most 366 days); schedule `{frequency: daily/weekly/monthly, weekday 1-7 (weekly), dayOfMonth 1-28 (monthly), hour 0-23 Iraq time, isActive}`; 400 on anything else; 409 for a name the owner already has or more than 20 reports |
+| `PUT /saved-reports/{id}` | Replaces the definition (and schedule; none = unscheduled); 404 if not the caller's |
+| `DELETE /saved-reports/{id}` | Deletes it and its runs |
+| `POST /saved-reports/{id}/run` | Runs now (`manual`), keeps the result, returns it; the schedule does not move |
+| `GET /saved-reports/{id}/runs?limit=` | Newest first (1-30, default 30; the newest 30 are kept) |
+| `GET /saved-reports/{id}/runs/{runId}` | One run with the whole stored KPI result |
+
+Scheduled runs: a background job (`Reports:ScheduleIntervalSeconds`, default 60, 0 = off) runs each due report once as its owner and moves `next_run_at`. An owner who lost `reports.read` gets a stored `failed` run (`FORBIDDEN`), never silence. Paused schedules never run.
+
+## Platform: companies and cross-company access (step 3.1)
+
+Callers must belong to the platform company (id `00000000-0000-0000-0000-00000000f001`, code `platform`) **and** hold the permission; a role carrying the same permission key in an ordinary company gives nothing (403). The `SuperAdmin` role (platform company only, migration 0038) has both permissions; no user is seeded. Every action writes `platform_audit_logs` (append-only); a cross-company read writes its row in the same transaction as the read.
+
+| Route | Permission | Behaviour |
+| --- | --- | --- |
+| `GET /platform/tenants` | `platform.tenants.manage` | All companies with code, name, active flag, user counts |
+| `POST /platform/tenants` `{code, name, managerEmail, managerPassword}` | same | Code `^[a-z0-9][a-z0-9-]{1,31}$` (not `platform`), name ≤100, password ≥12; creates the company, its default roles and a first CompanyManager (password stored hashed); 409 when the code or email is taken. Audit `platform.tenant_created` |
+| `PUT /platform/tenants/{id}` `{name?, isActive?, reason}` | same | Rename and/or activate/deactivate (a deactivated company cannot log in and its sessions stop); reason 5-500 chars required; the platform company cannot be deactivated (409); unknown 404. Audit `platform.tenant_renamed/_activated/_deactivated` |
+| `GET /platform/tenants/{id}/audit-logs?reason=&action=&limit=` | `platform.tenants.access` | Read-only view of that company's audit log, newest first (limit 1-200, default 50); `reason` 10-500 chars required (400 otherwise); unknown company 404 and nothing is written. Audit `platform.tenant_audit_read` with the reason |
+| `GET /platform/audit-logs?tenantId=&limit=` | `platform.tenants.manage` | The platform audit, newest first |
+
 ## Push tokens (step 2.14)
 
 | Route | Permission and scope | Behaviour | Audit |

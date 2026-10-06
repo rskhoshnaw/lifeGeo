@@ -25,6 +25,12 @@ FROM (VALUES ('00000000-0000-0000-0000-000000000101'::uuid, 'SalesManager'), ('0
              ('00000000-0000-0000-0000-000000000106'::uuid, 'WarehouseManager'), ('00000000-0000-0000-0000-000000000107'::uuid, 'Driver')) AS u(id, role_name)
 JOIN roles r ON r.tenant_id = '00000000-0000-0000-0000-00000000d001' AND r.name = u.role_name;
 
+-- Super Admin of the platform company (step 3.1; company code: platform, same password).
+INSERT INTO users (id, tenant_id, email, password_hash) VALUES
+    ('00000000-0000-0000-0000-0000000001f1', '00000000-0000-0000-0000-00000000f001', 'root@platform.local', 'pbkdf2-sha256$210000$bGlmZWRyb3AtbG9jYWwtMQ==$7FTGKnaSVxsMFfZkOXOofr05WMJvL1v+4uNKqG1ih8g=');
+INSERT INTO user_roles (tenant_id, user_id, role_id)
+SELECT '00000000-0000-0000-0000-00000000f001', '00000000-0000-0000-0000-0000000001f1', id FROM roles WHERE tenant_id = '00000000-0000-0000-0000-00000000f001' AND name = 'SuperAdmin';
+
 -- Tables below use row-level security by tenant.
 SELECT set_config('app.current_tenant', '00000000-0000-0000-0000-00000000d001', false);
 
