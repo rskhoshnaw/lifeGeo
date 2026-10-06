@@ -41,6 +41,7 @@
     <None Include="../../db/migrations/0023_customer_priority.sql" Link="0023_customer_priority.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0024_catalog_prices.sql" Link="0024_catalog_prices.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0025_city_prices_discounts.sql" Link="0025_city_prices_discounts.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0026_orders_warehouses.sql" Link="0026_orders_warehouses.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -11,6 +11,7 @@ public class VisitReportTests
     [InlineData("follow_up_needed", VisitOutcome.FollowUpNeeded)]
     [InlineData("no_interest", VisitOutcome.NoInterest)]
     [InlineData("other", VisitOutcome.Other)]
+    [InlineData("order_placed", VisitOutcome.OrderPlaced)]
     public void TryCreate_ValidOutcome_RoundTripsContract(string outcome, VisitOutcome expected)
     {
         Assert.True(VisitReport.TryCreate(outcome, "  Met the pharmacist  ", null, out var report));
@@ -21,7 +22,7 @@ public class VisitReportTests
 
     [Theory]
     [InlineData(null, "Valid note")]
-    [InlineData("order_placed", "Valid note")]
+    [InlineData("order_confirmed", "Valid note")]
     [InlineData("Products_Presented", "Valid note")]
     [InlineData("other", null)]
     [InlineData("other", "  ")]

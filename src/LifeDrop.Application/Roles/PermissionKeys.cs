@@ -35,6 +35,12 @@ public static class PermissionKeys
     public const string CatalogRead = "catalog.read";
     public const string CatalogManage = "catalog.manage";
 
+    // Orders and warehouses (plan step 2.2).
+    public const string OrdersCreate = "orders.create";
+    public const string OrdersRead = "orders.read";
+    public const string OrdersCancel = "orders.cancel";
+    public const string WarehousesManage = "warehouses.manage";
+
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
     public const string TrackingSummary = "tracking.summary";

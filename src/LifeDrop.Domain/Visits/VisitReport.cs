@@ -1,8 +1,8 @@
 namespace LifeDrop.Domain.Visits;
 
 // Base visit report (PRD §5.3): an explicit outcome and a meaningful note. Outcome values are a versioned
-// contract shared with mobile. "Order placed" is intentionally absent until real orders exist.
-public enum VisitOutcome { ProductsPresented, OrderIntent, FollowUpNeeded, NoInterest, Other }
+// contract shared with mobile. "Order placed" (plan step 2.2) is accepted only when the server has a placed order linked to the visit.
+public enum VisitOutcome { ProductsPresented, OrderIntent, FollowUpNeeded, NoInterest, Other, OrderPlaced }
 
 public sealed record VisitReport(VisitOutcome Outcome, string Note)
 {
@@ -34,6 +34,7 @@ public sealed record VisitReport(VisitOutcome Outcome, string Note)
             case "follow_up_needed": outcome = VisitOutcome.FollowUpNeeded; return true;
             case "no_interest": outcome = VisitOutcome.NoInterest; return true;
             case "other": outcome = VisitOutcome.Other; return true;
+            case "order_placed": outcome = VisitOutcome.OrderPlaced; return true;
             default: return false;
         }
     }
@@ -44,6 +45,7 @@ public sealed record VisitReport(VisitOutcome Outcome, string Note)
         VisitOutcome.OrderIntent => "order_intent",
         VisitOutcome.FollowUpNeeded => "follow_up_needed",
         VisitOutcome.NoInterest => "no_interest",
+        VisitOutcome.OrderPlaced => "order_placed",
         _ => "other"
     };
 }
