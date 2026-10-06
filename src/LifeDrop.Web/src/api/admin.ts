@@ -263,6 +263,59 @@ export interface EffectivePrice {
   price: number
 }
 
+export interface Warehouse {
+  id: string
+  code: string
+  name: string
+  status: 'active' | 'inactive'
+}
+export interface OrderLine {
+  lineNo: number
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  quantity: number
+  listPrice: number
+  unitPrice: number
+  lineTotal: number
+  discounts: { id: string; kind: 'percent' | 'amount'; value: number }[]
+}
+export interface Order {
+  id: string
+  number: string
+  customerId: string
+  customerCode: string
+  customerName: string
+  visitId: string | null
+  warehouseId: string
+  warehouseName: string
+  createdBy: string
+  createdByEmail: string | null
+  status: 'placed' | 'cancelled'
+  currency: 'IQD' | 'USD'
+  total: number
+  note: string | null
+  cancelReason: string | null
+  createdAt: string
+  items: OrderLine[]
+}
+export interface CreatedOrder {
+  id: string
+  number: string
+  currency: 'IQD' | 'USD'
+  total: number
+  replayed: boolean
+}
+export interface NewOrderInput {
+  customerId: string
+  warehouseId: string
+  visitId?: string | null
+  clientRef: string
+  note: string | null
+  items: { productId: string; quantity: number }[]
+}
+
 export interface Region {
   id: string
   name: string
@@ -350,6 +403,10 @@ export const Permissions = {
   editCustomers: ['customers.write'],
   places: ['places.manage'],
   catalog: ['catalog.read'],
+  orders: ['orders.read', 'orders.create'],
+  createOrders: ['orders.create'],
+  cancelOrders: ['orders.cancel'],
+  manageWarehouses: ['warehouses.manage'],
   manageCatalog: ['catalog.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
@@ -436,6 +493,15 @@ export class AdminApi {
     this.post(`/customers/${customerId}/discounts`, discount)
   endDiscount = (id: string, validTo: string) => this.post(`/discounts/${id}/end`, { validTo })
   customerPrices = (customerId: string, date: string) => this.get<EffectivePrice[]>(`/customers/${customerId}/prices?date=${date}`)
+  // Warehouses and orders (step 2.2). The server prices every order line; no price is ever sent.
+  warehouses = (includeInactive = false) => this.get<Warehouse[]>(`/warehouses${includeInactive ? '?includeInactive=true' : ''}`)
+  createWarehouse = (code: string, name: string) => this.post('/warehouses', { code, name })
+  updateWarehouse = (id: string, name: string, status: 'active' | 'inactive') => this.send('PUT', `/warehouses/${id}`, { name, status })
+  orders = (before?: Order) =>
+    this.get<Order[]>(before ? `/orders?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/orders?limit=50')
+  order = (id: string) => this.get<Order>(`/orders/${id}`)
+  createOrder = (order: NewOrderInput) => this.postJson<CreatedOrder>('/orders', order)
+  cancelOrder = (id: string, reason: string) => this.post(`/orders/${id}/cancel`, { reason })
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })

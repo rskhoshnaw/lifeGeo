@@ -4958,6 +4958,23 @@ public class CustomerApiIntegrationTests
         As(repA);
         Assert.Equal(1800m, (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{created.Id}"))!.Items[1].UnitPrice);
 
+        // The phone's own client (what the app really sends and reads) against this API: prices, warehouses, an order, and a retry of it
+        var phone = new LifeDrop.Mobile.Visits.OrdersApiClient(factory.CreateClient(), new StaticMobileSession(
+            GenerateToken(t1, repA, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!)));
+        var (priceResult, priced) = await phone.GetPricesAsync(c1, new DateOnly(2026, 10, 6));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Success, priceResult);
+        Assert.Equal((1800m, 1620m), (priced.Single(p => p.Code == "P1").ListPrice, priced.Single(p => p.Code == "P1").Price));
+        var (warehouseResult, phoneWarehouses) = await phone.GetWarehousesAsync();
+        Assert.Equal(("W1", LifeDrop.Mobile.Visits.VisitActionResult.Success), (phoneWarehouses.Single().Code, warehouseResult));
+        var phoneRef = Guid.NewGuid();
+        var lines = new[] { new LifeDrop.Mobile.Visits.OrderLineInput(priced.Single(p => p.Code == "P1").ProductId, 2m) };
+        var (placeResult, phoneOrder) = await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, phoneRef, null, lines);
+        Assert.Equal((LifeDrop.Mobile.Visits.VisitActionResult.Success, "O-000002", 3240m, false), (placeResult, phoneOrder!.Number, phoneOrder.Total, phoneOrder.Replayed));
+        var (_, replay) = await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, phoneRef, null, lines);
+        Assert.Equal((phoneOrder.Id, true), (replay!.Id, replay.Replayed));
+        Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.CurrencyMismatch, (await phone.PlaceAsync(c1, phoneWarehouses[0].Id, null, Guid.NewGuid(), null,
+            new[] { lines[0], new LifeDrop.Mobile.Visits.OrderLineInput(p3, 1m) })).Result);
+
         // Bad orders: no lines, the same product twice, bad quantities, two currencies, inactive or unknown product, bad warehouse, bad visit
         var bad = new[]
         {
@@ -4983,20 +5000,20 @@ public class CustomerApiIntegrationTests
         // The visit of rep B is not usable by rep A
         As(repB);
         await AssertProblemAsync(await Place(Body(c2, w1, null, visitA, (p1, 1m))), HttpStatusCode.NotFound, "NOT_FOUND");
-        Assert.Equal("O-000002", (await PlaceOk(Body(c2, w1, null, visitB, (p3, 5m)))).Number);   // a Baghdad order in USD: general price, no discount
+        Assert.Equal("O-000003", (await PlaceOk(Body(c2, w1, null, visitB, (p3, 5m)))).Number);   // a Baghdad order in USD: general price, no discount
 
         // Reading: a rep sees the orders of their own region and their own; the other region does not; finance and managers read
         Assert.Empty((await Orders()).Where(o => o.CustomerId == c1));
         await AssertProblemAsync(await client.GetAsync($"/orders/{created.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
         As(supervisor);
-        Assert.Equal(new[] { created.Id }, (await Orders()).Select(o => o.Id).ToArray());
+        Assert.Equal(new[] { phoneOrder.Id, created.Id }, (await Orders()).Select(o => o.Id).ToArray());
         As(finance);
-        Assert.Equal(2, (await Orders()).Count);
-        Assert.Equal(new[] { "O-000002", "O-000001" }, (await Orders()).Select(o => o.Number).ToArray());   // newest first
-        Assert.Equal(new[] { "O-000001" }, (await Orders($"?customerId={c1}")).Select(o => o.Number).ToArray());
-        var firstPage = await Orders("?limit=1");
-        var next = await Orders($"?limit=1&before={Uri.EscapeDataString(firstPage[0].CreatedAt.ToString("O"))}&beforeId={firstPage[0].Id}");
-        Assert.Equal(new[] { "O-000002", "O-000001" }, firstPage.Concat(next).Select(o => o.Number).ToArray());
+        Assert.Equal(3, (await Orders()).Count);
+        Assert.Equal(new[] { "O-000003", "O-000002", "O-000001" }, (await Orders()).Select(o => o.Number).ToArray());   // newest first
+        Assert.Equal(new[] { "O-000002", "O-000001" }, (await Orders($"?customerId={c1}")).Select(o => o.Number).ToArray());
+        var firstPage = await Orders("?limit=2");
+        var next = await Orders($"?limit=2&before={Uri.EscapeDataString(firstPage[1].CreatedAt.ToString("O"))}&beforeId={firstPage[1].Id}");
+        Assert.Equal(new[] { "O-000003", "O-000002", "O-000001" }, firstPage.Concat(next).Select(o => o.Number).ToArray());
         await AssertProblemAsync(await client.GetAsync("/orders?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await client.GetAsync("/orders?status=sent"), HttpStatusCode.BadRequest, "INVALID_DATA");
 
@@ -5029,8 +5046,8 @@ public class CustomerApiIntegrationTests
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("order.cancelled=2,order.created=3,warehouse.created=2,warehouse.updated=1", reader.GetString(0));
-            Assert.Equal(3L, reader.GetInt64(1));   // retries and refused orders did not use a number
+            Assert.Equal("order.cancelled=2,order.created=4,warehouse.created=2,warehouse.updated=1", reader.GetString(0));
+            Assert.Equal(4L, reader.GetInt64(1));   // retries and refused orders did not use a number
         }
     }
 

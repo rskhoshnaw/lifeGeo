@@ -12,7 +12,7 @@ namespace LifeDrop.Mobile;
 // starts check-out; when the report is saved but check-out is refused, only check-out is offered again.
 public partial class VisitDetailsPage : ContentPage
 {
-    private static readonly string[] OutcomeChoices = ["products_presented", "order_intent", "follow_up_needed", "no_interest", "other"];
+    private static readonly string[] OutcomeChoices = ["products_presented", "order_intent", "order_placed", "follow_up_needed", "no_interest", "other"];
 
     private readonly VisitLifecycle _lifecycle;
     private bool _reportLoaded;
@@ -24,6 +24,7 @@ public partial class VisitDetailsPage : ContentPage
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.visit.title");
         CustomerBtn.Text = Texts.Get("app.customer.details");
+        OrderBtn.Text = Texts.Get("app.order.button");
         ReportTitleLabel.Text = Texts.Get("app.visit.report");
         OutcomePicker.Title = Texts.Get("app.visit.result");
         NoteEditor.Placeholder = Texts.Get("app.visit.notePlaceholder");
@@ -65,6 +66,9 @@ public partial class VisitDetailsPage : ContentPage
 
     private async void OnCustomerClicked(object? sender, EventArgs e) =>
         await Navigation.PushAsync(new CustomerPage(_lifecycle.Visit.CustomerId, _lifecycle.Visit.CustomerName));
+
+    private async void OnOrderClicked(object? sender, EventArgs e) =>
+        await Navigation.PushAsync(new OrderPage(_lifecycle.Visit.CustomerId, _lifecycle.Visit.CustomerName, _lifecycle.Visit.Id));
 
     private async void OnStepClicked(object? sender, EventArgs e) => await RunAsync(ct => _lifecycle.RunNextStepAsync(ct));
 

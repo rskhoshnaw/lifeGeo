@@ -88,7 +88,7 @@ public class CheckInReportCheckOutTests
 
     [Theory]
     [InlineData(null, "Presented the range", "Choose the result of the visit.")]
-    [InlineData("order_placed", "Presented the range", "Choose the result of the visit.")]
+    [InlineData("order_confirmed", "Presented the range", "Choose the result of the visit.")]
     [InlineData("other", "  ", "Write a short note")]
     [InlineData("other", "...", "Write a short note")]
     [InlineData("other", "ab", "Write a short note")]

@@ -42,7 +42,9 @@ public enum VisitActionResult
     Success, InvalidState, Conflict, Forbidden, NotFound, SessionExpired, NetworkError, ServerError,
     // Check-in / check-out and report (plan step 1.12), from the server's ProblemDetails code.
     InvalidData, DeviceRequired, CustomerLocationMissing, ReportRequired,
-    OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked, OfflineExpired
+    OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked, OfflineExpired,
+    // Orders (plan step 2.2): "order placed" needs a real order; all lines of an order share one currency; the customer is not approved yet.
+    OrderRequired, CurrencyMismatch, CustomerNotApproved
 }
 
 // A position from the device, sent as captured (plan step 1.12; the server judges it, PRD §6).
@@ -326,6 +328,7 @@ public sealed class VisitsApiClient : IVisitsApiClient, ISelfPlanApiClient
                 {
                     "CUSTOMER_LOCATION_MISSING" => VisitActionResult.CustomerLocationMissing,
                     "REPORT_REQUIRED" => VisitActionResult.ReportRequired,
+                    "ORDER_REQUIRED" => VisitActionResult.OrderRequired,
                     _ => VisitActionResult.Conflict
                 },
                 HttpStatusCode.UnprocessableEntity => code switch

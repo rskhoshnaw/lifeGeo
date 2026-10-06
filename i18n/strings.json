@@ -3172,5 +3172,341 @@
   "ckb": "کۆتایی داشکاندنی {value}",
   "ar": "إنهاء الخصم {value}",
   "fa": "پایان تخفیف {value}"
+ },
+ "web.tab.orders": {
+  "en": "Orders",
+  "ckb": "داواکاری",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "web.orders.title": {
+  "en": "Orders",
+  "ckb": "داواکاری",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "web.orders.none": {
+  "en": "No orders yet.",
+  "ckb": "هێشتا داواکاری نییە.",
+  "ar": "لا طلبات بعد.",
+  "fa": "هنوز سفارشی نیست."
+ },
+ "web.orders.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "الرقم",
+  "fa": "شماره"
+ },
+ "web.orders.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.orders.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.orders.total": {
+  "en": "Total",
+  "ckb": "کۆ",
+  "ar": "المجموع",
+  "fa": "جمع"
+ },
+ "web.orders.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.orders.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.orders.status.placed": {
+  "en": "placed",
+  "ckb": "تۆمارکراو",
+  "ar": "مسجّل",
+  "fa": "ثبت‌شده"
+ },
+ "web.orders.status.cancelled": {
+  "en": "cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "لغوشده"
+ },
+ "web.orders.details": {
+  "en": "Details of {number}",
+  "ckb": "وردەکاریی {number}",
+  "ar": "تفاصيل {number}",
+  "fa": "جزئیات {number}"
+ },
+ "web.orders.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.orders.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "web.orders.unitPrice": {
+  "en": "Unit price",
+  "ckb": "نرخی یەکە",
+  "ar": "سعر الوحدة",
+  "fa": "قیمت واحد"
+ },
+ "web.orders.lineTotal": {
+  "en": "Line total",
+  "ckb": "کۆی دێڕ",
+  "ar": "مجموع السطر",
+  "fa": "جمع ردیف"
+ },
+ "web.orders.discounts": {
+  "en": "Discounts",
+  "ckb": "داشکاندن",
+  "ar": "الخصومات",
+  "fa": "تخفیف‌ها"
+ },
+ "web.orders.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.orders.cancelled": {
+  "en": "Cancelled: {reason}",
+  "ckb": "هەڵوەشێنراوە: {reason}",
+  "ar": "ملغى: {reason}",
+  "fa": "لغو شد: {reason}"
+ },
+ "web.orders.cancel": {
+  "en": "Cancel order",
+  "ckb": "هەڵوەشاندنەوەی داواکاری",
+  "ar": "إلغاء الطلب",
+  "fa": "لغو سفارش"
+ },
+ "web.orders.cancelPrompt": {
+  "en": "Reason for cancelling {number}:",
+  "ckb": "هۆکاری هەڵوەشاندنەوەی {number}:",
+  "ar": "سبب إلغاء {number}:",
+  "fa": "دلیل لغو {number}:"
+ },
+ "web.orders.new": {
+  "en": "New order",
+  "ckb": "داواکاریی نوێ",
+  "ar": "طلب جديد",
+  "fa": "سفارش جدید"
+ },
+ "web.orders.chooseCustomer": {
+  "en": "Choose a customer…",
+  "ckb": "کڕیارێک هەڵبژێرە…",
+  "ar": "اختر عميلاً…",
+  "fa": "مشتری را انتخاب کنید…"
+ },
+ "web.orders.chooseWarehouse": {
+  "en": "Choose a warehouse…",
+  "ckb": "کۆگایەک هەڵبژێرە…",
+  "ar": "اختر مستودعاً…",
+  "fa": "انبار را انتخاب کنید…"
+ },
+ "web.orders.chooseProduct": {
+  "en": "Choose a product…",
+  "ckb": "بەرهەمێک هەڵبژێرە…",
+  "ar": "اختر منتجاً…",
+  "fa": "محصول را انتخاب کنید…"
+ },
+ "web.orders.addLine": {
+  "en": "Add line",
+  "ckb": "زیادکردنی دێڕ",
+  "ar": "إضافة سطر",
+  "fa": "افزودن ردیف"
+ },
+ "web.orders.removeLine": {
+  "en": "Remove {code}",
+  "ckb": "لابردنی {code}",
+  "ar": "إزالة {code}",
+  "fa": "حذف {code}"
+ },
+ "web.orders.estimate": {
+  "en": "Prices shown are what the server gives now; it sets the final price when the order is placed.",
+  "ckb": "نرخەکان ئەوەن کە ئێستا سێرڤەر دەیدات؛ نرخی کۆتایی لە کاتی تۆمارکردن دیاری دەکرێت.",
+  "ar": "الأسعار المعروضة هي ما يعطيه الخادم الآن؛ والسعر النهائي يحدده عند تسجيل الطلب.",
+  "fa": "قیمت‌های نمایش‌داده‌شده همان است که سرور اکنون می‌دهد؛ قیمت نهایی هنگام ثبت سفارش تعیین می‌شود."
+ },
+ "web.orders.mixedCurrency": {
+  "en": "All lines of one order must use the same currency.",
+  "ckb": "هەموو دێڕەکانی یەک داواکاری دەبێت یەک دراویان هەبێت.",
+  "ar": "يجب أن تكون كل أسطر الطلب بنفس العملة.",
+  "fa": "همهٔ ردیف‌های یک سفارش باید یک ارز داشته باشند."
+ },
+ "web.orders.place": {
+  "en": "Place order",
+  "ckb": "تۆمارکردنی داواکاری",
+  "ar": "تسجيل الطلب",
+  "fa": "ثبت سفارش"
+ },
+ "web.orders.placed": {
+  "en": "Order {number} placed: {total}",
+  "ckb": "داواکاری {number} تۆمارکرا: {total}",
+  "ar": "تم تسجيل الطلب {number}: {total}",
+  "fa": "سفارش {number} ثبت شد: {total}"
+ },
+ "web.orders.warehouses": {
+  "en": "Warehouses",
+  "ckb": "کۆگاکان",
+  "ar": "المستودعات",
+  "fa": "انبارها"
+ },
+ "web.orders.warehouseCode": {
+  "en": "Code",
+  "ckb": "کۆد",
+  "ar": "الرمز",
+  "fa": "کد"
+ },
+ "web.orders.warehouseName": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.orders.addWarehouse": {
+  "en": "Add warehouse",
+  "ckb": "زیادکردنی کۆگا",
+  "ar": "إضافة مستودع",
+  "fa": "افزودن انبار"
+ },
+ "web.orders.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.orders.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.orders.inactive": {
+  "en": "inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.orders.view": {
+  "en": "View",
+  "ckb": "بینین",
+  "ar": "عرض",
+  "fa": "مشاهده"
+ },
+ "app.outcome.order_placed": {
+  "en": "Order placed",
+  "ckb": "داواکاری تۆمارکرا",
+  "ar": "تم تسجيل الطلب",
+  "fa": "سفارش ثبت شد"
+ },
+ "app.result.OrderRequired": {
+  "en": "Place the order first, then choose “Order placed”.",
+  "ckb": "سەرەتا داواکارییەکە تۆمار بکە، پاشان «داواکاری تۆمارکرا» هەڵبژێرە.",
+  "ar": "سجّل الطلب أولاً ثم اختر «تم تسجيل الطلب».",
+  "fa": "ابتدا سفارش را ثبت کنید، بعد «سفارش ثبت شد» را انتخاب کنید."
+ },
+ "app.result.CurrencyMismatch": {
+  "en": "All products of one order must use the same currency. Remove the others or make a second order.",
+  "ckb": "هەموو بەرهەمەکانی یەک داواکاری دەبێت یەک دراویان هەبێت. ئەوانی تر لابە یان داواکارییەکی دووەم دروست بکە.",
+  "ar": "يجب أن تكون كل منتجات الطلب بنفس العملة. أزل الأخرى أو أنشئ طلباً ثانياً.",
+  "fa": "همهٔ محصولات یک سفارش باید یک ارز داشته باشند. بقیه را حذف کنید یا سفارش دوم بسازید."
+ },
+ "app.result.CustomerNotApproved": {
+  "en": "This customer is not approved yet; orders cannot be placed.",
+  "ckb": "ئەم کڕیارە هێشتا پەسەند نەکراوە؛ داواکاری ناتوانرێت تۆمار بکرێت.",
+  "ar": "هذا العميل لم تتم الموافقة عليه بعد؛ لا يمكن تسجيل طلب.",
+  "fa": "این مشتری هنوز تأیید نشده؛ سفارش نمی‌توان ثبت کرد."
+ },
+ "app.order.title": {
+  "en": "New order",
+  "ckb": "داواکاریی نوێ",
+  "ar": "طلب جديد",
+  "fa": "سفارش جدید"
+ },
+ "app.order.button": {
+  "en": "Order",
+  "ckb": "داواکاری",
+  "ar": "طلب",
+  "fa": "سفارش"
+ },
+ "app.order.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "app.order.chooseWarehouse": {
+  "en": "Choose the warehouse",
+  "ckb": "کۆگا هەڵبژێرە",
+  "ar": "اختر المستودع",
+  "fa": "انبار را انتخاب کنید"
+ },
+ "app.order.search": {
+  "en": "Search product",
+  "ckb": "گەڕان بۆ بەرهەم",
+  "ar": "بحث عن منتج",
+  "fa": "جستجوی محصول"
+ },
+ "app.order.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "app.order.note": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (ئارەزوومەندانە)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "یادداشت (اختیاری)"
+ },
+ "app.order.total": {
+  "en": "Total: {total} {currency}",
+  "ckb": "کۆ: {total} {currency}",
+  "ar": "المجموع: {total} {currency}",
+  "fa": "جمع: {total} {currency}"
+ },
+ "app.order.prices": {
+  "en": "Prices come from the server and are set again when the order is placed.",
+  "ckb": "نرخەکان لە سێرڤەرەوە دێن و لە کاتی تۆمارکردن دووبارە دیاری دەکرێنەوە.",
+  "ar": "الأسعار من الخادم وتُحدَّد مجدداً عند تسجيل الطلب.",
+  "fa": "قیمت‌ها از سرور می‌آید و هنگام ثبت دوباره تعیین می‌شود."
+ },
+ "app.order.place": {
+  "en": "Place order",
+  "ckb": "تۆمارکردنی داواکاری",
+  "ar": "تسجيل الطلب",
+  "fa": "ثبت سفارش"
+ },
+ "app.order.placed": {
+  "en": "Order {number} placed: {total} {currency}",
+  "ckb": "داواکاری {number} تۆمارکرا: {total} {currency}",
+  "ar": "تم تسجيل الطلب {number}: {total} {currency}",
+  "fa": "سفارش {number} ثبت شد: {total} {currency}"
+ },
+ "app.order.noProducts": {
+  "en": "No products with a price for this customer.",
+  "ckb": "هیچ بەرهەمێکی نرخدار بۆ ئەم کڕیارە نییە.",
+  "ar": "لا منتجات مسعّرة لهذا العميل.",
+  "fa": "محصول قیمت‌دار برای این مشتری نیست."
+ },
+ "app.order.noWarehouse": {
+  "en": "No warehouse is set up. Ask the sales manager.",
+  "ckb": "هیچ کۆگایەک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد مستودع. اسأل مدير المبيعات.",
+  "fa": "انباری تعریف نشده است. از مدیر فروش بپرسید."
  }
 }

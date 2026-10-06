@@ -352,3 +352,24 @@ Migration 0024: `products`, permissions `catalog.read` (SalesManager, Supervisor
 | `GET /customers/{id}/prices?date=` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | Every active product: `listPrice`, `listSource` (`base` or `city`), `cityPriceId`, the `discounts` applied in order and the final `price`. Later steps (orders) take prices from here, never from the phone | — |
 
 Test: `Catalog_ManagerMaintainsProductsCityPricesAndDiscountsAndEveryoneGetsTheServerPrice`; unit: `PriceCalculatorTests`; panel: the Products tab (`Panel.test.tsx`).
+
+## Warehouses and orders (step 2.2)
+
+Migration 0026: `warehouses`, `order_counters`, `orders`, `order_items` (RLS, grants file updated), permissions `orders.create` (SalesManager, Supervisor, SalesRep), `orders.read` (those and FinanceManager, CompanyManager), `orders.cancel` (SalesManager, Supervisor), `warehouses.manage` (SalesManager); default roles and existing companies get them. Owner decisions 2026-10-07: orders are placed from the rep's app **and** the panel; **the person who places the order chooses the warehouse**; discounts apply per product or on all products as a percentage (the "on the total" case), see step 2.1. All lines of an order have one currency. Migration 0026 also lets `visit_reports.outcome` be `order_placed`.
+
+Prices: the request carries **no price**. The server takes the general or city price of today (Iraq) and the customer's valid discounts (`PriceCalculator`), writes them on each line (`listPrice`, `unitPrice`, `lineTotal`, the applied `discounts`) and the order `total`, so a later price change never rewrites an order.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /warehouses?includeInactive=` | `orders.read` or `orders.create` | Active warehouses by code; inactive ones only for `warehouses.manage` | — |
+| `POST /warehouses` | `warehouses.manage` | `code` (1-40), `name`, `status`. 201 `{id}`; 400; 409 repeated code | `warehouse.created` |
+| `PUT /warehouses/{id}` | `warehouses.manage` | `name`, `status` (the code never changes); 204; 404 | `warehouse.updated` |
+| `POST /orders` | `orders.create`; the customer must be inside the caller's data scope and approved | Body: `customerId`, `warehouseId` (active), optional `visitId` (a visit of that customer, of the caller or of someone in a `visits.write` scope, not cancelled or failed), `clientRef` (a new guid per order; a retry with the same one returns the same order with 200 and `replayed: true`, another person or customer with it: 409), `items` (1-100 lines, one per product, `quantity` > 0, at most three decimals, at most 100000; inactive or unknown products 400), optional `note` (500). 201 `{id, number, currency, total, replayed}`; `number` is `O-000001`... without gaps; 400 `INVALID_DATA` / `CURRENCY_MISMATCH`; 404 customer, warehouse or visit; 409 `CUSTOMER_NOT_APPROVED` | `order.created` |
+| `GET /orders?customerId=&status=&limit=&before=&beforeId=` | `orders.read`; tenant: all; region: orders of the region's customers, of the user's customers and the ones the user placed; own: the user's own | Newest first, `limit` 1-100 (default 50), `before` + `beforeId` continue after the last row; `status` is `placed` or `cancelled` | — |
+| `GET /orders/{id}` | same scope (else 404) | The order with its lines | — |
+| `POST /orders/{id}/cancel` | `orders.read` scope; `orders.cancel` holders cancel any order in scope, the creator cancels their own | `reason` (1-500). 204; 409 when the order is not `placed` any more; 403 for someone who is neither; 404 out of scope | `order.cancelled` |
+
+The visit report accepts the outcome `order_placed` only when the visit has a `placed` order (`409 ORDER_REQUIRED` otherwise).
+
+Tests: `Orders_ServerPricesWarehouseChosenByVisitorScopeCancelAndRetry` (also runs the phone's `OrdersApiClient` against the API), `OrdersTests` (app), panel tests in `Panel.test.tsx`.
+

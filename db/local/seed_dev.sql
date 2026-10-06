@@ -54,3 +54,13 @@ INSERT INTO places (id, tenant_id, parent_id, kind, name, name_ckb, name_ar, nam
 INSERT INTO places (tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en) VALUES
     ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Ankawa', 'عەنکاوە', 'عنكاوا', 'Ankawa'),
     ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000005c1', 'neighbourhood', 'Bakhtiari', 'بەختیاری', 'بختياري', 'Bakhtiari');
+
+-- Sample catalogue and warehouse (plan steps 2.1, 2.2) so an order can be tried at once: two products in IQD, a city price for
+-- Erbil, one warehouse. Sample customers have no place, so they pay the general price until a place is chosen for them.
+INSERT INTO products (id, tenant_id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price) VALUES
+    ('00000000-0000-0000-0000-0000000006a1', '00000000-0000-0000-0000-00000000d001', 'PAR-500', 'Paracetamol 500 mg', 'پاراسیتامۆل ٥٠٠', 'باراسيتامول 500', 'Paracetamol 500 mg', 'box', 'IQD', 1500),
+    ('00000000-0000-0000-0000-0000000006a2', '00000000-0000-0000-0000-00000000d001', 'AMX-250', 'Amoxicillin 250 mg', 'ئامۆکسیسیلین ٢٥٠', 'أموكسيسيلين 250', 'Amoxicillin 250 mg', 'box', 'IQD', 4000);
+INSERT INTO city_prices (tenant_id, product_id, city_id, price, valid_from) VALUES
+    ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000006a1', '00000000-0000-0000-0000-0000000005c1', 1800, '2026-01-01');
+INSERT INTO warehouses (id, tenant_id, code, name) VALUES
+    ('00000000-0000-0000-0000-0000000006b1', '00000000-0000-0000-0000-00000000d001', 'W1', 'Erbil warehouse');
