@@ -409,6 +409,73 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('warehouse work: start preparing, report less with a reason, hand over to a driver', async () => {
+    const worker: Me = { id: 'w1', email: 'wh@t1', roles: ['WarehouseManager'], permissions: ['warehouse.work'] }
+    const line = (lineNo: number, code: string, quantity: number): Record<string, unknown> => ({ lineNo, productId: `p${lineNo}`, productCode: code, productName: `Name ${code}`, unit: 'box', quantity, listPrice: 1000, unitPrice: 1000, lineTotal: 1000 * quantity, discounts: [] })
+    const base = { id: 'o1', number: 'O-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', visitId: null, warehouseId: 'w1', warehouseName: 'Erbil warehouse', createdBy: 'u1', createdByEmail: 'rep@t1', currency: 'IQD', total: 14000, note: null, cancelReason: null, createdAt: '2026-10-06T08:00:00Z', items: [line(1, 'PAR-500', 10), line(2, 'AMX-250', 4)], history: [] }
+    let current: Record<string, unknown> = { ...base, status: 'placed' }
+    const { api, calls } = server(worker, { '/warehouse/orders?limit=50': [{ ...base, status: 'placed', items: [] }], '/warehouse/drivers': [{ id: 'd1', email: 'driver@t1' }] })
+    // The detail follows the status the fake server is in
+    const original = api.request.bind(api)
+    api.request = async (path: string, init?: RequestInit) => (path === '/warehouse/orders/o1' ? json(current) : original(path, init))
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Warehouse' }))
+    await user.click(await screen.findByRole('button', { name: 'Details of O-000001' }))
+    await user.click(await screen.findByRole('button', { name: 'Start preparing' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/start', body: undefined })
+
+    // Preparing: less than ordered needs a reason before "ready" works
+    current = { ...base, status: 'preparing' }
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.type(await screen.findByLabelText('Prepared quantity of AMX-250'), '3')
+    expect(screen.getByRole('button', { name: 'Mark ready' })).toBeDisabled()
+    expect(screen.getByText('Less than ordered: write the reason.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Reason for AMX-250'), ' only 3 in stock ')
+    await user.click(screen.getByRole('button', { name: 'Mark ready' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/ready', body: { lines: [{ lineNo: 1, quantity: 10, reason: null }, { lineNo: 2, quantity: 3, reason: 'only 3 in stock' }] } })
+
+    // Ready: choose the driver and hand over
+    current = { ...base, status: 'ready', items: [{ ...line(1, 'PAR-500', 10), preparedQuantity: 10 }, { ...line(2, 'AMX-250', 4), preparedQuantity: 3, shortageReason: 'only 3 in stock' }] }
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    await user.click(screen.getByRole('button', { name: 'Details of O-000001' }))
+    expect(await screen.findByText('3 (only 3 in stock)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hand over to driver' })).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('Driver'), 'd1')
+    await user.click(screen.getByRole('button', { name: 'Hand over to driver' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(posts(calls)[2]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/handover', body: { driverId: 'd1' } })
+  })
+
+  it('assigns warehouse workers to a warehouse (only workers can be chosen)', async () => {
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'warehouses.manage', 'customers.read', 'user.manageroles'] }
+    const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0 })
+    const { api, calls } = server(seller, {
+      '/orders?limit=50': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [],
+      '/warehouses/w1/staff': [{ userId: 'u9', email: 'old@t1' }],
+      '/users': [wh('u1', 'worker@t1', ['WarehouseManager']), wh('u2', 'rep@t1', ['SalesRep']), wh('u9', 'old@t1', ['WarehouseManager'])],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Orders' }))
+    await user.click(await screen.findByRole('button', { name: 'Staff of Erbil warehouse' }))
+    expect(await screen.findByText('old@t1')).toBeInTheDocument()
+    const choose = screen.getByRole('combobox', { name: 'Choose a warehouse worker…' })
+    expect(within(choose).queryByRole('option', { name: 'rep@t1' })).not.toBeInTheDocument()   // not a warehouse worker
+    expect(within(choose).queryByRole('option', { name: 'old@t1' })).not.toBeInTheDocument()   // already there
+    await user.selectOptions(choose, 'u1')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: 'Remove old@t1' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)).toEqual([
+      { method: 'POST', path: '/warehouses/w1/staff', body: { userId: 'u1' } },
+      { method: 'DELETE', path: '/warehouses/w1/staff/u9', body: undefined },
+    ])
+  })
+
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {
     const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
     const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]

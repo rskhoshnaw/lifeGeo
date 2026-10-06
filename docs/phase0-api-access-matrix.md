@@ -373,3 +373,25 @@ The visit report accepts the outcome `order_placed` only when the visit has a `p
 
 Tests: `Orders_ServerPricesWarehouseChosenByVisitorScopeCancelAndRetry` (also runs the phone's `OrdersApiClient` against the API), `OrdersTests` (app), panel tests in `Panel.test.tsx`.
 
+## Warehouse work (step 2.3)
+
+Migration 0027: `warehouse_staff`, `order_status_history`; orders get the statuses `preparing`, `ready`, `handed_over` and a `driver_id`; order lines get `prepared_quantity` and `shortage_reason`; permission `warehouse.work` (WarehouseManager role; also for existing companies). Owner decisions 2026-10-07: steps **placed → preparing → ready → handed over to a driver**; the worker may report a smaller prepared quantity per line **with a reason** (the order total does not change; finance decides later); the work is done **in the panel and in the app**, so the `WarehouseManager` role no longer requires an approved phone (the `Driver` role still does).
+
+A warehouse worker sees and handles **only the orders of the warehouses they are assigned to**; an order of another warehouse is "not found" (404), a user without `warehouse.work` gets 403.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /warehouses/{id}/staff` | `warehouses.manage` | Users who work in that warehouse | — |
+| `POST /warehouses/{id}/staff` | `warehouses.manage` | `userId`; only a user whose roles give `warehouse.work` (else 400); again for the same user: 204, nothing changes; 404 unknown warehouse or user | `warehouse.staff_added` |
+| `DELETE /warehouses/{id}/staff/{userId}` | `warehouses.manage` | 204, or 404 when the user is not there | `warehouse.staff_removed` |
+| `GET /warehouse/orders?status=&limit=&before=&beforeId=` | `warehouse.work`; own warehouses | Newest first; without `status` the open ones (`placed`, `preparing`, `ready`) | — |
+| `GET /warehouse/orders/{id}` | same | The order with lines (ordered and prepared quantity, shortage reason), driver and the steps (`history`) | — |
+| `POST /warehouse/orders/{id}/start` | same | `placed` → `preparing`; 409 in any other status | `order.preparing` |
+| `POST /warehouse/orders/{id}/ready` | same | Body `lines`: every line once with `lineNo`, `quantity` (0 up to the ordered quantity, three decimals) and a `reason` when it is less. `preparing` → `ready`; 400 for missing, repeated or unknown lines, more than ordered, or no reason; 409 in another status | `order.ready` (+ `order.shortage` when something is short) |
+| `POST /warehouse/orders/{id}/handover` | same | `driverId` of a user with the `Driver` role (else 400). `ready` → `handed_over`; 409 in another status | `order.handed_over` |
+| `GET /warehouse/drivers` | `warehouse.work` | Users with the Driver role | — |
+
+Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
+
+Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).
+

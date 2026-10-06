@@ -25,17 +25,32 @@ public sealed record CreateOrderRequest(Guid? CustomerId, Guid? WarehouseId, Gui
 public sealed record CancelOrderRequest(string? Reason);
 
 public sealed record OrderLineDto(int LineNo, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity,
-    decimal ListPrice, decimal UnitPrice, decimal LineTotal, IReadOnlyList<AppliedDiscountDto> Discounts);
+    decimal ListPrice, decimal UnitPrice, decimal LineTotal, IReadOnlyList<AppliedDiscountDto> Discounts,
+    // Warehouse work (plan step 2.3): what the warehouse really prepared (null until it says so) and why it was less.
+    decimal? PreparedQuantity = null, string? ShortageReason = null);
+
+// One step of an order: the status it moved to, who did it (email) and when. Note: the cancel reason.
+public sealed record OrderHistoryDto(string Status, string? ActorEmail, string? Note, DateTimeOffset At);
 
 // Number: "O-000123". Items is empty in a list and filled when one order is read.
 public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string CustomerCode, string CustomerName, Guid? VisitId, Guid WarehouseId,
     string WarehouseName, Guid CreatedBy, string? CreatedByEmail, string Status, string Currency, decimal Total, string? Note, string? CancelReason,
-    DateTimeOffset CreatedAt, IReadOnlyList<OrderLineDto> Items);
+    DateTimeOffset CreatedAt, IReadOnlyList<OrderLineDto> Items,
+    // Plan step 2.3: the driver who took the order, and its steps (when one order is read).
+    Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null);
 
 // Replayed: the same ClientRef was sent before and the order that exists is returned.
 public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
 
 public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict }
+
+// Warehouse work (plan step 2.3). Quantity: what was really prepared (0 up to the ordered quantity); Reason: needed when it is less.
+public sealed record PreparedLineRequest(int? LineNo, decimal? Quantity, string? Reason = null);
+public sealed record MarkReadyRequest(IReadOnlyList<PreparedLineRequest>? Lines);
+public sealed record HandOverRequest(Guid? DriverId);
+public sealed record StaffMemberDto(Guid UserId, string? Email);
+public sealed record AddStaffRequest(Guid? UserId);
+public sealed record DriverDto(Guid Id, string? Email);
 
 // The order with prices already worked out, ready to be written.
 public sealed record PricedLine(Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, decimal ListPrice, decimal UnitPrice,
@@ -57,6 +72,22 @@ public interface IOrderStore
         CancellationToken cancellationToken);
     // NotFound: not in scope. Forbidden: not a manager and not the creator. Conflict: the order is not "placed" any more.
     Task<OrderResult> CancelAsync(TenantId tenantId, UserId actorId, Guid orderId, AccessScope scope, bool isManager, string reason, CancellationToken cancellationToken);
+    // Staff of a warehouse (plan step 2.3). NotFound: warehouse or user missing. InvalidData: the user's roles do not give warehouse.work.
+    Task<IReadOnlyList<StaffMemberDto>?> ListStaffAsync(TenantId tenantId, Guid warehouseId, CancellationToken cancellationToken);
+    Task<OrderResult> AddStaffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid userId, CancellationToken cancellationToken);
+    Task<bool> RemoveStaffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid userId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<DriverDto>> ListDriversAsync(TenantId tenantId, CancellationToken cancellationToken);
+
+    // Warehouse work: only the orders of the warehouses the actor works in (else NotFound). Status null = the open ones (placed, preparing, ready).
+    Task<IReadOnlyList<OrderDto>> ListForWarehouseAsync(TenantId tenantId, UserId actorId, string? status, int limit, DateTimeOffset? before, Guid? beforeId,
+        CancellationToken cancellationToken);
+    Task<OrderDto?> GetForWarehouseAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken);
+    // placed -> preparing; preparing -> ready with the prepared quantity of every line; ready -> handed_over to a driver (a user with the Driver role).
+    // Conflict: the order is in another status. InvalidData: the lines do not match, a quantity is out of range or a reason is missing, or the driver is not a driver.
+    Task<OrderResult> StartPreparingAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken);
+    Task<OrderResult> MarkReadyAsync(TenantId tenantId, UserId actorId, Guid orderId, IReadOnlyList<PreparedLineRequest> lines, CancellationToken cancellationToken);
+    Task<OrderResult> HandOverAsync(TenantId tenantId, UserId actorId, Guid orderId, Guid driverId, CancellationToken cancellationToken);
+
     // Used by the visit report: "order placed" needs a real order of that visit.
     Task<bool> HasPlacedOrderForVisitAsync(TenantId tenantId, Guid visitId, CancellationToken cancellationToken);
 }
@@ -153,7 +184,7 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.OrdersRead, cancellationToken);
         if (scope is null) return (OrderResult.Forbidden, Array.Empty<OrderDto>());
         var take = limit ?? 50;
-        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || customerId == Guid.Empty || status is not (null or "placed" or "cancelled"))
+        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || customerId == Guid.Empty || status is not (null or "placed" or "preparing" or "ready" or "handed_over" or "cancelled"))
             return (OrderResult.InvalidData, Array.Empty<OrderDto>());
         return (OrderResult.Success, await store.ListAsync(tenantId, scope, customerId, status, take, before, beforeId, cancellationToken));
     }
@@ -167,6 +198,76 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         if (orderId == Guid.Empty || string.IsNullOrEmpty(reason) || reason.Length > MaxNoteLength) return OrderResult.InvalidData;
         var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.OrdersCancel, cancellationToken) is not null;
         return await store.CancelAsync(tenantId, actorId, orderId, scope, manager, reason, cancellationToken);
+    }
+
+    // ---- Warehouse work (plan step 2.3): needs warehouse.work and works only on the orders of the user's own warehouses ----
+
+    public async Task<(OrderResult Result, IReadOnlyList<StaffMemberDto>? Items)> ListStaffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return (OrderResult.Forbidden, null);
+        var items = warehouseId == Guid.Empty ? null : await store.ListStaffAsync(tenantId, warehouseId, cancellationToken);
+        return items is null ? (OrderResult.NotFound, null) : (OrderResult.Success, items);
+    }
+
+    public async Task<OrderResult> AddStaffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, AddStaffRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return OrderResult.Forbidden;
+        if (warehouseId == Guid.Empty || request.UserId is null || request.UserId == Guid.Empty) return OrderResult.InvalidData;
+        return await store.AddStaffAsync(tenantId, actorId, warehouseId, request.UserId.Value, cancellationToken);
+    }
+
+    public async Task<OrderResult> RemoveStaffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid userId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return OrderResult.Forbidden;
+        return await store.RemoveStaffAsync(tenantId, actorId, warehouseId, userId, cancellationToken) ? OrderResult.Success : OrderResult.NotFound;
+    }
+
+    public async Task<(OrderResult Result, IReadOnlyList<DriverDto> Items)> ListDriversAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<DriverDto>());
+        return (OrderResult.Success, await store.ListDriversAsync(tenantId, cancellationToken));
+    }
+
+    public async Task<(OrderResult Result, IReadOnlyList<OrderDto> Items)> ListForWarehouseAsync(TenantId tenantId, UserId actorId, string? status, int? limit,
+        DateTimeOffset? before, Guid? beforeId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<OrderDto>());
+        var take = limit ?? 50;
+        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || status is not (null or "placed" or "preparing" or "ready" or "handed_over" or "cancelled"))
+            return (OrderResult.InvalidData, Array.Empty<OrderDto>());
+        return (OrderResult.Success, await store.ListForWarehouseAsync(tenantId, actorId, status, take, before, beforeId, cancellationToken));
+    }
+
+    public async Task<(OrderResult Result, OrderDto? Order)> GetForWarehouseAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return (OrderResult.Forbidden, null);
+        var order = orderId == Guid.Empty ? null : await store.GetForWarehouseAsync(tenantId, actorId, orderId, cancellationToken);
+        return order is null ? (OrderResult.NotFound, null) : (OrderResult.Success, order);
+    }
+
+    public async Task<OrderResult> StartPreparingAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        return orderId == Guid.Empty ? OrderResult.InvalidData : await store.StartPreparingAsync(tenantId, actorId, orderId, cancellationToken);
+    }
+
+    public async Task<OrderResult> MarkReadyAsync(TenantId tenantId, UserId actorId, Guid orderId, MarkReadyRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        var lines = request.Lines;
+        if (orderId == Guid.Empty || lines is null || lines.Count is 0 or > MaxLines ||
+            lines.Any(l => l.LineNo is null or < 1 || l.Quantity is null or < 0 or > MaxQuantity || decimal.Round(l.Quantity.Value, 3) != l.Quantity || l.Reason?.Trim().Length > 300) ||
+            lines.Select(l => l.LineNo).Distinct().Count() != lines.Count)
+            return OrderResult.InvalidData;
+        return await store.MarkReadyAsync(tenantId, actorId, orderId,
+            lines.Select(l => l with { Reason = string.IsNullOrWhiteSpace(l.Reason) ? null : l.Reason.Trim() }).ToList(), cancellationToken);
+    }
+
+    public async Task<OrderResult> HandOverAsync(TenantId tenantId, UserId actorId, Guid orderId, HandOverRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        if (orderId == Guid.Empty || request.DriverId is null || request.DriverId == Guid.Empty) return OrderResult.InvalidData;
+        return await store.HandOverAsync(tenantId, actorId, orderId, request.DriverId.Value, cancellationToken);
     }
 
     private Task<AccessScope?> ScopeAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>

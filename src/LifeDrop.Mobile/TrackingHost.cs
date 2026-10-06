@@ -24,6 +24,7 @@ public static class TrackingHost
     private static IVisitsApiClient? _visits;
     private static ICustomersApiClient? _customers;
     private static IOrdersApiClient? _orders;
+    private static IWarehouseApiClient? _warehouse;
     private static IDurableStore? _store;
     private static bool _listening;
 
@@ -46,6 +47,11 @@ public static class TrackingHost
     public static ICustomersApiClient? CustomersApi
     {
         get { lock (Gate) return _customers; }
+    }
+
+    public static IWarehouseApiClient? WarehouseApi
+    {
+        get { lock (Gate) return _warehouse; }
     }
 
     public static IOrdersApiClient? OrdersApi
@@ -76,6 +82,7 @@ public static class TrackingHost
             _visits = new VisitsApiClient(http, session);
             _customers = new CustomersApiClient(http, session);
             _orders = new OrdersApiClient(http, session);
+            _warehouse = new WarehouseApiClient(http, session);
             _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
             _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store));
             if (!_listening)
@@ -119,6 +126,7 @@ public static class TrackingHost
             _visits = null;
             _customers = null;
             _orders = null;
+            _warehouse = null;
             _store = null;
             try
             {

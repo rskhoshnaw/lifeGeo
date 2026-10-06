@@ -102,7 +102,8 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
     onChanged()
   })
   const o = order.data
-  const canCancel = o?.status === 'placed' && (o.createdBy === me.id || can(me, ...Permissions.cancelOrders))
+  // The creator cancels while it is only placed; a manager until it is handed to a driver.
+  const canCancel = o !== undefined && o !== null && ((o.status === 'placed' && o.createdBy === me.id) || (['placed', 'preparing', 'ready'].includes(o.status) && can(me, ...Permissions.cancelOrders)))
 
   function cancel() {
     if (!o) return
@@ -126,6 +127,7 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
                 <th>{t('web.orders.unitPrice')}</th>
                 <th>{t('web.orders.discounts')}</th>
                 <th>{t('web.orders.lineTotal')}</th>
+                <th>{t('web.orders.prepared')}</th>
               </tr>
             </thead>
             <tbody>
@@ -140,6 +142,7 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
                   <td>{money(l.unitPrice)}</td>
                   <td>{l.discounts.map(discountText).join(' ')}</td>
                   <td>{money(l.lineTotal)}</td>
+                  <td>{l.preparedQuantity == null ? '' : `${money(l.preparedQuantity)}${l.shortageReason ? ` (${l.shortageReason})` : ''}`}</td>
                 </tr>
               ))}
             </tbody>
@@ -147,6 +150,17 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
           <p className="font-semibold">
             {t('web.orders.total')}: {money(o.total)} {o.currency}
           </p>
+          {o.driverEmail && <p>{t('web.orders.driver')}: {o.driverEmail}</p>}
+          {o.history && o.history.length > 0 && (
+            <div>
+              <p className="font-semibold">{t('web.orders.history')}</p>
+              {o.history.map((h, i) => (
+                <p key={i} className="text-slate-600">
+                  {h.at.slice(0, 16).replace('T', ' ')} · {t(`web.orders.status.${h.status}` as TextKey)} · {h.actorEmail ?? ''}{h.note ? ` · ${h.note}` : ''}
+                </p>
+              ))}
+            </div>
+          )}
           {canCancel && (
             <button className="rounded border px-3 py-1 text-red-700" disabled={action.busy} onClick={cancel}>
               {t('web.orders.cancel')}
@@ -289,6 +303,7 @@ function Warehouses({ admin }: { admin: AdminApi }) {
   const action = useAction(list.reload)
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
+  const [staffFor, setStaffFor] = useState<Warehouse | null>(null)
 
   function add(e: FormEvent) {
     e.preventDefault()
@@ -311,11 +326,15 @@ function Warehouses({ admin }: { admin: AdminApi }) {
           <span className="flex-1">
             {w.name} {w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
           </span>
+          <button className="rounded border px-2 py-1" aria-label={t('web.orders.staffOf', { name: w.name })} onClick={() => setStaffFor(staffFor?.id === w.id ? null : w)}>
+            {t('web.orders.staff')}
+          </button>
           <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => toggle(w)}>
             {t(w.status === 'active' ? 'web.orders.deactivate' : 'web.orders.activate')}
           </button>
         </div>
       ))}
+      {staffFor && <WarehouseStaff key={staffFor.id} admin={admin} warehouse={staffFor} />}
       <form onSubmit={add} className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.orders.warehouseCode')} placeholder={t('web.orders.warehouseCode')} maxLength={40} className="rounded border px-2 py-1" value={code} onChange={(e) => setCode(e.target.value)} />
         <input aria-label={t('web.orders.warehouseName')} placeholder={t('web.orders.warehouseName')} maxLength={160} className="rounded border px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
@@ -323,6 +342,45 @@ function Warehouses({ admin }: { admin: AdminApi }) {
           {t('web.orders.addWarehouse')}
         </button>
       </form>
+    </div>
+  )
+}
+
+// Who works in a warehouse: only users whose role is WarehouseManager can be added (the server checks it).
+function WarehouseStaff({ admin, warehouse }: { admin: AdminApi; warehouse: Warehouse }) {
+  const staff = useLoad(useCallback(() => admin.warehouseStaff(warehouse.id), [admin, warehouse.id]))
+  const users = useLoad(useCallback(() => admin.users(), [admin]))
+  const action = useAction(staff.reload)
+  const [user, setUser] = useState('')
+  const inside = new Set((staff.data ?? []).map((s) => s.userId))
+  const candidates = (users.data ?? []).filter((u) => u.roles.includes('WarehouseManager') && !inside.has(u.id))
+
+  return (
+    <div className="space-y-2 rounded border bg-slate-50 p-2">
+      <h4 className="font-semibold">{t('web.orders.staffOf', { name: warehouse.name })}</h4>
+      {(action.error ?? staff.error) && <p role="alert" className="text-red-700">{action.error ?? staff.error}</p>}
+      {staff.data?.length === 0 && <p className="text-slate-600">{t('web.orders.noStaff')}</p>}
+      {staff.data?.map((s) => (
+        <div key={s.userId} className="flex items-center gap-3">
+          <span className="flex-1">{s.email ?? s.userId}</span>
+          <button className="rounded border px-2 py-1" aria-label={t('web.orders.removeStaff', { name: s.email ?? s.userId })} disabled={action.busy} onClick={() => void action.run(() => admin.removeWarehouseStaff(warehouse.id, s.userId))}>
+            ×
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <select aria-label={t('web.orders.chooseStaff')} className="rounded border px-2 py-1" value={user} onChange={(e) => setUser(e.target.value)}>
+          <option value="">{t('web.orders.chooseStaff')}</option>
+          {candidates.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.email ?? u.id}
+            </option>
+          ))}
+        </select>
+        <button className="rounded border px-3 py-1" disabled={action.busy || !user} onClick={() => void action.run(async () => { await admin.addWarehouseStaff(warehouse.id, user); setUser('') })}>
+          {t('web.orders.addStaff')}
+        </button>
+      </div>
     </div>
   )
 }

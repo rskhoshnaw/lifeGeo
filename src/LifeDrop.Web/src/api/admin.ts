@@ -280,6 +280,22 @@ export interface OrderLine {
   unitPrice: number
   lineTotal: number
   discounts: { id: string; kind: 'percent' | 'amount'; value: number }[]
+  preparedQuantity?: number | null
+  shortageReason?: string | null
+}
+export interface OrderStep {
+  status: string
+  actorEmail: string | null
+  note: string | null
+  at: string
+}
+export interface StaffMember {
+  userId: string
+  email: string | null
+}
+export interface Driver {
+  id: string
+  email: string | null
 }
 export interface Order {
   id: string
@@ -292,13 +308,16 @@ export interface Order {
   warehouseName: string
   createdBy: string
   createdByEmail: string | null
-  status: 'placed' | 'cancelled'
+  status: 'placed' | 'preparing' | 'ready' | 'handed_over' | 'cancelled'
   currency: 'IQD' | 'USD'
   total: number
   note: string | null
   cancelReason: string | null
   createdAt: string
   items: OrderLine[]
+  driverId?: string | null
+  driverEmail?: string | null
+  history?: OrderStep[] | null
 }
 export interface CreatedOrder {
   id: string
@@ -407,6 +426,7 @@ export const Permissions = {
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
   manageWarehouses: ['warehouses.manage'],
+  warehouseWork: ['warehouse.work'],
   manageCatalog: ['catalog.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
@@ -502,6 +522,17 @@ export class AdminApi {
   order = (id: string) => this.get<Order>(`/orders/${id}`)
   createOrder = (order: NewOrderInput) => this.postJson<CreatedOrder>('/orders', order)
   cancelOrder = (id: string, reason: string) => this.post(`/orders/${id}/cancel`, { reason })
+  // Warehouse staff and warehouse work (step 2.3).
+  warehouseStaff = (warehouseId: string) => this.get<StaffMember[]>(`/warehouses/${warehouseId}/staff`)
+  addWarehouseStaff = (warehouseId: string, userId: string) => this.post(`/warehouses/${warehouseId}/staff`, { userId })
+  removeWarehouseStaff = (warehouseId: string, userId: string) => this.send('DELETE', `/warehouses/${warehouseId}/staff/${userId}`)
+  warehouseOrders = (status: string, before?: Order) =>
+    this.get<Order[]>(`/warehouse/orders?limit=50${status ? `&status=${status}` : ''}${before ? `&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : ''}`)
+  warehouseOrder = (id: string) => this.get<Order>(`/warehouse/orders/${id}`)
+  startPreparing = (id: string) => this.post(`/warehouse/orders/${id}/start`)
+  markReady = (id: string, lines: { lineNo: number; quantity: number; reason?: string | null }[]) => this.post(`/warehouse/orders/${id}/ready`, { lines })
+  handOver = (id: string, driverId: string) => this.post(`/warehouse/orders/${id}/handover`, { driverId })
+  drivers = () => this.get<Driver[]>('/warehouse/drivers')
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })

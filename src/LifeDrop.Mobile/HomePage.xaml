@@ -24,6 +24,9 @@
 
             <Button x:Name="NewCustomerBtn" Clicked="OnNewCustomerClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- Warehouse workers: the orders of their warehouse (plan step 2.3) -->
+            <Button x:Name="WarehouseBtn" Clicked="OnWarehouseClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

@@ -38,15 +38,11 @@ public interface IOrdersApiClient
 
 public sealed class OrdersApiClient : IOrdersApiClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
-    private readonly HttpClient _httpClient;
-    private readonly IAuthSession _session;
+    private readonly OrdersHttp _http;
 
     public OrdersApiClient(HttpClient httpClient, IAuthSession session)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _http = new OrdersHttp(httpClient ?? throw new ArgumentNullException(nameof(httpClient)), session ?? throw new ArgumentNullException(nameof(session)));
     }
 
     public async Task<(VisitActionResult Result, IReadOnlyList<OrderWarehouse> Warehouses)> GetWarehousesAsync(CancellationToken cancellationToken = default)
@@ -78,63 +74,8 @@ public sealed class OrdersApiClient : IOrdersApiClient
             : (result, new PlacedOrder(dto.Id, dto.Number, dto.Currency ?? "", dto.Total, dto.Replayed));
     }
 
-    private async Task<(VisitActionResult Result, T? Data)> CallAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
-    {
-        var token = await _session.GetAccessTokenAsync(cancellationToken);
-        if (!token.IsSuccess || string.IsNullOrEmpty(token.Data))
-            return (token.Status == AuthStatus.NetworkOrServerError ? VisitActionResult.NetworkError : VisitActionResult.SessionExpired, default);
-
-        try
-        {
-            using var request = new HttpRequestMessage(method, path);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
-            if (body is not null) request.Content = JsonContent.Create(body);
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                try
-                {
-                    return (VisitActionResult.Success, await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken));
-                }
-                catch (Exception e) when (e is JsonException or NotSupportedException)
-                {
-                    return (VisitActionResult.ServerError, default);
-                }
-            }
-
-            var code = await ReadCodeAsync(response, cancellationToken);
-            return (response.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized => VisitActionResult.SessionExpired,
-                HttpStatusCode.Forbidden => VisitActionResult.Forbidden,
-                HttpStatusCode.NotFound => VisitActionResult.NotFound,
-                HttpStatusCode.BadRequest => code == "CURRENCY_MISMATCH" ? VisitActionResult.CurrencyMismatch : VisitActionResult.InvalidData,
-                HttpStatusCode.Conflict => code == "CUSTOMER_NOT_APPROVED" ? VisitActionResult.CustomerNotApproved : VisitActionResult.Conflict,
-                _ => VisitActionResult.ServerError
-            }, default);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
-        {
-            return (VisitActionResult.NetworkError, default);
-        }
-    }
-
-    private static async Task<string?> ReadCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-            return document.RootElement.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private Task<(VisitActionResult Result, T? Data)> CallAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
+        _http.CallAsync<T>(method, path, body, cancellationToken);
 
     private sealed record WarehouseDto(Guid Id, string? Code, string? Name);
     private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price);

@@ -26,9 +26,10 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.27 draw area on map (app, online only) | in PR (same branch); real-device check pending |
 | 2.1 catalog and prices | in PR (same branch); migrations 0024, 0025 |
 | 2.2 orders and warehouses | in PR (same branch); migration 0026; real-device order test pending |
-| Next | **2.3** warehouse (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 2.3 warehouse work | in PR (same branch); migration 0027; real-device test pending |
+| Next | **2.4** delivery (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
-Migrations: 0001–0026 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0026 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0027 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0027 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 
 ## Log (one line per step, newest last)
@@ -52,3 +53,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 2.1: migration 0024 (`products`, `price_rules`, `catalog.read`/`catalog.manage`), `Catalog/CatalogOperations.cs` (`CatalogService`), `PostgresProductStore`, `CatalogEndpoints.cs` (`/products`, `/price-rules/{id}/end`, `/customers/{id}/prices`); one unit + one currency per product; panel Products tab; DB 47/47, panel 53 tests.
 - 2.1 (changed 2026-10-07, owner): migration 0025 replaces the region/customer price rules by `city_prices` (per product and city, dated) and `customer_discounts` (percent or amount, one product or all, several stack oldest first); `PriceCalculator`; `/products/{id}/city-prices`, `/customers/{id}/discounts`, `/customers/{id}/prices` shows list price + discounts; panel Products tab; DB 47/47, Application 72, panel 53.
 - 2.2: migration 0026 (`warehouses`, `orders`, `order_items`, `order_counters`, orders.* / warehouses.manage, `order_placed` report outcome), `Orders/OrderOperations.cs` (`OrderService`), `PostgresOrderStore`, `OrderEndpoints.cs`; server prices every line (no price in the request), `clientRef` makes retries safe; panel Orders tab; app `OrdersApiClient`, `OrderDraft`, `OrderPage` (buttons on visit details and customer page); DB 48/48, Mobile.Visits 259, panel 55.
+- 2.3: migration 0027 (`warehouse_staff`, `order_status_history`, order statuses preparing/ready/handed_over, `driver_id`, prepared quantity + shortage reason, `warehouse.work`; WarehouseManager no longer needs a bound phone), `OrderService` warehouse methods, `/warehouse/orders/*`, `/warehouses/{id}/staff`; panel Warehouse tab + staff in Orders; app `WarehouseApiClient`, `PreparationDraft`, `WarehouseOrdersPage`/`WarehouseOrderPage` (button on Home); seed users warehouse@dev.local and driver@dev.local; DB 49/49, Mobile.Visits 269, panel 57.

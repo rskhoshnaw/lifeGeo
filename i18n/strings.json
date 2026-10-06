@@ -3508,5 +3508,275 @@
   "ckb": "هیچ کۆگایەک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
   "ar": "لا يوجد مستودع. اسأل مدير المبيعات.",
   "fa": "انباری تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "web.tab.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.orders.status.preparing": {
+  "en": "preparing",
+  "ckb": "ئامادەکردن",
+  "ar": "قيد التجهيز",
+  "fa": "در حال آماده‌سازی"
+ },
+ "web.orders.status.ready": {
+  "en": "ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده"
+ },
+ "web.orders.status.handed_over": {
+  "en": "handed to driver",
+  "ckb": "دراوە بە شوفێر",
+  "ar": "سُلّم للسائق",
+  "fa": "تحویل راننده"
+ },
+ "web.orders.prepared": {
+  "en": "Prepared",
+  "ckb": "ئامادەکراو",
+  "ar": "المجهّز",
+  "fa": "آماده‌شده"
+ },
+ "web.orders.shortage": {
+  "en": "Shortage reason",
+  "ckb": "هۆکاری کەمی",
+  "ar": "سبب النقص",
+  "fa": "دلیل کمبود"
+ },
+ "web.orders.history": {
+  "en": "Steps",
+  "ckb": "هەنگاوەکان",
+  "ar": "المراحل",
+  "fa": "مراحل"
+ },
+ "web.orders.driver": {
+  "en": "Driver",
+  "ckb": "شوفێر",
+  "ar": "السائق",
+  "fa": "راننده"
+ },
+ "web.orders.staff": {
+  "en": "Staff",
+  "ckb": "کارمەندان",
+  "ar": "العاملون",
+  "fa": "کارکنان"
+ },
+ "web.orders.staffOf": {
+  "en": "Staff of {name}",
+  "ckb": "کارمەندانی {name}",
+  "ar": "عاملو {name}",
+  "fa": "کارکنان {name}"
+ },
+ "web.orders.chooseStaff": {
+  "en": "Choose a warehouse worker…",
+  "ckb": "کارمەندی کۆگایەک هەڵبژێرە…",
+  "ar": "اختر عامل مستودع…",
+  "fa": "کارمند انبار را انتخاب کنید…"
+ },
+ "web.orders.addStaff": {
+  "en": "Add",
+  "ckb": "زیادکردن",
+  "ar": "إضافة",
+  "fa": "افزودن"
+ },
+ "web.orders.removeStaff": {
+  "en": "Remove {name}",
+  "ckb": "لابردنی {name}",
+  "ar": "إزالة {name}",
+  "fa": "حذف {name}"
+ },
+ "web.orders.noStaff": {
+  "en": "Nobody works in this warehouse yet.",
+  "ckb": "هێشتا کەس لەم کۆگایە کار ناکات.",
+  "ar": "لا أحد يعمل في هذا المستودع بعد.",
+  "fa": "هنوز کسی در این انبار کار نمی‌کند."
+ },
+ "web.warehouse.title": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "web.warehouse.none": {
+  "en": "No orders for your warehouse.",
+  "ckb": "هیچ داواکارییەک بۆ کۆگاکەت نییە.",
+  "ar": "لا طلبات لمستودعك.",
+  "fa": "سفارشی برای انبار شما نیست."
+ },
+ "web.warehouse.open": {
+  "en": "Open orders",
+  "ckb": "داواکارییە کراوەکان",
+  "ar": "الطلبات المفتوحة",
+  "fa": "سفارش‌های باز"
+ },
+ "web.warehouse.filter": {
+  "en": "Show",
+  "ckb": "نیشاندان",
+  "ar": "عرض",
+  "fa": "نمایش"
+ },
+ "web.warehouse.start": {
+  "en": "Start preparing",
+  "ckb": "دەستپێکردنی ئامادەکردن",
+  "ar": "بدء التجهيز",
+  "fa": "شروع آماده‌سازی"
+ },
+ "web.warehouse.ready": {
+  "en": "Mark ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده است"
+ },
+ "web.warehouse.quantityFor": {
+  "en": "Prepared quantity of {code}",
+  "ckb": "بڕی ئامادەکراوی {code}",
+  "ar": "الكمية المجهّزة من {code}",
+  "fa": "تعداد آماده‌شدهٔ {code}"
+ },
+ "web.warehouse.reasonFor": {
+  "en": "Reason for {code}",
+  "ckb": "هۆکار بۆ {code}",
+  "ar": "السبب لـ {code}",
+  "fa": "دلیل برای {code}"
+ },
+ "web.warehouse.needReason": {
+  "en": "Less than ordered: write the reason.",
+  "ckb": "کەمتر لە داواکراو: هۆکارەکەی بنووسە.",
+  "ar": "أقل من المطلوب: اكتب السبب.",
+  "fa": "کمتر از سفارش: دلیل را بنویسید."
+ },
+ "web.warehouse.chooseDriver": {
+  "en": "Choose a driver…",
+  "ckb": "شوفێرێک هەڵبژێرە…",
+  "ar": "اختر سائقاً…",
+  "fa": "راننده را انتخاب کنید…"
+ },
+ "web.warehouse.handOver": {
+  "en": "Hand over to driver",
+  "ckb": "دانەوە بە شوفێر",
+  "ar": "تسليم للسائق",
+  "fa": "تحویل به راننده"
+ },
+ "web.warehouse.noDrivers": {
+  "en": "No driver is set up. Ask the sales manager.",
+  "ckb": "هیچ شوفێرێک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد سائق. اسأل مدير المبيعات.",
+  "fa": "راننده‌ای تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "app.home.warehouse": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "app.warehouse.title": {
+  "en": "Warehouse orders",
+  "ckb": "داواکارییەکانی کۆگا",
+  "ar": "طلبات المستودع",
+  "fa": "سفارش‌های انبار"
+ },
+ "app.warehouse.open": {
+  "en": "Open orders",
+  "ckb": "داواکارییە کراوەکان",
+  "ar": "الطلبات المفتوحة",
+  "fa": "سفارش‌های باز"
+ },
+ "app.warehouse.none": {
+  "en": "No orders for your warehouse.",
+  "ckb": "هیچ داواکارییەک بۆ کۆگاکەت نییە.",
+  "ar": "لا طلبات لمستودعك.",
+  "fa": "سفارشی برای انبار شما نیست."
+ },
+ "app.warehouse.status.placed": {
+  "en": "placed",
+  "ckb": "تۆمارکراو",
+  "ar": "مسجّل",
+  "fa": "ثبت‌شده"
+ },
+ "app.warehouse.status.preparing": {
+  "en": "preparing",
+  "ckb": "ئامادەکردن",
+  "ar": "قيد التجهيز",
+  "fa": "در حال آماده‌سازی"
+ },
+ "app.warehouse.status.ready": {
+  "en": "ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده"
+ },
+ "app.warehouse.status.handed_over": {
+  "en": "handed to driver",
+  "ckb": "دراوە بە شوفێر",
+  "ar": "سُلّم للسائق",
+  "fa": "تحویل راننده"
+ },
+ "app.warehouse.status.cancelled": {
+  "en": "cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "لغوشده"
+ },
+ "app.warehouse.start": {
+  "en": "Start preparing",
+  "ckb": "دەستپێکردنی ئامادەکردن",
+  "ar": "بدء التجهيز",
+  "fa": "شروع آماده‌سازی"
+ },
+ "app.warehouse.ready": {
+  "en": "Mark ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده است"
+ },
+ "app.warehouse.ordered": {
+  "en": "Ordered: {quantity} {unit}",
+  "ckb": "داواکراو: {quantity} {unit}",
+  "ar": "المطلوب: {quantity} {unit}",
+  "fa": "سفارش: {quantity} {unit}"
+ },
+ "app.warehouse.prepared": {
+  "en": "Prepared",
+  "ckb": "ئامادەکراو",
+  "ar": "المجهّز",
+  "fa": "آماده‌شده"
+ },
+ "app.warehouse.reason": {
+  "en": "Reason (less than ordered)",
+  "ckb": "هۆکار (کەمتر لە داواکراو)",
+  "ar": "السبب (أقل من المطلوب)",
+  "fa": "دلیل (کمتر از سفارش)"
+ },
+ "app.warehouse.needReason": {
+  "en": "Write a reason for every line that is less than ordered.",
+  "ckb": "بۆ هەر دێڕێک کە کەمترە لە داواکراو هۆکار بنووسە.",
+  "ar": "اكتب سبباً لكل سطر أقل من المطلوب.",
+  "fa": "برای هر ردیفی که کمتر از سفارش است دلیل بنویسید."
+ },
+ "app.warehouse.chooseDriver": {
+  "en": "Choose the driver",
+  "ckb": "شوفێر هەڵبژێرە",
+  "ar": "اختر السائق",
+  "fa": "راننده را انتخاب کنید"
+ },
+ "app.warehouse.handOver": {
+  "en": "Hand over to driver",
+  "ckb": "دانەوە بە شوفێر",
+  "ar": "تسليم للسائق",
+  "fa": "تحویل به راننده"
+ },
+ "app.warehouse.noDrivers": {
+  "en": "No driver is set up. Ask the sales manager.",
+  "ckb": "هیچ شوفێرێک دانەنراوە. لە بەڕێوەبەری فرۆشتن بپرسە.",
+  "ar": "لا يوجد سائق. اسأل مدير المبيعات.",
+  "fa": "راننده‌ای تعریف نشده است. از مدیر فروش بپرسید."
+ },
+ "app.warehouse.done": {
+  "en": "Done.",
+  "ckb": "تەواو بوو.",
+  "ar": "تم.",
+  "fa": "انجام شد."
  }
 }

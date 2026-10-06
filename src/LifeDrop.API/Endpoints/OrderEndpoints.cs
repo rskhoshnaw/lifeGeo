@@ -41,6 +41,103 @@ public static class OrderEndpoints
             .WithName("UpdateWarehouse").WithTags("Orders").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Staff of a warehouse (plan step 2.3): who works where, set by the sales manager.
+        app.MapGet("/warehouses/{warehouseId:guid}/staff", async (Guid warehouseId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListStaffAsync(tenantId, actorId, warehouseId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListWarehouseStaff").WithTags("Warehouse").Produces<List<StaffMemberDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/warehouses/{warehouseId:guid}/staff", async (Guid warehouseId, AddStaffRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.AddStaffAsync(tenantId, actorId, warehouseId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("AddWarehouseStaff").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapDelete("/warehouses/{warehouseId:guid}/staff/{userId:guid}", async (Guid warehouseId, Guid userId, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.RemoveStaffAsync(tenantId, actorId, warehouseId, userId, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("RemoveWarehouseStaff").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Warehouse work (plan step 2.3): the orders of the warehouses the user works in, nothing else.
+        app.MapGet("/warehouse/orders", async (string? status, int? limit, DateTimeOffset? before, Guid? beforeId, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListForWarehouseAsync(tenantId, actorId, status, limit, before, beforeId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListWarehouseOrders").WithTags("Warehouse").Produces<List<OrderDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/warehouse/orders/{orderId:guid}", async (Guid orderId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, order) = await service.GetForWarehouseAsync(tenantId, actorId, orderId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(order) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("GetWarehouseOrder").WithTags("Warehouse").Produces<OrderDto>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/warehouse/orders/{orderId:guid}/start", async (Guid orderId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.StartPreparingAsync(tenantId, actorId, orderId, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("StartPreparingOrder").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/warehouse/orders/{orderId:guid}/ready", async (Guid orderId, MarkReadyRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.MarkReadyAsync(tenantId, actorId, orderId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("MarkOrderReady").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/warehouse/orders/{orderId:guid}/handover", async (Guid orderId, HandOverRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.HandOverAsync(tenantId, actorId, orderId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("HandOverOrder").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/warehouse/drivers", async (HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListDriversAsync(tenantId, actorId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListDrivers").WithTags("Warehouse").Produces<List<DriverDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/orders", async (CreateOrderRequest request, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
