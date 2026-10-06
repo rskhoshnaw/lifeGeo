@@ -352,6 +352,24 @@ export interface CustomerBalance {
   customerId: string
   items: BalanceItem[]
 }
+export interface Sample {
+  id: string
+  number: string
+  customerCode: string
+  customerName: string
+  productCode: string
+  productName: string
+  unit: string
+  quantity: number
+  recipientName: string | null
+  batchNumber: string | null
+  expiryDate: string | null
+  note: string | null
+  distributedByEmail: string | null
+  status: 'given' | 'voided'
+  voidReason: string | null
+  createdAt: string
+}
 export interface Order {
   id: string
   number: string
@@ -481,6 +499,8 @@ export const Permissions = {
   orders: ['orders.read', 'orders.create'],
   payments: ['payments.read', 'payments.record'],
   recordPayments: ['payments.record'],
+  samples: ['samples.read', 'samples.record'],
+  manageSamples: ['samples.manage'],
   managePayments: ['payments.manage'],
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
@@ -591,6 +611,10 @@ export class AdminApi {
   correctPayment = (id: string, fix: { orderId: string | null; method: string; currency: string; amount: number; reference: string | null; note: string | null; reason: string }) =>
     this.post(`/payments/${id}/correct`, fix)
   customerBalance = (customerId: string) => this.get<CustomerBalance>(`/customers/${customerId}/balance`)
+  // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
+  samples = (before?: Sample) =>
+    this.get<Sample[]>(before ? `/samples?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/samples?limit=50')
+  voidSample = (id: string, reason: string) => this.post(`/samples/${id}/void`, { reason })
   // Warehouse staff and warehouse work (step 2.3).
   warehouseStaff = (warehouseId: string) => this.get<StaffMember[]>(`/warehouses/${warehouseId}/staff`)
   addWarehouseStaff = (warehouseId: string, userId: string) => this.post(`/warehouses/${warehouseId}/staff`, { userId })
