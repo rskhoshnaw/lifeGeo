@@ -2,7 +2,7 @@ using LifeDrop.Application.Alerts;
 
 namespace LifeDrop.API;
 
-// Looks for new alerts in every active company every few minutes (Alerts:ScanIntervalSeconds, default 300; 0 turns it off). The first scan comes one interval
+// Looks for new alerts and removes tracking points older than 90 days in every active company every few minutes (Alerts:ScanIntervalSeconds, default 300; 0 turns it off). The first scan comes one interval
 // after the start. One company failing never stops the others.
 public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<AlertScanService> logger) : BackgroundService
 {
@@ -23,6 +23,8 @@ public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration
                     try
                     {
                         await service.ScanTenantAsync(tenant, stoppingToken);
+                        // Old exact points go (after their summary is kept): the 90-day retention of decision D6.
+                        await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Tracking.TrackingRetention>().PurgeAsync(tenant, stoppingToken);
                     }
                     catch (Exception e) when (e is not OperationCanceledException)
                     {

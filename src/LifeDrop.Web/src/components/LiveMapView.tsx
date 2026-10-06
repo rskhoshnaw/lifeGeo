@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapLibreMap, Marker } from 'maplibre-gl'
-import type { LiveMapEntry } from '../api/admin.ts'
+import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
+import type { LiveMapEntry, MapCustomer } from '../api/admin.ts'
+import { circlePolygon } from '../api/geo.ts'
 import { t } from '../i18n.ts'
 
 // OpenStreetMap raster tiles (decision D12/D13 stack: MapLibre + OSM). The public OSM tile server is for light use;
@@ -22,7 +23,7 @@ type MapLibre = typeof import('maplibre-gl')
 
 // Markers for entries with a position: green when live, grey when the last point is older than 5 minutes.
 // Popups use plain text only (no HTML from the server).
-export function LiveMapView({ entries }: { entries: LiveMapEntry[] }) {
+export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry[]; customers?: MapCustomer[] }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
   const [loaded, setLoaded] = useState<{ lib: MapLibre; map: MapLibreMap } | null>(null)
@@ -58,6 +59,47 @@ export function LiveMapView({ entries }: { entries: LiveMapEntry[] }) {
       map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 })
     }
   }, [loaded, entries])
+
+  // Customers (plan step 2.11): grouped into clusters when far apart, the check-in circle of each one when zoomed in (zoom 14 and closer).
+  useEffect(() => {
+    if (!loaded) return
+    const { map } = loaded
+    const points = {
+      type: 'FeatureCollection' as const,
+      features: customers.map((c) => ({ type: 'Feature' as const, properties: { name: `${c.code} · ${c.name}` }, geometry: { type: 'Point' as const, coordinates: [c.longitude, c.latitude] } })),
+    }
+    const circles = {
+      type: 'FeatureCollection' as const,
+      features: customers.map((c) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Polygon' as const, coordinates: circlePolygon(c.latitude, c.longitude, c.geofenceRadiusMeters) } })),
+    }
+    const apply = () => {
+      const source = map.getSource('customers') as GeoJSONSource | undefined
+      if (source) {
+        source.setData(points)
+        ;(map.getSource('geofences') as GeoJSONSource).setData(circles)
+        return
+      }
+      map.addSource('customers', { type: 'geojson', data: points, cluster: true, clusterRadius: 50, clusterMaxZoom: 14 })
+      map.addSource('geofences', { type: 'geojson', data: circles })
+      map.addLayer({ id: 'geofences-fill', type: 'fill', source: 'geofences', minzoom: 14, paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.12 } })
+      map.addLayer({ id: 'geofences-line', type: 'line', source: 'geofences', minzoom: 14, paint: { 'line-color': '#2563eb', 'line-width': 1 } })
+      map.addLayer({
+        id: 'customer-clusters', type: 'circle', source: 'customers', filter: ['has', 'point_count'],
+        paint: { 'circle-color': '#0f766e', 'circle-opacity': 0.8, 'circle-radius': ['step', ['get', 'point_count'], 14, 10, 20, 50, 28] },
+      })
+      map.addLayer({ id: 'customer-points', type: 'circle', source: 'customers', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': '#2563eb', 'circle-radius': 5, 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } })
+      map.on('click', 'customer-clusters', (e) => {
+        const feature = e.features?.[0]
+        if (feature && feature.geometry.type === 'Point') map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom: map.getZoom() + 2 })
+      })
+      map.on('click', 'customer-points', (e) => {
+        const feature = e.features?.[0]
+        if (feature && feature.geometry.type === 'Point') new loaded.lib.Popup().setLngLat(feature.geometry.coordinates as [number, number]).setText(String(feature.properties?.name ?? '')).addTo(map)
+      })
+    }
+    if (map.loaded()) apply()
+    else map.once('load', apply)
+  }, [loaded, customers])
 
   return <div ref={container} className="h-96 w-full rounded border" aria-label={t('web.map.title')} />
 }

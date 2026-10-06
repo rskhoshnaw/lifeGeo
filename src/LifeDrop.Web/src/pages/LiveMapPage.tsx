@@ -1,5 +1,5 @@
-import { useCallback, useEffect } from 'react'
-import type { AdminApi } from '../api/admin.ts'
+import { useCallback, useEffect, useState } from 'react'
+import type { AdminApi, MapCustomer } from '../api/admin.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { LiveMapView } from '../components/LiveMapView.tsx'
 import { t } from '../i18n.ts'
@@ -18,13 +18,20 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
     return () => clearInterval(timer)
   }, [reload])
 
+  // The customers of the user's area, grouped on the map; the map still works when the user may not read customers.
+  const [customers, setCustomers] = useState<MapCustomer[]>([])
+  useEffect(() => {
+    admin.mapCustomers().then(setCustomers, () => setCustomers([]))
+  }, [admin])
+
   const entries = live.data ?? []
   const anyPrecise = entries.some((e) => e.precise)
   return (
     <section className="space-y-4 p-6">
       <h2 className="text-xl font-semibold">{t('web.map.title')}</h2>
       {live.error && <p role="alert" className="text-sm text-red-700">{live.error}</p>}
-      {live.data && anyPrecise && <LiveMapView entries={entries} />}
+      {customers.length > 0 && anyPrecise && <p className="text-xs text-slate-600">{t('web.map.customers')}</p>}
+      {live.data && anyPrecise && <LiveMapView entries={entries} customers={customers} />}
       {live.data && !anyPrecise && entries.length > 0 && <p className="text-sm text-slate-600">{t('web.map.statusOnly')}</p>}
       {live.data?.length === 0 && <p className="text-slate-600">{t('web.map.nobody')}</p>}
       {entries.length > 0 && (

@@ -5248,5 +5248,143 @@
   "ckb": "فێڵە",
   "ar": "احتيال",
   "fa": "تقلب"
+ },
+ "web.tab.route": {
+  "en": "Route history",
+  "ckb": "مێژووی ڕێڕەو",
+  "ar": "سجل المسار",
+  "fa": "مسیر تاریخی"
+ },
+ "web.route.title": {
+  "en": "Route history",
+  "ckb": "مێژووی ڕێڕەو",
+  "ar": "سجل المسار",
+  "fa": "مسیر تاریخی"
+ },
+ "web.route.user": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.route.chooseUser": {
+  "en": "Choose a user",
+  "ckb": "بەکارهێنەرێک هەڵبژێرە",
+  "ar": "اختر مستخدماً",
+  "fa": "کاربر را انتخاب کنید"
+ },
+ "web.route.date": {
+  "en": "Day",
+  "ckb": "ڕۆژ",
+  "ar": "اليوم",
+  "fa": "روز"
+ },
+ "web.route.retention": {
+  "en": "Exact points are kept for 90 days. Every time a route is opened it is written in the audit log.",
+  "ckb": "خاڵە ورددەکان ٩٠ ڕۆژ دەمێننەوە. هەر کردنەوەی ڕێڕەوێک لە تۆماری پشکنین دەنووسرێت.",
+  "ar": "تُحفظ النقاط الدقيقة 90 يوماً. كل فتح لمسار يُسجَّل في سجل التدقيق.",
+  "fa": "نقطه‌های دقیق ۹۰ روز نگه‌داری می‌شوند. هر بار دیدن مسیر در Audit ثبت می‌شود."
+ },
+ "web.route.nopoints": {
+  "en": "No points on this day.",
+  "ckb": "هیچ خاڵێک لەم ڕۆژەدا نییە.",
+  "ar": "لا توجد نقاط في هذا اليوم.",
+  "fa": "در این روز نقطه‌ای نیست."
+ },
+ "web.route.truncated": {
+  "en": "Only the first points of the day are shown.",
+  "ckb": "تەنها یەکەم خاڵەکانی ڕۆژەکە پیشان دراون.",
+  "ar": "تُعرض النقاط الأولى فقط من اليوم.",
+  "fa": "فقط نقطه‌های اول روز نمایش داده شده است."
+ },
+ "web.route.purged": {
+  "en": "Exact points of a shift of this day were deleted after 90 days; only its summary is kept.",
+  "ckb": "خاڵە ورددەکانی شیفتێک دوای ٩٠ ڕۆژ سڕانەوە و تەنها پوختەکەی ماوە.",
+  "ar": "حُذفت النقاط الدقيقة لوردية بعد 90 يوماً وبقي الملخص فقط.",
+  "fa": "نقطه‌های دقیق یک شیفت بعد از ۹۰ روز حذف شده و فقط خلاصه مانده است."
+ },
+ "web.route.play": {
+  "en": "Play",
+  "ckb": "پەخش",
+  "ar": "تشغيل",
+  "fa": "پخش"
+ },
+ "web.route.pause": {
+  "en": "Pause",
+  "ckb": "وەستان",
+  "ar": "إيقاف مؤقت",
+  "fa": "توقف"
+ },
+ "web.route.position": {
+  "en": "Position",
+  "ckb": "شوێن",
+  "ar": "الموقع",
+  "fa": "موقعیت"
+ },
+ "web.route.point": {
+  "en": "Point {index} of {count}",
+  "ckb": "خاڵی {index} لە {count}",
+  "ar": "النقطة {index} من {count}",
+  "fa": "نقطهٔ {index} از {count}"
+ },
+ "web.route.accuracy": {
+  "en": "accuracy {meters} m",
+  "ckb": "دروستی {meters} م",
+  "ar": "الدقة {meters} م",
+  "fa": "دقت {meters} متر"
+ },
+ "web.route.mock": {
+  "en": "fake position",
+  "ckb": "شوێنی ساختە",
+  "ar": "موقع مزيف",
+  "fa": "موقعیت جعلی"
+ },
+ "web.route.stops": {
+  "en": "Stops (5 minutes or more within 50 m)",
+  "ckb": "وەستانەکان (٥ خولەک یان زیاتر لە ٥٠ م)",
+  "ar": "التوقفات (5 دقائق أو أكثر ضمن 50 م)",
+  "fa": "توقف‌ها (۵ دقیقه یا بیشتر در ۵۰ متر)"
+ },
+ "web.route.stop": {
+  "en": "{from}–{to} · {duration}",
+  "ckb": "{from}–{to} · {duration}",
+  "ar": "{from}–{to} · {duration}",
+  "fa": "{from}–{to} · {duration}"
+ },
+ "web.route.nearCustomer": {
+  "en": "near {customer} ({meters} m)",
+  "ckb": "نزیک {customer} ({meters} م)",
+  "ar": "قرب {customer} ({meters} م)",
+  "fa": "نزدیک {customer} ({meters} متر)"
+ },
+ "web.route.events": {
+  "en": "Check-ins and check-outs",
+  "ckb": "چوونەژوورەوە و چوونەدەرەوە",
+  "ar": "تسجيل الدخول والخروج",
+  "fa": "ورود و خروج"
+ },
+ "web.route.event.check_in": {
+  "en": "Check-in",
+  "ckb": "چوونەژوورەوە",
+  "ar": "تسجيل دخول",
+  "fa": "ورود"
+ },
+ "web.route.event.check_out": {
+  "en": "Check-out",
+  "ckb": "چوونەدەرەوە",
+  "ar": "تسجيل خروج",
+  "fa": "خروج"
+ },
+ "web.route.refused": {
+  "en": "refused: {reason}",
+  "ckb": "ڕەتکرایەوە: {reason}",
+  "ar": "مرفوض: {reason}",
+  "fa": "رد شد: {reason}"
+ },
+ "web.map.customers": {
+  "en": "Customers on the map (grouped when far apart; the circle is the check-in radius)",
+  "ckb": "کڕیارەکان لەسەر نەخشە (کۆکراونەتەوە کاتێک دوورن؛ بازنەکە ئەوپەڕی چوونەژوورەوەیە)",
+  "ar": "الزبائن على الخريطة (يتجمعون عند الابتعاد؛ الدائرة هي نطاق تسجيل الدخول)",
+  "fa": "مشتری‌ها روی نقشه (در دوری گروه می‌شوند؛ دایره شعاع check-in است)"
  }
 }
