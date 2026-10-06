@@ -303,6 +303,13 @@ The default `SalesRep` role now has data scope `region` (migration 0022, also fo
 
 Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
 
+## Push tokens (step 2.14)
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `PUT /push-token` `{token, platform}` | Signed-in user, for themselves | Token 20-4096 chars, platform `android`/`ios`, else 400. Repeating is harmless; a token already held by another user of the same company moves to the caller | — |
+| `POST /push-token/remove` `{token}` | same | Removes the caller's own token (sign-out); somebody else's or unknown: 404 | — |
+
 ## Plan from places (step 1.24)
 
 No migration. Both routes need `visits.write` (SalesManager, Supervisor) and apply the caller's data scope twice: the assignee must be inside the scope (as for `POST /visits`), and only customers inside the scope are candidates.

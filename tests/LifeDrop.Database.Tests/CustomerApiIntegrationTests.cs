@@ -135,7 +135,8 @@ public class CustomerApiIntegrationTests
                 var m34 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0034_antifraud.sql"));
                 var m35 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0035_route_history.sql"));
                 var m36 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0036_reports.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36;
+                var m37 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0037_push.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -3679,6 +3680,152 @@ public class CustomerApiIntegrationTests
             Assert.True(await reader.ReadAsync());
             Assert.Equal(("located", "gps", rep), (reader.GetString(0), reader.GetString(1), reader.GetGuid(2)));   // placed by GPS and owned by the user who added it
         }
+    }
+
+    private sealed class FakePushSender : LifeDrop.Application.Push.IPushSender
+    {
+        public List<(string Token, Guid Id)> Sent { get; } = new();
+        public bool IsConfigured { get; set; } = true;
+        public Task<LifeDrop.Application.Push.PushOutcome> SendAsync(string token, LifeDrop.Application.Push.PushMessage message, CancellationToken cancellationToken)
+        {
+            if (token.StartsWith("dead-", StringComparison.Ordinal)) return Task.FromResult(LifeDrop.Application.Push.PushOutcome.InvalidToken);
+            if (token.StartsWith("flaky-", StringComparison.Ordinal)) return Task.FromResult(LifeDrop.Application.Push.PushOutcome.Failed);
+            Sent.Add((token, message.NotificationId));
+            return Task.FromResult(LifeDrop.Application.Push.PushOutcome.Sent);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Push_TokensAreOwnedByOneUser_AndWaitingMessagesAreSentOnce()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        await using var schemaBlock = await SetupIsolatedSchemaAsync(url);
+        var sender = new FakePushSender();
+        await using var factory = new WebApplicationFactory<LifeDrop.API.Program>()
+            .WithWebHostBuilder(webBuilder =>
+            {
+                webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                TestHostSettings.UseTestJwt(webBuilder);
+                webBuilder.UseSetting("Push:DispatchIntervalSeconds", "0");
+                webBuilder.ConfigureTestServices(services =>
+                {
+                    var descriptor = System.Linq.Enumerable.SingleOrDefault(services, d => d.ServiceType == typeof(LifeDrop.Application.Auth.ISessionStore));
+                    if (descriptor != null) services.Remove(descriptor);
+                    services.AddScoped<LifeDrop.Application.Auth.ISessionStore, FakeSessionStore>();
+                    services.AddSingleton<LifeDrop.Application.Push.IPushSender>(sender);
+                });
+            });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), alice = Guid.NewGuid(), bob = Guid.NewGuid(), carol = Guid.NewGuid(), other = Guid.NewGuid();
+        Guid n1 = Guid.NewGuid(), n2 = Guid.NewGuid(), n3 = Guid.NewGuid(), n4 = Guid.NewGuid(), nOther = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                INSERT INTO users (id, tenant_id, email) VALUES (@a, @t1, 'alice@t1'), (@b, @t1, 'bob@t1'), (@c, @t1, 'carol@t1'), (@o, @t2, 'other@t2');", conn);
+            cmd.Parameters.AddWithValue("t1", t1); cmd.Parameters.AddWithValue("t2", t2);
+            cmd.Parameters.AddWithValue("a", alice); cmd.Parameters.AddWithValue("b", bob); cmd.Parameters.AddWithValue("c", carol); cmd.Parameters.AddWithValue("o", other);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Register(string token, string platform = "android") => client.PutAsJsonAsync("/push-token", new { Token = token, Platform = platform });
+        Task<HttpResponseMessage> Remove(string token) => client.PostAsJsonAsync("/push-token/remove", new { Token = token });
+        async Task Notify(Guid tenant, Guid id, Guid user, Guid actor, string? createdAgo = null)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand($@"
+                SELECT set_config('app.current_tenant', @t::text, false);
+                INSERT INTO notifications (id, tenant_id, user_id, kind, entity_id, actor_id, created_at)
+                VALUES (@id, @t, @u, 'customer.profile_changed', 'c-1', @actor, now() - interval '{createdAgo ?? "0 seconds"}')", conn);
+            cmd.Parameters.AddWithValue("t", tenant); cmd.Parameters.AddWithValue("id", id); cmd.Parameters.AddWithValue("u", user); cmd.Parameters.AddWithValue("actor", actor);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        async Task<int> Dispatch(Guid tenant)
+        {
+            using var scope = factory.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Push.PushDispatcher>().DispatchTenantAsync(new LifeDrop.Domain.Common.TenantId(tenant), CancellationToken.None);
+        }
+        async Task<(DateTimeOffset? Pushed, int Attempts)> State(Guid tenant, Guid id)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); SELECT pushed_at, push_attempts FROM notifications WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("t", tenant); cmd.Parameters.AddWithValue("id", id);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            return (reader.IsDBNull(0) ? null : reader.GetFieldValue<DateTimeOffset>(0), reader.GetInt32(1));
+        }
+
+        var phoneA = "token-alice-phone-0000000001";
+        var phoneB = "token-bob-phone-000000000002";
+
+        // Validation: short token, unknown platform, no sign-in.
+        client.DefaultRequestHeaders.Authorization = null;
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Register(phoneA)).StatusCode);
+        As(t1, alice);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Register("short")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Register(phoneA, "windows")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Register(phoneA)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Register(phoneA)).StatusCode);   // repeating is harmless
+
+        // The same phone is used by Bob later: the token moves, Alice no longer gets pushes on it.
+        As(t1, bob);
+        Assert.Equal(HttpStatusCode.NoContent, (await Register(phoneA)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Register(phoneB)).StatusCode);
+        As(t1, alice);
+        Assert.Equal(HttpStatusCode.NotFound, (await Remove(phoneA)).StatusCode);   // not Alice's any more
+        As(t2, other);
+        Assert.Equal(HttpStatusCode.NotFound, (await Remove(phoneB)).StatusCode);   // another company never sees it
+
+        await Notify(t1, n1, alice, carol);   // Alice has no token now: marked, nothing sent
+        await Notify(t1, n2, bob, carol);     // Bob has two phones: both get it
+        Assert.Equal(1, await Dispatch(t1));
+        Assert.Equal(new[] { (phoneA, n2), (phoneB, n2) }, sender.Sent.OrderBy(s => s.Token, StringComparer.Ordinal).ToArray());
+        Assert.NotNull((await State(t1, n1)).Pushed);
+        Assert.NotNull((await State(t1, n2)).Pushed);
+
+        // Sent once only.
+        Assert.Equal(0, await Dispatch(t1));
+        Assert.Equal(2, sender.Sent.Count);
+
+        // A dead token is dropped; a temporary failure is retried and finally given up after MaxAttempts.
+        As(t1, carol);
+        Assert.Equal(HttpStatusCode.NoContent, (await Register("dead-token-carol-0000000001")).StatusCode);
+        await Notify(t1, n3, carol, alice);
+        Assert.Equal(0, await Dispatch(t1));
+        Assert.NotNull((await State(t1, n3)).Pushed);
+        As(t1, carol);
+        Assert.Equal(HttpStatusCode.NotFound, (await Remove("dead-token-carol-0000000001")).StatusCode);   // dropped by the dispatcher
+        Assert.Equal(HttpStatusCode.NoContent, (await Register("flaky-token-carol-000000001")).StatusCode);
+        await Notify(t1, n4, carol, alice);
+        for (var i = 1; i < LifeDrop.Application.Push.PushDispatcher.MaxAttempts; i++)
+        {
+            Assert.Equal(0, await Dispatch(t1));
+            Assert.Equal((null, i), await State(t1, n4));   // waiting, attempts counted
+        }
+        Assert.Equal(0, await Dispatch(t1));
+        Assert.NotNull((await State(t1, n4)).Pushed);   // given up
+
+        // Old messages are not pushed; another company's messages are untouched by this company's run; no key = nothing consumed.
+        var nOld = Guid.NewGuid();
+        await Notify(t1, nOld, bob, carol, "2 days");
+        await Notify(t2, nOther, other, other);
+        sender.Sent.Clear();
+        Assert.Equal(0, await Dispatch(t1));
+        Assert.Empty(sender.Sent);
+        Assert.NotNull((await State(t1, nOld)).Pushed);
+        Assert.Null((await State(t2, nOther)).Pushed);
+        sender.IsConfigured = false;
+        Assert.Equal(0, await Dispatch(t2));
+        Assert.Null((await State(t2, nOther)).Pushed);
     }
 
     [SkippableFact]

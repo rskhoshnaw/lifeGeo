@@ -1,0 +1,35 @@
+using LifeDrop.Application.Alerts;
+using LifeDrop.Application.Push;
+
+namespace LifeDrop.API;
+
+// Sends the waiting push messages of every active company every few seconds (Push:DispatchIntervalSeconds, default 30; 0 turns
+// it off). Does nothing until a Firebase key is configured (docs/PUSH.md). One company failing never stops the others.
+public sealed class PushDispatchService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<PushDispatchService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var seconds = configuration.GetValue("Push:DispatchIntervalSeconds", 30);
+        if (seconds <= 0) return;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(seconds));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                if (!scope.ServiceProvider.GetRequiredService<IPushSender>().IsConfigured) continue;
+                var tenants = await scope.ServiceProvider.GetRequiredService<IAlertStore>().ListActiveTenantsAsync(stoppingToken);
+                var dispatcher = scope.ServiceProvider.GetRequiredService<PushDispatcher>();
+                foreach (var tenant in tenants)
+                {
+                    try { await dispatcher.DispatchTenantAsync(tenant, stoppingToken); }
+                    catch (Exception e) when (e is not OperationCanceledException) { logger.LogWarning(e, "Push dispatch failed for one company"); }
+                }
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogWarning(e, "Push dispatch failed");
+            }
+        }
+    }
+}
