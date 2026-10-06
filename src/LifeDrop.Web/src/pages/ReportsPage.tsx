@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AdminApi, errorMessage, iraqToday, type KpiReport, type KpiRow, type Region, type Team } from '../api/admin.ts'
 import { downloadText } from '../components/download.ts'
 import { kpiCsv } from '../components/reportCsv.ts'
+import { SavedReports } from '../components/SavedReports.tsx'
 import { t, type TextKey } from '../i18n.ts'
 
 const customerTypes = ['Pharmacy', 'Doctor', 'Wholesaler']
@@ -93,6 +94,7 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
         )}
       </div>
       <p className="text-xs text-slate-600">{t('web.reports.definitions')}</p>
+      <SavedReports admin={admin} filter={{ from, to, regionId: region, teamId: team, customerType: type }} onOpen={(r) => (setReport(r), setError(null))} />
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {report && report.users.length === 0 && <p className="text-slate-600">{t('web.reports.none')}</p>}
       {report && report.users.length > 0 && (

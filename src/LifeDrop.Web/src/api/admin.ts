@@ -625,6 +625,110 @@ export class ApiError extends Error {
   }
 }
 
+// Custom visit-form fields (step 3.2, part 2): forms.manage defines them.
+export interface FormField {
+  id: string
+  key: string
+  type: 'text' | 'number' | 'choice' | 'yes_no' | 'date'
+  appliesTo: 'all' | 'pharmacy' | 'doctor' | 'wholesaler' | 'other'
+  labelEn: string | null
+  labelCkb: string | null
+  labelAr: string | null
+  labelFa: string | null
+  options: string[]
+  isRequired: boolean
+  sortOrder: number
+  isActive: boolean
+}
+export interface NewFormField {
+  key: string
+  type: FormField['type']
+  appliesTo: FormField['appliesTo']
+  labelEn: string
+  labelCkb: string
+  labelAr: string
+  labelFa: string
+  options: string[]
+  isRequired: boolean
+  sortOrder: number
+}
+
+// Saved and scheduled reports (step 3.2, part 1).
+export interface ReportSchedule {
+  frequency: 'daily' | 'weekly' | 'monthly'
+  weekday: number | null
+  dayOfMonth: number | null
+  hour: number
+  isActive: boolean
+  nextRunAt: string | null
+  lastRunAt: string | null
+}
+export interface SavedReport {
+  id: string
+  name: string
+  range: string
+  from: string | null
+  to: string | null
+  regionId: string | null
+  teamId: string | null
+  customerType: string | null
+  schedule: ReportSchedule | null
+  createdAt: string
+}
+export interface SaveReport {
+  name: string
+  range: string
+  from?: string
+  to?: string
+  regionId?: string
+  teamId?: string
+  customerType?: string
+  schedule?: { frequency: string; weekday?: number; dayOfMonth?: number; hour: number; isActive: boolean }
+}
+export interface ReportRun {
+  id: string
+  reportId: string
+  trigger: 'manual' | 'schedule'
+  status: 'ok' | 'failed'
+  errorCode: string | null
+  from: string
+  to: string
+  ranAt: string
+}
+export interface ReportRunDetail {
+  run: ReportRun
+  report: KpiReport | null
+}
+
+// Platform (step 3.1): the Super Admin of the platform company.
+export interface Tenant {
+  id: string
+  code: string
+  name: string
+  isActive: boolean
+  users: number
+  activeUsers: number
+}
+export interface TenantAuditEntry {
+  id: string
+  actorId: string
+  actorEmail: string | null
+  action: string
+  entityId: string
+  occurredAt: string
+}
+export interface PlatformAuditEntry {
+  id: string
+  actorId: string
+  actorEmail: string | null
+  action: string
+  targetTenantId: string | null
+  targetTenantCode: string | null
+  reason: string | null
+  detail: string | null
+  occurredAt: string
+}
+
 export function can(me: Me | null, ...keys: string[]): boolean {
   return me !== null && keys.some((key) => me.permissions.includes(key))
 }
@@ -665,6 +769,8 @@ export const Permissions = {
   liveMap: ['tracking.read', 'tracking.summary'],
   routeHistory: ['tracking.read'],
   reports: ['reports.read'],
+  forms: ['forms.manage'],
+  platform: ['platform.tenants.manage'],
   audit: ['audit.read'],
 } as const
 
@@ -829,6 +935,25 @@ export class AdminApi {
   // KPI report (step 2.12): reports.read, only the users inside the reader's area.
   kpis = (from: string, to: string, regionId: string, teamId: string, customerType: string) =>
     this.get<KpiReport>(`/reports/kpis?from=${from}&to=${to}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
+  // Saved and scheduled reports (step 3.2, part 1): reports.read, only the caller's own.
+  savedReports = () => this.get<SavedReport[]>('/saved-reports')
+  saveReport = (report: SaveReport) => this.post('/saved-reports', report)
+  deleteSavedReport = (id: string) => this.send('DELETE', `/saved-reports/${id}`)
+  updateSavedReport = (id: string, report: SaveReport) => this.send('PUT', `/saved-reports/${id}`, report)
+  runSavedReport = (id: string) => this.postJson<ReportRunDetail>(`/saved-reports/${id}/run`, {})
+  savedReportRuns = (id: string) => this.get<ReportRun[]>(`/saved-reports/${id}/runs?limit=10`)
+  savedReportRun = (id: string, runId: string) => this.get<ReportRunDetail>(`/saved-reports/${id}/runs/${runId}`)
+  // Custom visit-form fields (step 3.2, part 2): forms.manage.
+  formFields = (includeInactive: boolean) => this.get<FormField[]>(`/form-fields${includeInactive ? '?includeInactive=true' : ''}`)
+  createFormField = (field: NewFormField) => this.post('/form-fields', field)
+  updateFormField = (id: string, change: { isRequired?: boolean; isActive?: boolean }) => this.send('PUT', `/form-fields/${id}`, change)
+  // Platform (step 3.1): only users of the platform company with platform.tenants.manage / access.
+  platformTenants = () => this.get<Tenant[]>('/platform/tenants')
+  createTenant = (tenant: { code: string; name: string; managerEmail: string; managerPassword: string }) => this.post('/platform/tenants', tenant)
+  updateTenant = (id: string, change: { name?: string; isActive?: boolean; reason: string }) => this.send('PUT', `/platform/tenants/${id}`, change)
+  tenantAudit = (id: string, reason: string, action: string) =>
+    this.get<TenantAuditEntry[]>(`/platform/tenants/${id}/audit-logs?reason=${encodeURIComponent(reason)}${action ? `&action=${encodeURIComponent(action)}` : ''}`)
+  platformAudit = () => this.get<PlatformAuditEntry[]>('/platform/audit-logs')
   // Route history (step 2.11): needs tracking.read; every read is audited by the server.
   trackingUsers = () => this.get<TrackableUser[]>('/tracking/users')
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)

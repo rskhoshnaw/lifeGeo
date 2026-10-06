@@ -13,6 +13,8 @@ import { AuditPage } from './pages/AuditPage.tsx'
 import { CatalogPage } from './pages/CatalogPage.tsx'
 import { OrdersPage } from './pages/OrdersPage.tsx'
 import { ReportsPage } from './pages/ReportsPage.tsx'
+import { FormsPage } from './pages/FormsPage.tsx'
+import { PlatformPage } from './pages/PlatformPage.tsx'
 import { RouteHistoryPage } from './pages/RouteHistoryPage.tsx'
 import { AlertsPage } from './pages/AlertsPage.tsx'
 import { FollowUpsPage } from './pages/FollowUpsPage.tsx'
@@ -24,7 +26,7 @@ import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'notifications'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -97,6 +99,8 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'warehouse', label: t('web.tab.warehouse'), visible: can(me, ...Permissions.warehouseWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
+    { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
+    { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
     { id: 'notifications', label: unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications'), visible: true },
   ]
 
@@ -139,6 +143,8 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
+      {me && tab === 'forms' && <FormsPage admin={admin} />}
+      {me && tab === 'platform' && <PlatformPage admin={admin} />}
       {me && tab === 'notifications' && <NotificationsPage admin={admin} onChanged={refreshUnread} />}
     </div>
   )
