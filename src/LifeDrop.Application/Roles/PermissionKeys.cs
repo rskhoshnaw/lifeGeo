@@ -52,6 +52,9 @@ public static class PermissionKeys
     public const string SamplesRecord = "samples.record";
     public const string SamplesManage = "samples.manage";
     public const string SamplesRead = "samples.read";
+    public const string FollowUpsCreate = "followups.create";
+    public const string FollowUpsManage = "followups.manage";
+    public const string FollowUpsRead = "followups.read";
 
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";

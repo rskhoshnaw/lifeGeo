@@ -369,6 +369,24 @@ export interface VisitDetails {
   currency: string | null
   updatedAt: string
 }
+export interface FollowUp {
+  id: string
+  customerId: string
+  customerCode: string
+  customerName: string
+  subject: string
+  dueDate: string
+  assigneeId: string
+  assigneeEmail: string | null
+  createdBy: string
+  createdByEmail: string | null
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  isOverdue: boolean
+  resultNote: string | null
+  cancelReason: string | null
+  createdAt: string
+  completedAt: string | null
+}
 export interface Sample {
   id: string
   number: string
@@ -517,6 +535,9 @@ export const Permissions = {
   payments: ['payments.read', 'payments.record'],
   recordPayments: ['payments.record'],
   samples: ['samples.read', 'samples.record'],
+  followUps: ['followups.read', 'followups.create'],
+  createFollowUps: ['followups.create'],
+  manageFollowUps: ['followups.manage'],
   manageSamples: ['samples.manage'],
   managePayments: ['payments.manage'],
   createOrders: ['orders.create'],
@@ -630,6 +651,12 @@ export class AdminApi {
   customerBalance = (customerId: string) => this.get<CustomerBalance>(`/customers/${customerId}/balance`)
   // The specialised visit form of a visit (step 2.7); 404 when the rep has not filled one.
   visitDetails = (visitId: string) => this.get<VisitDetails>(`/visits/${visitId}/report/details`)
+  // Follow-ups (step 2.8): a reminder for a customer with a due day and one responsible user.
+  followUps = (status: string, overdueOnly: boolean) =>
+    this.get<FollowUp[]>(`/followups?limit=200${status ? `&status=${status}` : ''}${overdueOnly ? '&overdue=true' : ''}`)
+  createFollowUp = (followUp: { customerId: string; subject: string; dueDate: string; assigneeId: string | null; clientRef: string }) => this.post('/followups', followUp)
+  cancelFollowUp = (id: string, reason: string) => this.post(`/followups/${id}/cancel`, { reason })
+  reassignFollowUp = (id: string, assigneeId: string) => this.post(`/followups/${id}/reassign`, { assigneeId })
   // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
   samples = (before?: Sample) =>
     this.get<Sample[]>(before ? `/samples?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/samples?limit=50')

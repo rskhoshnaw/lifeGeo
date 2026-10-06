@@ -79,6 +79,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Payments.PaymentService>();
         builder.Services.AddScoped<LifeDrop.Application.Samples.ISampleStore, LifeDrop.Infrastructure.Samples.PostgresSampleStore>();
         builder.Services.AddScoped<LifeDrop.Application.Samples.SampleService>();
+        builder.Services.AddScoped<LifeDrop.Application.FollowUps.IFollowUpStore, LifeDrop.Infrastructure.FollowUps.PostgresFollowUpStore>();
+        builder.Services.AddScoped<LifeDrop.Application.FollowUps.FollowUpService>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
@@ -632,6 +634,7 @@ public partial class Program
         LifeDrop.API.Endpoints.OrderEndpoints.MapOrderEndpoints(app);
         LifeDrop.API.Endpoints.PaymentEndpoints.MapPaymentEndpoints(app);
         LifeDrop.API.Endpoints.SampleEndpoints.MapSampleEndpoints(app);
+        LifeDrop.API.Endpoints.FollowUpEndpoints.MapFollowUpEndpoints(app);
         LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);

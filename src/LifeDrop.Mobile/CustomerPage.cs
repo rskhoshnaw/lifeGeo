@@ -18,6 +18,7 @@ public sealed class CustomerPage : ContentPage
     private readonly Button _order = new();
     private readonly Button _payment = new();
     private readonly Button _sample = new();
+    private readonly Button _followUp = new();
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private bool _loaded;
@@ -39,6 +40,8 @@ public sealed class CustomerPage : ContentPage
         _payment.Clicked += async (_, _) => await Navigation.PushAsync(new PaymentPage(_customerId, _titleLabel.Text));
         _sample.Text = Texts.Get("app.sample.button");
         _sample.Clicked += async (_, _) => await Navigation.PushAsync(new SamplePage(_customerId, _titleLabel.Text));
+        _followUp.Text = Texts.Get("app.followup.new");
+        _followUp.Clicked += async (_, _) => await Navigation.PushAsync(new FollowUpPage(_customerId, _titleLabel.Text));
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
@@ -49,7 +52,7 @@ public sealed class CustomerPage : ContentPage
                 {
                     _titleLabel, _typeLabel, _phone, _address,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
-                    _places, _save, _order, _payment, _sample, _spinner, _message
+                    _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
                 }
             }
         };

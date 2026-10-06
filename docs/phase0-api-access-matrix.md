@@ -448,3 +448,17 @@ Written beside the base report (unchanged). No new permission: the assignee writ
 |---|---|---|---|
 | `PUT /visits/{id}/report/details` | the visit's assignee, while `InVisit` (400 `INVALID_STATE` otherwise; another user 403) | Replaces the whole form. `purpose` (required: `product_intro`, `order_follow_up`, `collection`, `complaint`, `other`), `personMet`/`personRole` (≤100), `needs` (≤1000), `productIds` (≤50, distinct, active catalogue products), and by the visit's type: doctor `specialty` (≤100), `dailyPatients` (0-10000); pharmacy `monthlySales`, `competitors` (≤500); wholesaler `monthlyVolume`, `paymentTerms` (≤500). A field of another type is refused (400), not ignored. `currency` (`IQD`/`USD`) is required exactly when `monthlySales` or `monthlyVolume` is sent. 204 | `visit.report_details_saved` |
 | `GET /visits/{id}/report/details` | same readers as the report | The form with `visitType` and the products (code, name); 404 when none was saved or the caller may not read the visit | — |
+
+### Follow-up (plan step 2.8)
+
+Permissions: `followups.create` (SalesRep, ScientificRep, SalesManager, Supervisor), `followups.manage` (SalesManager, Supervisor: for users in their area), `followups.read` (SalesManager, CompanyManager: all; Supervisor: the region). Everybody also sees the follow-ups they are responsible for or made. Status `pending` → `in_progress` → `completed` (result note) or `cancelled` (reason). `isOverdue` = open and the due day (Iraq) has passed; it is worked out when read.
+
+| Route | Who | Rules | Audit |
+|---|---|---|---|
+| `POST /followups` | `followups.create` | `{customerId, subject (1-200), dueDate (not before today, Iraq), assigneeId?, clientRef}`. The customer must be in the caller's area (404). `assigneeId` other than the caller needs `followups.manage` (403) and a user in the caller's area (404). 201 `{id, replayed}`; 200 for a retry of the same `clientRef` (same creator and customer, else 409) | `followup.created` |
+| `GET /followups?customerId=&assigneeId=&status=&overdue=&limit=` | `followups.read` (all/region), else `followups.create` (own) | Ordered by due day; limit 1-200 (default 100) | — |
+| `GET /followups/{id}` | the responsible user, the creator, or a reader/manager covering the responsible user | 404 otherwise | — |
+| `POST /followups/{id}/start` | the responsible user only (403 for others who can see it, 404 for the rest) | `pending` → `in_progress`; 409 otherwise | `followup.started` |
+| `POST /followups/{id}/complete` | the responsible user only | `{resultNote}` (1-500); `pending`/`in_progress` → `completed`; 409 otherwise | `followup.completed` |
+| `POST /followups/{id}/cancel` | the creator, or `followups.manage` covering the responsible user | `{reason}` (1-500); open → `cancelled`; 409 otherwise | `followup.cancelled` |
+| `POST /followups/{id}/reassign` | `followups.manage` covering the responsible user | `{assigneeId}` in the manager's area (404 otherwise); open only (409) | `followup.reassigned` |

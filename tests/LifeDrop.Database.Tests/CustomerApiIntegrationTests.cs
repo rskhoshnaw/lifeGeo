@@ -127,7 +127,8 @@ public class CustomerApiIntegrationTests
                 var m29 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0029_payments.sql"));
                 var m30 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0030_samples.sql"));
                 var m31 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0031_visit_report_details.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31;
+                var m32 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0032_follow_ups.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2001,10 +2002,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "78" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6)
+        Assert.Equal(new[] { "87" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5216,6 +5217,147 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task FollowUps_VisitorCreatesForSelfManagerAssignsAndStatusIsChangedByTheResponsibleUser()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), company = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), oldOne = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@m, @t1), (@co, @t1), (@d, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @co, id FROM roles WHERE tenant_id = @t1 AND name = 'CompanyManager'
+                UNION ALL SELECT @t1, @d, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', ST_SetSRID(ST_MakePoint(44.0192, 36.1911), 4326)::geography, 'located', @rep2);
+                INSERT INTO follow_ups (id, tenant_id, customer_id, subject, due_date, assignee_id, created_by, client_ref)
+                VALUES (@old, @t1, @c1, 'Old promise', '2026-10-01', @rep, @rep, gen_random_uuid());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("m", manager), ("co", company), ("d", driver), ("c1", c1), ("c2", c2), ("old", oldOne) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        async Task<List<LifeDrop.Application.FollowUps.FollowUpDto>> List(string query = "") => (await client.GetFromJsonAsync<List<LifeDrop.Application.FollowUps.FollowUpDto>>("/followups" + query))!;
+        async Task<LifeDrop.Application.FollowUps.FollowUpDto> Get(Guid id) => (await client.GetFromJsonAsync<LifeDrop.Application.FollowUps.FollowUpDto>($"/followups/{id}"))!;
+        async Task<Guid> Create(object body) => (await (await Post("/followups", body)).Content.ReadFromJsonAsync<LifeDrop.Application.FollowUps.CreatedFollowUpDto>())!.Id;
+
+        As(driver);
+        await AssertProblemAsync(await Post("/followups", new { CustomerId = c1, Subject = "x", DueDate = "2026-10-10", ClientRef = Guid.NewGuid() }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.GetAsync("/followups"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // A visitor creates a follow-up for themselves; a retry gives the same one
+        As(rep);
+        var ref1 = Guid.NewGuid();
+        var first = await Post("/followups", new { CustomerId = c1, Subject = " Call about the order ", DueDate = "2026-10-12", ClientRef = ref1 });
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var f1 = (await first.Content.ReadFromJsonAsync<LifeDrop.Application.FollowUps.CreatedFollowUpDto>())!.Id;
+        var again = await Post("/followups", new { CustomerId = c1, Subject = " Call about the order ", DueDate = "2026-10-12", ClientRef = ref1 });
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(f1, (await again.Content.ReadFromJsonAsync<LifeDrop.Application.FollowUps.CreatedFollowUpDto>())!.Id);
+        var detail = await Get(f1);
+        Assert.Equal(("pending", "Call about the order", "C1", rep, rep, false), (detail.Status, detail.Subject, detail.CustomerCode, detail.AssigneeId, detail.CreatedBy, detail.IsOverdue));
+
+        // What is refused
+        foreach (var bad in new object[]
+        {
+            new { CustomerId = c1, Subject = " ", DueDate = "2026-10-12", ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Subject = new string('x', 201), DueDate = "2026-10-12", ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Subject = "x", DueDate = "2026-10-04", ClientRef = Guid.NewGuid() },       // before today (2026-10-05)
+            new { CustomerId = c1, Subject = "x", ClientRef = Guid.NewGuid() },
+            new { Subject = "x", DueDate = "2026-10-12", ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Subject = "x", DueDate = "2026-10-12" }
+        })
+            await AssertProblemAsync(await Post("/followups", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post("/followups", new { CustomerId = c2, Subject = "x", DueDate = "2026-10-12", ClientRef = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");   // not the rep's customer
+        await AssertProblemAsync(await Post("/followups", new { CustomerId = c1, Subject = "x", DueDate = "2026-10-12", AssigneeId = rep2, ClientRef = Guid.NewGuid() }), HttpStatusCode.Forbidden, "FORBIDDEN");   // only a manager gives it to others
+
+        // A manager gives one to a visitor; a user who does not exist is not found
+        As(manager);
+        await AssertProblemAsync(await Post("/followups", new { CustomerId = c2, Subject = "x", DueDate = "2026-10-12", AssigneeId = Guid.NewGuid(), ClientRef = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        var f2 = await Create(new { CustomerId = c2, Subject = "Collect the signed form", DueDate = "2026-10-05", AssigneeId = rep2, ClientRef = Guid.NewGuid() });
+        var f3 = await Create(new { CustomerId = c1, Subject = "Visit again", DueDate = "2026-10-20", AssigneeId = rep, ClientRef = Guid.NewGuid() });
+
+        // Visibility: own and created-by-me; the company manager and the sales manager see all; overdue is derived from the due day
+        As(rep);
+        Assert.Equal(new[] { "Old promise", "Call about the order", "Visit again" }, (await List()).Select(f => f.Subject).ToArray());
+        Assert.Equal(new[] { "Old promise" }, (await List("?overdue=true")).Select(f => f.Subject).ToArray());
+        Assert.True((await Get(oldOne)).IsOverdue);
+        await AssertProblemAsync(await client.GetAsync($"/followups/{f2}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(rep2);
+        Assert.Equal(new[] { f2 }, (await List()).Select(f => f.Id).ToArray());
+        Assert.False((await Get(f2)).IsOverdue);   // due today is not overdue
+        As(company);
+        Assert.Equal(4, (await List()).Count);
+        Assert.Equal(new[] { f2 }, (await List($"?customerId={c2}&status=pending")).Select(f => f.Id).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/followups?status=weird"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post("/followups", new { CustomerId = c1, Subject = "x", DueDate = "2026-10-12", ClientRef = Guid.NewGuid() }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Status: only the responsible user; in order; completing needs a result note
+        As(rep);
+        await AssertProblemAsync(await Post($"/followups/{f2}/start"), HttpStatusCode.NotFound, "NOT_FOUND");   // cannot even see it
+        As(manager);
+        await AssertProblemAsync(await Post($"/followups/{f2}/start"), HttpStatusCode.Forbidden, "FORBIDDEN");   // sees it, but it is not theirs
+        As(rep2);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/start")).StatusCode);
+        await AssertProblemAsync(await Post($"/followups/{f2}/start"), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal("in_progress", (await Get(f2)).Status);
+        await AssertProblemAsync(await Post($"/followups/{f2}/complete", new { ResultNote = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f2}/complete", new { ResultNote = " got the form " })).StatusCode);
+        var done = await Get(f2);
+        Assert.Equal(("completed", "got the form"), (done.Status, done.ResultNote));
+        await AssertProblemAsync(await Post($"/followups/{f2}/complete", new { ResultNote = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/followups/{f2}/cancel", new { Reason = "late" }), HttpStatusCode.Forbidden, "FORBIDDEN");   // not the creator, not a manager
+
+        // A completed follow-up is never overdue; cancel: the creator or a manager, with a reason
+        As(rep);
+        await AssertProblemAsync(await Post($"/followups/{f3}/cancel", new { Reason = "x" }), HttpStatusCode.Forbidden, "FORBIDDEN");   // made by the manager for the visitor
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f1}/cancel", new { Reason = " not needed " })).StatusCode);
+        await AssertProblemAsync(await Post($"/followups/{f1}/cancel", new { Reason = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/followups/{f3}/reassign", new { AssigneeId = rep2 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        await AssertProblemAsync(await Post($"/followups/{f3}/cancel", new { Reason = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{f3}/cancel", new { Reason = "customer closed" })).StatusCode);
+        Assert.Equal(("cancelled", "customer closed"), ((await Get(f3)).Status, (await Get(f3)).CancelReason));
+
+        // Reassign: only a manager, to somebody in the area, only while open
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/followups/{oldOne}/reassign", new { AssigneeId = rep2 })).StatusCode);
+        await AssertProblemAsync(await Post($"/followups/{oldOne}/reassign", new { AssigneeId = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/followups/{oldOne}/reassign", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/followups/{f1}/reassign", new { AssigneeId = rep2 }), HttpStatusCode.Conflict, "CONFLICT");
+        As(rep2);
+        Assert.Equal(new[] { "Old promise" }, (await List("?overdue=true")).Select(f => f.Subject).ToArray());
+
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using var audit = new NpgsqlCommand("SELECT action, count(*) FROM audit_logs WHERE action LIKE 'followup.%' GROUP BY action ORDER BY action", verify);
+        var actions = new List<string>();
+        await using (var reader = await audit.ExecuteReaderAsync())
+            while (await reader.ReadAsync()) actions.Add($"{reader.GetString(0)}={reader.GetInt64(1)}");
+        Assert.Equal(new[] { "followup.cancelled=2", "followup.completed=1", "followup.created=3", "followup.reassigned=1", "followup.started=1" }, actions);
     }
 
     [SkippableFact]

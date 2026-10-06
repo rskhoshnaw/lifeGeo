@@ -33,6 +33,9 @@
             <!-- Money taken from customers and whether the finance manager confirmed it (plan step 2.5) -->
             <Button x:Name="PaymentsBtn" Clicked="OnPaymentsClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- My follow-ups (plan step 2.8) -->
+            <Button x:Name="FollowUpsBtn" Clicked="OnFollowUpsClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>
