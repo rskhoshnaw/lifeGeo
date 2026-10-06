@@ -462,3 +462,16 @@ Permissions: `followups.create` (SalesRep, ScientificRep, SalesManager, Supervis
 | `POST /followups/{id}/complete` | the responsible user only | `{resultNote}` (1-500); `pending`/`in_progress` → `completed`; 409 otherwise | `followup.completed` |
 | `POST /followups/{id}/cancel` | the creator, or `followups.manage` covering the responsible user | `{reason}` (1-500); open → `cancelled`; 409 otherwise | `followup.cancelled` |
 | `POST /followups/{id}/reassign` | `followups.manage` covering the responsible user | `{assigneeId}` in the manager's area (404 otherwise); open only (409) | `followup.reassigned` |
+
+### Alerts (plan step 2.9)
+
+Permissions: `alerts.read` (SalesManager, CompanyManager: all; Supervisor: the region of the user the alert is about), `alerts.security.read` (SalesManager, CompanyManager), `alerts.handle` (SalesManager, Supervisor; a security alert also needs `alerts.security.read`). Categories `operational` and `security` are separated by these permissions. Kinds: operational `followup_overdue`, `visit_delayed` (planned visit of today not started 30 minutes after its planned time), `visit_long_stay` (in a visit 90 minutes; `detail` = `report_saved`/`report_missing`), `tracking_gap` (open shift, no point for 15 minutes); security `new_device` (phone waiting for approval), `gps_mocked` (check-in/out or tracking position the phone says is fake). One event = one alert (unique dedupe key; never made again, even after handling). Status `new` → `seen` → `handled`.
+
+| Route | Who | Rules | Audit |
+|---|---|---|---|
+| `GET /alerts?category=&status=&kind=&limit=` | `alerts.read` and/or `alerts.security.read` | Only the categories/areas the caller may see; unhandled first, newest first; limit 1-200 | — |
+| `GET /alerts/count` | same | `{new}` = new alerts the caller may see | — |
+| `GET /alerts/{id}` | same | 404 outside the caller's categories/area | — |
+| `POST /alerts/{id}/seen` | `alerts.handle` | `new` → `seen`; 409 otherwise; 404 outside the area | `alert.seen` |
+| `POST /alerts/{id}/handle` | `alerts.handle` | `{note}` (1-500); `new`/`seen` → `handled`; 409 when handled | `alert.handled` |
+| `POST /alerts/scan` | `alerts.handle` | Looks at the caller's company now and makes the missing alerts; `{created}`. The background scan does the same every `Alerts:ScanIntervalSeconds` (default 300, 0 = off; first scan after one interval) | — |

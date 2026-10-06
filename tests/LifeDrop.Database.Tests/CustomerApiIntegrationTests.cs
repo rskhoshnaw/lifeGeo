@@ -128,7 +128,8 @@ public class CustomerApiIntegrationTests
                 var m30 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0030_samples.sql"));
                 var m31 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0031_visit_report_details.sql"));
                 var m32 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0032_follow_ups.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32;
+                var m33 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0033_alerts.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2005,7 +2006,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "87" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8)
+        Assert.Equal(new[] { "94" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5217,6 +5218,143 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task Alerts_ScanMakesOneAlertPerEventSeparatesSecurityAndRespectsTheArea()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), company = Guid.NewGuid();
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), vLate = Guid.NewGuid(), vOnTime = Guid.NewGuid(), vIn = Guid.NewGuid(), d1 = Guid.NewGuid(), d2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sup, @t1), (@m, @t1), (@co, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @co, id FROM roles WHERE tenant_id = @t1 AND name = 'CompanyManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil'), (@r2, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A'), (@tb, @t1, @r2, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @ta), (@t1, @sup, @ta), (@t1, @rep2, @tb);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', ST_SetSRID(ST_MakePoint(44.0192, 36.1911), 4326)::geography, 'located', @rep2);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@d1, @t1, @rep, 'Rep phone', 'android', 'i1', '1.0', '\x00', 'approved'), (@d2, @t1, @rep2, 'New phone of rep2', 'android', 'i2', '1.0', '\x00', 'pending');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, planned_time, created_at) VALUES
+                    (@vl, @t1, @rep, @c1, 'Planned', '2026-10-05', '08:00', now()),
+                    (@vo, @t1, @rep, @c1, 'Planned', '2026-10-05', '08:45', now()),
+                    (@vi, @t1, @rep, @c1, 'InVisit', '2026-10-05', NULL, now());
+                INSERT INTO visit_status_history (tenant_id, visit_id, to_status, occurred_at) VALUES (@t1, @vi, 'InVisit', '2026-10-05 04:00:00+00');
+                INSERT INTO visit_location_events (id, tenant_id, visit_id, user_id, device_id, kind, accepted, rejection_reason, geom, accuracy_m, captured_at, is_mocked)
+                VALUES (gen_random_uuid(), @t1, @vi, @rep, @d1, 'check_in', false, 'mock_location', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 5, '2026-10-05 05:00:00+00', true);
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES (gen_random_uuid(), @t1, @rep2, @d2, '2026-10-05 04:00:00+00');
+                INSERT INTO follow_ups (tenant_id, customer_id, subject, due_date, assignee_id, created_by, client_ref) VALUES
+                    (@t1, @c1, 'Old promise', '2026-10-01', @rep, @rep, gen_random_uuid()),
+                    (@t1, @c2, 'Old promise 2', '2026-10-02', @rep2, @rep2, gen_random_uuid()),
+                    (@t1, @c1, 'Due today', '2026-10-05', @rep, @rep, gen_random_uuid());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sup", sup), ("m", manager), ("co", company), ("r1", r1), ("r2", r2), ("ta", teamA), ("tb", teamB), ("c1", c1), ("c2", c2),
+                ("vl", vLate), ("vo", vOnTime), ("vi", vIn), ("d1", d1), ("d2", d2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        async Task<List<LifeDrop.Application.Alerts.AlertDto>> List(string query = "") => (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts" + query))!;
+        async Task<int> NewCount() => (await client.GetFromJsonAsync<LifeDrop.Application.Alerts.AlertCountDto>("/alerts/count"))!.New;
+
+        // Visitors have no alerts; the scan itself needs alerts.handle
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync("/alerts"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await Post("/alerts/scan"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(company);
+        await AssertProblemAsync(await Post("/alerts/scan"), HttpStatusCode.Forbidden, "FORBIDDEN");   // reads, does not handle
+
+        // One scan makes one alert per event; running it again makes none
+        As(manager);
+        var scan = (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!;
+        Assert.Equal(7, scan.Created);   // 2 follow-ups, 1 late visit, 1 long stay, 1 tracking gap, 1 new device, 1 fake position
+        Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+        var all = await List();
+        Assert.Equal(new[] { "followup_overdue=2", "gps_mocked=1", "new_device=1", "tracking_gap=1", "visit_delayed=1", "visit_long_stay=1" },
+            all.GroupBy(a => a.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key}={g.Count()}").ToArray());
+        Assert.All(all, a => Assert.Equal("new", a.Status));
+        Assert.Equal(("operational", 5), ("operational", all.Count(a => a.Category == "operational")));
+        Assert.Equal(new[] { "gps_mocked", "new_device" }, (await List("?category=security")).Select(a => a.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        var longStay = all.Single(a => a.Kind == "visit_long_stay");
+        Assert.Equal(("report_missing", vIn.ToString(), c1), (longStay.Detail, longStay.EntityId, longStay.CustomerId));
+        Assert.Equal(vLate.ToString(), all.Single(a => a.Kind == "visit_delayed").EntityId);   // the 08:45 visit is not late yet
+        Assert.Equal(7, await NewCount());
+        await AssertProblemAsync(await client.GetAsync("/alerts?category=weird"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // The company manager sees everything; the supervisor only the operational alerts of the region
+        As(company);
+        Assert.Equal(7, (await List()).Count);
+        As(sup);
+        var mine = await List();
+        Assert.Equal(new[] { "followup_overdue", "visit_delayed", "visit_long_stay" }, mine.Select(a => a.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        Assert.Equal(3, await NewCount());
+        Assert.Empty(await List("?category=security"));
+        var otherRegion = all.Single(a => a.Kind == "tracking_gap");
+        var security = all.First(a => a.Category == "security");
+        await AssertProblemAsync(await client.GetAsync($"/alerts/{otherRegion.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/alerts/{security.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post($"/alerts/{security.Id}/handle", new { Note = "x" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Status: new -> seen -> handled with a note; handled alerts are not made again
+        var first = mine.First(a => a.Kind == "followup_overdue");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{first.Id}/seen")).StatusCode);
+        await AssertProblemAsync(await Post($"/alerts/{first.Id}/seen"), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(2, await NewCount());
+        await AssertProblemAsync(await Post($"/alerts/{first.Id}/handle", new { Note = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{first.Id}/handle", new { Note = " called the pharmacy " })).StatusCode);
+        await AssertProblemAsync(await Post($"/alerts/{first.Id}/handle", new { Note = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        var handled = (await client.GetFromJsonAsync<LifeDrop.Application.Alerts.AlertDto>($"/alerts/{first.Id}"))!;
+        Assert.Equal(("handled", "called the pharmacy"), (handled.Status, handled.HandledNote));
+        Assert.NotNull(handled.SeenAt);
+        Assert.Equal("handled", (await List()).Last().Status);   // handled ones come last
+        Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+
+        // The manager handles a security alert; a new event makes a new alert
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{security.Id}/handle", new { Note = "phone approved" })).StatusCode);
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); INSERT INTO follow_ups (tenant_id, customer_id, subject, due_date, assignee_id, created_by, client_ref) VALUES (@t, @c, 'Another old one', '2026-10-03', @r, @r, gen_random_uuid())", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            cmd.Parameters.AddWithValue("c", c1);
+            cmd.Parameters.AddWithValue("r", rep);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        Assert.Equal(1, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using var audit = new NpgsqlCommand("SELECT action, count(*) FROM audit_logs WHERE action LIKE 'alert.%' GROUP BY action ORDER BY action", verify);
+        var actions = new List<string>();
+        await using (var reader = await audit.ExecuteReaderAsync())
+            while (await reader.ReadAsync()) actions.Add($"{reader.GetString(0)}={reader.GetInt64(1)}");
+        Assert.Equal(new[] { "alert.handled=2", "alert.seen=1" }, actions);
     }
 
     [SkippableFact]

@@ -12,6 +12,7 @@ import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { CatalogPage } from './pages/CatalogPage.tsx'
 import { OrdersPage } from './pages/OrdersPage.tsx'
+import { AlertsPage } from './pages/AlertsPage.tsx'
 import { FollowUpsPage } from './pages/FollowUpsPage.tsx'
 import { SamplesPage } from './pages/SamplesPage.tsx'
 import { PaymentsPage } from './pages/PaymentsPage.tsx'
@@ -21,7 +22,7 @@ import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
 import { t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'warehouse' | 'regions' | 'audit' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'warehouse' | 'regions' | 'audit' | 'notifications'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -47,12 +48,23 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('home')
   const [unread, setUnread] = useState(0)
+  const [alertCount, setAlertCount] = useState(0)
 
   // The unread count next to the Notifications tab: read when the page opens and again every minute. A failure is ignored (the tab
   // still works, the number just stays).
   const refreshUnread = useCallback(() => {
     admin.unreadCount().then(setUnread, () => {})
   }, [admin])
+  // The number of new alerts next to the Alerts tab, for users who may read alerts.
+  const canAlerts = can(me, ...Permissions.alerts)
+  const refreshAlerts = useCallback(() => {
+    if (canAlerts) admin.alertCount().then(setAlertCount, () => {})
+  }, [admin, canAlerts])
+  useEffect(() => {
+    refreshAlerts()
+    const timer = setInterval(refreshAlerts, 60_000)
+    return () => clearInterval(timer)
+  }, [refreshAlerts])
   useEffect(() => {
     refreshUnread()
     const timer = setInterval(refreshUnread, 60_000)
@@ -77,6 +89,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'payments', label: t('web.tab.payments'), visible: can(me, ...Permissions.payments) },
     { id: 'samples', label: t('web.tab.samples'), visible: can(me, ...Permissions.samples) },
     { id: 'followups', label: t('web.tab.followups'), visible: can(me, ...Permissions.followUps) },
+    { id: 'alerts', label: alertCount > 0 ? `${t('web.tab.alerts')} (${alertCount})` : t('web.tab.alerts'), visible: canAlerts },
     { id: 'warehouse', label: t('web.tab.warehouse'), visible: can(me, ...Permissions.warehouseWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
@@ -116,6 +129,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'payments' && <PaymentsPage admin={admin} me={me} />}
       {me && tab === 'samples' && <SamplesPage admin={admin} me={me} />}
       {me && tab === 'followups' && <FollowUpsPage admin={admin} me={me} />}
+      {me && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}
       {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}

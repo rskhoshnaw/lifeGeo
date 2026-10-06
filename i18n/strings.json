@@ -5002,5 +5002,185 @@
   "ckb": "ئەنجام",
   "ar": "النتيجة",
   "fa": "نتیجه"
+ },
+ "web.tab.alerts": {
+  "en": "Alerts",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "التنبيهات",
+  "fa": "هشدارها"
+ },
+ "web.alerts.title": {
+  "en": "Alerts",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "التنبيهات",
+  "fa": "هشدارها"
+ },
+ "web.alerts.category": {
+  "en": "Category",
+  "ckb": "جۆر",
+  "ar": "الفئة",
+  "fa": "دسته"
+ },
+ "web.alerts.allCategories": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.alerts.category.operational": {
+  "en": "Operational",
+  "ckb": "کارگێڕی",
+  "ar": "تشغيلية",
+  "fa": "عملیاتی"
+ },
+ "web.alerts.category.security": {
+  "en": "Security",
+  "ckb": "ئاسایش",
+  "ar": "أمنية",
+  "fa": "امنیتی"
+ },
+ "web.alerts.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.alerts.allStatuses": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.alerts.status.new": {
+  "en": "New",
+  "ckb": "نوێ",
+  "ar": "جديد",
+  "fa": "جدید"
+ },
+ "web.alerts.status.seen": {
+  "en": "Seen",
+  "ckb": "بینراوە",
+  "ar": "تمت المشاهدة",
+  "fa": "دیده‌شده"
+ },
+ "web.alerts.status.handled": {
+  "en": "Handled",
+  "ckb": "چارەسەرکراوە",
+  "ar": "تمت المعالجة",
+  "fa": "رسیدگی‌شده"
+ },
+ "web.alerts.kind": {
+  "en": "Alert",
+  "ckb": "ئاگادارکردنەوە",
+  "ar": "التنبيه",
+  "fa": "هشدار"
+ },
+ "web.alerts.kind.followup_overdue": {
+  "en": "Follow-up overdue",
+  "ckb": "شوێنکەوتن دواکەوتووە",
+  "ar": "متابعة متأخرة",
+  "fa": "پیگیری سررسید گذشته"
+ },
+ "web.alerts.kind.visit_delayed": {
+  "en": "Visit did not start in time",
+  "ckb": "سەردان لە کاتی خۆیدا دەستی پێنەکرد",
+  "ar": "لم تبدأ الزيارة في وقتها",
+  "fa": "ویزیت به‌موقع شروع نشد"
+ },
+ "web.alerts.kind.visit_long_stay": {
+  "en": "Long stay in a visit",
+  "ckb": "مانەوەی زۆر لە سەردان",
+  "ar": "مكوث طويل في الزيارة",
+  "fa": "توقف طولانی در ویزیت"
+ },
+ "web.alerts.kind.tracking_gap": {
+  "en": "Tracking gap",
+  "ckb": "بۆشایی لە شوێنپێهەڵگرتن",
+  "ar": "انقطاع التتبع",
+  "fa": "قطع ردیابی"
+ },
+ "web.alerts.kind.new_device": {
+  "en": "New device waiting",
+  "ckb": "ئامێری نوێ چاوەڕێیە",
+  "ar": "جهاز جديد بانتظار الموافقة",
+  "fa": "دستگاه جدید در انتظار"
+ },
+ "web.alerts.kind.gps_mocked": {
+  "en": "Fake GPS position",
+  "ckb": "شوێنی GPSی ساختە",
+  "ar": "موقع GPS مزيف",
+  "fa": "موقعیت GPS جعلی"
+ },
+ "web.alerts.detail.report_saved": {
+  "en": "report saved",
+  "ckb": "ڕاپۆرت پاشەکەوت کراوە",
+  "ar": "التقرير محفوظ",
+  "fa": "گزارش ذخیره شده"
+ },
+ "web.alerts.detail.report_missing": {
+  "en": "report missing",
+  "ckb": "ڕاپۆرت نییە",
+  "ar": "لا يوجد تقرير",
+  "fa": "گزارش ندارد"
+ },
+ "web.alerts.about": {
+  "en": "About",
+  "ckb": "دەربارەی",
+  "ar": "بخصوص",
+  "fa": "درباره"
+ },
+ "web.alerts.time": {
+  "en": "Time",
+  "ckb": "کات",
+  "ar": "الوقت",
+  "fa": "زمان"
+ },
+ "web.alerts.none": {
+  "en": "No alerts.",
+  "ckb": "هیچ ئاگادارکردنەوەیەک نییە.",
+  "ar": "لا توجد تنبيهات.",
+  "fa": "هشداری نیست."
+ },
+ "web.alerts.see": {
+  "en": "Mark seen",
+  "ckb": "وەک بینراو نیشانە بکە",
+  "ar": "تمت المشاهدة",
+  "fa": "دیده شد"
+ },
+ "web.alerts.seeAction": {
+  "en": "Mark {kind} seen",
+  "ckb": "نیشانەکردنی {kind} وەک بینراو",
+  "ar": "تعليم {kind} كمشاهد",
+  "fa": "دیده‌شدنِ {kind}"
+ },
+ "web.alerts.handle": {
+  "en": "Handled",
+  "ckb": "چارەسەر کرا",
+  "ar": "تمت المعالجة",
+  "fa": "رسیدگی شد"
+ },
+ "web.alerts.handleAction": {
+  "en": "Handle {kind}",
+  "ckb": "چارەسەرکردنی {kind}",
+  "ar": "معالجة {kind}",
+  "fa": "رسیدگی به {kind}"
+ },
+ "web.alerts.notePrompt": {
+  "en": "What was done?",
+  "ckb": "چی کرا؟",
+  "ar": "ماذا تم؟",
+  "fa": "چه کاری انجام شد؟"
+ },
+ "web.alerts.scan": {
+  "en": "Check now",
+  "ckb": "ئێستا بپشکنە",
+  "ar": "افحص الآن",
+  "fa": "اکنون بررسی کن"
+ },
+ "web.alerts.scanned": {
+  "en": "{count} new alerts",
+  "ckb": "{count} ئاگادارکردنەوەی نوێ",
+  "ar": "{count} تنبيهات جديدة",
+  "fa": "{count} هشدار جدید"
  }
 }

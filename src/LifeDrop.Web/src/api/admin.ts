@@ -387,6 +387,20 @@ export interface FollowUp {
   createdAt: string
   completedAt: string | null
 }
+export interface Alert {
+  id: string
+  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked'
+  category: 'operational' | 'security'
+  severity: 'info' | 'warning' | 'critical'
+  subjectEmail: string | null
+  customerCode: string | null
+  customerName: string | null
+  detail: string | null
+  status: 'new' | 'seen' | 'handled'
+  occurredAt: string
+  handledByEmail: string | null
+  handledNote: string | null
+}
 export interface Sample {
   id: string
   number: string
@@ -536,6 +550,8 @@ export const Permissions = {
   recordPayments: ['payments.record'],
   samples: ['samples.read', 'samples.record'],
   followUps: ['followups.read', 'followups.create'],
+  alerts: ['alerts.read', 'alerts.security.read'],
+  handleAlerts: ['alerts.handle'],
   createFollowUps: ['followups.create'],
   manageFollowUps: ['followups.manage'],
   manageSamples: ['samples.manage'],
@@ -657,6 +673,12 @@ export class AdminApi {
   createFollowUp = (followUp: { customerId: string; subject: string; dueDate: string; assigneeId: string | null; clientRef: string }) => this.post('/followups', followUp)
   cancelFollowUp = (id: string, reason: string) => this.post(`/followups/${id}/cancel`, { reason })
   reassignFollowUp = (id: string, assigneeId: string) => this.post(`/followups/${id}/reassign`, { assigneeId })
+  // Alerts (step 2.9): operational and security alerts; new -> seen -> handled with a note. scan() looks for new ones now.
+  alerts = (category: string, status: string) => this.get<Alert[]>(`/alerts?limit=200${category ? `&category=${category}` : ''}${status ? `&status=${status}` : ''}`)
+  alertCount = async () => (await this.get<{ new: number }>('/alerts/count')).new
+  seeAlert = (id: string) => this.post(`/alerts/${id}/seen`)
+  handleAlert = (id: string, note: string) => this.post(`/alerts/${id}/handle`, { note })
+  scanAlerts = () => this.postJson<{ created: number }>('/alerts/scan', {})
   // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
   samples = (before?: Sample) =>
     this.get<Sample[]>(before ? `/samples?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/samples?limit=50')
