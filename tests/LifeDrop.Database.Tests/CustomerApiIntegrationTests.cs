@@ -137,7 +137,8 @@ public class CustomerApiIntegrationTests
                 var m36 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0036_reports.sql"));
                 var m37 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0037_push.sql"));
                 var m38 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0038_platform.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38;
+                var m39 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0039_saved_reports.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -7018,6 +7019,157 @@ public class CustomerApiIntegrationTests
             await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("DELETE FROM platform_audit_logs", conn); await cmd.ExecuteNonQueryAsync(); });
             await Assert.ThrowsAsync<PostgresException>(async () => { await using var cmd = new NpgsqlCommand("UPDATE platform_audit_logs SET reason = 'x'", conn); await cmd.ExecuteNonQueryAsync(); });
         }
+    }
+
+    [SkippableFact]
+    public async Task SavedReports_OwnerSavesRunsAndSchedulesWithTheirOwnAreaAndFailedRunsAreKept()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);   // clock: Monday 5 October 2026, 09:00 in Baghdad
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), temp = Guid.NewGuid(), rep = Guid.NewGuid(), other2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'manager@t1'), (@m2, @t1, 'manager2@t1'), (@tmp, @t1, 'temp@t1'), (@rep, @t1, 'rep@t1'), (@o2, @t2, 'manager@t2');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, u.id, r.id FROM (VALUES (@m, 'SalesManager'), (@m2, 'SalesManager'), (@tmp, 'SalesManager'), (@rep, 'SalesRep')) AS u(id, role)
+                JOIN roles r ON r.tenant_id = @t1 AND r.name = u.role
+                UNION ALL SELECT @t2, @o2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';", conn);
+            cmd.Parameters.AddWithValue("t1", t1); cmd.Parameters.AddWithValue("t2", t2); cmd.Parameters.AddWithValue("m", manager); cmd.Parameters.AddWithValue("m2", manager2);
+            cmd.Parameters.AddWithValue("tmp", temp); cmd.Parameters.AddWithValue("rep", rep); cmd.Parameters.AddWithValue("o2", other2);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Weekly(string name = "Weekly KPIs") => new { Name = name, Range = "last_7_days", CustomerType = "Pharmacy", Schedule = new { Frequency = "weekly", Weekday = 1, Hour = 8 } };
+        async Task<List<LifeDrop.Application.Reports.SavedReportDto>> Mine() => (await client.GetFromJsonAsync<List<LifeDrop.Application.Reports.SavedReportDto>>("/saved-reports"))!;
+        async Task<List<LifeDrop.Application.Reports.ReportRunDto>> Runs(Guid id) => (await client.GetFromJsonAsync<List<LifeDrop.Application.Reports.ReportRunDto>>($"/saved-reports/{id}/runs"))!;
+        async Task<int> Due(Guid tenant)
+        {
+            using var scope = factory.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Reports.SavedReportService>().RunDueAsync(new LifeDrop.Domain.Common.TenantId(tenant), CancellationToken.None);
+        }
+        async Task Sql(string sql, params (string, object)[] ps)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t::text, false); " + sql, conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // reports.read is needed
+        As(t1, rep);
+        await AssertProblemAsync(await client.GetAsync("/saved-reports"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", Weekly()), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Validation
+        As(t1, manager);
+        foreach (var bad in new object[]
+        {
+            new { Name = " ", Range = "last_7_days" }, new { Name = "x", Range = "last_year" }, new { Name = "x" },
+            new { Name = "x", Range = "fixed" }, new { Name = "x", Range = "fixed", From = "2026-10-05", To = "2026-10-01" },
+            new { Name = "x", Range = "yesterday", From = "2026-10-01", To = "2026-10-02" },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "weekly", Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "daily", Weekday = 1, Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "daily", Hour = 24 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "monthly", DayOfMonth = 29, Hour = 8 } },
+            new { Name = "x", Range = "yesterday", Schedule = new { Frequency = "hourly", Hour = 8 } },
+            new { Name = "x", Range = "yesterday", RegionId = Guid.Empty }
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Save with a weekly schedule: the next run is Monday 12 October 08:00 Iraq time (05:00 UTC), because this Monday's 08:00 has passed
+        var created = await client.PostAsJsonAsync("/saved-reports", Weekly());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var reportId = (await created.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        await AssertProblemAsync(await client.PostAsJsonAsync("/saved-reports", Weekly()), HttpStatusCode.Conflict, "CONFLICT");   // same name for the same owner
+        var report = Assert.Single(await Mine());
+        Assert.Equal(("Weekly KPIs", "last_7_days", "Pharmacy"), (report.Name, report.Range, report.CustomerType));
+        Assert.Equal(("weekly", (int?)1, 8, true, (DateTimeOffset?)new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero)), (report.Schedule!.Frequency, report.Schedule.Weekday, report.Schedule.Hour, report.Schedule.IsActive, report.Schedule.NextRunAt));
+        As(t1, manager2);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/saved-reports", Weekly())).StatusCode);   // another owner may use the same name
+
+        // Only the owner: another user of the company and another company get 404 for everything
+        foreach (var (tenant, user) in new[] { (t1, manager2), (t2, other2) })
+        {
+            As(tenant, user);
+            Assert.DoesNotContain(await Mine(), r => r.Id == reportId);
+            await AssertProblemAsync(await client.PostAsync($"/saved-reports/{reportId}/run", null), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs"), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/saved-reports/{reportId}", Weekly("Renamed")), HttpStatusCode.NotFound, "NOT_FOUND");
+            await AssertProblemAsync(await client.DeleteAsync($"/saved-reports/{reportId}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        }
+
+        // Run now: the range is worked out in Iraq days, the result is kept, the schedule does not move
+        As(t1, manager);
+        var run = (await (await client.PostAsync($"/saved-reports/{reportId}/run", null)).Content.ReadFromJsonAsync<LifeDrop.Application.Reports.ReportRunDetailDto>())!;
+        Assert.Equal(("manual", "ok", new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4)), (run.Run.Trigger, run.Run.Status, run.Run.From, run.Run.To));
+        Assert.NotNull(run.Report);
+        Assert.Equal(new[] { run.Run.Id }, (await Runs(reportId)).Select(r => r.Id).ToArray());
+        var stored = (await client.GetFromJsonAsync<LifeDrop.Application.Reports.ReportRunDetailDto>($"/saved-reports/{reportId}/runs/{run.Run.Id}"))!;
+        Assert.Equal((new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4)), (stored.Report!.From, stored.Report.To));
+        Assert.Equal(new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero), (await Mine()).Single().Schedule!.NextRunAt);
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs?limit=31"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs/{Guid.NewGuid()}"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // The schedule: nothing is due yet; when due, it runs once as a scheduled run and moves to the next Monday
+        Assert.Equal(0, await Due(t1));
+        await Sql("UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("id", reportId));
+        Assert.Equal(1, await Due(t1));
+        Assert.Equal(0, await Due(t1));
+        var after = await Runs(reportId);
+        Assert.Equal(new[] { "manual", "schedule" }, after.Select(r => r.Trigger).OrderBy(t => t, StringComparer.Ordinal).ToArray());
+        Assert.All(after, r => Assert.Equal("ok", r.Status));
+        Assert.Equal(new DateTimeOffset(2026, 10, 12, 5, 0, 0, TimeSpan.Zero), (await Mine()).Single().Schedule!.NextRunAt);
+
+        // Pause, remove and change the schedule
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = "Weekly KPIs", Range = "fixed", From = "2026-10-01", To = "2026-10-03",
+            Schedule = new { Frequency = "daily", Hour = 12, IsActive = false } })).StatusCode);
+        var paused = (await Mine()).Single();
+        Assert.Equal(("fixed", (DateOnly?)new DateOnly(2026, 10, 1), false, (DateTimeOffset?)null), (paused.Range, paused.From, paused.Schedule!.IsActive, paused.Schedule.NextRunAt));
+        await Sql("UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("id", reportId));
+        Assert.Equal(0, await Due(t1));   // paused: never due
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = "Weekly KPIs", Range = "yesterday" })).StatusCode);
+        Assert.Null((await Mine()).Single().Schedule);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/saved-reports/{reportId}", new { Name = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // An owner who lost reports.read: the scheduled run is kept as failed and the schedule moves on
+        As(t1, temp);
+        var tempReport = (await (await client.PostAsJsonAsync("/saved-reports", new { Name = "Daily", Range = "yesterday", Schedule = new { Frequency = "daily", Hour = 7 } })).Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        await Sql("DELETE FROM user_roles WHERE user_id = @u; UPDATE saved_reports SET next_run_at = now() - interval '1 minute' WHERE id = @id", ("u", temp), ("id", tempReport));
+        Assert.Equal(1, await Due(t1));
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT r.status, r.error_code, r.result IS NULL, s.next_run_at FROM report_runs r JOIN saved_reports s ON s.id = r.report_id WHERE r.report_id = @id", conn);
+            cmd.Parameters.AddWithValue("t", t1); cmd.Parameters.AddWithValue("id", tempReport);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(("failed", "FORBIDDEN", true), (reader.GetString(0), reader.GetString(1), reader.GetBoolean(2)));
+            Assert.Equal(new DateTimeOffset(2026, 10, 6, 4, 0, 0, TimeSpan.Zero), reader.GetFieldValue<DateTimeOffset>(3));   // tomorrow 07:00 Iraq time
+        }
+
+        // Deleting removes the runs too
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/saved-reports/{reportId}")).StatusCode);
+        await AssertProblemAsync(await client.DeleteAsync($"/saved-reports/{reportId}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Empty(await Mine());
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

@@ -303,6 +303,22 @@ The default `SalesRep` role now has data scope `region` (migration 0022, also fo
 
 Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
 
+## Saved and scheduled reports (step 3.2, part 1)
+
+Permission `reports.read` for every route; everybody reads, runs, changes and deletes **only their own** reports (another user or company gets 404). A run always uses the owner's current area (docs/KPI.md rules).
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /saved-reports` | The caller's reports with their schedule |
+| `POST /saved-reports` | `{name, range, from?, to?, regionId?, teamId?, customerType?, schedule?}`; `range` = `yesterday` / `last_7_days` / `last_30_days` / `this_month` / `last_month` (Iraq days, worked out when it runs) or `fixed` (from + to, at most 366 days); schedule `{frequency: daily/weekly/monthly, weekday 1-7 (weekly), dayOfMonth 1-28 (monthly), hour 0-23 Iraq time, isActive}`; 400 on anything else; 409 for a name the owner already has or more than 20 reports |
+| `PUT /saved-reports/{id}` | Replaces the definition (and schedule; none = unscheduled); 404 if not the caller's |
+| `DELETE /saved-reports/{id}` | Deletes it and its runs |
+| `POST /saved-reports/{id}/run` | Runs now (`manual`), keeps the result, returns it; the schedule does not move |
+| `GET /saved-reports/{id}/runs?limit=` | Newest first (1-30, default 30; the newest 30 are kept) |
+| `GET /saved-reports/{id}/runs/{runId}` | One run with the whole stored KPI result |
+
+Scheduled runs: a background job (`Reports:ScheduleIntervalSeconds`, default 60, 0 = off) runs each due report once as its owner and moves `next_run_at`. An owner who lost `reports.read` gets a stored `failed` run (`FORBIDDEN`), never silence. Paused schedules never run.
+
 ## Platform: companies and cross-company access (step 3.1)
 
 Callers must belong to the platform company (id `00000000-0000-0000-0000-00000000f001`, code `platform`) **and** hold the permission; a role carrying the same permission key in an ordinary company gives nothing (403). The `SuperAdmin` role (platform company only, migration 0038) has both permissions; no user is seeded. Every action writes `platform_audit_logs` (append-only); a cross-company read writes its row in the same transaction as the read.
