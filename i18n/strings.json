@@ -6244,5 +6244,47 @@
   "ckb": "هۆکار",
   "ar": "السبب",
   "fa": "دلیل"
+ },
+ "web.tab.tv": {
+  "en": "Wall screen",
+  "ckb": "شاشەی دیوار",
+  "ar": "شاشة الحائط",
+  "fa": "نمایش دیواری"
+ },
+ "web.tv.title": {
+  "en": "Today at a glance",
+  "ckb": "ئەمڕۆ بە کورتی",
+  "ar": "اليوم بنظرة سريعة",
+  "fa": "امروز در یک نگاه"
+ },
+ "web.tv.privacy": {
+  "en": "Totals only: no names, positions or phone numbers are shown on this screen.",
+  "ckb": "تەنها کۆی گشتی: هیچ ناو و شوێن و ژمارەی تەلەفۆنێک لەم شاشەیەدا نیشان نادرێت.",
+  "ar": "المجاميع فقط: لا تُعرض أسماء أو مواقع أو أرقام هواتف على هذه الشاشة.",
+  "fa": "فقط جمع کل‌ها: هیچ نام، موقعیت یا شمارهٔ تلفنی در این صفحه نمایش داده نمی‌شود."
+ },
+ "web.tv.updated": {
+  "en": "Updated {time}",
+  "ckb": "نوێکرایەوە {time}",
+  "ar": "آخر تحديث {time}",
+  "fa": "به‌روزرسانی {time}"
+ },
+ "web.tv.fullscreen": {
+  "en": "Full screen",
+  "ckb": "شاشەی تەواو",
+  "ar": "ملء الشاشة",
+  "fa": "تمام‌صفحه"
+ },
+ "web.tv.onShift": {
+  "en": "On shift now",
+  "ckb": "ئێستا لە شیفتدان",
+  "ar": "في الدوام الآن",
+  "fa": "اکنون در شیفت"
+ },
+ "web.tv.liveOf": {
+  "en": "{live} live of {total}",
+  "ckb": "{live} ڕاستەوخۆ لە {total}",
+  "ar": "{live} مباشر من {total}",
+  "fa": "{live} زنده از {total}"
  }
 }

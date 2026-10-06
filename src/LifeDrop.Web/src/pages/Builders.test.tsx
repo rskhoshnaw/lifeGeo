@@ -140,3 +140,34 @@ describe('companies screen (step 3.1)', () => {
     expect(calls.some((c) => c.path === '/platform/tenants/t1/audit-logs?reason=support%20ticket%204711')).toBe(true)
   })
 })
+
+describe('wall screen (step 3.9)', () => {
+  it('shows totals only, no names, and keeps the on-shift count behind the tracking permission', async () => {
+    const today = iraqToday()
+    const counts = { visitsPlanned: 10, visitsCompleted: 7, visitsFailed: 1, delayBase: 0, delayedVisits: 0, newCustomers: 0, approvedNewCustomers: 0, orders: 3, ordersDelivered: 1, ordersDeliveryFailed: 1, orderTotals: [{ currency: 'IQD', total: 5000 }], followUpBase: 4, followUpsOverdue: 1 }
+    const row = { userId: 'u1', email: 'secret.rep@t1', teamName: 'Team A', counts, rates: { visitCompletion: 70, visitFailure: 10, delay: null, orderDelivery: 50, followUpOverdue: 25 } }
+    const report: KpiReport = { from: today, to: today, total: { ...row, userId: '', email: null, teamName: null }, users: [row], alerts: [] }
+    const entry = { userId: 'u1', email: 'secret.rep@t1', teamName: 'Team A', shiftStartedAt: '2026-10-05T05:00:00Z', lastUpdateAt: '2026-10-05T06:00:00Z', isLive: true, precise: true, latitude: 36.19, longitude: 44.0, accuracyMeters: 8, isMocked: false, lastCustomerName: 'Shifa Pharmacy', lastVisitAt: null }
+    const data = { [`/reports/kpis?from=${today}&to=${today}`]: report, '/live-map': [entry, { ...entry, userId: 'u2', isLive: false }] }
+    const user = userEvent.setup()
+
+    const { api } = server(me(['reports.read', 'tracking.summary']), data)
+    const view = render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Wall screen' }))
+    expect(await screen.findByText('70%')).toBeInTheDocument()
+    expect(screen.getByText('7 of 10')).toBeInTheDocument()
+    expect(screen.getByText('5,000 IQD')).toBeInTheDocument()
+    expect(screen.getByText('1 live of 2')).toBeInTheDocument()
+    expect(screen.getByText(/Totals only: no names/)).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('secret.rep@t1')   // privacy: nobody is named on the wall
+    expect(document.body.textContent).not.toContain('Shifa Pharmacy')
+    expect(document.body.textContent).not.toContain('36.19')
+    view.unmount()
+
+    const { api: noTracking } = server(me(['reports.read']), data)
+    render(<App api={noTracking} />)
+    await user.click(await screen.findByRole('button', { name: 'Wall screen' }))
+    expect(await screen.findByText('70%')).toBeInTheDocument()
+    expect(screen.queryByText('On shift now')).not.toBeInTheDocument()
+  })
+})
