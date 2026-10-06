@@ -119,7 +119,8 @@ public class CustomerApiIntegrationTests
                 var m21 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0021_places_customer_profile.sql"));
                 var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
                 var m23 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0023_customer_priority.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23;
+                var m24 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0024_catalog_prices.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1993,10 +1994,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:true"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "45" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b)
+        Assert.Equal(new[] { "52" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage for 6 roles, 7 grants (2.1)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -4616,6 +4617,167 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Preview(Square(south: 99, north: 100)), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await Preview(Enumerable.Range(0, 101).Select(i => (object)new { Latitude = 36.18 + (i % 2) * 0.01, Longitude = 44.0 + i * 0.0001 }).ToArray()), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await Preview(Square(west: 43.0, east: 44.02)), HttpStatusCode.BadRequest, "INVALID_DATA");
+    }
+
+    [SkippableFact]
+    public async Task Catalog_ManagerMaintainsProductsAndPriceRulesAndEveryoneGetsTheServerPrice()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sv, @t1), (@fin, @t1), (@ra, @t1), (@dr, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sv, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @fin, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @dr, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
+                    (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @erbil), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @baghdad);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("dr", driver),
+                ("erbil", erbil), ("baghdad", baghdad), ("c1", c1), ("c2", c2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Product(string code = "PAR-500", string name = "Paracetamol 500", string currency = "IQD", decimal price = 1500m, string? status = null, string unit = "box") =>
+            new { Code = code, Name = name, NameCkb = "پاراسیتامۆل", Unit = unit, Currency = currency, BasePrice = price, Status = status };
+        async Task<Guid> CreateProduct(object body)
+        {
+            var response = await client.PostAsJsonAsync("/products", body);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        }
+        async Task<List<LifeDrop.Application.Catalog.ProductDto>> Products(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products" + query))!;
+        Task<HttpResponseMessage> AddRule(Guid product, object body) => client.PostAsJsonAsync($"/products/{product}/price-rules", body);
+        async Task<List<LifeDrop.Application.Catalog.EffectivePriceDto>> Prices(Guid customer, string date) =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.EffectivePriceDto>>($"/customers/{customer}/prices?date={date}"))!;
+
+        // Who may: nobody without catalog.read; reading roles cannot change anything
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync("/products"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        foreach (var reader in new[] { supervisor, finance, repA })
+        {
+            As(reader);
+            Assert.Empty(await Products());
+            await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product()), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+
+        As(manager);
+        // Bad data: missing name, bad currency, negative price, more than three decimals, bad code, no unit
+        foreach (var bad in new object[]
+        {
+            new { Code = "A1", Name = "", Unit = "box", Currency = "IQD", BasePrice = 1m },
+            Product(currency: "EUR"), Product(price: -1m), Product(price: 1.2345m), Product(code: "has space"), Product(code: "  "), Product(unit: " ")
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/products", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        var p1 = await CreateProduct(Product());
+        var p2 = await CreateProduct(Product(code: "AMX-250", name: "Amoxicillin 250", currency: "USD", price: 3.5m));
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(name: "Same code again")), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(new[] { "AMX-250", "PAR-500" }, (await Products()).Select(p => p.Code).ToArray());
+        Assert.Equal("پاراسیتامۆل", (await Products("?q=par")).Single().NameCkb);
+        Assert.Empty(await Products("?q=%25"));   // a % is a plain character
+
+        // Edit: the code never changes; an inactive product leaves the lists and the prices (managers can still list it)
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p2}", Product(code: "IGNORED", name: "Amoxicillin 250 mg", currency: "USD", price: 4m, status: "inactive"))).StatusCode);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{Guid.NewGuid()}", Product()), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}", Product(price: -5m)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(new[] { "PAR-500" }, (await Products()).Select(p => p.Code).ToArray());
+        var all = await Products("?includeInactive=true");
+        Assert.Equal(("AMX-250", "Amoxicillin 250 mg", 4m, "inactive"), (all[0].Code, all[0].Name, all[0].BasePrice, all[0].Status));
+        As(repA);
+        Assert.Single(await Products("?includeInactive=true"));   // only managers see inactive ones
+
+        // Price rules: a region rule from 1 Oct (open), a customer rule 10-20 Oct
+        As(manager);
+        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { RegionId = erbil, Price = 1800m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { CustomerId = c1, Price = 1200m, ValidFrom = "2026-10-10", ValidTo = "2026-10-20" })).StatusCode);
+
+        async Task<(decimal Price, string Source)> PriceOf(Guid customer, string date)
+        {
+            var row = (await Prices(customer, date)).Single();   // the inactive product is not listed
+            return (row.Price, row.Source);
+        }
+        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-06"));
+        Assert.Equal((1200m, "customer"), await PriceOf(c1, "2026-10-10"));     // first day counts
+        Assert.Equal((1200m, "customer"), await PriceOf(c1, "2026-10-20"));     // last day counts
+        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-21"));
+        Assert.Equal((1500m, "base"), await PriceOf(c1, "2026-09-30"));         // before the region rule starts
+        Assert.Equal((1500m, "base"), await PriceOf(c2, "2026-10-15"));         // Baghdad has no rule
+        Assert.Equal((1800m, "region"), (await Prices(c1, "2026-10-06")).Select(p => (p.Price, p.Source)).Single());
+
+        // Overlap, bad rules and unknown targets
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1000m, ValidFrom = "2026-10-20", ValidTo = "2026-10-25" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await AddRule(p1, new { RegionId = erbil, Price = 1000m, ValidFrom = "2026-11-01" }), HttpStatusCode.Conflict, "CONFLICT");   // the open rule covers it
+        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { CustomerId = c1, Price = 1100m, ValidFrom = "2026-10-21", ValidTo = "2026-10-30" })).StatusCode);
+        Assert.Equal((1100m, "customer"), await PriceOf(c1, "2026-10-25"));
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, RegionId = erbil, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddRule(p1, new { Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = -1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1m, ValidFrom = "2026-12-05", ValidTo = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = Guid.NewGuid(), Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddRule(Guid.NewGuid(), new { CustomerId = c1, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Ending a rule (never deleting): not before its start, not later than the end it has
+        var rules = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.PriceRuleDto>>($"/products/{p1}/price-rules"))!;
+        Assert.Equal(3, rules.Count);
+        var open = rules.Single(r => r.Scope == "region");
+        Assert.Equal("Erbil", open.TargetName);
+        Assert.Equal("C1 · Customer 1", rules.First(r => r.Scope == "customer").TargetName);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-09-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{Guid.NewGuid()}/end", new { ValidTo = "2026-12-31" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-12-31" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2027-01-31" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal((1500m, "base"), await PriceOf(c1, "2027-01-15"));   // the region rule has ended
+        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-12-31"));
+
+        // A rep sees prices of customers in their own region only; reading roles cannot change rules
+        As(repA);
+        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-06"));
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c2}/prices"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-11-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.PriceRuleDto>>($"/products/{p1}/price-rules"))!.Count);
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c1}/prices"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
+                SELECT (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'product.%' OR action LIKE 'price_rule.%' GROUP BY action) a)", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            Assert.Equal("price_rule.created=3,price_rule.ended=1,product.created=2,product.updated=1", reader.GetString(0));
+        }
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

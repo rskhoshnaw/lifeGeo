@@ -209,6 +209,50 @@ export interface PlanGenerated {
   visitIds: string[]
 }
 
+export interface Product {
+  id: string
+  code: string
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  unit: string
+  currency: 'IQD' | 'USD'
+  basePrice: number
+  status: 'active' | 'inactive'
+}
+export interface ProductInput {
+  code?: string
+  name: string
+  nameCkb: string | null
+  nameAr: string | null
+  nameEn: string | null
+  unit: string
+  currency: 'IQD' | 'USD'
+  basePrice: number
+  status: 'active' | 'inactive'
+}
+export interface PriceRule {
+  id: string
+  productId: string
+  scope: 'customer' | 'region'
+  customerId: string | null
+  regionId: string | null
+  targetName: string | null
+  price: number
+  validFrom: string
+  validTo: string | null
+}
+export interface EffectivePrice {
+  productId: string
+  code: string
+  name: string
+  unit: string
+  currency: 'IQD' | 'USD'
+  price: number
+  source: 'customer' | 'region' | 'base'
+}
+
 export interface Region {
   id: string
   name: string
@@ -295,6 +339,8 @@ export const Permissions = {
   customers: ['customers.read'],
   editCustomers: ['customers.write'],
   places: ['places.manage'],
+  catalog: ['catalog.read'],
+  manageCatalog: ['catalog.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
   cancelVisits: ['visits.cancel'],
@@ -366,6 +412,16 @@ export class AdminApi {
     if (!response.ok) throw await toError(response)
     return (await response.json()) as { updated: number }
   }
+  // Products and prices (step 2.1).
+  products = (includeInactive: boolean, search = '') =>
+    this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
+  createProduct = (product: ProductInput) => this.post('/products', product)
+  updateProduct = (id: string, product: ProductInput) => this.send('PUT', `/products/${id}`, product)
+  priceRules = (productId: string) => this.get<PriceRule[]>(`/products/${productId}/price-rules`)
+  createPriceRule = (productId: string, rule: { customerId?: string; regionId?: string; price: number; validFrom: string; validTo: string | null }) =>
+    this.post(`/products/${productId}/price-rules`, rule)
+  endPriceRule = (ruleId: string, validTo: string) => this.post(`/price-rules/${ruleId}/end`, { validTo })
+  customerPrices = (customerId: string, date: string) => this.get<EffectivePrice[]>(`/customers/${customerId}/prices?date=${date}`)
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })

@@ -259,6 +259,70 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('manages products and price rules, and reads the price a customer pays', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' 2026-12-31 ')
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage', 'customers.read', 'regions.read'] }
+    const product = { id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }
+    const rule = { id: 'ru1', productId: 'pr1', scope: 'region', customerId: null, regionId: 'rg1', targetName: 'Erbil', price: 1800, validFrom: '2026-10-01', validTo: null }
+    const { api, calls } = server(seller, {
+      '/products?': [product],
+      '/products/pr1/price-rules': [rule],
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
+      '/regions': [{ id: 'rg1', name: 'Erbil' }],
+      '/customers/c1/prices?date=2026-10-06': [{ productId: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', unit: 'box', currency: 'IQD', price: 1800, source: 'region' }],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Products' }))
+    expect(await screen.findByText('1,500 IQD')).toBeInTheDocument()
+
+    // A new product: names are trimmed only when saved
+    await user.click(screen.getByRole('button', { name: 'New product' }))
+    expect(screen.getByRole('button', { name: 'Save product' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Code'), 'AMX-250')
+    await user.type(screen.getByLabelText('Name'), ' Amoxicillin 250 ')
+    await user.type(screen.getByLabelText('Unit'), 'box')
+    await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
+    await user.type(screen.getByLabelText('Base price'), '3.5')
+    await user.click(screen.getByRole('button', { name: 'Save product' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/products', body: { code: 'AMX-250', name: 'Amoxicillin 250', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'USD', basePrice: 3.5, status: 'active' } })
+
+    // The rules of a product: end one, add one for a customer
+    await user.click(screen.getByRole('button', { name: 'Price rules of PAR-500' }))
+    expect(await screen.findByText('Region: Erbil')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'End rule for Erbil' }))
+    await user.selectOptions(screen.getByLabelText('Customer or region'), 'c1')
+    await user.type(screen.getByLabelText('Price'), '1200')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-10' } })
+    await user.click(screen.getByRole('button', { name: 'Add rule' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls).slice(1)).toEqual([
+      { method: 'POST', path: '/price-rules/ru1/end', body: { validTo: '2026-12-31' } },
+      { method: 'POST', path: '/products/pr1/price-rules', body: { customerId: 'c1', price: 1200, validFrom: '2026-10-10', validTo: null } },
+    ])
+
+    // What a customer pays that day comes from the server
+    await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
+    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-10-06' } })
+    expect(await screen.findByText('region rule')).toBeInTheDocument()
+  })
+
+  it('shows a reader the products without any change buttons', async () => {
+    const reader: Me = { id: 'r', email: 'rep@t1', roles: ['SalesRep'], permissions: ['catalog.read'] }
+    const { api } = server(reader, { '/products?': [{ id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }], '/products/pr1/price-rules': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await screen.findByText('PAR-500')
+    expect(screen.queryByRole('button', { name: 'New product' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit PAR-500' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Price rules of PAR-500' }))
+    expect(await screen.findByText('No price rules: everyone pays the base price.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add rule' })).not.toBeInTheDocument()
+  })
+
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {
     const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
     const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]

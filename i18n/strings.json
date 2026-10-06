@@ -2860,5 +2860,263 @@
   "ckb": "شێوەکە زۆر گەورەیە (نزیکەی ٥٠ کم) یان ڕووبەری نییە.",
   "ar": "الشكل كبير جداً (أكثر من 50 كم تقريباً) أو بلا مساحة.",
   "fa": "شکل خیلی بزرگ است (بیش از حدود ۵۰ کیلومتر) یا سطح ندارد."
+ },
+ "web.tab.catalog": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "web.catalog.title": {
+  "en": "Products and prices",
+  "ckb": "بەرهەم و نرخ",
+  "ar": "المنتجات والأسعار",
+  "fa": "محصولات و قیمت‌ها"
+ },
+ "web.catalog.search": {
+  "en": "Search code or name",
+  "ckb": "گەڕان بە کۆد یان ناو",
+  "ar": "بحث بالرمز أو الاسم",
+  "fa": "جستجوی کد یا نام"
+ },
+ "web.catalog.showInactive": {
+  "en": "Show inactive",
+  "ckb": "نیشاندانی ناچالاکەکان",
+  "ar": "إظهار غير النشطة",
+  "fa": "نمایش غیرفعال‌ها"
+ },
+ "web.catalog.code": {
+  "en": "Code",
+  "ckb": "کۆد",
+  "ar": "الرمز",
+  "fa": "کد"
+ },
+ "web.catalog.name": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.catalog.nameCkb": {
+  "en": "Name (Kurdish)",
+  "ckb": "ناو (کوردی)",
+  "ar": "الاسم (كردي)",
+  "fa": "نام (کردی)"
+ },
+ "web.catalog.nameAr": {
+  "en": "Name (Arabic)",
+  "ckb": "ناو (عەرەبی)",
+  "ar": "الاسم (عربي)",
+  "fa": "نام (عربی)"
+ },
+ "web.catalog.nameEn": {
+  "en": "Name (English)",
+  "ckb": "ناو (ئینگلیزی)",
+  "ar": "الاسم (إنجليزي)",
+  "fa": "نام (انگلیسی)"
+ },
+ "web.catalog.unit": {
+  "en": "Unit",
+  "ckb": "یەکە",
+  "ar": "الوحدة",
+  "fa": "واحد"
+ },
+ "web.catalog.currency": {
+  "en": "Currency",
+  "ckb": "دراو",
+  "ar": "العملة",
+  "fa": "ارز"
+ },
+ "web.catalog.price": {
+  "en": "Price",
+  "ckb": "نرخ",
+  "ar": "السعر",
+  "fa": "قیمت"
+ },
+ "web.catalog.basePrice": {
+  "en": "Base price",
+  "ckb": "نرخی بنەڕەت",
+  "ar": "السعر الأساسي",
+  "fa": "قیمت پایه"
+ },
+ "web.catalog.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.catalog.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشط",
+  "fa": "فعال"
+ },
+ "web.catalog.inactive": {
+  "en": "Inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.catalog.newProduct": {
+  "en": "New product",
+  "ckb": "بەرهەمی نوێ",
+  "ar": "منتج جديد",
+  "fa": "محصول جدید"
+ },
+ "web.catalog.editProduct": {
+  "en": "Edit {code}",
+  "ckb": "دەستکاریکردنی {code}",
+  "ar": "تعديل {code}",
+  "fa": "ویرایش {code}"
+ },
+ "web.catalog.save": {
+  "en": "Save product",
+  "ckb": "پاشەکەوتکردنی بەرهەم",
+  "ar": "حفظ المنتج",
+  "fa": "ذخیرهٔ محصول"
+ },
+ "web.catalog.codeFixed": {
+  "en": "The code cannot be changed.",
+  "ckb": "کۆد ناگۆڕدرێت.",
+  "ar": "لا يمكن تغيير الرمز.",
+  "fa": "کد قابل تغییر نیست."
+ },
+ "web.catalog.rules": {
+  "en": "Price rules",
+  "ckb": "یاسای نرخ",
+  "ar": "قواعد الأسعار",
+  "fa": "قواعد قیمت"
+ },
+ "web.catalog.rulesFor": {
+  "en": "Price rules of {code}",
+  "ckb": "یاساکانی نرخی {code}",
+  "ar": "قواعد أسعار {code}",
+  "fa": "قواعد قیمت {code}"
+ },
+ "web.catalog.noRules": {
+  "en": "No price rules: everyone pays the base price.",
+  "ckb": "یاسای نرخ نییە: هەموو بە نرخی بنەڕەت.",
+  "ar": "لا توجد قواعد: الجميع بالسعر الأساسي.",
+  "fa": "قاعده‌ای نیست: همه با قیمت پایه."
+ },
+ "web.catalog.ruleHint": {
+  "en": "Customer rule first, then region rule, then base price. Days are inclusive. A rule is ended, never deleted.",
+  "ckb": "یاسای کڕیار یەکەم، پاشان ناوچە، پاشان نرخی بنەڕەت. ڕۆژەکان لەخۆدەگرن. یاسا کۆتایی پێدێت و ناسڕێتەوە.",
+  "ar": "قاعدة العميل أولاً ثم المنطقة ثم السعر الأساسي. الأيام شاملة. تُنهى القاعدة ولا تُحذف.",
+  "fa": "ابتدا قاعدهٔ مشتری، بعد منطقه، بعد قیمت پایه. روزها شامل‌اند. قاعده پایان می‌یابد و حذف نمی‌شود."
+ },
+ "web.catalog.target": {
+  "en": "Applies to",
+  "ckb": "جێبەجێ دەبێت بۆ",
+  "ar": "ينطبق على",
+  "fa": "مربوط به"
+ },
+ "web.catalog.forCustomer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "عميل",
+  "fa": "مشتری"
+ },
+ "web.catalog.forRegion": {
+  "en": "Region",
+  "ckb": "ناوچە",
+  "ar": "منطقة",
+  "fa": "منطقه"
+ },
+ "web.catalog.chooseCustomer": {
+  "en": "Choose a customer…",
+  "ckb": "کڕیارێک هەڵبژێرە…",
+  "ar": "اختر عميلاً…",
+  "fa": "مشتری را انتخاب کنید…"
+ },
+ "web.catalog.chooseRegion": {
+  "en": "Choose a region…",
+  "ckb": "ناوچەیەک هەڵبژێرە…",
+  "ar": "اختر منطقة…",
+  "fa": "منطقه را انتخاب کنید…"
+ },
+ "web.catalog.from": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.catalog.to": {
+  "en": "Until (empty = open)",
+  "ckb": "تا (بەتاڵ = کراوە)",
+  "ar": "حتى (فارغ = مفتوح)",
+  "fa": "تا (خالی = باز)"
+ },
+ "web.catalog.open": {
+  "en": "open",
+  "ckb": "کراوە",
+  "ar": "مفتوح",
+  "fa": "باز"
+ },
+ "web.catalog.addRule": {
+  "en": "Add rule",
+  "ckb": "زیادکردنی یاسا",
+  "ar": "إضافة قاعدة",
+  "fa": "افزودن قاعده"
+ },
+ "web.catalog.endRule": {
+  "en": "End",
+  "ckb": "کۆتایی",
+  "ar": "إنهاء",
+  "fa": "پایان"
+ },
+ "web.catalog.endRuleFor": {
+  "en": "End rule for {target}",
+  "ckb": "کۆتایی یاسا بۆ {target}",
+  "ar": "إنهاء القاعدة لـ {target}",
+  "fa": "پایان قاعده برای {target}"
+ },
+ "web.catalog.endPrompt": {
+  "en": "Last valid day (YYYY-MM-DD) for {target}:",
+  "ckb": "دوایین ڕۆژی کاریگەر (YYYY-MM-DD) بۆ {target}:",
+  "ar": "آخر يوم صالح (YYYY-MM-DD) لـ {target}:",
+  "fa": "آخرین روز معتبر (YYYY-MM-DD) برای {target}:"
+ },
+ "web.catalog.checkTitle": {
+  "en": "Price a customer pays",
+  "ckb": "نرخێک کە کڕیار دەیدات",
+  "ar": "السعر الذي يدفعه العميل",
+  "fa": "قیمتی که مشتری می‌پردازد"
+ },
+ "web.catalog.checkDate": {
+  "en": "Day",
+  "ckb": "ڕۆژ",
+  "ar": "اليوم",
+  "fa": "روز"
+ },
+ "web.catalog.source": {
+  "en": "Source",
+  "ckb": "سەرچاوە",
+  "ar": "المصدر",
+  "fa": "منبع"
+ },
+ "web.catalog.source.customer": {
+  "en": "customer rule",
+  "ckb": "یاسای کڕیار",
+  "ar": "قاعدة العميل",
+  "fa": "قاعدهٔ مشتری"
+ },
+ "web.catalog.source.region": {
+  "en": "region rule",
+  "ckb": "یاسای ناوچە",
+  "ar": "قاعدة المنطقة",
+  "fa": "قاعدهٔ منطقه"
+ },
+ "web.catalog.source.base": {
+  "en": "base price",
+  "ckb": "نرخی بنەڕەت",
+  "ar": "السعر الأساسي",
+  "fa": "قیمت پایه"
+ },
+ "web.catalog.targetValue": {
+  "en": "Customer or region",
+  "ckb": "کڕیار یان ناوچە",
+  "ar": "العميل أو المنطقة",
+  "fa": "مشتری یا منطقه"
  }
 }
