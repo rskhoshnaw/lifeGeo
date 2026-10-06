@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -8,6 +9,8 @@ namespace LifeDrop.Mobile;
 public sealed class VisitFormPage : ContentPage
 {
     private readonly Guid _visitId;
+    private readonly string? _customerName;
+    private readonly string _visitType;
     private readonly VisitDetailsDraft _draft;
     private readonly Picker _purpose = new();
     private readonly Picker _currency = new();
@@ -22,6 +25,8 @@ public sealed class VisitFormPage : ContentPage
     public VisitFormPage(Guid visitId, string? customerName, string visitType)
     {
         _visitId = visitId;
+        _customerName = customerName;
+        _visitType = visitType;
         _draft = new VisitDetailsDraft(visitType);
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.form.title");
@@ -144,6 +149,16 @@ public sealed class VisitFormPage : ContentPage
         }
         _busy = false;
         _spinner.IsVisible = _spinner.IsRunning = false;
+        // No internet: kept on the phone; it is sent after the steps of its visit (plan step 2.13).
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(WorkKind.VisitForm, $"{Texts.Get("app.form.title")}: {_customerName}",
+                new VisitFormPayload(_visitId, _visitType, _draft.Purpose, _draft.PersonMet, _draft.PersonRole, _draft.Needs, _draft.ProductIds.ToList(), _draft.Specialty, _draft.DailyPatientsText,
+                    _draft.MonthlySalesText, _draft.Competitors, _draft.MonthlyVolumeText, _draft.PaymentTerms, _draft.Currency), _visitId);
+            Show(Texts.Get("app.offline.saved"));
+            Refresh();
+            return;
+        }
         Show(result == VisitActionResult.Success ? Texts.Get("app.form.saved") : VisitLifecycle.Describe(result));
         if (result == VisitActionResult.SessionExpired) AppLanguage.ShowRoot(new MainPage());
         Refresh();

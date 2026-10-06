@@ -18,17 +18,19 @@ public interface IFollowUpsApiClient
 }
 
 // The follow-up a field user is typing: a subject and a due day (not before today). The customer comes from the page.
-public sealed class FollowUpDraft(Guid customerId)
+public sealed class FollowUpDraft(Guid customerId, Guid? clientRef = null)
 {
     public const int MaxSubjectLength = 200;
 
     public Guid CustomerId { get; } = customerId;
-    public Guid ClientRef { get; } = Guid.NewGuid();
+    public Guid ClientRef { get; } = clientRef ?? Guid.NewGuid();
+    // Kept on the phone to be sent when the internet returns (plan step 2.13).
+    public bool Queued { get; set; }
     public string? Subject { get; set; }
     public DateOnly? DueDate { get; set; }
     public bool Created { get; set; }
 
-    public bool CanSave(DateOnly today) => !Created && !string.IsNullOrWhiteSpace(Subject) && Subject.Trim().Length <= MaxSubjectLength && DueDate is { } due && due >= today;
+    public bool CanSave(DateOnly today) => !Created && !Queued && !string.IsNullOrWhiteSpace(Subject) && Subject.Trim().Length <= MaxSubjectLength && DueDate is { } due && due >= today;
 }
 
 public sealed class FollowUpsApiClient : IFollowUpsApiClient

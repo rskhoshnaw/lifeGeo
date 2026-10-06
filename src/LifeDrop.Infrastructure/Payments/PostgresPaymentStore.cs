@@ -13,7 +13,7 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
 {
     public static string FormatNumber(long number) => $"P-{number:D6}";
 
-    public async Task<(PaymentResult Result, CreatedPaymentDto? Payment)> CreateAsync(TenantId tenantId, UserId actorId, NewPayment payment, string status, CancellationToken cancellationToken)
+    public async Task<(PaymentResult Result, CreatedPaymentDto? Payment)> CreateAsync(TenantId tenantId, UserId actorId, NewPayment payment, string status, bool detachOrderIfInvalid, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
@@ -33,10 +33,18 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         }
 
         var check = await CheckOrderAsync(connection, transaction, tenantId, payment, cancellationToken);
-        if (check != PaymentResult.Success) return (check, null);
+        var detached = false;
+        if (check != PaymentResult.Success)
+        {
+            // A payment the phone kept without internet is still real money: it is recorded without the order (plan step 2.13).
+            if (!detachOrderIfInvalid) return (check, null);
+            payment = payment with { OrderId = null };
+            detached = true;
+        }
 
         var created = await InsertAsync(connection, transaction, tenantId, actorId, payment, status, null, cancellationToken);
-        await AuditAsync(connection, transaction, tenantId, actorId, status == "confirmed" ? "payment.recorded_confirmed" : "payment.recorded", created.Id, cancellationToken);
+        created = created with { Detached = detached };
+        await AuditAsync(connection, transaction, tenantId, actorId, detached ? "payment.recorded_detached" : status == "confirmed" ? "payment.recorded_confirmed" : "payment.recorded", created.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (PaymentResult.Success, created);
     }

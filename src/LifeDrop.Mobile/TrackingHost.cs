@@ -30,12 +30,26 @@ public static class TrackingHost
     private static ISamplesApiClient? _samples;
     private static IFollowUpsApiClient? _followUps;
     private static IVisitDetailsApiClient? _visitDetails;
+    private static WorkQueue? _workQueue;
+    private static WorkExecutor? _workExecutor;
+    private static ReferenceCache? _cache;
     private static IDurableStore? _store;
     private static bool _listening;
 
     public static ShiftTracker? Tracker
     {
         get { lock (Gate) return _tracker; }
+    }
+
+    // Orders, payments, samples, follow-ups and visit forms kept on the phone without internet (plan step 2.13), and the lists kept for writing an order offline.
+    public static WorkQueue? WorkQueue
+    {
+        get { lock (Gate) return _workQueue; }
+    }
+
+    public static ReferenceCache? Cache
+    {
+        get { lock (Gate) return _cache; }
     }
 
     public static Outbox? Outbox
@@ -119,6 +133,9 @@ public static class TrackingHost
             _followUps = new FollowUpsApiClient(http, session);
             _visitDetails = new VisitDetailsApiClient(http, session);
             _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
+            _workQueue = new WorkQueue(TimeProvider.System, _store);
+            _workExecutor = new WorkExecutor(_orders, _payments, _samples, _followUps, _visitDetails);
+            _cache = new ReferenceCache(_store);
             _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store));
             if (!_listening)
             {
@@ -143,6 +160,11 @@ public static class TrackingHost
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             if (Outbox is { } outbox) await outbox.SyncAsync(cts.Token);
+            // Kept work goes after the visit steps, so a visit form never arrives before its check-in.
+            WorkQueue? queue;
+            WorkExecutor? executor;
+            lock (Gate) (queue, executor) = (_workQueue, _workExecutor);
+            if (queue is not null && executor is not null) await queue.SyncAsync(executor, id => Outbox?.HasPending(id) == true, cts.Token);
             if (Tracker is { } tracker) await tracker.FlushAsync(cts.Token);
         }
         catch (Exception)
@@ -163,6 +185,9 @@ public static class TrackingHost
             _orders = null;
             _warehouse = null;
             _delivery = null;
+            _workQueue = null;
+            _workExecutor = null;
+            _cache = null;
             _store = null;
             try
             {

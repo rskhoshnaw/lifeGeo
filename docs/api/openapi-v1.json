@@ -12621,6 +12621,10 @@
           },
           "replayed": {
             "type": "boolean"
+          },
+          "visitDetached": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -12645,6 +12649,10 @@
           },
           "replayed": {
             "type": "boolean"
+          },
+          "detached": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -12677,6 +12685,10 @@
           },
           "replayed": {
             "type": "boolean"
+          },
+          "detached": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -12777,6 +12789,12 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "detachVisitIfInvalid": {
+            "type": [
+              "null",
+              "boolean"
             ]
           }
         }
@@ -15595,6 +15613,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "detachOrderIfInvalid": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -15682,6 +15706,12 @@
               {
                 "$ref": "#/components/schemas/DeliveryLocation"
               }
+            ]
+          },
+          "detachVisitIfInvalid": {
+            "type": [
+              "null",
+              "boolean"
             ]
           }
         }

@@ -29,6 +29,7 @@ public partial class HomePage : ContentPage
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
+        RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
         RenderShift();
     }
@@ -44,12 +45,14 @@ public partial class HomePage : ContentPage
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
         FollowUpsBtn.IsEnabled = !isBusy;
+        PendingBtn.IsEnabled = !isBusy;
         ShiftBtn.IsEnabled = !isBusy;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        RenderPending();
         // Continue a shift that is still open on the server (app restarted).
         var tracker = TrackingHost.GetOrCreate();
         if (tracker is not null && tracker.State == ShiftState.Off)
@@ -184,6 +187,17 @@ public partial class HomePage : ContentPage
     private async void OnPaymentsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyPaymentsPage());
 
     private async void OnFollowUpsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyFollowUpsPage());
+
+    private async void OnPendingClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new PendingWorkPage());
+
+    // "On the phone (3)": the work kept for the internet; refused items are counted apart so they are not missed.
+    private void RenderPending()
+    {
+        var counts = TrackingHost.WorkQueue?.Counts ?? new LifeDrop.Mobile.Offline.WorkCounts(0, 0, 0);
+        PendingBtn.Text = counts.NeedsAttention > 0
+            ? Texts.Get("app.pending.buttonAttention", ("waiting", counts.Waiting), ("attention", counts.NeedsAttention))
+            : Texts.Get("app.pending.button", ("waiting", counts.Waiting));
+    }
 
     private async void OnNewCustomerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new NewCustomerPage());
 

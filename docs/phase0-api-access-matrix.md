@@ -502,3 +502,14 @@ Permission `reports.read` (CompanyManager, SalesManager: all users; Supervisor: 
 | Route | Who | Rules |
 |---|---|---|
 | `GET /reports/kpis?from=&to=&regionId=&teamId=&customerType=` | `reports.read` | `from`/`to` are Iraq days (`to` not before `from`, at most 366 days; else 400). Returns `total` and `users` (one row each, users without data left out) with `counts` (numerators, denominators, money per currency) and `rates` (percent, `null` when the denominator is 0), and `alerts` by kind with handled and review results, only the categories the caller may read (`alerts.read`, `alerts.security.read`) |
+
+### Offline work (plan step 2.13, `docs/OFFLINE.md`)
+
+No new route or permission. Changes to existing routes, all used by the phone for work kept without internet:
+
+| Route | Change |
+|---|---|
+| `POST /payments` | Optional `detachOrderIfInvalid`. When true and the order is cancelled, another customer's, in another currency or missing, the payment is recorded without the order: 201 with `detached: true`, audit `payment.recorded_detached`. Amount and customer rules still apply |
+| `POST /samples` | Optional `detachVisitIfInvalid`: a cancelled/failed visit (or one that is not the caller's) is dropped; answer `detached: true` |
+| `POST /orders` | Optional `detachVisitIfInvalid`: the order is placed without a cancelled/failed visit; answer `visitDetached: true`. The server prices it at the day it arrives |
+| `POST /followups/{id}/start`, `/complete`, `/cancel` | A step sent again after a lost answer is a success without a second write (start of an in-progress follow-up; complete / cancel with the same note / reason). Another status or text stays 409 |

@@ -23,7 +23,7 @@ public class OrdersTests
         public Task<(VisitActionResult, IReadOnlyList<PricedProduct>)> GetPricesAsync(Guid customerId, DateOnly day, CancellationToken cancellationToken = default) =>
             Task.FromResult<(VisitActionResult, IReadOnlyList<PricedProduct>)>((VisitActionResult.Success, Array.Empty<PricedProduct>()));
         public Task<(VisitActionResult, PlacedOrder?)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
-            IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default)
+            IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default, bool offline = false)
         {
             Sent.Add((customerId, warehouseId, visitId, clientRef, note, lines));
             return Task.FromResult<(VisitActionResult, PlacedOrder?)>(Result == VisitActionResult.Success

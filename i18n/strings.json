@@ -5554,5 +5554,83 @@
   "ckb": "چارەسەرکراو",
   "ar": "تمت المعالجة",
   "fa": "رسیدگی‌شده"
+ },
+ "app.offline.saved": {
+  "en": "No internet: saved on the phone. It is sent when the internet returns (see \"On the phone\").",
+  "ckb": "ئینتەرنێت نییە: لەسەر مۆبایل پاشەکەوت کرا. کاتێک ئینتەرنێت گەڕایەوە دەنێردرێت (بڕوانە «لەسەر مۆبایل»).",
+  "ar": "لا يوجد إنترنت: تم الحفظ على الهاتف وسيُرسل عند عودة الإنترنت (انظر «على الهاتف»).",
+  "fa": "اینترنت نیست: روی گوشی ذخیره شد و با برگشتن اینترنت فرستاده می‌شود (بخش «روی گوشی»)."
+ },
+ "app.order.offline": {
+  "en": "No internet: the order is written from the phone's lists. Prices are set when the order arrives.",
+  "ckb": "ئینتەرنێت نییە: داواکاری لە لیستەکانی مۆبایلەوە دەنووسرێت. نرخ کاتێک داواکارییەکە دەگات دادەنرێت.",
+  "ar": "لا يوجد إنترنت: يُكتب الطلب من قوائم الهاتف ويُحدَّد السعر عند وصوله.",
+  "fa": "اینترنت نیست: سفارش از فهرست‌های گوشی نوشته می‌شود. قیمت هنگام رسیدن سفارش تعیین می‌شود."
+ },
+ "app.order.priceLater": {
+  "en": "Price is set when the order arrives.",
+  "ckb": "نرخ کاتێک داواکارییەکە دەگات دادەنرێت.",
+  "ar": "يُحدَّد السعر عند وصول الطلب.",
+  "fa": "قیمت هنگام رسیدن سفارش تعیین می‌شود."
+ },
+ "app.pending.title": {
+  "en": "On the phone",
+  "ckb": "لەسەر مۆبایل",
+  "ar": "على الهاتف",
+  "fa": "روی گوشی"
+ },
+ "app.pending.button": {
+  "en": "On the phone ({waiting})",
+  "ckb": "لەسەر مۆبایل ({waiting})",
+  "ar": "على الهاتف ({waiting})",
+  "fa": "روی گوشی ({waiting})"
+ },
+ "app.pending.buttonAttention": {
+  "en": "On the phone ({waiting}) · needs attention: {attention}",
+  "ckb": "لەسەر مۆبایل ({waiting}) · پێویستی بە سەرنجە: {attention}",
+  "ar": "على الهاتف ({waiting}) · يحتاج انتباهاً: {attention}",
+  "fa": "روی گوشی ({waiting}) · نیاز به توجه: {attention}"
+ },
+ "app.pending.sendNow": {
+  "en": "Send now",
+  "ckb": "ئێستا بنێرە",
+  "ar": "أرسل الآن",
+  "fa": "اکنون بفرست"
+ },
+ "app.pending.needsAttention": {
+  "en": "Needs attention",
+  "ckb": "پێویستی بە سەرنجە",
+  "ar": "يحتاج انتباهاً",
+  "fa": "نیاز به توجه"
+ },
+ "app.pending.accepted": {
+  "en": "Accepted by the server",
+  "ckb": "لە لایەن سێرڤەرەوە وەرگیرا",
+  "ar": "قبله الخادم",
+  "fa": "سرور پذیرفت"
+ },
+ "app.pending.waiting": {
+  "en": "Waiting for the internet",
+  "ckb": "چاوەڕێی ئینتەرنێتە",
+  "ar": "بانتظار الإنترنت",
+  "fa": "منتظر اینترنت"
+ },
+ "app.pending.none": {
+  "en": "Nothing is waiting on the phone.",
+  "ckb": "هیچ شتێک لەسەر مۆبایل چاوەڕێ نییە.",
+  "ar": "لا شيء ينتظر على الهاتف.",
+  "fa": "چیزی روی گوشی منتظر نیست."
+ },
+ "app.pending.retry": {
+  "en": "Send again",
+  "ckb": "دووبارە بنێرە",
+  "ar": "أعد الإرسال",
+  "fa": "دوباره بفرست"
+ },
+ "app.pending.drop": {
+  "en": "Drop",
+  "ckb": "وازی لێبهێنە",
+  "ar": "تخلَّ عنه",
+  "fa": "رها کن"
  }
 }

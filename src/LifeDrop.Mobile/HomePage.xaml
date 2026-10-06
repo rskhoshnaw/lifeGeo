@@ -36,6 +36,9 @@
             <!-- My follow-ups (plan step 2.8) -->
             <Button x:Name="FollowUpsBtn" Clicked="OnFollowUpsClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- Work kept on the phone for the internet (plan step 2.13) -->
+            <Button x:Name="PendingBtn" Clicked="OnPendingClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

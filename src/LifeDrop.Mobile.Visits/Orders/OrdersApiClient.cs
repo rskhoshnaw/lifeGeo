@@ -32,8 +32,9 @@ public interface IOrdersApiClient
     Task<(VisitActionResult Result, IReadOnlyList<OrderWarehouse> Warehouses)> GetWarehousesAsync(CancellationToken cancellationToken = default);
     Task<(VisitActionResult Result, IReadOnlyList<PricedProduct> Products)> GetPricesAsync(Guid customerId, DateOnly day, CancellationToken cancellationToken = default);
     // ClientRef stays the same for every retry of one order, so a lost answer never makes two orders.
+    // offline: the order was kept on the phone without internet; the server then places it even when its visit was cancelled meanwhile (without the visit), plan step 2.13.
     Task<(VisitActionResult Result, PlacedOrder? Order)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
-        IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default);
+        IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default, bool offline = false);
 }
 
 public sealed class OrdersApiClient : IOrdersApiClient
@@ -63,10 +64,10 @@ public sealed class OrdersApiClient : IOrdersApiClient
     }
 
     public async Task<(VisitActionResult Result, PlacedOrder? Order)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
-        IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default)
+        IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default, bool offline = false)
     {
         // Only products and quantities go to the server: it knows the prices.
-        var body = new { customerId, warehouseId, visitId, clientRef, note, items = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity }).ToList() };
+        var body = new { customerId, warehouseId, visitId, clientRef, note, items = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity }).ToList(), detachVisitIfInvalid = offline ? true : (bool?)null };
         var (result, dto) = await CallAsync<PlacedDto>(HttpMethod.Post, "/orders", body, cancellationToken);
         if (result != VisitActionResult.Success) return (result, null);
         return dto is null || dto.Id == Guid.Empty || string.IsNullOrWhiteSpace(dto.Number)

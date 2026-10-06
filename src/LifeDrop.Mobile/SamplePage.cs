@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -8,6 +9,7 @@ namespace LifeDrop.Mobile;
 public sealed class SamplePage : ContentPage
 {
     private readonly SampleDraft _draft;
+    private readonly string? _customerName;
     private readonly Picker _product = new();
     private readonly Entry _quantity = new() { Keyboard = Keyboard.Numeric };
     private readonly Entry _recipient = new() { MaxLength = 100 };
@@ -24,6 +26,7 @@ public sealed class SamplePage : ContentPage
     public SamplePage(Guid customerId, string? customerName, Guid? visitId = null)
     {
         _draft = new SampleDraft(customerId, visitId);
+        _customerName = customerName;
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.sample.title");
         _product.Title = Texts.Get("app.sample.chooseProduct");
@@ -107,10 +110,10 @@ public sealed class SamplePage : ContentPage
         Show(null);
         VisitActionResult result;
         RecordedSample? sample;
+        PhoneLocation? location = null;
         try
         {
             // The position is evidence: a fresh fix when the phone has one within a few seconds; otherwise the record goes without it.
-            PhoneLocation? location = null;
             try
             {
                 using var fixCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
@@ -132,6 +135,16 @@ public sealed class SamplePage : ContentPage
         {
             _draft.Recorded = sample;
             Show(Texts.Get("app.sample.saved", ("number", sample.Number)));
+            Refresh();
+            return;
+        }
+        // No internet: kept on the phone and sent later with its position (plan step 2.13).
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(WorkKind.Sample, $"{Texts.Get("app.sample.title")}: {_customerName}",
+                new SamplePayload(_draft.CustomerId, _draft.VisitId, _draft.ClientRef, _draft.ProductId, _draft.QuantityText, _draft.Recipient, _draft.Batch, _draft.ExpiryText, _draft.Note, location));
+            _draft.Queued = true;
+            Show(Texts.Get("app.offline.saved"));
             Refresh();
             return;
         }

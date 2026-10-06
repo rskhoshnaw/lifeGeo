@@ -13,13 +13,14 @@ public sealed record BalanceLine(string Currency, decimal Delivered, decimal Con
 public interface IPaymentsApiClient
 {
     // ClientRef stays the same for every retry of one payment, so a lost answer never makes two payments.
-    Task<(VisitActionResult Result, RecordedPayment? Payment)> RecordAsync(PaymentDraft draft, CancellationToken cancellationToken = default);
+    // offline: the payment was kept on the phone without internet; the server records it even when its order was cancelled meanwhile (without the order), plan step 2.13.
+    Task<(VisitActionResult Result, RecordedPayment? Payment)> RecordAsync(PaymentDraft draft, CancellationToken cancellationToken = default, bool offline = false);
     Task<(VisitActionResult Result, IReadOnlyList<PaymentSummary> Payments)> GetMineAsync(CancellationToken cancellationToken = default);
     Task<(VisitActionResult Result, IReadOnlyList<BalanceLine> Lines)> GetBalanceAsync(Guid customerId, CancellationToken cancellationToken = default);
 }
 
 // The payment a field user is typing: method, currency, amount, the reference that FastPay and FIB need, a note. Optional order of the customer.
-public sealed class PaymentDraft(Guid customerId, Guid? orderId = null)
+public sealed class PaymentDraft(Guid customerId, Guid? orderId = null, Guid? clientRef = null)
 {
     public const decimal MaxAmount = 999_999_999_999m;
     public static readonly string[] Methods = ["cash", "fastpay", "fib", "other"];
@@ -27,7 +28,9 @@ public sealed class PaymentDraft(Guid customerId, Guid? orderId = null)
 
     public Guid CustomerId { get; } = customerId;
     public Guid? OrderId { get; } = orderId;
-    public Guid ClientRef { get; } = Guid.NewGuid();
+    public Guid ClientRef { get; } = clientRef ?? Guid.NewGuid();
+    // Kept on the phone to be sent when the internet returns (plan step 2.13): the form then offers no second save.
+    public bool Queued { get; set; }
     public string Method { get; set; } = "cash";
     public string Currency { get; set; } = "IQD";
     public string? AmountText { get; set; }
@@ -54,7 +57,7 @@ public sealed class PaymentDraft(Guid customerId, Guid? orderId = null)
 
     public decimal? Amount => ParseAmount(AmountText);
 
-    public bool CanSave => Recorded is null && Amount is not null && Methods.Contains(Method) && Currencies.Contains(Currency) &&
+    public bool CanSave => Recorded is null && !Queued && Amount is not null && Methods.Contains(Method) && Currencies.Contains(Currency) &&
         (!NeedsReference || !string.IsNullOrWhiteSpace(Reference)) && (Reference?.Trim().Length ?? 0) <= 100 && (Note?.Trim().Length ?? 0) <= 500;
 }
 
@@ -65,7 +68,7 @@ public sealed class PaymentsApiClient : IPaymentsApiClient
     public PaymentsApiClient(HttpClient httpClient, IAuthSession session) =>
         _http = new OrdersHttp(httpClient ?? throw new ArgumentNullException(nameof(httpClient)), session ?? throw new ArgumentNullException(nameof(session)));
 
-    public async Task<(VisitActionResult Result, RecordedPayment? Payment)> RecordAsync(PaymentDraft draft, CancellationToken cancellationToken = default)
+    public async Task<(VisitActionResult Result, RecordedPayment? Payment)> RecordAsync(PaymentDraft draft, CancellationToken cancellationToken = default, bool offline = false)
     {
         if (!draft.CanSave) return (VisitActionResult.InvalidData, null);
         var (result, p) = await _http.CallAsync<CreatedDto>(HttpMethod.Post, "/payments", new
@@ -77,7 +80,8 @@ public sealed class PaymentsApiClient : IPaymentsApiClient
             amount = draft.Amount,
             reference = string.IsNullOrWhiteSpace(draft.Reference) ? null : draft.Reference.Trim(),
             note = string.IsNullOrWhiteSpace(draft.Note) ? null : draft.Note.Trim(),
-            clientRef = draft.ClientRef
+            clientRef = draft.ClientRef,
+            detachOrderIfInvalid = offline ? true : (bool?)null
         }, cancellationToken);
         if (result != VisitActionResult.Success) return (result, null);
         if (p is null || p.Id == Guid.Empty || string.IsNullOrWhiteSpace(p.Number) || string.IsNullOrWhiteSpace(p.Status)) return (VisitActionResult.ServerError, null);

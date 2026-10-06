@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
@@ -10,6 +11,7 @@ public sealed class MyFollowUpsPage : ContentPage
     private readonly CollectionView _list = new() { SelectionMode = SelectionMode.Single };
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
+    private readonly HashSet<Guid> _kept = [];   // steps kept on the phone: their follow-ups are not shown again until the server has them
 
     public MyFollowUpsPage()
     {
@@ -70,7 +72,7 @@ public sealed class MyFollowUpsPage : ContentPage
             if (result == VisitActionResult.SessionExpired) AppLanguage.ShowRoot(new MainPage());
             return;
         }
-        _list.ItemsSource = items.Select(f => new Row(f, $"{(f.IsOverdue ? "⚠ " : "")}{f.Subject}",
+        _list.ItemsSource = items.Where(f => !_kept.Contains(f.Id)).Select(f => new Row(f, $"{(f.IsOverdue ? "⚠ " : "")}{f.Subject}",
             $"{f.CustomerName} · {f.DueDate:yyyy-MM-dd} · {Texts.Get("app.followup.status." + f.Status)}{(f.IsOverdue ? " · " + Texts.Get("app.followup.overdue") : "")}")).ToList();
         Show(items.Count == 0 ? Texts.Get("app.followup.none") : null);
     }
@@ -84,20 +86,32 @@ public sealed class MyFollowUpsPage : ContentPage
         var cancel = Texts.Get("app.followup.cancel");
         var choice = await DisplayActionSheet(item.Subject, Texts.Get("app.followup.close"), null, item.Status == "pending" ? [start, complete, cancel] : [complete, cancel]);
         VisitActionResult result;
+        string? stepText = null;
         if (choice == start) result = await api.StartAsync(item.Id);
         else if (choice == complete)
         {
             var note = await DisplayPromptAsync(item.Subject, Texts.Get("app.followup.resultNote"), maxLength: 500);
             if (string.IsNullOrWhiteSpace(note)) return;
+            stepText = note;
             result = await api.CompleteAsync(item.Id, note);
         }
         else if (choice == cancel)
         {
             var reason = await DisplayPromptAsync(item.Subject, Texts.Get("app.followup.reason"), maxLength: 500);
             if (string.IsNullOrWhiteSpace(reason)) return;
+            stepText = reason;
             result = await api.CancelAsync(item.Id, reason);
         }
         else return;
+        // No internet: the step is kept on the phone and sent later (plan step 2.13); a step sent twice is not a conflict.
+        if (result == VisitActionResult.NetworkError && TrackingHost.WorkQueue is { } queue)
+        {
+            queue.Enqueue(choice == start ? WorkKind.FollowUpStart : choice == complete ? WorkKind.FollowUpComplete : WorkKind.FollowUpCancel, item.Subject, new FollowUpStepPayload(item.Id, stepText));
+            _kept.Add(item.Id);
+            Show(Texts.Get("app.offline.saved"));
+            _list.ItemsSource = ((IEnumerable<object>?)_list.ItemsSource)?.Where(r => (r as Row)?.Item.Id != item.Id).ToList();
+            return;
+        }
         if (result != VisitActionResult.Success) Show(VisitLifecycle.Describe(result));
         await LoadAsync();
     }
