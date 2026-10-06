@@ -5632,5 +5632,617 @@
   "ckb": "وازی لێبهێنە",
   "ar": "تخلَّ عنه",
   "fa": "رها کن"
+ },
+ "web.tab.forms": {
+  "en": "Visit forms",
+  "ckb": "فۆڕمەکانی سەردان",
+  "ar": "نماذج الزيارة",
+  "fa": "فرم‌های ویزیت"
+ },
+ "web.tab.platform": {
+  "en": "Companies",
+  "ckb": "کۆمپانیاکان",
+  "ar": "الشركات",
+  "fa": "شرکت‌ها"
+ },
+ "web.forms.title": {
+  "en": "Extra fields of the visit report",
+  "ckb": "خانەی زیادەی ڕاپۆرتی سەردان",
+  "ar": "حقول إضافية لتقرير الزيارة",
+  "fa": "فیلدهای اضافهٔ گزارش ویزیت"
+ },
+ "web.forms.none": {
+  "en": "No extra fields yet.",
+  "ckb": "هێشتا هیچ خانەیەکی زیادە نییە.",
+  "ar": "لا توجد حقول إضافية بعد.",
+  "fa": "هنوز فیلد اضافه‌ای وجود ندارد."
+ },
+ "web.forms.key": {
+  "en": "Key (a-z, 0-9, _)",
+  "ckb": "کلیل (a-z، 0-9، _)",
+  "ar": "المفتاح (a-z، 0-9، _)",
+  "fa": "کلید (a-z، 0-9، _)"
+ },
+ "web.forms.type": {
+  "en": "Type",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.forms.appliesTo": {
+  "en": "Visit type",
+  "ckb": "جۆری سەردان",
+  "ar": "نوع الزيارة",
+  "fa": "نوع ویزیت"
+ },
+ "web.forms.label": {
+  "en": "Label",
+  "ckb": "ناونیشان",
+  "ar": "العنوان",
+  "fa": "عنوان"
+ },
+ "web.forms.labelEn": {
+  "en": "Label (English)",
+  "ckb": "ناونیشان (ئینگلیزی)",
+  "ar": "العنوان (الإنجليزية)",
+  "fa": "عنوان (انگلیسی)"
+ },
+ "web.forms.labelCkb": {
+  "en": "Label (Kurdish)",
+  "ckb": "ناونیشان (کوردی)",
+  "ar": "العنوان (الكردية)",
+  "fa": "عنوان (کردی)"
+ },
+ "web.forms.labelAr": {
+  "en": "Label (Arabic)",
+  "ckb": "ناونیشان (عەرەبی)",
+  "ar": "العنوان (العربية)",
+  "fa": "عنوان (عربی)"
+ },
+ "web.forms.labelFa": {
+  "en": "Label (Persian)",
+  "ckb": "ناونیشان (فارسی)",
+  "ar": "العنوان (الفارسية)",
+  "fa": "عنوان (فارسی)"
+ },
+ "web.forms.options": {
+  "en": "Choices (separated by commas)",
+  "ckb": "هەڵبژاردەکان (بە کۆما جیا بکرێنەوە)",
+  "ar": "الخيارات (مفصولة بفواصل)",
+  "fa": "گزینه‌ها (با ویرگول جدا شوند)"
+ },
+ "web.forms.required": {
+  "en": "Required",
+  "ckb": "پێویستە",
+  "ar": "إلزامي",
+  "fa": "الزامی"
+ },
+ "web.forms.sort": {
+  "en": "Order",
+  "ckb": "ڕیزبەندی",
+  "ar": "الترتيب",
+  "fa": "ترتیب"
+ },
+ "web.forms.add": {
+  "en": "Add field",
+  "ckb": "زیادکردنی خانە",
+  "ar": "إضافة حقل",
+  "fa": "افزودن فیلد"
+ },
+ "web.forms.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.forms.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشط",
+  "fa": "فعال"
+ },
+ "web.forms.inactive": {
+  "en": "Inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشط",
+  "fa": "غیرفعال"
+ },
+ "web.forms.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.forms.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.forms.makeRequired": {
+  "en": "Make required",
+  "ckb": "بیکە بە پێویست",
+  "ar": "جعله إلزامياً",
+  "fa": "الزامی کن"
+ },
+ "web.forms.makeOptional": {
+  "en": "Make optional",
+  "ckb": "بیکە بە ئارەزوومەندانە",
+  "ar": "جعله اختيارياً",
+  "fa": "اختیاری کن"
+ },
+ "web.forms.showInactive": {
+  "en": "Show inactive fields",
+  "ckb": "پیشاندانی خانە ناچالاکەکان",
+  "ar": "إظهار الحقول غير النشطة",
+  "fa": "نمایش فیلدهای غیرفعال"
+ },
+ "web.forms.type.text": {
+  "en": "Text",
+  "ckb": "دەق",
+  "ar": "نص",
+  "fa": "متن"
+ },
+ "web.forms.type.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "رقم",
+  "fa": "عدد"
+ },
+ "web.forms.type.choice": {
+  "en": "Choice",
+  "ckb": "هەڵبژاردە",
+  "ar": "اختيار",
+  "fa": "انتخابی"
+ },
+ "web.forms.type.yes_no": {
+  "en": "Yes / no",
+  "ckb": "بەڵێ / نەخێر",
+  "ar": "نعم / لا",
+  "fa": "بله / خیر"
+ },
+ "web.forms.type.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "تاريخ",
+  "fa": "تاریخ"
+ },
+ "web.forms.applies.all": {
+  "en": "All visit types",
+  "ckb": "هەموو جۆرەکانی سەردان",
+  "ar": "كل أنواع الزيارات",
+  "fa": "همهٔ انواع ویزیت"
+ },
+ "web.forms.applies.pharmacy": {
+  "en": "Pharmacy",
+  "ckb": "دەرمانخانە",
+  "ar": "صيدلية",
+  "fa": "داروخانه"
+ },
+ "web.forms.applies.doctor": {
+  "en": "Doctor",
+  "ckb": "پزیشک",
+  "ar": "طبيب",
+  "fa": "پزشک"
+ },
+ "web.forms.applies.wholesaler": {
+  "en": "Wholesaler",
+  "ckb": "فرۆشیاری بە کۆمەڵ",
+  "ar": "تاجر جملة",
+  "fa": "عمده‌فروش"
+ },
+ "web.forms.applies.other": {
+  "en": "Other",
+  "ckb": "جێگەی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "web.saved.title": {
+  "en": "Saved reports",
+  "ckb": "ڕاپۆرتە پاشەکەوتکراوەکان",
+  "ar": "التقارير المحفوظة",
+  "fa": "گزارش‌های ذخیره‌شده"
+ },
+ "web.saved.none": {
+  "en": "No saved reports.",
+  "ckb": "هیچ ڕاپۆرتێکی پاشەکەوتکراو نییە.",
+  "ar": "لا توجد تقارير محفوظة.",
+  "fa": "گزارش ذخیره‌شده‌ای نیست."
+ },
+ "web.saved.name": {
+  "en": "Report name",
+  "ckb": "ناوی ڕاپۆرت",
+  "ar": "اسم التقرير",
+  "fa": "نام گزارش"
+ },
+ "web.saved.range": {
+  "en": "Period",
+  "ckb": "ماوە",
+  "ar": "الفترة",
+  "fa": "بازه"
+ },
+ "web.saved.range.yesterday": {
+  "en": "Yesterday",
+  "ckb": "دوێنێ",
+  "ar": "أمس",
+  "fa": "دیروز"
+ },
+ "web.saved.range.last_7_days": {
+  "en": "Last 7 days",
+  "ckb": "٧ ڕۆژی ڕابردوو",
+  "ar": "آخر 7 أيام",
+  "fa": "۷ روز گذشته"
+ },
+ "web.saved.range.last_30_days": {
+  "en": "Last 30 days",
+  "ckb": "٣٠ ڕۆژی ڕابردوو",
+  "ar": "آخر 30 يوماً",
+  "fa": "۳۰ روز گذشته"
+ },
+ "web.saved.range.this_month": {
+  "en": "This month",
+  "ckb": "ئەم مانگە",
+  "ar": "هذا الشهر",
+  "fa": "این ماه"
+ },
+ "web.saved.range.last_month": {
+  "en": "Last month",
+  "ckb": "مانگی ڕابردوو",
+  "ar": "الشهر الماضي",
+  "fa": "ماه گذشته"
+ },
+ "web.saved.range.fixed": {
+  "en": "The dates chosen above",
+  "ckb": "ئەو بەروارانەی سەرەوە",
+  "ar": "التواريخ المختارة أعلاه",
+  "fa": "تاریخ‌های انتخاب‌شده در بالا"
+ },
+ "web.saved.schedule": {
+  "en": "Schedule",
+  "ckb": "خشتە",
+  "ar": "الجدولة",
+  "fa": "زمان‌بندی"
+ },
+ "web.saved.schedule.none": {
+  "en": "Not scheduled",
+  "ckb": "بێ خشتە",
+  "ar": "بدون جدولة",
+  "fa": "بدون زمان‌بندی"
+ },
+ "web.saved.schedule.daily": {
+  "en": "Every day",
+  "ckb": "هەموو ڕۆژێک",
+  "ar": "كل يوم",
+  "fa": "هر روز"
+ },
+ "web.saved.schedule.weekly": {
+  "en": "Every week",
+  "ckb": "هەموو هەفتەیەک",
+  "ar": "كل أسبوع",
+  "fa": "هر هفته"
+ },
+ "web.saved.schedule.monthly": {
+  "en": "Every month",
+  "ckb": "هەموو مانگێک",
+  "ar": "كل شهر",
+  "fa": "هر ماه"
+ },
+ "web.saved.hour": {
+  "en": "Hour (Iraq time)",
+  "ckb": "کاتژمێر (کاتی عێراق)",
+  "ar": "الساعة (بتوقيت العراق)",
+  "fa": "ساعت (به وقت عراق)"
+ },
+ "web.saved.weekday": {
+  "en": "Day of the week",
+  "ckb": "ڕۆژی هەفتە",
+  "ar": "يوم الأسبوع",
+  "fa": "روز هفته"
+ },
+ "web.saved.dayOfMonth": {
+  "en": "Day of the month (1-28)",
+  "ckb": "ڕۆژی مانگ (١-٢٨)",
+  "ar": "يوم الشهر (1-28)",
+  "fa": "روز ماه (۱ تا ۲۸)"
+ },
+ "web.saved.day.1": {
+  "en": "Monday",
+  "ckb": "دووشەممە",
+  "ar": "الاثنين",
+  "fa": "دوشنبه"
+ },
+ "web.saved.day.2": {
+  "en": "Tuesday",
+  "ckb": "سێشەممە",
+  "ar": "الثلاثاء",
+  "fa": "سه‌شنبه"
+ },
+ "web.saved.day.3": {
+  "en": "Wednesday",
+  "ckb": "چوارشەممە",
+  "ar": "الأربعاء",
+  "fa": "چهارشنبه"
+ },
+ "web.saved.day.4": {
+  "en": "Thursday",
+  "ckb": "پێنجشەممە",
+  "ar": "الخميس",
+  "fa": "پنجشنبه"
+ },
+ "web.saved.day.5": {
+  "en": "Friday",
+  "ckb": "هەینی",
+  "ar": "الجمعة",
+  "fa": "جمعه"
+ },
+ "web.saved.day.6": {
+  "en": "Saturday",
+  "ckb": "شەممە",
+  "ar": "السبت",
+  "fa": "شنبه"
+ },
+ "web.saved.day.7": {
+  "en": "Sunday",
+  "ckb": "یەکشەممە",
+  "ar": "الأحد",
+  "fa": "یکشنبه"
+ },
+ "web.saved.save": {
+  "en": "Save this report",
+  "ckb": "پاشەکەوتکردنی ئەم ڕاپۆرتە",
+  "ar": "حفظ هذا التقرير",
+  "fa": "ذخیرهٔ این گزارش"
+ },
+ "web.saved.run": {
+  "en": "Run now",
+  "ckb": "ئێستا بیخەرە کار",
+  "ar": "تشغيل الآن",
+  "fa": "اجرا کن"
+ },
+ "web.saved.delete": {
+  "en": "Delete",
+  "ckb": "سڕینەوە",
+  "ar": "حذف",
+  "fa": "حذف"
+ },
+ "web.saved.confirmDelete": {
+  "en": "Delete the report {name} and its results?",
+  "ckb": "ڕاپۆرتی {name} و ئەنجامەکانی بسڕدرێنەوە؟",
+  "ar": "حذف التقرير {name} ونتائجه؟",
+  "fa": "گزارش {name} و نتیجه‌هایش حذف شود؟"
+ },
+ "web.saved.nextRun": {
+  "en": "Next run",
+  "ckb": "جارێکی تر",
+  "ar": "التشغيل التالي",
+  "fa": "اجرای بعدی"
+ },
+ "web.saved.paused": {
+  "en": "paused",
+  "ckb": "وەستێنراو",
+  "ar": "متوقفة",
+  "fa": "متوقف"
+ },
+ "web.saved.pause": {
+  "en": "Pause",
+  "ckb": "وەستاندن",
+  "ar": "إيقاف مؤقت",
+  "fa": "توقف"
+ },
+ "web.saved.resume": {
+  "en": "Resume",
+  "ckb": "درێژەپێدان",
+  "ar": "استئناف",
+  "fa": "ادامه"
+ },
+ "web.saved.results": {
+  "en": "Results",
+  "ckb": "ئەنجامەکان",
+  "ar": "النتائج",
+  "fa": "نتیجه‌ها"
+ },
+ "web.saved.open": {
+  "en": "Open",
+  "ckb": "کردنەوە",
+  "ar": "فتح",
+  "fa": "باز کردن"
+ },
+ "web.saved.trigger.manual": {
+  "en": "By hand",
+  "ckb": "بە دەست",
+  "ar": "يدوياً",
+  "fa": "دستی"
+ },
+ "web.saved.trigger.schedule": {
+  "en": "By schedule",
+  "ckb": "بەپێی خشتە",
+  "ar": "حسب الجدول",
+  "fa": "طبق زمان‌بندی"
+ },
+ "web.saved.status.ok": {
+  "en": "Done",
+  "ckb": "تەواو",
+  "ar": "تم",
+  "fa": "انجام شد"
+ },
+ "web.saved.status.failed": {
+  "en": "Failed",
+  "ckb": "سەرکەوتوو نەبوو",
+  "ar": "فشل",
+  "fa": "ناموفق"
+ },
+ "web.platform.title": {
+  "en": "Companies",
+  "ckb": "کۆمپانیاکان",
+  "ar": "الشركات",
+  "fa": "شرکت‌ها"
+ },
+ "web.platform.code": {
+  "en": "Company code",
+  "ckb": "کۆدی کۆمپانیا",
+  "ar": "رمز الشركة",
+  "fa": "کد شرکت"
+ },
+ "web.platform.name": {
+  "en": "Name",
+  "ckb": "ناو",
+  "ar": "الاسم",
+  "fa": "نام"
+ },
+ "web.platform.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.platform.users": {
+  "en": "Users",
+  "ckb": "بەکارهێنەران",
+  "ar": "المستخدمون",
+  "fa": "کاربران"
+ },
+ "web.platform.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشطة",
+  "fa": "فعال"
+ },
+ "web.platform.inactive": {
+  "en": "Inactive",
+  "ckb": "ناچالاک",
+  "ar": "غير نشطة",
+  "fa": "غیرفعال"
+ },
+ "web.platform.create": {
+  "en": "New company",
+  "ckb": "کۆمپانیای نوێ",
+  "ar": "شركة جديدة",
+  "fa": "شرکت جدید"
+ },
+ "web.platform.managerEmail": {
+  "en": "Manager email",
+  "ckb": "ئیمەیڵی بەڕێوەبەر",
+  "ar": "بريد المدير",
+  "fa": "ایمیل مدیر"
+ },
+ "web.platform.managerPassword": {
+  "en": "Manager password (at least 12 characters)",
+  "ckb": "وشەی نهێنی بەڕێوەبەر (لانیکەم ١٢ پیت)",
+  "ar": "كلمة سر المدير (12 حرفاً على الأقل)",
+  "fa": "رمز مدیر (حداقل ۱۲ نویسه)"
+ },
+ "web.platform.add": {
+  "en": "Create company",
+  "ckb": "دروستکردنی کۆمپانیا",
+  "ar": "إنشاء الشركة",
+  "fa": "ایجاد شرکت"
+ },
+ "web.platform.rename": {
+  "en": "Rename",
+  "ckb": "گۆڕینی ناو",
+  "ar": "إعادة التسمية",
+  "fa": "تغییر نام"
+ },
+ "web.platform.renamePrompt": {
+  "en": "New name of the company",
+  "ckb": "ناوی نوێی کۆمپانیا",
+  "ar": "الاسم الجديد للشركة",
+  "fa": "نام جدید شرکت"
+ },
+ "web.platform.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.platform.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.platform.reasonPrompt": {
+  "en": "Reason (at least 5 characters)",
+  "ckb": "هۆکار (لانیکەم ٥ پیت)",
+  "ar": "السبب (5 أحرف على الأقل)",
+  "fa": "دلیل (حداقل ۵ نویسه)"
+ },
+ "web.platform.audit.title": {
+  "en": "Read the audit log of a company",
+  "ckb": "خوێندنەوەی تۆماری چاودێری کۆمپانیایەک",
+  "ar": "قراءة سجل التدقيق لشركة",
+  "fa": "خواندن گزارش حسابرسی یک شرکت"
+ },
+ "web.platform.audit.company": {
+  "en": "Company",
+  "ckb": "کۆمپانیا",
+  "ar": "الشركة",
+  "fa": "شرکت"
+ },
+ "web.platform.audit.reason": {
+  "en": "Reason for reading (at least 10 characters; it is recorded)",
+  "ckb": "هۆکاری خوێندنەوە (لانیکەم ١٠ پیت؛ تۆمار دەکرێت)",
+  "ar": "سبب القراءة (10 أحرف على الأقل؛ يُسجَّل)",
+  "fa": "دلیل خواندن (حداقل ۱۰ نویسه؛ ثبت می‌شود)"
+ },
+ "web.platform.audit.action": {
+  "en": "Action (optional)",
+  "ckb": "کردار (ئارەزوومەندانە)",
+  "ar": "الإجراء (اختياري)",
+  "fa": "اقدام (اختیاری)"
+ },
+ "web.platform.audit.read": {
+  "en": "Read",
+  "ckb": "خوێندنەوە",
+  "ar": "قراءة",
+  "fa": "خواندن"
+ },
+ "web.platform.audit.time": {
+  "en": "Time",
+  "ckb": "کات",
+  "ar": "الوقت",
+  "fa": "زمان"
+ },
+ "web.platform.audit.actor": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.platform.audit.action.col": {
+  "en": "Action",
+  "ckb": "کردار",
+  "ar": "الإجراء",
+  "fa": "اقدام"
+ },
+ "web.platform.audit.entity": {
+  "en": "Record",
+  "ckb": "تۆمار",
+  "ar": "السجل",
+  "fa": "رکورد"
+ },
+ "web.platform.audit.empty": {
+  "en": "No entries.",
+  "ckb": "هیچ تۆمارێک نییە.",
+  "ar": "لا توجد سجلات.",
+  "fa": "موردی نیست."
+ },
+ "web.platform.log.title": {
+  "en": "What the platform administrators did",
+  "ckb": "ئەوەی بەڕێوەبەرانی پلاتفۆرم کردوویانە",
+  "ar": "ما فعله مديرو المنصة",
+  "fa": "کارهای مدیران پلتفرم"
+ },
+ "web.platform.log.company": {
+  "en": "Company",
+  "ckb": "کۆمپانیا",
+  "ar": "الشركة",
+  "fa": "شرکت"
+ },
+ "web.platform.log.reason": {
+  "en": "Reason",
+  "ckb": "هۆکار",
+  "ar": "السبب",
+  "fa": "دلیل"
  }
 }
