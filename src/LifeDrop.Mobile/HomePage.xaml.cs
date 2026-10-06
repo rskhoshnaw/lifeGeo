@@ -26,6 +26,7 @@ public partial class HomePage : ContentPage
         PlanBtn.Text = Texts.Get("app.home.plan");
         NewCustomerBtn.Text = Texts.Get("app.home.newCustomer");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
+        DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         LogoutBtn.Text = Texts.Get("app.home.logout");
         RenderShift();
     }
@@ -38,6 +39,7 @@ public partial class HomePage : ContentPage
         PlanBtn.IsEnabled = !isBusy;
         NewCustomerBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = !isBusy;
+        DeliveriesBtn.IsEnabled = !isBusy;
         ShiftBtn.IsEnabled = !isBusy;
     }
 
@@ -172,6 +174,8 @@ public partial class HomePage : ContentPage
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 
     private async void OnWarehouseClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WarehouseOrdersPage());
+
+    private async void OnDeliveriesClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DeliveriesPage());
 
     private async void OnNewCustomerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new NewCustomerPage());
 

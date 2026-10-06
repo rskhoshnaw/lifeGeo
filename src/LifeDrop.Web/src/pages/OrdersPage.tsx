@@ -128,6 +128,7 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
                 <th>{t('web.orders.discounts')}</th>
                 <th>{t('web.orders.lineTotal')}</th>
                 <th>{t('web.orders.prepared')}</th>
+                <th>{t('web.orders.deliveredQuantity')}</th>
               </tr>
             </thead>
             <tbody>
@@ -143,6 +144,7 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
                   <td>{l.discounts.map(discountText).join(' ')}</td>
                   <td>{money(l.lineTotal)}</td>
                   <td>{l.preparedQuantity == null ? '' : `${money(l.preparedQuantity)}${l.shortageReason ? ` (${l.shortageReason})` : ''}`}</td>
+                  <td>{l.deliveredQuantity == null ? '' : `${money(l.deliveredQuantity)}${l.deliveryReason ? ` (${l.deliveryReason})` : ''}`}</td>
                 </tr>
               ))}
             </tbody>
@@ -151,12 +153,14 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
             {t('web.orders.total')}: {money(o.total)} {o.currency}
           </p>
           {o.driverEmail && <p>{t('web.orders.driver')}: {o.driverEmail}</p>}
+          {o.delivery?.receiverName && <p>{t('web.orders.receiver')}: {o.delivery.receiverName}{o.delivery.deliveryNote ? ` · ${o.delivery.deliveryNote}` : ''}</p>}
+          {o.delivery?.failureReason && <p className="text-red-700">{t('web.orders.failure', { reason: o.delivery.failureReason })}</p>}
           {o.history && o.history.length > 0 && (
             <div>
               <p className="font-semibold">{t('web.orders.history')}</p>
               {o.history.map((h, i) => (
                 <p key={i} className="text-slate-600">
-                  {h.at.slice(0, 16).replace('T', ' ')} · {t(`web.orders.status.${h.status}` as TextKey)} · {h.actorEmail ?? ''}{h.note ? ` · ${h.note}` : ''}
+                  {h.at.slice(0, 16).replace('T', ' ')} · {t(`web.orders.status.${h.status}` as TextKey)} · {h.actorEmail ?? ''}{h.note ? ` · ${h.note}` : ''}{h.distanceMeters != null ? ` · ${t('web.orders.distance', { meters: h.distanceMeters })}` : ''}
                 </p>
               ))}
             </div>

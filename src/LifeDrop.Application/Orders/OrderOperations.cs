@@ -27,22 +27,36 @@ public sealed record CancelOrderRequest(string? Reason);
 public sealed record OrderLineDto(int LineNo, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity,
     decimal ListPrice, decimal UnitPrice, decimal LineTotal, IReadOnlyList<AppliedDiscountDto> Discounts,
     // Warehouse work (plan step 2.3): what the warehouse really prepared (null until it says so) and why it was less.
-    decimal? PreparedQuantity = null, string? ShortageReason = null);
+    decimal? PreparedQuantity = null, string? ShortageReason = null,
+    // Delivery (plan step 2.4): what the driver really handed over and why it was less than prepared.
+    decimal? DeliveredQuantity = null, string? DeliveryReason = null);
 
 // One step of an order: the status it moved to, who did it (email) and when. Note: the cancel reason.
-public sealed record OrderHistoryDto(string Status, string? ActorEmail, string? Note, DateTimeOffset At);
+public sealed record OrderHistoryDto(string Status, string? ActorEmail, string? Note, DateTimeOffset At,
+    // The evidence a driver's step carries (plan step 2.4): the phone's position and the distance to the customer when both are known.
+    double? Latitude = null, double? Longitude = null, int? DistanceMeters = null);
+
+// For the driver (plan step 2.4): where to go and who received the goods.
+public sealed record DeliveryInfo(string? Phone, string? Address, double? Latitude, double? Longitude, string? ReceiverName, string? DeliveryNote, string? FailureReason);
 
 // Number: "O-000123". Items is empty in a list and filled when one order is read.
 public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string CustomerCode, string CustomerName, Guid? VisitId, Guid WarehouseId,
     string WarehouseName, Guid CreatedBy, string? CreatedByEmail, string Status, string Currency, decimal Total, string? Note, string? CancelReason,
     DateTimeOffset CreatedAt, IReadOnlyList<OrderLineDto> Items,
     // Plan step 2.3: the driver who took the order, and its steps (when one order is read).
-    Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null);
+    Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null, DeliveryInfo? Delivery = null);
 
 // Replayed: the same ClientRef was sent before and the order that exists is returned.
 public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
 
-public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict }
+public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked }
+
+// Delivery (plan step 2.4). Location: what the phone knows about where it is (all optional; a fake position is refused).
+public sealed record DeliveryLocation(double? Latitude, double? Longitude, double? AccuracyMeters = null, bool IsMocked = false);
+public sealed record DeliveryStepRequest(DeliveryLocation? Location = null);
+public sealed record DeliveredLineRequest(int? LineNo, decimal? Quantity, string? Reason = null);
+public sealed record DeliverRequest(string? ReceiverName, string? Note, IReadOnlyList<DeliveredLineRequest>? Lines, DeliveryLocation? Location = null);
+public sealed record FailDeliveryRequest(string? Reason, DeliveryLocation? Location = null);
 
 // Warehouse work (plan step 2.3). Quantity: what was really prepared (0 up to the ordered quantity); Reason: needed when it is less.
 public sealed record PreparedLineRequest(int? LineNo, decimal? Quantity, string? Reason = null);
@@ -87,6 +101,17 @@ public interface IOrderStore
     Task<OrderResult> StartPreparingAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken);
     Task<OrderResult> MarkReadyAsync(TenantId tenantId, UserId actorId, Guid orderId, IReadOnlyList<PreparedLineRequest> lines, CancellationToken cancellationToken);
     Task<OrderResult> HandOverAsync(TenantId tenantId, UserId actorId, Guid orderId, Guid driverId, CancellationToken cancellationToken);
+
+    // Delivery by the driver (plan step 2.4): only the orders assigned to the actor (else NotFound). Status null = the open ones (handed_over, picked_up,
+    // on_the_way). pickup: handed_over -> picked_up; depart: picked_up -> on_the_way; deliver: on_the_way -> delivered with the delivered quantity of every
+    // line; fail: handed_over, picked_up or on_the_way -> delivery_failed. Conflict: another status. InvalidData: the lines or the reason do not fit.
+    Task<IReadOnlyList<OrderDto>> ListForDriverAsync(TenantId tenantId, UserId actorId, string? status, int limit, DateTimeOffset? before, Guid? beforeId,
+        CancellationToken cancellationToken);
+    Task<OrderDto?> GetForDriverAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken);
+    Task<OrderResult> DriverStepAsync(TenantId tenantId, UserId actorId, Guid orderId, string step, DeliveryLocation? location, CancellationToken cancellationToken);
+    Task<OrderResult> DeliverAsync(TenantId tenantId, UserId actorId, Guid orderId, string receiverName, string? note, IReadOnlyList<DeliveredLineRequest> lines,
+        DeliveryLocation? location, CancellationToken cancellationToken);
+    Task<OrderResult> FailDeliveryAsync(TenantId tenantId, UserId actorId, Guid orderId, string reason, DeliveryLocation? location, CancellationToken cancellationToken);
 
     // Used by the visit report: "order placed" needs a real order of that visit.
     Task<bool> HasPlacedOrderForVisitAsync(TenantId tenantId, Guid visitId, CancellationToken cancellationToken);
@@ -268,6 +293,75 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
         if (orderId == Guid.Empty || request.DriverId is null || request.DriverId == Guid.Empty) return OrderResult.InvalidData;
         return await store.HandOverAsync(tenantId, actorId, orderId, request.DriverId.Value, cancellationToken);
+    }
+
+    // ---- Delivery by the driver (plan step 2.4): needs delivery.work and only the orders assigned to the user ----
+
+    public async Task<(OrderResult Result, IReadOnlyList<OrderDto> Items)> ListForDriverAsync(TenantId tenantId, UserId actorId, string? status, int? limit,
+        DateTimeOffset? before, Guid? beforeId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.DeliveryWork, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<OrderDto>());
+        var take = limit ?? 50;
+        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || status is not (null or "handed_over" or "picked_up" or "on_the_way" or "delivered" or "delivery_failed"))
+            return (OrderResult.InvalidData, Array.Empty<OrderDto>());
+        return (OrderResult.Success, await store.ListForDriverAsync(tenantId, actorId, status, take, before, beforeId, cancellationToken));
+    }
+
+    public async Task<(OrderResult Result, OrderDto? Order)> GetForDriverAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.DeliveryWork, cancellationToken) is null) return (OrderResult.Forbidden, null);
+        var order = orderId == Guid.Empty ? null : await store.GetForDriverAsync(tenantId, actorId, orderId, cancellationToken);
+        return order is null ? (OrderResult.NotFound, null) : (OrderResult.Success, order);
+    }
+
+    // step: "pickup" or "depart".
+    public async Task<OrderResult> DriverStepAsync(TenantId tenantId, UserId actorId, Guid orderId, string step, DeliveryStepRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.DeliveryWork, cancellationToken) is null) return OrderResult.Forbidden;
+        if (orderId == Guid.Empty) return OrderResult.InvalidData;
+        var location = CheckLocation(request.Location, out var problem);
+        return problem is not null ? problem.Value : await store.DriverStepAsync(tenantId, actorId, orderId, step, location, cancellationToken);
+    }
+
+    public async Task<OrderResult> DeliverAsync(TenantId tenantId, UserId actorId, Guid orderId, DeliverRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.DeliveryWork, cancellationToken) is null) return OrderResult.Forbidden;
+        var receiver = request.ReceiverName?.Trim();
+        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        var lines = request.Lines;
+        if (orderId == Guid.Empty || string.IsNullOrEmpty(receiver) || receiver.Length > 100 || note is { Length: > MaxNoteLength } ||
+            lines is null || lines.Count is 0 or > MaxLines ||
+            lines.Any(l => l.LineNo is null or < 1 || l.Quantity is null or < 0 or > MaxQuantity || decimal.Round(l.Quantity.Value, 3) != l.Quantity || l.Reason?.Trim().Length > 300) ||
+            lines.Select(l => l.LineNo).Distinct().Count() != lines.Count || lines.All(l => l.Quantity == 0))
+            return OrderResult.InvalidData;
+        var location = CheckLocation(request.Location, out var problem);
+        if (problem is not null) return problem.Value;
+        return await store.DeliverAsync(tenantId, actorId, orderId, receiver, note,
+            lines.Select(l => l with { Reason = string.IsNullOrWhiteSpace(l.Reason) ? null : l.Reason.Trim() }).ToList(), location, cancellationToken);
+    }
+
+    public async Task<OrderResult> FailDeliveryAsync(TenantId tenantId, UserId actorId, Guid orderId, FailDeliveryRequest request, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.DeliveryWork, cancellationToken) is null) return OrderResult.Forbidden;
+        var reason = request.Reason?.Trim();
+        if (orderId == Guid.Empty || string.IsNullOrEmpty(reason) || reason.Length > 300) return OrderResult.InvalidData;
+        var location = CheckLocation(request.Location, out var problem);
+        return problem is not null ? problem.Value : await store.FailDeliveryAsync(tenantId, actorId, orderId, reason, location, cancellationToken);
+    }
+
+    // The position is evidence, so it is optional; but it must be a real coordinate and not a position the phone says is fake.
+    private static DeliveryLocation? CheckLocation(DeliveryLocation? location, out OrderResult? problem)
+    {
+        problem = null;
+        if (location is null || (location.Latitude is null && location.Longitude is null)) return null;
+        if (location.IsMocked) { problem = OrderResult.GpsMocked; return null; }
+        if (location.Latitude is not (>= -90 and <= 90) || location.Longitude is not (>= -180 and <= 180) || location.AccuracyMeters is < 0 or > 100_000 ||
+            double.IsNaN(location.Latitude.Value) || double.IsNaN(location.Longitude.Value))
+        {
+            problem = OrderResult.InvalidData;
+            return null;
+        }
+        return location;
     }
 
     private Task<AccessScope?> ScopeAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>

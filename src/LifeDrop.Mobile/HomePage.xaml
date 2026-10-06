@@ -27,6 +27,9 @@
             <!-- Warehouse workers: the orders of their warehouse (plan step 2.3) -->
             <Button x:Name="WarehouseBtn" Clicked="OnWarehouseClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- Drivers: the deliveries assigned to them (plan step 2.4) -->
+            <Button x:Name="DeliveriesBtn" Clicked="OnDeliveriesClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

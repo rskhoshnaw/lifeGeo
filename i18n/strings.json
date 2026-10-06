@@ -3778,5 +3778,197 @@
   "ckb": "تەواو بوو.",
   "ar": "تم.",
   "fa": "انجام شد."
+ },
+ "app.home.deliveries": {
+  "en": "Deliveries",
+  "ckb": "گەیاندنەکان",
+  "ar": "التوصيلات",
+  "fa": "تحویل‌ها"
+ },
+ "app.delivery.title": {
+  "en": "My deliveries",
+  "ckb": "گەیاندنەکانم",
+  "ar": "توصيلاتي",
+  "fa": "تحویل‌های من"
+ },
+ "app.delivery.open": {
+  "en": "Open deliveries",
+  "ckb": "گەیاندنە کراوەکان",
+  "ar": "التوصيلات المفتوحة",
+  "fa": "تحویل‌های باز"
+ },
+ "app.delivery.none": {
+  "en": "No deliveries assigned to you.",
+  "ckb": "هیچ گەیاندنێکت بۆ دیاری نەکراوە.",
+  "ar": "لا توصيلات مسندة إليك.",
+  "fa": "تحویلی به شما سپرده نشده است."
+ },
+ "app.delivery.status.handed_over": {
+  "en": "to pick up",
+  "ckb": "بۆ وەرگرتن",
+  "ar": "للاستلام",
+  "fa": "برای تحویل‌گرفتن"
+ },
+ "app.delivery.status.picked_up": {
+  "en": "picked up",
+  "ckb": "وەرگیرا",
+  "ar": "تم الاستلام",
+  "fa": "تحویل گرفته شد"
+ },
+ "app.delivery.status.on_the_way": {
+  "en": "on the way",
+  "ckb": "لە ڕێگایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "app.delivery.status.delivered": {
+  "en": "delivered",
+  "ckb": "گەیەنرا",
+  "ar": "تم التسليم",
+  "fa": "تحویل شد"
+ },
+ "app.delivery.status.delivery_failed": {
+  "en": "not delivered",
+  "ckb": "نەگەیەنرا",
+  "ar": "لم يتم التسليم",
+  "fa": "تحویل نشد"
+ },
+ "app.delivery.pickUp": {
+  "en": "I picked up the goods",
+  "ckb": "کاڵاکەم وەرگرت",
+  "ar": "استلمت البضاعة",
+  "fa": "کالا را تحویل گرفتم"
+ },
+ "app.delivery.depart": {
+  "en": "I am on my way",
+  "ckb": "لە ڕێگام",
+  "ar": "أنا في الطريق",
+  "fa": "در راه هستم"
+ },
+ "app.delivery.call": {
+  "en": "Call",
+  "ckb": "پەیوەندی",
+  "ar": "اتصال",
+  "fa": "تماس"
+ },
+ "app.delivery.navigate": {
+  "en": "Navigate",
+  "ckb": "ڕێنیشاندەر",
+  "ar": "الملاحة",
+  "fa": "مسیریابی"
+ },
+ "app.delivery.prepared": {
+  "en": "Prepared: {quantity} {unit}",
+  "ckb": "ئامادەکراو: {quantity} {unit}",
+  "ar": "المجهّز: {quantity} {unit}",
+  "fa": "آماده‌شده: {quantity} {unit}"
+ },
+ "app.delivery.delivered": {
+  "en": "Delivered",
+  "ckb": "گەیەنراو",
+  "ar": "المسلَّم",
+  "fa": "تحویل‌شده"
+ },
+ "app.delivery.reason": {
+  "en": "Reason (less than prepared)",
+  "ckb": "هۆکار (کەمتر لە ئامادەکراو)",
+  "ar": "السبب (أقل من المجهّز)",
+  "fa": "دلیل (کمتر از آماده‌شده)"
+ },
+ "app.delivery.receiver": {
+  "en": "Name of the person who received",
+  "ckb": "ناوی وەرگر",
+  "ar": "اسم المستلم",
+  "fa": "نام تحویل‌گیرنده"
+ },
+ "app.delivery.note": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (ئارەزوومەندانە)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "یادداشت (اختیاری)"
+ },
+ "app.delivery.deliver": {
+  "en": "Delivered",
+  "ckb": "گەیەنرا",
+  "ar": "تم التسليم",
+  "fa": "تحویل شد"
+ },
+ "app.delivery.fail": {
+  "en": "Not delivered",
+  "ckb": "نەگەیەنرا",
+  "ar": "لم يتم التسليم",
+  "fa": "تحویل نشد"
+ },
+ "app.delivery.failPrompt": {
+  "en": "Why was it not delivered?",
+  "ckb": "بۆچی نەگەیەنرا؟",
+  "ar": "لماذا لم يتم التسليم؟",
+  "fa": "چرا تحویل نشد؟"
+ },
+ "app.delivery.needDetails": {
+  "en": "Write the receiver's name, and a reason for every line that is less.",
+  "ckb": "ناوی وەرگر بنووسە، و بۆ هەر دێڕێکی کەمتر هۆکار.",
+  "ar": "اكتب اسم المستلم وسبباً لكل سطر أقل.",
+  "fa": "نام تحویل‌گیرنده و برای هر ردیف کمتر دلیل بنویسید."
+ },
+ "app.delivery.done": {
+  "en": "Done.",
+  "ckb": "تەواو بوو.",
+  "ar": "تم.",
+  "fa": "انجام شد."
+ },
+ "app.result.GpsMockedDelivery": {
+  "en": "The phone says its position is fake; the step was not saved.",
+  "ckb": "مۆبایلەکە دەڵێت شوێنەکەی ساختەیە؛ هەنگاوەکە پاشەکەوت نەکرا.",
+  "ar": "يقول الهاتف إن موقعه وهمي؛ لم تُحفظ الخطوة.",
+  "fa": "گوشی می‌گوید موقعیتش جعلی است؛ مرحله ذخیره نشد."
+ },
+ "web.orders.status.picked_up": {
+  "en": "picked up by driver",
+  "ckb": "شوفێر وەریگرت",
+  "ar": "استلمه السائق",
+  "fa": "راننده تحویل گرفت"
+ },
+ "web.orders.status.on_the_way": {
+  "en": "on the way",
+  "ckb": "لە ڕێگایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "web.orders.status.delivered": {
+  "en": "delivered",
+  "ckb": "گەیەنرا",
+  "ar": "تم التسليم",
+  "fa": "تحویل شد"
+ },
+ "web.orders.status.delivery_failed": {
+  "en": "not delivered",
+  "ckb": "نەگەیەنرا",
+  "ar": "لم يتم التسليم",
+  "fa": "تحویل نشد"
+ },
+ "web.orders.deliveredQuantity": {
+  "en": "Delivered",
+  "ckb": "گەیەنراو",
+  "ar": "المسلَّم",
+  "fa": "تحویل‌شده"
+ },
+ "web.orders.receiver": {
+  "en": "Received by",
+  "ckb": "وەرگر",
+  "ar": "المستلم",
+  "fa": "تحویل‌گیرنده"
+ },
+ "web.orders.failure": {
+  "en": "Not delivered: {reason}",
+  "ckb": "نەگەیەنرا: {reason}",
+  "ar": "لم يتم التسليم: {reason}",
+  "fa": "تحویل نشد: {reason}"
+ },
+ "web.orders.distance": {
+  "en": "{meters} m from the customer",
+  "ckb": "{meters} م لە کڕیارەوە",
+  "ar": "{meters} م من العميل",
+  "fa": "{meters} متر از مشتری"
  }
 }
