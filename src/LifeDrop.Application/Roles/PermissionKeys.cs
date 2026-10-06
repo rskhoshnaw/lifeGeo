@@ -45,6 +45,11 @@ public static class PermissionKeys
     // Plan step 2.4: a driver picks up, delivers or fails the orders assigned to them.
     public const string DeliveryWork = "delivery.work";
 
+    // Payments (plan step 2.5): record (finance manager, rep), manage (finance manager: confirm, void, correct), read.
+    public const string PaymentsRecord = "payments.record";
+    public const string PaymentsManage = "payments.manage";
+    public const string PaymentsRead = "payments.read";
+
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
     public const string TrackingSummary = "tracking.summary";

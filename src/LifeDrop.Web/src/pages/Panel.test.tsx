@@ -391,6 +391,69 @@ describe('panel management screens', () => {
     expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('payments: the finance manager confirms a visitor\'s payment, corrects and voids it, and a record needs the reference for FIB', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValueOnce(' counted again ').mockReturnValueOnce('4500')
+    const finance: Me = { id: 'f', email: 'fin@t1', roles: ['FinanceManager'], permissions: ['payments.read', 'payments.record', 'payments.manage', 'customers.read', 'orders.read'] }
+    const pay = { id: 'p1', number: 'P-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', orderId: null, orderNumber: null, method: 'cash', currency: 'IQD', amount: 5000, reference: null, note: null,
+      status: 'collected', receivedByEmail: 'rep@t1', confirmedByEmail: null, closedReason: null, createdAt: '2026-10-07T08:00:00Z' }
+    const { api, calls } = server(finance, {
+      '/payments?limit=50': [pay],
+      '/payments/p1': { ...pay, history: [{ status: 'collected', actorEmail: 'rep@t1', note: null, at: '2026-10-07T08:00:00Z' }] },
+      '/customers/c1/balance': { customerId: 'c1', items: [{ currency: 'IQD', delivered: 14000, confirmed: 0, collected: 5000, balance: 14000 }] },
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
+      '/orders?limit=50': [],
+    }, { '/payments': json({ id: 'p2', number: 'P-000002', status: 'confirmed', replayed: false }, 201) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Payments' }))
+    expect(await screen.findByText('P-000001')).toBeInTheDocument()
+    expect(screen.getByText('5,000 IQD')).toBeInTheDocument()
+
+    // Details: history and the customer's balance; confirm, then correct with a reason and the right amount
+    await user.click(screen.getByRole('button', { name: 'Details of P-000001' }))
+    expect(await screen.findByText(/Still owed 14,000/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm received' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/payments/p1/confirm', body: undefined })
+    await user.click(await screen.findByRole('button', { name: 'Correct' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(prompt).toHaveBeenCalledTimes(2)
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/payments/p1/correct', body: { orderId: null, method: 'cash', currency: 'IQD', amount: 4500, reference: null, note: null, reason: 'counted again' } })
+    prompt.mockReturnValueOnce('typed twice')
+    await user.click(screen.getByRole('button', { name: 'Void' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(posts(calls)[2]).toEqual({ method: 'POST', path: '/payments/p1/void', body: { reason: 'typed twice' } })
+
+    // A new payment: FIB needs the transaction number
+    await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
+    await user.selectOptions(screen.getByLabelText('Method'), 'fib')
+    await user.type(screen.getByLabelText('Amount'), '2500')
+    expect(screen.getByRole('button', { name: 'Save payment' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Reference (transaction number)'), ' TX-9 ')
+    await user.click(screen.getByRole('button', { name: 'Save payment' }))
+    expect(await screen.findByText('Payment P-000002 saved')).toBeInTheDocument()
+    const sent = posts(calls)[3]!
+    expect(sent.path).toBe('/payments')
+    expect(sent.body).toMatchObject({ customerId: 'c1', orderId: null, method: 'fib', currency: 'IQD', amount: 2500, reference: 'TX-9', note: null })
+    expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('payments: a visitor sees the tab and the form but no confirm, void or correct buttons', async () => {
+    const visitor: Me = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], permissions: ['payments.record', 'customers.read'] }
+    const pay = { id: 'p1', number: 'P-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', orderId: null, orderNumber: null, method: 'cash', currency: 'IQD', amount: 5000, reference: null, note: null,
+      status: 'collected', receivedByEmail: 'rep@t1', confirmedByEmail: null, closedReason: null, createdAt: '2026-10-07T08:00:00Z' }
+    const { api } = server(visitor, { '/payments?limit=50': [pay], '/payments/p1': { ...pay, history: [] }, '/customers/c1/balance': { customerId: 'c1', items: [] }, '/customers?limit=100': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Payments' }))
+    await user.click(await screen.findByRole('button', { name: 'Details of P-000001' }))
+    expect(await screen.findByText(/P-000001 · Collected, waiting for finance/, { selector: 'h3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirm received' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Void' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Correct' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save payment' })).toBeDisabled()
+  })
+
   it('lets the sales manager add and switch off warehouses', async () => {
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'orders.create', 'warehouses.manage', 'orders.cancel', 'customers.read'] }
     const { api, calls } = server(seller, { '/orders?limit=50': [], '/warehouses': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [] })
