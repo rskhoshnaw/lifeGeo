@@ -6878,7 +6878,9 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { ("IQD", 18000m) }, row.OrderTotals.Select(t => (t.Currency, t.Total)).ToArray());
         Assert.Equal(100.0, report.Users.Single(u => u.UserId == manager).Rates.OrderDelivery);
         As(t1, sup);
-        Assert.Empty((await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>(Range()))!.Users);   // the seller is not in the supervisor's region
+        var regional = (await client.GetFromJsonAsync<LifeDrop.Application.Reports.KpiReportDto>(Range()))!;
+        Assert.DoesNotContain(regional.Users, u => u.UserId == manager);   // the seller is not in the supervisor's region: neither the row nor the order count is shown
+        Assert.Equal(0, regional.Total.Counts.Orders);
         As(t1, finance);
         await AssertProblemAsync(await client.GetAsync(Range()), HttpStatusCode.Forbidden, "FORBIDDEN");
         As(t2, manager2);
