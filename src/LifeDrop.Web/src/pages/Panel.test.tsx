@@ -412,6 +412,43 @@ describe('panel management screens', () => {
     expect(screen.getAllByRole('button', { name: /^Visit form of/ })).toHaveLength(2)   // the planned visit has none
   })
 
+  it('alerts: the tab shows the number of new alerts; a manager marks one seen, handles it with a note and checks now', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' called the pharmacy ')
+    const sup: Me = { id: 's', email: 'sup@t1', roles: ['Supervisor'], permissions: ['alerts.read', 'alerts.handle'] }
+    const base = { severity: 'warning', subjectEmail: 'rep@t1', customerCode: 'P-1', customerName: 'Shifa', detail: null, occurredAt: '2026-10-05T06:00:00Z', handledByEmail: null, handledNote: null }
+    const { api, calls } = server(sup, {
+      '/alerts/count': { new: 2 },
+      '/alerts?limit=200': [
+        { ...base, id: 'a1', kind: 'followup_overdue', category: 'operational', status: 'new' },
+        { ...base, id: 'a2', kind: 'visit_long_stay', category: 'operational', status: 'seen', detail: 'report_missing' },
+        { ...base, id: 'a3', kind: 'gps_mocked', category: 'security', status: 'handled', handledNote: 'phone replaced' },
+      ],
+      '/alerts?limit=200&category=security': [{ ...base, id: 'a3', kind: 'gps_mocked', category: 'security', status: 'handled', handledNote: 'phone replaced' }],
+    }, { '/alerts/scan': json({ created: 3 }) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Alerts (2)' }))
+    expect(await screen.findByText('Follow-up overdue')).toBeInTheDocument()
+    expect(screen.getByText(/Long stay in a visit \(report missing\)/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Handle Fake GPS position' })).not.toBeInTheDocument()   // a handled alert has no buttons
+
+    await user.click(screen.getByRole('button', { name: 'Mark Follow-up overdue seen' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/alerts/a1/seen', body: undefined })
+    await user.click(screen.getByRole('button', { name: 'Handle Follow-up overdue' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/alerts/a1/handle', body: { note: 'called the pharmacy' } })
+
+    await user.click(screen.getByRole('button', { name: 'Check now' }))
+    expect(await screen.findByText('3 new alerts')).toBeInTheDocument()
+    expect(posts(calls)[2]!.path).toBe('/alerts/scan')
+
+    await user.selectOptions(screen.getByLabelText('Category'), 'security')
+    expect(await screen.findByText(/phone replaced/)).toBeInTheDocument()
+    expect(screen.queryByText('Follow-up overdue')).not.toBeInTheDocument()
+  })
+
   it('follow-ups: a manager sees overdue ones, makes one for a rep, reassigns and cancels with a reason', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' customer closed ')
     const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['followups.read', 'followups.create', 'followups.manage', 'customers.read', 'user.manageroles'] }
