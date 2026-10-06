@@ -412,6 +412,26 @@ describe('panel management screens', () => {
     expect(screen.getAllByRole('button', { name: /^Visit form of/ })).toHaveLength(2)   // the planned visit has none
   })
 
+  it('anti-fraud: a security alert shows its evidence and cannot be handled without the result of the review', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' phone was in a car ')
+    const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['alerts.read', 'alerts.security.read', 'alerts.handle'] }
+    const alert = { id: 'a1', kind: 'impossible_speed', category: 'security', severity: 'warning', subjectEmail: 'rep@t1', customerCode: null, customerName: null, detail: '600 km/h', status: 'seen',
+      occurredAt: '2026-10-05T03:20:00Z', handledByEmail: null, handledNote: null, evidence: '{"distanceM":100000,"seconds":600,"speedKmh":600}', handledOutcome: null }
+    const { api, calls } = server(boss, { '/alerts/count': { new: 0 }, '/alerts?limit=200': [alert] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Alerts' }))
+    expect(await screen.findByText(/Impossible speed between two points/)).toBeInTheDocument()
+    expect(screen.getByText(/speedKmh: 600/)).toBeInTheDocument()
+    const handle = screen.getByRole('button', { name: 'Handle Impossible speed between two points' })
+    expect(handle).toBeDisabled()                          // the result of the review is needed first
+    await user.selectOptions(screen.getByLabelText('Result of the review of Impossible speed between two points'), 'valid')
+    await user.click(handle)
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/alerts/a1/handle', body: { note: 'phone was in a car', outcome: 'valid' } })
+  })
+
   it('alerts: the tab shows the number of new alerts; a manager marks one seen, handles it with a note and checks now', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' called the pharmacy ')
     const sup: Me = { id: 's', email: 'sup@t1', roles: ['Supervisor'], permissions: ['alerts.read', 'alerts.handle'] }
@@ -438,7 +458,7 @@ describe('panel management screens', () => {
     await user.click(screen.getByRole('button', { name: 'Handle Follow-up overdue' }))
     await waitFor(() => expect(posts(calls)).toHaveLength(2))
     expect(prompt).toHaveBeenCalledTimes(1)
-    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/alerts/a1/handle', body: { note: 'called the pharmacy' } })
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/alerts/a1/handle', body: { note: 'called the pharmacy', outcome: null } })
 
     await user.click(screen.getByRole('button', { name: 'Check now' }))
     expect(await screen.findByText('3 new alerts')).toBeInTheDocument()

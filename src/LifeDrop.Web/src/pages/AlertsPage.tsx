@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { AdminApi, can, Permissions, type Alert, type Me } from '../api/admin.ts'
+import { AdminApi, can, Permissions, reviewedAlertKinds, type Alert, type Me } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -15,10 +15,11 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
     onChanged()
   })
   const canHandle = can(me, ...Permissions.handleAlerts)
+  const [outcome, setOutcome] = useState<Record<string, string>>({})
 
   function handle(alert: Alert) {
     const note = window.prompt(t('web.alerts.notePrompt'))?.trim()
-    if (note) void action.run(() => admin.handleAlert(alert.id, note))
+    if (note) void action.run(() => admin.handleAlert(alert.id, note, reviewedAlertKinds.includes(alert.kind) ? (outcome[alert.id] ?? null) : null))
   }
 
   async function scan() {
@@ -26,6 +27,17 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
     if (result) setScanned(t('web.alerts.scanned', { count: result.created }))
   }
 
+  // The evidence the scan kept, as short "name: value" pairs (numbers and times that were computed).
+  const evidence = (a: Alert) => {
+    if (!a.evidence) return ''
+    try {
+      return Object.entries(JSON.parse(a.evidence) as Record<string, unknown>)
+        .map(([k, v]) => `${k}: ${typeof v === 'string' ? v.replace('T', ' ').slice(0, 19) : String(v)}`)
+        .join(' · ')
+    } catch {
+      return ''
+    }
+  }
   const detail = (a: Alert) => (a.detail && (a.kind === 'visit_long_stay') ? ` (${t(`web.alerts.detail.${a.detail}` as TextKey)})` : a.detail ? ` (${a.detail})` : '')
 
   return (
@@ -77,6 +89,12 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
                   <td className="py-2">
                     {kind}
                     {detail(a)}
+                    {a.evidence && (
+                      <details className="text-xs text-slate-600">
+                        <summary>{t('web.alerts.evidence')}</summary>
+                        {evidence(a)}
+                      </details>
+                    )}
                   </td>
                   <td>{t(`web.alerts.category.${a.category}` as TextKey)}</td>
                   <td>
@@ -86,6 +104,7 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
                   <td>{a.occurredAt.slice(0, 16).replace('T', ' ')}</td>
                   <td>
                     {t(`web.alerts.status.${a.status}` as TextKey)}
+                    {a.handledOutcome ? ` · ${t(`web.alerts.outcome.${a.handledOutcome}` as TextKey)}` : ''}
                     {a.handledNote ? ` · ${a.handledNote}` : ''}
                   </td>
                   {canHandle && (
@@ -95,8 +114,18 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
                           {t('web.alerts.see')}
                         </button>
                       )}
+                      {a.status !== 'handled' && reviewedAlertKinds.includes(a.kind) && (
+                        <select aria-label={t('web.alerts.outcomeFor', { kind })} className="rounded border px-1 py-1" value={outcome[a.id] ?? ''} onChange={(e) => setOutcome({ ...outcome, [a.id]: e.target.value })}>
+                          <option value="">{t('web.alerts.outcome')}</option>
+                          {['valid', 'suspicious', 'fraud'].map((o) => (
+                            <option key={o} value={o}>
+                              {t(`web.alerts.outcome.${o}` as TextKey)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       {a.status !== 'handled' && (
-                        <button className="rounded border px-2 py-1" aria-label={t('web.alerts.handleAction', { kind })} disabled={action.busy} onClick={() => handle(a)}>
+                        <button className="rounded border px-2 py-1" aria-label={t('web.alerts.handleAction', { kind })} disabled={action.busy || (reviewedAlertKinds.includes(a.kind) && !outcome[a.id])} onClick={() => handle(a)}>
                           {t('web.alerts.handle')}
                         </button>
                       )}

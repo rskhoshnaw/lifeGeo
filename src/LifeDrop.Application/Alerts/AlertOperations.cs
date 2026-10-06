@@ -13,9 +13,10 @@ namespace LifeDrop.Application.Alerts;
 // (a note is needed). Operational and security alerts are separated by permission.
 public sealed record AlertDto(Guid Id, string Kind, string Category, string Severity, Guid? SubjectUserId, string? SubjectEmail, Guid? CustomerId, string? CustomerCode, string? CustomerName,
     string EntityId, string? Detail, string Status, DateTimeOffset OccurredAt, DateTimeOffset CreatedAt, DateTimeOffset? SeenAt, string? SeenByEmail, DateTimeOffset? HandledAt,
-    string? HandledByEmail, string? HandledNote);
+    string? HandledByEmail, string? HandledNote, string? Evidence = null, string? HandledOutcome = null);
 
-public sealed record HandleAlertRequest(string? Note);
+// Outcome of the review: valid | suspicious | fraud. Needed for the security alerts about behaviour (AlertRules.ReviewedKinds).
+public sealed record HandleAlertRequest(string? Note, string? Outcome = null);
 public sealed record AlertCountDto(int New);
 public sealed record ScanResultDto(int Created);
 
@@ -31,6 +32,17 @@ public static class AlertRules
     public static readonly TimeSpan TrackingGap = TimeSpan.FromMinutes(15);
     public static readonly string[] Categories = ["operational", "security"];
     public static readonly string[] Statuses = ["new", "seen", "handled"];
+    public static readonly string[] Outcomes = ["valid", "suspicious", "fraud"];
+    // Anti-fraud thresholds (plan step 2.10; see docs/ANTIFRAUD.md). Only tracking points of shifts that started in the last 48 hours are looked at.
+    public const double MaxSpeedKmh = 180;
+    public const double MinJumpMeters = 1000;
+    public static readonly TimeSpan ClockAhead = TimeSpan.FromMinutes(5);
+    public const double AreaRadiusMeters = 30_000;
+    public const double PoorAccuracyMeters = 200;
+    public const int PoorAccuracyCount = 5;
+    public static readonly TimeSpan ScanWindow = TimeSpan.FromHours(48);
+    // A manager who handles one of these must say what the review found.
+    public static readonly string[] ReviewedKinds = ["gps_mocked", "impossible_speed", "clock_tamper", "outside_area", "poor_accuracy", "device_mismatch"];
 }
 
 public interface IAlertStore
@@ -41,7 +53,7 @@ public interface IAlertStore
     // new -> seen; Conflict when it is not new.
     Task<AlertResult> MarkSeenAsync(TenantId tenantId, UserId actorId, Guid alertId, DateTimeOffset now, CancellationToken cancellationToken);
     // new or seen -> handled; Conflict when it is handled already.
-    Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, string note, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, string note, string? outcome, DateTimeOffset now, CancellationToken cancellationToken);
     // Looks at the data of one company and makes the alerts that are missing; returns how many were made.
     Task<int> ScanAsync(TenantId tenantId, DateTimeOffset now, DateOnly today, TimeOnly localTime, CancellationToken cancellationToken);
     Task<IReadOnlyList<TenantId>> ListActiveTenantsAsync(CancellationToken cancellationToken);
@@ -77,16 +89,21 @@ public sealed class AlertService(IAlertStore store, IPermissionStore permissions
     // Seeing and handling need alerts.handle and the right to read the category of that alert.
     public async Task<AlertResult> MarkSeenAsync(TenantId tenantId, UserId actorId, Guid alertId, CancellationToken cancellationToken)
     {
-        var check = await CheckAsync(tenantId, actorId, alertId, cancellationToken);
+        var (check, _) = await LoadAsync(tenantId, actorId, alertId, cancellationToken);
         return check != AlertResult.Success ? check : await store.MarkSeenAsync(tenantId, actorId, alertId, clock.GetUtcNow(), cancellationToken);
     }
 
     public async Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, HandleAlertRequest request, CancellationToken cancellationToken)
     {
-        var check = await CheckAsync(tenantId, actorId, alertId, cancellationToken);
+        var (check, alert) = await LoadAsync(tenantId, actorId, alertId, cancellationToken);
         if (check != AlertResult.Success) return check;
         var note = request.Note?.Trim();
-        return string.IsNullOrEmpty(note) || note.Length > 500 ? AlertResult.InvalidData : await store.HandleAsync(tenantId, actorId, alertId, note, clock.GetUtcNow(), cancellationToken);
+        // A review of behaviour needs its result; for other alerts a result is optional (and only "valid" makes sense).
+        var needsOutcome = AlertRules.ReviewedKinds.Contains(alert!.Kind);
+        if (string.IsNullOrEmpty(note) || note.Length > 500 || (needsOutcome && request.Outcome is null) || (request.Outcome is not null && !AlertRules.Outcomes.Contains(request.Outcome)) ||
+            (!needsOutcome && request.Outcome is not null))
+            return AlertResult.InvalidData;
+        return await store.HandleAsync(tenantId, actorId, alertId, note, request.Outcome, clock.GetUtcNow(), cancellationToken);
     }
 
     public async Task<(AlertResult Result, ScanResultDto? Scan)> ScanAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
@@ -102,12 +119,12 @@ public sealed class AlertService(IAlertStore store, IPermissionStore permissions
         return store.ScanAsync(tenantId, now, IraqCalendar.Today(clock), TimeOnly.FromDateTime(now.ToOffset(TimeSpan.FromHours(3)).DateTime), cancellationToken);
     }
 
-    private async Task<AlertResult> CheckAsync(TenantId tenantId, UserId actorId, Guid alertId, CancellationToken cancellationToken)
+    private async Task<(AlertResult Result, AlertDto? Alert)> LoadAsync(TenantId tenantId, UserId actorId, Guid alertId, CancellationToken cancellationToken)
     {
-        if (await ScopeAsync(tenantId, actorId, PermissionKeys.AlertsHandle, cancellationToken) is null) return AlertResult.Forbidden;
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.AlertsHandle, cancellationToken) is null) return (AlertResult.Forbidden, null);
         var (audiences, _) = await AudiencesAsync(tenantId, actorId, cancellationToken);
         var alert = alertId == Guid.Empty || audiences.Count == 0 ? null : await store.GetAsync(tenantId, alertId, audiences, cancellationToken);
-        return alert is null ? AlertResult.NotFound : AlertResult.Success;
+        return alert is null ? (AlertResult.NotFound, null) : (AlertResult.Success, alert);
     }
 
     private async Task<(IReadOnlyList<AlertAudience> Audiences, bool Any)> AudiencesAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)

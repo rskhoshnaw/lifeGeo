@@ -11687,6 +11687,18 @@
               "null",
               "string"
             ]
+          },
+          "evidence": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "handledOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -13447,6 +13459,12 @@
         "type": "object",
         "properties": {
           "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
             "type": [
               "null",
               "string"
