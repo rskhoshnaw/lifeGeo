@@ -74,149 +74,216 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         return true;
     }
 
-    public async Task<IReadOnlyList<PriceRuleDto>?> ListRulesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CityPriceDto>?> ListCityPricesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
-        await using (var exists = new NpgsqlCommand("SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id", connection, transaction))
-        {
-            exists.Parameters.AddWithValue("tenant", tenantId.Value);
-            exists.Parameters.AddWithValue("id", productId);
-            if (await exists.ExecuteScalarAsync(cancellationToken) is null) return null;
-        }
+        if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id", tenantId, productId, cancellationToken)) return null;
         await using var command = new NpgsqlCommand("""
-            SELECT r.id, r.product_id, r.customer_id, r.region_id,
-                   CASE WHEN r.customer_id IS NOT NULL THEN c.code || ' · ' || c.name ELSE g.name END,
-                   r.price, r.valid_from, r.valid_to
-            FROM price_rules r
-            LEFT JOIN customers c ON c.tenant_id = r.tenant_id AND c.id = r.customer_id
-            LEFT JOIN regions g ON g.tenant_id = r.tenant_id AND g.id = r.region_id
+            SELECT r.id, r.product_id, r.city_id, g.name, r.price, r.valid_from, r.valid_to
+            FROM city_prices r
+            JOIN places g ON g.tenant_id = r.tenant_id AND g.id = r.city_id
             WHERE r.tenant_id = @tenant AND r.product_id = @id
             ORDER BY r.valid_from DESC, r.created_at DESC, r.id
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("id", productId);
-        var items = new List<PriceRuleDto>();
+        var items = new List<CityPriceDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new PriceRuleDto(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? "region" : "customer",
-                reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetDecimal(5), reader.GetFieldValue<DateOnly>(6), reader.IsDBNull(7) ? null : reader.GetFieldValue<DateOnly>(7)));
+            items.Add(new CityPriceDto(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3), reader.GetDecimal(4),
+                reader.GetFieldValue<DateOnly>(5), reader.IsDBNull(6) ? null : reader.GetFieldValue<DateOnly>(6)));
         return items;
     }
 
-    public async Task<(CatalogResult Result, Guid? Id)> CreateRuleAsync(TenantId tenantId, UserId actorId, Guid productId, CreatePriceRuleRequest rule, DateOnly validFrom,
-        CancellationToken cancellationToken)
+    public async Task<(CatalogResult Result, Guid? Id)> CreateCityPriceAsync(TenantId tenantId, UserId actorId, Guid productId, CreateCityPriceRequest request,
+        DateOnly validFrom, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
 
-        // The product row is locked so two rules of one product cannot be checked and written at the same time.
-        await using (var lockRow = new NpgsqlCommand("SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id FOR UPDATE", connection, transaction))
+        // The product row is locked so two prices of one product cannot be checked and written at the same time.
+        if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id FOR UPDATE", tenantId, productId, cancellationToken))
+            return (CatalogResult.NotFound, null);
+        await using (var city = new NpgsqlCommand("SELECT kind FROM places WHERE tenant_id = @tenant AND id = @id AND merged_into IS NULL", connection, transaction))
         {
-            lockRow.Parameters.AddWithValue("tenant", tenantId.Value);
-            lockRow.Parameters.AddWithValue("id", productId);
-            if (await lockRow.ExecuteScalarAsync(cancellationToken) is null) return (CatalogResult.NotFound, null);
-        }
-        await using (var target = new NpgsqlCommand(rule.CustomerId is not null
-            ? "SELECT 1 FROM customers WHERE tenant_id = @tenant AND id = @target"
-            : "SELECT 1 FROM regions WHERE tenant_id = @tenant AND id = @target", connection, transaction))
-        {
-            target.Parameters.AddWithValue("tenant", tenantId.Value);
-            target.Parameters.AddWithValue("target", (rule.CustomerId ?? rule.RegionId)!.Value);
-            if (await target.ExecuteScalarAsync(cancellationToken) is null) return (CatalogResult.NotFound, null);
+            city.Parameters.AddWithValue("tenant", tenantId.Value);
+            city.Parameters.AddWithValue("id", request.CityId!.Value);
+            var kind = await city.ExecuteScalarAsync(cancellationToken) as string;
+            if (kind is null) return (CatalogResult.NotFound, null);
+            if (kind != "city") return (CatalogResult.InvalidData, null);
         }
         await using (var overlap = new NpgsqlCommand("""
-            SELECT 1 FROM price_rules
-            WHERE tenant_id = @tenant AND product_id = @product
-              AND customer_id IS NOT DISTINCT FROM @customer AND region_id IS NOT DISTINCT FROM @region
+            SELECT 1 FROM city_prices
+            WHERE tenant_id = @tenant AND product_id = @product AND city_id = @city
               AND valid_from <= coalesce(@to, 'infinity'::date) AND coalesce(valid_to, 'infinity'::date) >= @from
             """, connection, transaction))
         {
-            AddRuleParameters(overlap, tenantId, productId, rule, validFrom);
+            AddCityPriceParameters(overlap, tenantId, productId, request, validFrom);
             if (await overlap.ExecuteScalarAsync(cancellationToken) is not null) return (CatalogResult.Conflict, null);
         }
 
         var id = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand("""
-            INSERT INTO price_rules (id, tenant_id, product_id, customer_id, region_id, price, valid_from, valid_to, created_by)
-            VALUES (@id, @tenant, @product, @customer, @region, @price, @from, @to, @actor)
+            INSERT INTO city_prices (id, tenant_id, product_id, city_id, price, valid_from, valid_to, created_by)
+            VALUES (@id, @tenant, @product, @city, @price, @from, @to, @actor)
             """, connection, transaction))
         {
-            AddRuleParameters(insert, tenantId, productId, rule, validFrom);
+            AddCityPriceParameters(insert, tenantId, productId, request, validFrom);
             insert.Parameters.AddWithValue("id", id);
-            insert.Parameters.AddWithValue("price", rule.Price!.Value);
+            insert.Parameters.AddWithValue("price", request.Price!.Value);
             insert.Parameters.AddWithValue("actor", actorId.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
-        await AuditAsync(connection, transaction, tenantId, actorId, "price_rule.created", id, cancellationToken);
+        await AuditAsync(connection, transaction, tenantId, actorId, "city_price.created", id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (CatalogResult.Success, id);
     }
 
-    public async Task<CatalogResult> EndRuleAsync(TenantId tenantId, UserId actorId, Guid ruleId, DateOnly validTo, CancellationToken cancellationToken)
+    public Task<CatalogResult> EndCityPriceAsync(TenantId tenantId, UserId actorId, Guid cityPriceId, DateOnly validTo, CancellationToken cancellationToken) =>
+        EndAsync("city_prices", "city_price.ended", tenantId, actorId, cityPriceId, validTo, cancellationToken);
+
+    public Task<CatalogResult> EndDiscountAsync(TenantId tenantId, UserId actorId, Guid discountId, DateOnly validTo, CancellationToken cancellationToken) =>
+        EndAsync("customer_discounts", "discount.ended", tenantId, actorId, discountId, validTo, cancellationToken);
+
+    // The table name comes from the two callers above, never from a request.
+    private async Task<CatalogResult> EndAsync(string table, string auditAction, TenantId tenantId, UserId actorId, Guid id, DateOnly validTo, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         DateOnly from;
         DateOnly? currentEnd;
-        await using (var read = new NpgsqlCommand("SELECT valid_from, valid_to FROM price_rules WHERE tenant_id = @tenant AND id = @id FOR UPDATE", connection, transaction))
+        await using (var read = new NpgsqlCommand($"SELECT valid_from, valid_to FROM {table} WHERE tenant_id = @tenant AND id = @id FOR UPDATE", connection, transaction))
         {
             read.Parameters.AddWithValue("tenant", tenantId.Value);
-            read.Parameters.AddWithValue("id", ruleId);
+            read.Parameters.AddWithValue("id", id);
             await using var reader = await read.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return CatalogResult.NotFound;
             from = reader.GetFieldValue<DateOnly>(0);
             currentEnd = reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1);
         }
         if (validTo < from || (currentEnd is { } end && validTo > end)) return CatalogResult.InvalidData;
-        await using (var update = new NpgsqlCommand("UPDATE price_rules SET valid_to = @to WHERE tenant_id = @tenant AND id = @id", connection, transaction))
+        await using (var update = new NpgsqlCommand($"UPDATE {table} SET valid_to = @to WHERE tenant_id = @tenant AND id = @id", connection, transaction))
         {
             update.Parameters.AddWithValue("to", validTo);
             update.Parameters.AddWithValue("tenant", tenantId.Value);
-            update.Parameters.AddWithValue("id", ruleId);
+            update.Parameters.AddWithValue("id", id);
             await update.ExecuteNonQueryAsync(cancellationToken);
         }
-        await AuditAsync(connection, transaction, tenantId, actorId, "price_rule.ended", ruleId, cancellationToken);
+        await AuditAsync(connection, transaction, tenantId, actorId, auditAction, id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return CatalogResult.Success;
     }
 
-    public async Task<IReadOnlyList<EffectivePriceDto>> EffectivePricesAsync(TenantId tenantId, Guid customerId, Guid? customerRegionId, DateOnly day,
-        CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CustomerDiscountDto>> ListDiscountsAsync(TenantId tenantId, Guid customerId, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency,
-                   coalesce(cr.price, rr.price, p.base_price),
-                   CASE WHEN cr.id IS NOT NULL THEN 'customer' WHEN rr.id IS NOT NULL THEN 'region' ELSE 'base' END,
-                   coalesce(cr.id, rr.id)
-            FROM products p
-            LEFT JOIN LATERAL (
-                SELECT r.id, r.price FROM price_rules r
-                WHERE r.tenant_id = p.tenant_id AND r.product_id = p.id AND r.customer_id = @customer
-                  AND r.valid_from <= @day AND coalesce(r.valid_to, 'infinity'::date) >= @day
-                ORDER BY r.valid_from DESC LIMIT 1) cr ON TRUE
-            LEFT JOIN LATERAL (
-                SELECT r.id, r.price FROM price_rules r
-                WHERE r.tenant_id = p.tenant_id AND r.product_id = p.id AND @region::uuid IS NOT NULL AND r.region_id = @region
-                  AND r.valid_from <= @day AND coalesce(r.valid_to, 'infinity'::date) >= @day
-                ORDER BY r.valid_from DESC LIMIT 1) rr ON TRUE
-            WHERE p.tenant_id = @tenant AND p.status = 'active'
-            ORDER BY p.code COLLATE "C"
+            SELECT d.id, d.customer_id, d.product_id, p.code, d.kind, d.value, d.valid_from, d.valid_to
+            FROM customer_discounts d
+            LEFT JOIN products p ON p.tenant_id = d.tenant_id AND p.id = d.product_id
+            WHERE d.tenant_id = @tenant AND d.customer_id = @customer
+            ORDER BY d.valid_from DESC, d.created_at DESC, d.id
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("customer", customerId);
-        command.Parameters.Add(new NpgsqlParameter("region", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)customerRegionId ?? DBNull.Value });
-        command.Parameters.AddWithValue("day", day);
-        var items = new List<EffectivePriceDto>();
+        var items = new List<CustomerDiscountDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new EffectivePriceDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetString(6), reader.GetString(7),
-                reader.GetDecimal(8), reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetGuid(10)));
+            items.Add(new CustomerDiscountDto(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetString(4), reader.GetDecimal(5), reader.GetFieldValue<DateOnly>(6), reader.IsDBNull(7) ? null : reader.GetFieldValue<DateOnly>(7)));
         return items;
+    }
+
+    public async Task<(CatalogResult Result, Guid? Id)> CreateDiscountAsync(TenantId tenantId, UserId actorId, Guid customerId, CreateDiscountRequest request,
+        DateOnly validFrom, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM customers WHERE tenant_id = @tenant AND id = @id", tenantId, customerId, cancellationToken))
+            return (CatalogResult.NotFound, null);
+        if (request.ProductId is { } product &&
+            !await ExistsAsync(connection, transaction, "SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id", tenantId, product, cancellationToken))
+            return (CatalogResult.NotFound, null);
+
+        var id = Guid.NewGuid();
+        await using (var insert = new NpgsqlCommand("""
+            INSERT INTO customer_discounts (id, tenant_id, customer_id, product_id, kind, value, valid_from, valid_to, created_by)
+            VALUES (@id, @tenant, @customer, @product, @kind, @value, @from, @to, @actor)
+            """, connection, transaction))
+        {
+            insert.Parameters.AddWithValue("id", id);
+            insert.Parameters.AddWithValue("tenant", tenantId.Value);
+            insert.Parameters.AddWithValue("customer", customerId);
+            insert.Parameters.Add(new NpgsqlParameter("product", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)request.ProductId ?? DBNull.Value });
+            insert.Parameters.AddWithValue("kind", request.Kind!);
+            insert.Parameters.AddWithValue("value", request.Value!.Value);
+            insert.Parameters.AddWithValue("from", validFrom);
+            insert.Parameters.Add(new NpgsqlParameter("to", NpgsqlTypes.NpgsqlDbType.Date) { Value = request.ValidTo is { } to ? to : DBNull.Value });
+            insert.Parameters.AddWithValue("actor", actorId.Value);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, "discount.created", id, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (CatalogResult.Success, id);
+    }
+
+    public async Task<PricingData> GetPricingAsync(TenantId tenantId, Guid customerId, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        var products = new List<ProductPriceRow>();
+        // The customer's city: the place of the customer or the closest place above it that is a city.
+        await using (var command = new NpgsqlCommand($"""
+            WITH RECURSIVE chain(id, parent_id, kind) AS (
+                SELECT p.id, p.parent_id, p.kind FROM places p
+                JOIN customers c ON c.tenant_id = p.tenant_id AND c.place_id = p.id
+                WHERE c.tenant_id = @tenant AND c.id = @customer
+                UNION ALL
+                SELECT p.id, p.parent_id, p.kind FROM places p JOIN chain ON p.id = chain.parent_id WHERE p.tenant_id = @tenant
+            ),
+            city AS (SELECT id FROM chain WHERE kind = 'city' LIMIT 1)
+            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id
+            FROM products p
+            LEFT JOIN LATERAL (
+                SELECT r.id, r.price FROM city_prices r
+                WHERE r.tenant_id = p.tenant_id AND r.product_id = p.id AND r.city_id = (SELECT id FROM city)
+                  AND r.valid_from <= @day AND coalesce(r.valid_to, 'infinity'::date) >= @day
+                ORDER BY r.valid_from DESC LIMIT 1) cp ON TRUE
+            WHERE p.tenant_id = @tenant AND p.status = 'active'
+            ORDER BY p.code COLLATE "C"
+            """, connection, transaction))
+        {
+            command.Parameters.AddWithValue("tenant", tenantId.Value);
+            command.Parameters.AddWithValue("customer", customerId);
+            command.Parameters.AddWithValue("day", day);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                products.Add(new ProductPriceRow(ReadProduct(reader), reader.IsDBNull(11) ? null : reader.GetDecimal(11), reader.IsDBNull(12) ? null : reader.GetGuid(12)));
+        }
+        var discounts = new List<DiscountRow>();
+        await using (var command = new NpgsqlCommand("""
+            SELECT id, product_id, kind, value, created_at FROM customer_discounts
+            WHERE tenant_id = @tenant AND customer_id = @customer AND valid_from <= @day AND coalesce(valid_to, 'infinity'::date) >= @day
+            """, connection, transaction))
+        {
+            command.Parameters.AddWithValue("tenant", tenantId.Value);
+            command.Parameters.AddWithValue("customer", customerId);
+            command.Parameters.AddWithValue("day", day);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                discounts.Add(new DiscountRow(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.GetString(2), reader.GetDecimal(3), reader.GetFieldValue<DateTimeOffset>(4)));
+        }
+        return new PricingData(products, discounts);
+    }
+
+    private static async Task<bool> ExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, TenantId tenantId, Guid id, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("id", id);
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
     private static ProductDto ReadProduct(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
@@ -235,14 +302,13 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         command.Parameters.AddWithValue("status", product.Status ?? "active");
     }
 
-    private static void AddRuleParameters(NpgsqlCommand command, TenantId tenantId, Guid productId, CreatePriceRuleRequest rule, DateOnly validFrom)
+    private static void AddCityPriceParameters(NpgsqlCommand command, TenantId tenantId, Guid productId, CreateCityPriceRequest request, DateOnly validFrom)
     {
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("product", productId);
-        command.Parameters.Add(new NpgsqlParameter("customer", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)rule.CustomerId ?? DBNull.Value });
-        command.Parameters.Add(new NpgsqlParameter("region", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)rule.RegionId ?? DBNull.Value });
+        command.Parameters.AddWithValue("city", request.CityId!.Value);
         command.Parameters.AddWithValue("from", validFrom);
-        command.Parameters.Add(new NpgsqlParameter("to", NpgsqlTypes.NpgsqlDbType.Date) { Value = rule.ValidTo is { } to ? to : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("to", NpgsqlTypes.NpgsqlDbType.Date) { Value = request.ValidTo is { } to ? to : DBNull.Value });
     }
 
     private static async Task<NpgsqlTransaction> BeginAsync(NpgsqlConnection connection, TenantId tenantId, UserId? actorId, CancellationToken cancellationToken)

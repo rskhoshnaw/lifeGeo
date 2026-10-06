@@ -42,37 +42,70 @@ public static class CatalogEndpoints
             .WithName("UpdateProduct").WithTags("Catalog").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
-        app.MapGet("/products/{productId:guid}/price-rules", async (Guid productId, HttpContext context, CatalogService service,
+        app.MapGet("/products/{productId:guid}/city-prices", async (Guid productId, HttpContext context, CatalogService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await service.ListRulesAsync(tenantId, actorId, productId, cancellationToken);
+            var (result, items) = await service.ListCityPricesAsync(tenantId, actorId, productId, cancellationToken);
             return result == CatalogResult.Success ? Results.Ok(items) : ToError(result);
         }).RequireAuthorization()
-            .WithName("ListPriceRules").WithTags("Catalog").Produces<List<PriceRuleDto>>(200)
+            .WithName("ListCityPrices").WithTags("Catalog").Produces<List<CityPriceDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
-        app.MapPost("/products/{productId:guid}/price-rules", async (Guid productId, CreatePriceRuleRequest request, HttpContext context, CatalogService service,
+        app.MapPost("/products/{productId:guid}/city-prices", async (Guid productId, CreateCityPriceRequest request, HttpContext context, CatalogService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, id) = await service.CreateRuleAsync(tenantId, actorId, productId, request, cancellationToken);
-            return result == CatalogResult.Success ? Results.Created($"/products/{productId}/price-rules", new CreatedResponse(id!.Value)) : ToError(result);
+            var (result, id) = await service.CreateCityPriceAsync(tenantId, actorId, productId, request, cancellationToken);
+            return result == CatalogResult.Success ? Results.Created($"/products/{productId}/city-prices", new CreatedResponse(id!.Value)) : ToError(result);
         }).RequireAuthorization()
-            .WithName("CreatePriceRule").WithTags("Catalog").Produces<CreatedResponse>(201)
+            .WithName("CreateCityPrice").WithTags("Catalog").Produces<CreatedResponse>(201)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
-        app.MapPost("/price-rules/{ruleId:guid}/end", async (Guid ruleId, EndPriceRuleRequest request, HttpContext context, CatalogService service,
+        app.MapPost("/city-prices/{cityPriceId:guid}/end", async (Guid cityPriceId, EndRuleRequest request, HttpContext context, CatalogService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var result = await service.EndRuleAsync(tenantId, actorId, ruleId, request, cancellationToken);
+            var result = await service.EndCityPriceAsync(tenantId, actorId, cityPriceId, request, cancellationToken);
             return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
         }).RequireAuthorization()
-            .WithName("EndPriceRule").WithTags("Catalog").Produces(204)
+            .WithName("EndCityPrice").WithTags("Catalog").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/customers/{customerId:guid}/discounts", async (Guid customerId, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListDiscountsAsync(tenantId, actorId, customerId, cancellationToken);
+            return result == CatalogResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListCustomerDiscounts").WithTags("Catalog").Produces<List<CustomerDiscountDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/customers/{customerId:guid}/discounts", async (Guid customerId, CreateDiscountRequest request, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, id) = await service.CreateDiscountAsync(tenantId, actorId, customerId, request, cancellationToken);
+            return result == CatalogResult.Success ? Results.Created($"/customers/{customerId}/discounts", new CreatedResponse(id!.Value)) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("CreateCustomerDiscount").WithTags("Catalog").Produces<CreatedResponse>(201)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/discounts/{discountId:guid}/end", async (Guid discountId, EndRuleRequest request, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.EndDiscountAsync(tenantId, actorId, discountId, request, cancellationToken);
+            return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("EndCustomerDiscount").WithTags("Catalog").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/customers/{customerId:guid}/prices", async (Guid customerId, DateOnly? date, HttpContext context, CatalogService service,

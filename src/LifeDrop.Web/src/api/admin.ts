@@ -232,14 +232,22 @@ export interface ProductInput {
   basePrice: number
   status: 'active' | 'inactive'
 }
-export interface PriceRule {
+export interface CityPrice {
   id: string
   productId: string
-  scope: 'customer' | 'region'
-  customerId: string | null
-  regionId: string | null
-  targetName: string | null
+  cityId: string
+  cityName: string
   price: number
+  validFrom: string
+  validTo: string | null
+}
+export interface CustomerDiscount {
+  id: string
+  customerId: string
+  productId: string | null
+  productCode: string | null
+  kind: 'percent' | 'amount'
+  value: number
   validFrom: string
   validTo: string | null
 }
@@ -249,8 +257,10 @@ export interface EffectivePrice {
   name: string
   unit: string
   currency: 'IQD' | 'USD'
+  listPrice: number
+  listSource: 'base' | 'city'
+  discounts: { id: string; kind: 'percent' | 'amount'; value: number; productId: string | null }[]
   price: number
-  source: 'customer' | 'region' | 'base'
 }
 
 export interface Region {
@@ -417,10 +427,14 @@ export class AdminApi {
     this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
   createProduct = (product: ProductInput) => this.post('/products', product)
   updateProduct = (id: string, product: ProductInput) => this.send('PUT', `/products/${id}`, product)
-  priceRules = (productId: string) => this.get<PriceRule[]>(`/products/${productId}/price-rules`)
-  createPriceRule = (productId: string, rule: { customerId?: string; regionId?: string; price: number; validFrom: string; validTo: string | null }) =>
-    this.post(`/products/${productId}/price-rules`, rule)
-  endPriceRule = (ruleId: string, validTo: string) => this.post(`/price-rules/${ruleId}/end`, { validTo })
+  cityPrices = (productId: string) => this.get<CityPrice[]>(`/products/${productId}/city-prices`)
+  createCityPrice = (productId: string, rule: { cityId: string; price: number; validFrom: string | null; validTo: string | null }) =>
+    this.post(`/products/${productId}/city-prices`, rule)
+  endCityPrice = (id: string, validTo: string) => this.post(`/city-prices/${id}/end`, { validTo })
+  discounts = (customerId: string) => this.get<CustomerDiscount[]>(`/customers/${customerId}/discounts`)
+  createDiscount = (customerId: string, discount: { productId: string | null; kind: 'percent' | 'amount'; value: number; validFrom: string | null; validTo: string | null }) =>
+    this.post(`/customers/${customerId}/discounts`, discount)
+  endDiscount = (id: string, validTo: string) => this.post(`/discounts/${id}/end`, { validTo })
   customerPrices = (customerId: string, date: string) => this.get<EffectivePrice[]>(`/customers/${customerId}/prices?date=${date}`)
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })

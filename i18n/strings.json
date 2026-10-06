@@ -2981,59 +2981,11 @@
   "ar": "لا يمكن تغيير الرمز.",
   "fa": "کد قابل تغییر نیست."
  },
- "web.catalog.rules": {
-  "en": "Price rules",
-  "ckb": "یاسای نرخ",
-  "ar": "قواعد الأسعار",
-  "fa": "قواعد قیمت"
- },
- "web.catalog.rulesFor": {
-  "en": "Price rules of {code}",
-  "ckb": "یاساکانی نرخی {code}",
-  "ar": "قواعد أسعار {code}",
-  "fa": "قواعد قیمت {code}"
- },
- "web.catalog.noRules": {
-  "en": "No price rules: everyone pays the base price.",
-  "ckb": "یاسای نرخ نییە: هەموو بە نرخی بنەڕەت.",
-  "ar": "لا توجد قواعد: الجميع بالسعر الأساسي.",
-  "fa": "قاعده‌ای نیست: همه با قیمت پایه."
- },
- "web.catalog.ruleHint": {
-  "en": "Customer rule first, then region rule, then base price. Days are inclusive. A rule is ended, never deleted.",
-  "ckb": "یاسای کڕیار یەکەم، پاشان ناوچە، پاشان نرخی بنەڕەت. ڕۆژەکان لەخۆدەگرن. یاسا کۆتایی پێدێت و ناسڕێتەوە.",
-  "ar": "قاعدة العميل أولاً ثم المنطقة ثم السعر الأساسي. الأيام شاملة. تُنهى القاعدة ولا تُحذف.",
-  "fa": "ابتدا قاعدهٔ مشتری، بعد منطقه، بعد قیمت پایه. روزها شامل‌اند. قاعده پایان می‌یابد و حذف نمی‌شود."
- },
- "web.catalog.target": {
-  "en": "Applies to",
-  "ckb": "جێبەجێ دەبێت بۆ",
-  "ar": "ينطبق على",
-  "fa": "مربوط به"
- },
- "web.catalog.forCustomer": {
-  "en": "Customer",
-  "ckb": "کڕیار",
-  "ar": "عميل",
-  "fa": "مشتری"
- },
- "web.catalog.forRegion": {
-  "en": "Region",
-  "ckb": "ناوچە",
-  "ar": "منطقة",
-  "fa": "منطقه"
- },
  "web.catalog.chooseCustomer": {
   "en": "Choose a customer…",
   "ckb": "کڕیارێک هەڵبژێرە…",
   "ar": "اختر عميلاً…",
   "fa": "مشتری را انتخاب کنید…"
- },
- "web.catalog.chooseRegion": {
-  "en": "Choose a region…",
-  "ckb": "ناوچەیەک هەڵبژێرە…",
-  "ar": "اختر منطقة…",
-  "fa": "منطقه را انتخاب کنید…"
  },
  "web.catalog.from": {
   "en": "From",
@@ -3065,11 +3017,53 @@
   "ar": "إنهاء",
   "fa": "پایان"
  },
- "web.catalog.endRuleFor": {
-  "en": "End rule for {target}",
-  "ckb": "کۆتایی یاسا بۆ {target}",
-  "ar": "إنهاء القاعدة لـ {target}",
-  "fa": "پایان قاعده برای {target}"
+ "web.catalog.checkDate": {
+  "en": "Day",
+  "ckb": "ڕۆژ",
+  "ar": "اليوم",
+  "fa": "روز"
+ },
+ "web.catalog.cityPrices": {
+  "en": "City prices",
+  "ckb": "نرخی شارەکان",
+  "ar": "أسعار المدن",
+  "fa": "قیمت شهرها"
+ },
+ "web.catalog.cityPricesFor": {
+  "en": "City prices of {code}",
+  "ckb": "نرخی شارەکانی {code}",
+  "ar": "أسعار مدن {code}",
+  "fa": "قیمت شهرهای {code}"
+ },
+ "web.catalog.cityHint": {
+  "en": "The general price applies everywhere. Give a city its own price for a period, or keep the general price. A price is ended, never deleted.",
+  "ckb": "نرخی گشتی لە هەموو شوێنێک. بۆ شارێک نرخی تایبەت بۆ ماوەیەک دابنێ، یان نرخی گشتی بهێڵەوە. نرخ کۆتایی پێدێت و ناسڕێتەوە.",
+  "ar": "السعر العام ينطبق في كل مكان. أعطِ مدينة سعراً خاصاً لفترة أو أبقِ السعر العام. يُنهى السعر ولا يُحذف.",
+  "fa": "قیمت کلی همه‌جا اعمال می‌شود. برای یک شهر برای مدتی قیمت جدا بگذارید یا قیمت کلی را نگه دارید. قیمت پایان می‌یابد و حذف نمی‌شود."
+ },
+ "web.catalog.noCityPrices": {
+  "en": "No city prices: every city pays the general price.",
+  "ckb": "نرخی شار نییە: هەموو شارەکان نرخی گشتی دەدەن.",
+  "ar": "لا أسعار مدن: كل المدن بالسعر العام.",
+  "fa": "قیمت شهری نیست: همهٔ شهرها قیمت کلی می‌پردازند."
+ },
+ "web.catalog.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.catalog.chooseCity": {
+  "en": "Choose a city…",
+  "ckb": "شارێک هەڵبژێرە…",
+  "ar": "اختر مدينة…",
+  "fa": "شهر را انتخاب کنید…"
+ },
+ "web.catalog.endPriceFor": {
+  "en": "End price for {target}",
+  "ckb": "کۆتایی نرخ بۆ {target}",
+  "ar": "إنهاء السعر لـ {target}",
+  "fa": "پایان قیمت برای {target}"
  },
  "web.catalog.endPrompt": {
   "en": "Last valid day (YYYY-MM-DD) for {target}:",
@@ -3078,45 +3072,105 @@
   "fa": "آخرین روز معتبر (YYYY-MM-DD) برای {target}:"
  },
  "web.catalog.checkTitle": {
-  "en": "Price a customer pays",
-  "ckb": "نرخێک کە کڕیار دەیدات",
-  "ar": "السعر الذي يدفعه العميل",
-  "fa": "قیمتی که مشتری می‌پردازد"
+  "en": "Prices and discounts of a customer",
+  "ckb": "نرخ و داشکاندنی کڕیار",
+  "ar": "أسعار وخصومات عميل",
+  "fa": "قیمت‌ها و تخفیف‌های مشتری"
  },
- "web.catalog.checkDate": {
-  "en": "Day",
-  "ckb": "ڕۆژ",
-  "ar": "اليوم",
-  "fa": "روز"
+ "web.catalog.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
  },
- "web.catalog.source": {
-  "en": "Source",
-  "ckb": "سەرچاوە",
-  "ar": "المصدر",
-  "fa": "منبع"
+ "web.catalog.listPrice": {
+  "en": "General or city price",
+  "ckb": "نرخی گشتی یان شار",
+  "ar": "السعر العام أو سعر المدينة",
+  "fa": "قیمت کلی یا شهر"
  },
- "web.catalog.source.customer": {
-  "en": "customer rule",
-  "ckb": "یاسای کڕیار",
-  "ar": "قاعدة العميل",
-  "fa": "قاعدهٔ مشتری"
- },
- "web.catalog.source.region": {
-  "en": "region rule",
-  "ckb": "یاسای ناوچە",
-  "ar": "قاعدة المنطقة",
-  "fa": "قاعدهٔ منطقه"
+ "web.catalog.finalPrice": {
+  "en": "Price to pay",
+  "ckb": "نرخی دانەوە",
+  "ar": "السعر المطلوب",
+  "fa": "قیمت پرداختی"
  },
  "web.catalog.source.base": {
-  "en": "base price",
-  "ckb": "نرخی بنەڕەت",
-  "ar": "السعر الأساسي",
-  "fa": "قیمت پایه"
+  "en": "general price",
+  "ckb": "نرخی گشتی",
+  "ar": "السعر العام",
+  "fa": "قیمت کلی"
  },
- "web.catalog.targetValue": {
-  "en": "Customer or region",
-  "ckb": "کڕیار یان ناوچە",
-  "ar": "العميل أو المنطقة",
-  "fa": "مشتری یا منطقه"
+ "web.catalog.source.city": {
+  "en": "city price",
+  "ckb": "نرخی شار",
+  "ar": "سعر المدينة",
+  "fa": "قیمت شهر"
+ },
+ "web.catalog.discounts": {
+  "en": "Discounts",
+  "ckb": "داشکاندن",
+  "ar": "الخصومات",
+  "fa": "تخفیف‌ها"
+ },
+ "web.catalog.discountHint": {
+  "en": "Several discounts can apply together: oldest first, each on the price left, never below 0. An amount is per unit and belongs to one product; a percentage can cover all products.",
+  "ckb": "چەند داشکاندن پێکەوە: کۆنترین یەکەم، هەرکەسێک لەسەر نرخی ماوە، هەرگیز کەمتر لە ٠. بڕ بۆ هەر یەکە و بۆ یەک بەرهەمە؛ ڕێژە دەکرێت هەموو بەرهەمەکان بگرێتەوە.",
+  "ar": "يمكن أن تُطبَّق عدة خصومات معاً: الأقدم أولاً وكل منها على السعر المتبقي ولا ينزل عن 0. المبلغ لكل وحدة ولمنتج واحد، والنسبة قد تشمل كل المنتجات.",
+  "fa": "چند تخفیف می‌تواند با هم اعمال شود: قدیمی‌تر اول، هر کدام روی قیمت باقی‌مانده، هرگز زیر ۰. مبلغ برای هر واحد و برای یک محصول است؛ درصد می‌تواند همهٔ محصولات را بگیرد."
+ },
+ "web.catalog.noDiscounts": {
+  "en": "No discounts.",
+  "ckb": "داشکاندن نییە.",
+  "ar": "لا خصومات.",
+  "fa": "تخفیفی نیست."
+ },
+ "web.catalog.allProducts": {
+  "en": "All products",
+  "ckb": "هەموو بەرهەمەکان",
+  "ar": "كل المنتجات",
+  "fa": "همهٔ محصولات"
+ },
+ "web.catalog.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.catalog.discountKind": {
+  "en": "Kind",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.catalog.percent": {
+  "en": "Percent",
+  "ckb": "ڕێژە",
+  "ar": "نسبة",
+  "fa": "درصد"
+ },
+ "web.catalog.amount": {
+  "en": "Amount per unit",
+  "ckb": "بڕ بۆ هەر یەکە",
+  "ar": "مبلغ لكل وحدة",
+  "fa": "مبلغ برای هر واحد"
+ },
+ "web.catalog.value": {
+  "en": "Value",
+  "ckb": "بەها",
+  "ar": "القيمة",
+  "fa": "مقدار"
+ },
+ "web.catalog.addDiscount": {
+  "en": "Add discount",
+  "ckb": "زیادکردنی داشکاندن",
+  "ar": "إضافة خصم",
+  "fa": "افزودن تخفیف"
+ },
+ "web.catalog.endDiscountFor": {
+  "en": "End discount {value}",
+  "ckb": "کۆتایی داشکاندنی {value}",
+  "ar": "إنهاء الخصم {value}",
+  "fa": "پایان تخفیف {value}"
  }
 }

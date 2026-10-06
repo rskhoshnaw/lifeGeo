@@ -332,19 +332,23 @@ Where it shows: `priority` on `GET /customers`, `customerPriority` on every visi
 
 No migration. `POST /visit-plan/preview` and `/generate` (both for `visits.write` users and, for themselves, `visits.plan` users) take a new filter `area`: the corners `[{latitude, longitude}]` of a shape drawn on the map: 3-100 points, real coordinates, a real surface, a box of at most 0.5 degrees (about 50 km) in each direction, else 400 `INVALID_DATA`. The server closes the shape (any start corner, either direction) and returns only customers with a position inside or on its border, approved, in the caller's scope and not yet planned that day. `area` counts as a filter like `placeId`, `regionId` and `query` and can be combined with them. Customers without a position are never found this way. Test: `PlanFromArea_DrawnAreaFindsLocatedApprovedCustomersInScopeAndRefusesBadShapes`; app: `AreaDrawingTests`, pages `DrawAreaPage` (Leaflet + OpenStreetMap in a WebView, online only) and the button on the add-customers page.
 
-## Products and prices (step 2.1)
+## Products, city prices and customer discounts (step 2.1)
 
-Migration 0024: `products`, `price_rules` (RLS, grants file updated), permissions `catalog.read` (SalesManager, Supervisor, FinanceManager, CompanyManager, SalesRep, ScientificRep) and `catalog.manage` (SalesManager); the default roles and existing companies get them. Owner decisions 2026-10-06: one currency per product (`IQD` or `USD`, no conversion), one unit per product, price order customer rule, then region rule, then base price. Money is `numeric(18,3)`, 0 or more.
+Migration 0024: `products`, permissions `catalog.read` (SalesManager, Supervisor, FinanceManager, CompanyManager, SalesRep, ScientificRep) and `catalog.manage` (SalesManager); default roles and existing companies get them. Migration 0025 (owner decision 2026-10-07; replaces the region/customer price rules of 0024, which were never released): `city_prices`, `customer_discounts`. Both tables have RLS and grants. One currency per product (`IQD` or `USD`, no conversion), one unit per product. Money is `numeric(18,3)`.
+
+**Which price a customer pays on a day:** the general price (`products.base_price`), or the price of the customer's **city** when that city has one for that day (the city is the place of kind `city` found above the customer's place; a customer without a place pays the general price); then every valid discount of the customer, oldest first, each on the price left (a percentage takes that share, an amount takes that much per unit), never below 0, rounded to three decimals. A discount on all products must be a percentage; an amount belongs to one product.
 
 | Route | Permission and scope | Behaviour | Audit |
 | --- | --- | --- | --- |
 | `GET /products?includeInactive=&q=` | `catalog.read` | Active products by code; `includeInactive` only counts for `catalog.manage`; `q` matches code and names (`%` and `_` are plain characters); max 1000 | — |
 | `POST /products` | `catalog.manage` | Body: `code` (1-40, letters, digits, `.` `_` `-`), `name`, optional `nameCkb/Ar/En`, `unit`, `currency`, `basePrice`, `status`. 201 `{id}`; 400; 409 `CONFLICT` for a repeated code | `product.created` |
 | `PUT /products/{id}` | `catalog.manage` | Same fields (the code never changes); 204; 404 | `product.updated` |
-| `GET /products/{id}/price-rules` | `catalog.read` | Newest start first, with `targetName`; 404 | — |
-| `POST /products/{id}/price-rules` | `catalog.manage` | `customerId` XOR `regionId`, `price`, `validFrom` (default today, Iraq), `validTo` (empty = open; both days count). 409 when the days overlap a rule of the same product and target (checked under a lock on the product); 404 unknown product/customer/region; 400 | `price_rule.created` |
-| `POST /price-rules/{id}/end` | `catalog.manage` | `validTo`: not before the start, not later than an end it has; rules are never deleted | `price_rule.ended` |
-| `GET /customers/{id}/prices?date=` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | Every active product with the price that customer pays on that day (default today) and its `source` (`customer`, `region`, `base`) and `ruleId`. Later steps (orders) take prices from here, never from the phone | — |
+| `GET /products/{id}/city-prices` | `catalog.read` | Newest start first, with `cityName`; 404 | — |
+| `POST /products/{id}/city-prices` | `catalog.manage` | `cityId` (a place of kind city), `price`, `validFrom` (default today, Iraq), `validTo` (empty = open; both days count). 409 when the days overlap a price of the same product and city (checked under a lock on the product); 404 unknown product or city; 400 (also when the place is not a city) | `city_price.created` |
+| `POST /city-prices/{id}/end` | `catalog.manage` | `validTo`: not before the start, not later than an end it has; prices are never deleted | `city_price.ended` |
+| `GET /customers/{id}/discounts` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | All discounts of the customer, newest start first | — |
+| `POST /customers/{id}/discounts` | `catalog.manage` | `productId` (empty = all products), `kind` (`percent` 0-100 or `amount` per unit; amount needs a product), `value` (> 0, three decimals), `validFrom`, `validTo`. Several can be valid together. 404 unknown customer or product; 400 | `discount.created` |
+| `POST /discounts/{id}/end` | `catalog.manage` | Same end rule as city prices | `discount.ended` |
+| `GET /customers/{id}/prices?date=` | `catalog.read` and the customer inside the caller's `customers.read` scope (else 404) | Every active product: `listPrice`, `listSource` (`base` or `city`), `cityPriceId`, the `discounts` applied in order and the final `price`. Later steps (orders) take prices from here, never from the phone | — |
 
-Test: `Catalog_ManagerMaintainsProductsAndPriceRulesAndEveryoneGetsTheServerPrice`; panel: the Products tab (`Panel.test.tsx`).
-
+Test: `Catalog_ManagerMaintainsProductsCityPricesAndDiscountsAndEveryoneGetsTheServerPrice`; unit: `PriceCalculatorTests`; panel: the Products tab (`Panel.test.tsx`).

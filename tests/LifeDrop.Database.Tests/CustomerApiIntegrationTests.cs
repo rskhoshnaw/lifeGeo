@@ -120,7 +120,8 @@ public class CustomerApiIntegrationTests
                 var m22 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0022_region_rep_notifications.sql"));
                 var m23 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0023_customer_priority.sql"));
                 var m24 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0024_catalog_prices.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24;
+                var m25 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0025_city_prices_discounts.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1997,7 +1998,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "52" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage for 6 roles, 7 grants (2.1)
+        Assert.Equal(new[] { "52" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -4620,7 +4621,7 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
-    public async Task Catalog_ManagerMaintainsProductsAndPriceRulesAndEveryoneGetsTheServerPrice()
+    public async Task Catalog_ManagerMaintainsProductsCityPricesAndDiscountsAndEveryoneGetsTheServerPrice()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
         await VerifyRoleAsync(url, expectElevated: false);
@@ -4633,7 +4634,8 @@ public class CustomerApiIntegrationTests
 
         var t1 = Guid.NewGuid();
         Guid manager = Guid.NewGuid(), supervisor = Guid.NewGuid(), finance = Guid.NewGuid(), repA = Guid.NewGuid(), driver = Guid.NewGuid();
-        Guid erbil = Guid.NewGuid(), baghdad = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid();
+        Guid erbilRegion = Guid.NewGuid(), baghdadRegion = Guid.NewGuid(), erbil = Guid.NewGuid(), n1 = Guid.NewGuid(), suli = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid();
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
@@ -4648,14 +4650,18 @@ public class CustomerApiIntegrationTests
                 UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
                 UNION ALL SELECT @t1, @dr, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
                 SELECT set_config('app.current_tenant', @t1::text, false);
-                INSERT INTO regions (id, tenant_id, name) VALUES (@erbil, @t1, 'Erbil'), (@baghdad, @t1, 'Baghdad');
-                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @erbil, 'Team A');
+                INSERT INTO regions (id, tenant_id, name) VALUES (@er, @t1, 'Erbil team region'), (@br, @t1, 'Baghdad team region');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES ('55555555-0000-0000-0000-0000000000a1', @t1, @er, 'Team A');
                 INSERT INTO team_members (tenant_id, user_id, team_id) VALUES
                     (@t1, @sv, '55555555-0000-0000-0000-0000000000a1'), (@t1, @ra, '55555555-0000-0000-0000-0000000000a1');
-                INSERT INTO customers (id, tenant_id, type, code, name, region_id) VALUES
-                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @erbil), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @baghdad);", conn);
-            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("dr", driver),
-                ("erbil", erbil), ("baghdad", baghdad), ("c1", c1), ("c2", c2) })
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES
+                    (@erbil, @t1, NULL, 'city', 'Erbil'), (@n1, @t1, @erbil, 'neighbourhood', 'N1'), (@suli, @t1, NULL, 'city', 'Sulaymaniyah');
+                -- C1 lives in a neighbourhood of Erbil, C2 in Sulaymaniyah, C3 has no place
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, place_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @er, @n1), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @br, @suli),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Customer 3', @br, NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sv", supervisor), ("fin", finance), ("ra", repA), ("dr", driver), ("er", erbilRegion), ("br", baghdadRegion),
+                ("erbil", erbil), ("n1", n1), ("suli", suli), ("c1", c1), ("c2", c2), ("c3", c3) })
                 cmd.Parameters.AddWithValue(name, value);
             await cmd.ExecuteNonQueryAsync();
         }
@@ -4672,9 +4678,15 @@ public class CustomerApiIntegrationTests
         }
         async Task<List<LifeDrop.Application.Catalog.ProductDto>> Products(string query = "") =>
             (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products" + query))!;
-        Task<HttpResponseMessage> AddRule(Guid product, object body) => client.PostAsJsonAsync($"/products/{product}/price-rules", body);
+        Task<HttpResponseMessage> AddCityPrice(Guid product, object body) => client.PostAsJsonAsync($"/products/{product}/city-prices", body);
+        Task<HttpResponseMessage> AddDiscount(Guid customer, object body) => client.PostAsJsonAsync($"/customers/{customer}/discounts", body);
         async Task<List<LifeDrop.Application.Catalog.EffectivePriceDto>> Prices(Guid customer, string date) =>
             (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.EffectivePriceDto>>($"/customers/{customer}/prices?date={date}"))!;
+        async Task<(decimal List, string Source, decimal Price)> PriceOf(Guid customer, string date, string code = "PAR-500")
+        {
+            var row = (await Prices(customer, date)).Single(p => p.Code == code);
+            return (row.ListPrice, row.ListSource, row.Price);
+        }
 
         // Who may: nobody without catalog.read; reading roles cannot change anything
         As(driver);
@@ -4697,8 +4709,9 @@ public class CustomerApiIntegrationTests
 
         var p1 = await CreateProduct(Product());
         var p2 = await CreateProduct(Product(code: "AMX-250", name: "Amoxicillin 250", currency: "USD", price: 3.5m));
+        var p3 = await CreateProduct(Product(code: "ZZZ-10", name: "Zinc 10", currency: "USD", price: 10m));
         await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(name: "Same code again")), HttpStatusCode.Conflict, "CONFLICT");
-        Assert.Equal(new[] { "AMX-250", "PAR-500" }, (await Products()).Select(p => p.Code).ToArray());
+        Assert.Equal(new[] { "AMX-250", "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
         Assert.Equal("پاراسیتامۆل", (await Products("?q=par")).Single().NameCkb);
         Assert.Empty(await Products("?q=%25"));   // a % is a plain character
 
@@ -4706,63 +4719,101 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p2}", Product(code: "IGNORED", name: "Amoxicillin 250 mg", currency: "USD", price: 4m, status: "inactive"))).StatusCode);
         await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{Guid.NewGuid()}", Product()), HttpStatusCode.NotFound, "NOT_FOUND");
         await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}", Product(price: -5m)), HttpStatusCode.BadRequest, "INVALID_DATA");
-        Assert.Equal(new[] { "PAR-500" }, (await Products()).Select(p => p.Code).ToArray());
+        Assert.Equal(new[] { "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
         var all = await Products("?includeInactive=true");
         Assert.Equal(("AMX-250", "Amoxicillin 250 mg", 4m, "inactive"), (all[0].Code, all[0].Name, all[0].BasePrice, all[0].Status));
         As(repA);
-        Assert.Single(await Products("?includeInactive=true"));   // only managers see inactive ones
+        Assert.Equal(2, (await Products("?includeInactive=true")).Count);   // only managers see inactive ones
 
-        // Price rules: a region rule from 1 Oct (open), a customer rule 10-20 Oct
+        // Without city prices everybody pays the general price
         As(manager);
-        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { RegionId = erbil, Price = 1800m, ValidFrom = "2026-10-01" })).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { CustomerId = c1, Price = 1200m, ValidFrom = "2026-10-10", ValidTo = "2026-10-20" })).StatusCode);
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2026-10-06"));
 
-        async Task<(decimal Price, string Source)> PriceOf(Guid customer, string date)
+        // City prices: Erbil from 1 Oct (open), Sulaymaniyah only until the end of the year
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = erbil, Price = 1800m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = suli, Price = 1600m, ValidFrom = "2026-10-01", ValidTo = "2026-12-31" })).StatusCode);
+        Assert.Equal((1800m, "city", 1800m), await PriceOf(c1, "2026-10-06"));      // the city is found from the neighbourhood
+        Assert.Equal((1600m, "city", 1600m), await PriceOf(c2, "2026-10-06"));
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c3, "2026-10-06"));      // no place: the general price
+        Assert.Equal((1600m, "city", 1600m), await PriceOf(c2, "2026-12-31"));      // last day counts
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c2, "2027-01-01"));      // the city price has ended
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2026-09-30"));      // before it starts
+        Assert.Equal((10m, "base", 10m), await PriceOf(c1, "2026-10-06", "ZZZ-10")); // other products are not touched
+
+        // Overlap, bad prices, and what is not a city
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1000m, ValidFrom = "2026-12-31", ValidTo = "2027-02-01" }), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = erbil, Price = 1000m, ValidFrom = "2027-03-01" }), HttpStatusCode.Conflict, "CONFLICT");   // the open price covers it
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = suli, Price = 1650m, ValidFrom = "2027-01-01", ValidTo = "2027-03-31" })).StatusCode);
+        Assert.Equal((1650m, "city", 1650m), await PriceOf(c2, "2027-01-15"));
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = n1, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");   // a neighbourhood is not a city
+        await AssertProblemAsync(await AddCityPrice(p1, new { Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = -1m, ValidFrom = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1m, ValidFrom = "2027-06-05", ValidTo = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = Guid.NewGuid(), Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddCityPrice(Guid.NewGuid(), new { CityId = suli, Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Ending a city price (never deleting): not before its start, not later than the end it has
+        var prices = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CityPriceDto>>($"/products/{p1}/city-prices"))!;
+        Assert.Equal(3, prices.Count);
+        var open = prices.Single(r => r.CityName == "Erbil");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-09-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{Guid.NewGuid()}/end", new { ValidTo = "2026-12-31" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-12-31" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2027-01-31" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c1, "2027-01-15"));
+        Assert.Equal((1800m, "city", 1800m), await PriceOf(c1, "2026-12-31"));
+        // The city can get a new price after the old one ended (the manager keeps it or changes it, month by month)
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p1, new { CityId = erbil, Price = 1750m, ValidFrom = "2027-01-01" })).StatusCode);
+        Assert.Equal((1750m, "city", 1750m), await PriceOf(c1, "2027-01-15"));
+
+        // Discounts of C1, oldest first on the price left: 10 % on everything, then 100 off PAR-500, then 5 % on PAR-500
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { Kind = "percent", Value = 10m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal((1800m, "city", 1620m), await PriceOf(c1, "2026-10-06"));
+        Assert.Equal((10m, "base", 9m), await PriceOf(c1, "2026-10-06", "ZZZ-10"));
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { ProductId = p1, Kind = "amount", Value = 100m, ValidFrom = "2026-10-01" })).StatusCode);
+        var third = await AddDiscount(c1, new { ProductId = p1, Kind = "percent", Value = 5m, ValidFrom = "2026-10-01", ValidTo = "2026-10-20" });
+        Assert.Equal(HttpStatusCode.Created, third.StatusCode);
+        var row = (await Prices(c1, "2026-10-06")).Single(p => p.Code == "PAR-500");
+        Assert.Equal(1444m, row.Price);   // 1800 -10 % = 1620, -100 = 1520, -5 % = 1444
+        Assert.Equal(new[] { "percent", "amount", "percent" }, row.Discounts.Select(d => d.Kind).ToArray());
+        Assert.Equal(9m, (await Prices(c1, "2026-10-06")).Single(p => p.Code == "ZZZ-10").Price);   // the amount belongs to PAR-500 only
+        Assert.Equal(1520m, (await PriceOf(c1, "2026-10-21")).Price);                                // the third discount has ended by then
+        Assert.Equal(1500m, (await PriceOf(c1, "2026-09-30")).Price);                                // before any discount
+
+        // Ending a discount; discounts of another customer are separate; a price never goes below 0
+        var discounts = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CustomerDiscountDto>>($"/customers/{c1}/discounts"))!;
+        Assert.Equal(3, discounts.Count);
+        Assert.Equal("PAR-500", discounts.First(d => d.Kind == "amount").ProductCode);
+        var tenPercent = discounts.Single(d => d.ProductId is null);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-10-31" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-11-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{Guid.NewGuid()}/end", new { ValidTo = "2026-11-30" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(1700m, (await PriceOf(c1, "2026-11-05")).Price);                                // only the 100 off is left
+        Assert.Equal((1500m, "base", 1500m), await PriceOf(c3, "2026-10-06"));
+        Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c3, new { ProductId = p1, Kind = "amount", Value = 5000m, ValidFrom = "2026-10-01" })).StatusCode);
+        Assert.Equal((1500m, "base", 0m), await PriceOf(c3, "2026-10-06"));
+
+        // Bad discounts: an amount without a product, over 100 %, zero, unknown kind, more than three decimals, unknown customer or product
+        foreach (var bad in new object[]
         {
-            var row = (await Prices(customer, date)).Single();   // the inactive product is not listed
-            return (row.Price, row.Source);
-        }
-        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-06"));
-        Assert.Equal((1200m, "customer"), await PriceOf(c1, "2026-10-10"));     // first day counts
-        Assert.Equal((1200m, "customer"), await PriceOf(c1, "2026-10-20"));     // last day counts
-        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-21"));
-        Assert.Equal((1500m, "base"), await PriceOf(c1, "2026-09-30"));         // before the region rule starts
-        Assert.Equal((1500m, "base"), await PriceOf(c2, "2026-10-15"));         // Baghdad has no rule
-        Assert.Equal((1800m, "region"), (await Prices(c1, "2026-10-06")).Select(p => (p.Price, p.Source)).Single());
+            new { Kind = "amount", Value = 5m }, new { Kind = "percent", Value = 100.5m }, new { Kind = "percent", Value = 0m }, new { Kind = "gift", Value = 5m },
+            new { Kind = "percent", Value = 1.2345m }, new { ProductId = p1, Kind = "percent", Value = 5m, ValidFrom = "2026-11-05", ValidTo = "2026-11-01" }, new { Value = 5m }
+        })
+            await AssertProblemAsync(await AddDiscount(c1, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await AddDiscount(Guid.NewGuid(), new { Kind = "percent", Value = 5m }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddDiscount(c1, new { ProductId = Guid.NewGuid(), Kind = "percent", Value = 5m }), HttpStatusCode.NotFound, "NOT_FOUND");
 
-        // Overlap, bad rules and unknown targets
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1000m, ValidFrom = "2026-10-20", ValidTo = "2026-10-25" }), HttpStatusCode.Conflict, "CONFLICT");
-        await AssertProblemAsync(await AddRule(p1, new { RegionId = erbil, Price = 1000m, ValidFrom = "2026-11-01" }), HttpStatusCode.Conflict, "CONFLICT");   // the open rule covers it
-        Assert.Equal(HttpStatusCode.Created, (await AddRule(p1, new { CustomerId = c1, Price = 1100m, ValidFrom = "2026-10-21", ValidTo = "2026-10-30" })).StatusCode);
-        Assert.Equal((1100m, "customer"), await PriceOf(c1, "2026-10-25"));
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, RegionId = erbil, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await AddRule(p1, new { Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = -1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1m, ValidFrom = "2026-12-05", ValidTo = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = Guid.NewGuid(), Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
-        await AssertProblemAsync(await AddRule(Guid.NewGuid(), new { CustomerId = c1, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
-
-        // Ending a rule (never deleting): not before its start, not later than the end it has
-        var rules = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.PriceRuleDto>>($"/products/{p1}/price-rules"))!;
-        Assert.Equal(3, rules.Count);
-        var open = rules.Single(r => r.Scope == "region");
-        Assert.Equal("Erbil", open.TargetName);
-        Assert.Equal("C1 · Customer 1", rules.First(r => r.Scope == "customer").TargetName);
-        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-09-30" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{Guid.NewGuid()}/end", new { ValidTo = "2026-12-31" }), HttpStatusCode.NotFound, "NOT_FOUND");
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-12-31" })).StatusCode);
-        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2027-01-31" }), HttpStatusCode.BadRequest, "INVALID_DATA");
-        Assert.Equal((1500m, "base"), await PriceOf(c1, "2027-01-15"));   // the region rule has ended
-        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-12-31"));
-
-        // A rep sees prices of customers in their own region only; reading roles cannot change rules
+        // A rep sees prices and discounts of customers in their own region only, and changes nothing
         As(repA);
-        Assert.Equal((1800m, "region"), await PriceOf(c1, "2026-10-06"));
+        Assert.Equal((1800m, "city", 1520m), await PriceOf(c1, "2026-10-21"));
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.CustomerDiscountDto>>($"/customers/{c1}/discounts"))!.Count);
         await AssertProblemAsync(await client.GetAsync($"/customers/{c2}/prices"), HttpStatusCode.NotFound, "NOT_FOUND");
-        await AssertProblemAsync(await AddRule(p1, new { CustomerId = c1, Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
-        await AssertProblemAsync(await client.PostAsJsonAsync($"/price-rules/{open.Id}/end", new { ValidTo = "2026-11-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
-        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.PriceRuleDto>>($"/products/{p1}/price-rules"))!.Count);
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c2}/discounts"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await AddDiscount(c1, new { Kind = "percent", Value = 50m }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = erbil, Price = 1m, ValidFrom = "2028-06-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/discounts/{tenPercent.Id}/end", new { ValidTo = "2026-10-15" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/city-prices/{open.Id}/end", new { ValidTo = "2026-11-01" }), HttpStatusCode.Forbidden, "FORBIDDEN");
         As(driver);
         await AssertProblemAsync(await client.GetAsync($"/customers/{c1}/prices"), HttpStatusCode.Forbidden, "FORBIDDEN");
 
@@ -4771,12 +4822,12 @@ public class CustomerApiIntegrationTests
             await conn.OpenAsync();
             await using var cmd = new NpgsqlCommand(@"SELECT set_config('app.current_tenant', @t::text, false);
                 SELECT (SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
-                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'product.%' OR action LIKE 'price_rule.%' GROUP BY action) a)", conn);
+                        FROM (SELECT action, count(*) n FROM audit_logs WHERE action LIKE 'product.%' OR action LIKE 'city_price.%' OR action LIKE 'discount.%' GROUP BY action) a)", conn);
             cmd.Parameters.AddWithValue("t", t1);
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("price_rule.created=3,price_rule.ended=1,product.created=2,product.updated=1", reader.GetString(0));
+            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.updated=1", reader.GetString(0));
         }
     }
 

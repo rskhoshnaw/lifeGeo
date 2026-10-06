@@ -11,9 +11,10 @@ using LifeDrop.Domain.Common;
 
 namespace LifeDrop.Application.Catalog;
 
-// Products and prices (plan step 2.1). One unit and one currency (IQD or USD, no conversion) per product. A price rule applies to
-// one customer or one region between two days (both inclusive; no end = open). For a customer on a day: its own rule, else its
-// region's rule, else the base price. Rules of one product and target never overlap; a rule is ended, not deleted.
+// Products and prices (plan step 2.1). One unit and one currency (IQD or USD, no conversion) per product. The general price applies
+// everywhere; a city (a place of kind city) can have its own price between two days (both inclusive; no end = open), and a customer
+// can get discounts (percentage or amount, on one product or on all). City prices of one product and city never overlap; a price or a
+// discount is ended, not deleted.
 public sealed record ProductDto(Guid Id, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit, string Currency,
     decimal BasePrice, string Status, DateTimeOffset UpdatedAt);
 
@@ -21,21 +22,34 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
 public sealed record SaveProductRequest(string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency,
     decimal? BasePrice, string? Status = null);
 
-// Scope: customer | region. TargetName: the customer's code and name, or the region's name.
-public sealed record PriceRuleDto(Guid Id, Guid ProductId, string Scope, Guid? CustomerId, Guid? RegionId, string? TargetName, decimal Price,
-    DateOnly ValidFrom, DateOnly? ValidTo);
+// A price of one product in one city (a place of kind city) between two days (both inclusive; no end = open).
+public sealed record CityPriceDto(Guid Id, Guid ProductId, Guid CityId, string CityName, decimal Price, DateOnly ValidFrom, DateOnly? ValidTo);
 
-// Exactly one of CustomerId / RegionId. ValidFrom defaults to today (Iraq); ValidTo empty = open.
-public sealed record CreatePriceRuleRequest(Guid? CustomerId, Guid? RegionId, decimal? Price, DateOnly? ValidFrom, DateOnly? ValidTo);
+// ValidFrom defaults to today (Iraq); ValidTo empty = open.
+public sealed record CreateCityPriceRequest(Guid? CityId, decimal? Price, DateOnly? ValidFrom, DateOnly? ValidTo);
 
-// The last valid day of a rule (not before its start, and not after an end it already has).
-public sealed record EndPriceRuleRequest(DateOnly? ValidTo);
+// The last valid day of a city price or a discount (not before its start, and not after an end it already has).
+public sealed record EndRuleRequest(DateOnly? ValidTo);
 
-// Source: customer | region | base. RuleId: the rule that gave the price.
+// A discount of one customer: ProductId empty = all products (percent only); Kind: percent (0-100) | amount (per unit, in the product's currency).
+public sealed record CustomerDiscountDto(Guid Id, Guid CustomerId, Guid? ProductId, string? ProductCode, string Kind, decimal Value, DateOnly ValidFrom, DateOnly? ValidTo);
+
+public sealed record CreateDiscountRequest(Guid? ProductId, string? Kind, decimal? Value, DateOnly? ValidFrom, DateOnly? ValidTo);
+
+// One discount that was applied, in the order it was applied.
+public sealed record AppliedDiscountDto(Guid Id, string Kind, decimal Value, Guid? ProductId);
+
+// What a customer pays for a product on a day. ListSource: base | city (the general price or the city's price); Price: after the discounts.
 public sealed record EffectivePriceDto(Guid ProductId, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit,
-    string Currency, decimal Price, string Source, Guid? RuleId);
+    string Currency, decimal ListPrice, string ListSource, Guid? CityPriceId, IReadOnlyList<AppliedDiscountDto> Discounts, decimal Price);
 
 public enum CatalogResult { Success, Forbidden, NotFound, InvalidData, Conflict }
+
+// What the store reads for one customer and day: every active product with the general price and the city price that applies,
+// and the discounts that are valid. The price itself is worked out by PriceCalculator.
+public sealed record ProductPriceRow(ProductDto Product, decimal? CityPrice, Guid? CityPriceId);
+public sealed record DiscountRow(Guid Id, Guid? ProductId, string Kind, decimal Value, DateTimeOffset CreatedAt);
+public sealed record PricingData(IReadOnlyList<ProductPriceRow> Products, IReadOnlyList<DiscountRow> Discounts);
 
 public interface IProductStore
 {
@@ -45,16 +59,40 @@ public interface IProductStore
     // False when the product does not exist.
     Task<bool> UpdateAsync(TenantId tenantId, UserId actorId, Guid productId, SaveProductRequest product, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<PriceRuleDto>?> ListRulesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken);
-    // NotFound: product, customer or region missing. Conflict: the days overlap another rule of the same product and target.
-    Task<(CatalogResult Result, Guid? Id)> CreateRuleAsync(TenantId tenantId, UserId actorId, Guid productId, CreatePriceRuleRequest rule, DateOnly validFrom,
+    Task<IReadOnlyList<CityPriceDto>?> ListCityPricesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken);
+    // NotFound: product or city missing. InvalidData: the place is not a city. Conflict: the days overlap another price of the same product and city.
+    Task<(CatalogResult Result, Guid? Id)> CreateCityPriceAsync(TenantId tenantId, UserId actorId, Guid productId, CreateCityPriceRequest request, DateOnly validFrom,
         CancellationToken cancellationToken);
-    // NotFound: no such rule. InvalidData: the end is before the start or after an end the rule has.
-    Task<CatalogResult> EndRuleAsync(TenantId tenantId, UserId actorId, Guid ruleId, DateOnly validTo, CancellationToken cancellationToken);
+    // NotFound: no such price. InvalidData: the end is before the start or after an end it has.
+    Task<CatalogResult> EndCityPriceAsync(TenantId tenantId, UserId actorId, Guid cityPriceId, DateOnly validTo, CancellationToken cancellationToken);
 
-    // The price of every active product for one customer on one day.
-    Task<IReadOnlyList<EffectivePriceDto>> EffectivePricesAsync(TenantId tenantId, Guid customerId, Guid? customerRegionId, DateOnly day,
+    Task<IReadOnlyList<CustomerDiscountDto>> ListDiscountsAsync(TenantId tenantId, Guid customerId, CancellationToken cancellationToken);
+    // NotFound: customer or product missing.
+    Task<(CatalogResult Result, Guid? Id)> CreateDiscountAsync(TenantId tenantId, UserId actorId, Guid customerId, CreateDiscountRequest request, DateOnly validFrom,
         CancellationToken cancellationToken);
+    Task<CatalogResult> EndDiscountAsync(TenantId tenantId, UserId actorId, Guid discountId, DateOnly validTo, CancellationToken cancellationToken);
+
+    Task<PricingData> GetPricingAsync(TenantId tenantId, Guid customerId, DateOnly day, CancellationToken cancellationToken);
+}
+
+// Worked out here, not in SQL: list price (the city price when there is one, else the general price), then every valid discount oldest
+// first, each on the price left: a percentage takes that share, an amount takes that much per unit; never below 0; three decimals.
+public static class PriceCalculator
+{
+    public static (decimal Price, IReadOnlyList<AppliedDiscountDto> Applied) Apply(decimal listPrice, Guid productId, IEnumerable<DiscountRow> discounts)
+    {
+        var price = listPrice;
+        var applied = new List<AppliedDiscountDto>();
+        foreach (var d in discounts.Where(d => d.ProductId is null || d.ProductId == productId).OrderBy(d => d.CreatedAt).ThenBy(d => d.Id))
+        {
+            if (d.Kind == "percent") price -= price * d.Value / 100m;
+            else if (d.ProductId is not null) price -= d.Value;   // an amount belongs to one product
+            else continue;
+            price = Math.Max(0m, decimal.Round(price, 3, MidpointRounding.AwayFromZero));
+            applied.Add(new AppliedDiscountDto(d.Id, d.Kind, d.Value, d.ProductId));
+        }
+        return (price, applied);
+    }
 }
 
 public sealed partial class CatalogService(IProductStore store, IPermissionStore permissions, ICustomerStore customers, TimeProvider clock)
@@ -96,42 +134,84 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         return await store.UpdateAsync(tenantId, actorId, productId, clean!, cancellationToken) ? CatalogResult.Success : CatalogResult.NotFound;
     }
 
-    public async Task<(CatalogResult Result, IReadOnlyList<PriceRuleDto>? Items)> ListRulesAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken)
+    public async Task<(CatalogResult Result, IReadOnlyList<CityPriceDto>? Items)> ListCityPricesAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken)
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogRead, cancellationToken)) return (CatalogResult.Forbidden, null);
-        var items = productId == Guid.Empty ? null : await store.ListRulesAsync(tenantId, productId, cancellationToken);
+        var items = productId == Guid.Empty ? null : await store.ListCityPricesAsync(tenantId, productId, cancellationToken);
         return items is null ? (CatalogResult.NotFound, null) : (CatalogResult.Success, items);
     }
 
-    public async Task<(CatalogResult Result, Guid? Id)> CreateRuleAsync(TenantId tenantId, UserId actorId, Guid productId, CreatePriceRuleRequest request,
+    public async Task<(CatalogResult Result, Guid? Id)> CreateCityPriceAsync(TenantId tenantId, UserId actorId, Guid productId, CreateCityPriceRequest request,
         CancellationToken cancellationToken)
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return (CatalogResult.Forbidden, null);
         var from = request.ValidFrom ?? IraqCalendar.Today(clock);
-        if (productId == Guid.Empty || (request.CustomerId is null) == (request.RegionId is null) || request.CustomerId == Guid.Empty || request.RegionId == Guid.Empty ||
-            !ValidPrice(request.Price) || request.ValidTo is { } to && to < from)
+        if (productId == Guid.Empty || request.CityId is null || request.CityId == Guid.Empty || !ValidPrice(request.Price) || request.ValidTo is { } to && to < from)
             return (CatalogResult.InvalidData, null);
-        return await store.CreateRuleAsync(tenantId, actorId, productId, request, from, cancellationToken);
+        return await store.CreateCityPriceAsync(tenantId, actorId, productId, request, from, cancellationToken);
     }
 
-    public async Task<CatalogResult> EndRuleAsync(TenantId tenantId, UserId actorId, Guid ruleId, EndPriceRuleRequest request, CancellationToken cancellationToken)
+    public async Task<CatalogResult> EndCityPriceAsync(TenantId tenantId, UserId actorId, Guid cityPriceId, EndRuleRequest request, CancellationToken cancellationToken)
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
-        if (ruleId == Guid.Empty || request.ValidTo is null) return CatalogResult.InvalidData;
-        return await store.EndRuleAsync(tenantId, actorId, ruleId, request.ValidTo.Value, cancellationToken);
+        if (cityPriceId == Guid.Empty || request.ValidTo is null) return CatalogResult.InvalidData;
+        return await store.EndCityPriceAsync(tenantId, actorId, cityPriceId, request.ValidTo.Value, cancellationToken);
     }
 
-    // The prices a customer gets on a day (default today in Iraq): needs catalog.read and a customer inside the caller's customers.read scope.
+    // Discounts of a customer: catalog.read and a customer inside the caller's customers.read scope (else NotFound).
+    public async Task<(CatalogResult Result, IReadOnlyList<CustomerDiscountDto>? Items)> ListDiscountsAsync(TenantId tenantId, UserId actorId, Guid customerId,
+        CancellationToken cancellationToken)
+    {
+        var (result, _) = await FindCustomerAsync(tenantId, actorId, customerId, cancellationToken);
+        return result == CatalogResult.Success ? (result, await store.ListDiscountsAsync(tenantId, customerId, cancellationToken)) : (result, null);
+    }
+
+    public async Task<(CatalogResult Result, Guid? Id)> CreateDiscountAsync(TenantId tenantId, UserId actorId, Guid customerId, CreateDiscountRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return (CatalogResult.Forbidden, null);
+        var from = request.ValidFrom ?? IraqCalendar.Today(clock);
+        var percent = request.Kind == "percent";
+        if (customerId == Guid.Empty || request.ProductId == Guid.Empty || request.Kind is not ("percent" or "amount") ||
+            request.Value is not > 0 || decimal.Round(request.Value.Value, 3) != request.Value || request.Value > (percent ? 100m : MaxPrice) ||
+            (!percent && request.ProductId is null) || request.ValidTo is { } to && to < from)
+            return (CatalogResult.InvalidData, null);
+        return await store.CreateDiscountAsync(tenantId, actorId, customerId, request, from, cancellationToken);
+    }
+
+    public async Task<CatalogResult> EndDiscountAsync(TenantId tenantId, UserId actorId, Guid discountId, EndRuleRequest request, CancellationToken cancellationToken)
+    {
+        if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
+        if (discountId == Guid.Empty || request.ValidTo is null) return CatalogResult.InvalidData;
+        return await store.EndDiscountAsync(tenantId, actorId, discountId, request.ValidTo.Value, cancellationToken);
+    }
+
+    // The prices a customer gets on a day (default today in Iraq): the general or city price, then the discounts. Needs catalog.read and
+    // a customer inside the caller's customers.read scope. Orders take prices from here, never from the phone.
     public async Task<(CatalogResult Result, IReadOnlyList<EffectivePriceDto>? Items)> PricesForCustomerAsync(TenantId tenantId, UserId actorId, Guid customerId, DateOnly? day,
         CancellationToken cancellationToken)
+    {
+        var (result, _) = await FindCustomerAsync(tenantId, actorId, customerId, cancellationToken);
+        if (result != CatalogResult.Success) return (result, null);
+        var data = await store.GetPricingAsync(tenantId, customerId, day ?? IraqCalendar.Today(clock), cancellationToken);
+        var items = data.Products.Select(row =>
+        {
+            var list = row.CityPrice ?? row.Product.BasePrice;
+            var (price, applied) = PriceCalculator.Apply(list, row.Product.Id, data.Discounts);
+            var p = row.Product;
+            return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price);
+        }).ToList();
+        return (CatalogResult.Success, items);
+    }
+
+    private async Task<(CatalogResult Result, CustomerDto? Customer)> FindCustomerAsync(TenantId tenantId, UserId actorId, Guid customerId, CancellationToken cancellationToken)
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogRead, cancellationToken)) return (CatalogResult.Forbidden, null);
         var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersRead, cancellationToken);
         if (scope is null) return (CatalogResult.Forbidden, null);
         if (customerId == Guid.Empty) return (CatalogResult.InvalidData, null);
         var customer = await customers.GetByIdAsync(tenantId, new CustomerId(customerId), scope, cancellationToken);
-        if (customer is null) return (CatalogResult.NotFound, null);
-        return (CatalogResult.Success, await store.EffectivePricesAsync(tenantId, customerId, customer.RegionId, day ?? IraqCalendar.Today(clock), cancellationToken));
+        return customer is null ? (CatalogResult.NotFound, null) : (CatalogResult.Success, customer);
     }
 
     private async Task<bool> CanAsync(TenantId tenantId, UserId actorId, string permission, CancellationToken cancellationToken) =>

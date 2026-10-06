@@ -24,10 +24,10 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 1.25 rep plans own day in the app | in PR (same branch as 1.24); real-device check pending |
 | 1.26 customer priority from managers | in PR (same branch); migration 0023 |
 | 1.27 draw area on map (app, online only) | in PR (same branch); real-device check pending |
-| 2.1 catalog and prices | in PR (same branch); migration 0024 |
+| 2.1 catalog and prices | in PR (same branch); migrations 0024, 0025 |
 | Next | **2.2** orders (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
-Migrations: 0001–0024 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0024 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0025 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0025 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 
 ## Log (one line per step, newest last)
@@ -49,3 +49,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 1.26: migration 0023 (`customers.priority`), `Customers/CustomerPriority.cs` + `PostgresCustomerPriorityStore`, `PUT /customers/priority` (ids or place, `visits.write` scope), `customerPriority` on visits and candidates, high-first ordering in plan suggestions; panel `CustomerPriorityBar`; app shows it in plan/add list; DB 45/45, panel 51, Mobile.Visits 226.
 - 1.27: `area` filter on `/visit-plan/preview|generate` (PostGIS `ST_Covers`, limits 3-100 points / 0.5 degrees), app `AreaDrawing.cs` (rules, parse, map HTML), `DrawAreaPage` (WebView + Leaflet/OSM from the internet), button on the add-customers page; offline map left to 3.3; JS checked in headless Chromium (tap/undo/clear); DB 46/46, Mobile.Visits 233.
 - 2.1: migration 0024 (`products`, `price_rules`, `catalog.read`/`catalog.manage`), `Catalog/CatalogOperations.cs` (`CatalogService`), `PostgresProductStore`, `CatalogEndpoints.cs` (`/products`, `/price-rules/{id}/end`, `/customers/{id}/prices`); one unit + one currency per product; panel Products tab; DB 47/47, panel 53 tests.
+- 2.1 (changed 2026-10-07, owner): migration 0025 replaces the region/customer price rules by `city_prices` (per product and city, dated) and `customer_discounts` (percent or amount, one product or all, several stack oldest first); `PriceCalculator`; `/products/{id}/city-prices`, `/customers/{id}/discounts`, `/customers/{id}/prices` shows list price + discounts; panel Products tab; DB 47/47, Application 72, panel 53.

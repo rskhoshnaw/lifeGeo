@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, can, Permissions, type Customer, type Me, type PriceRule, type Product, type ProductInput } from '../api/admin.ts'
+import { AdminApi, can, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -61,8 +61,8 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                       {t('web.places.edit')}
                     </button>
                   )}
-                  <button className="rounded border px-2 py-1" aria-label={t('web.catalog.rulesFor', { code: p.code })} onClick={() => setRulesFor(p)}>
-                    {t('web.catalog.rules')}
+                  <button className="rounded border px-2 py-1" aria-label={t('web.catalog.cityPricesFor', { code: p.code })} onClick={() => setRulesFor(p)}>
+                    {t('web.catalog.cityPrices')}
                   </button>
                 </td>
               </tr>
@@ -81,8 +81,8 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           }}
         />
       )}
-      {rulesFor && <PriceRules key={rulesFor.id} admin={admin} product={rulesFor} canManage={canManage} canRegions={can(me, ...Permissions.regions)} />}
-      {can(me, ...Permissions.customers) && <CustomerPriceCheck admin={admin} />}
+      {rulesFor && <CityPrices key={rulesFor.id} admin={admin} product={rulesFor} canManage={canManage} />}
+      {can(me, ...Permissions.customers) && <CustomerPrices admin={admin} canManage={canManage} />}
     </section>
   )
 }
@@ -143,47 +143,41 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   )
 }
 
-function PriceRules({ admin, product, canManage, canRegions }: { admin: AdminApi; product: Product; canManage: boolean; canRegions: boolean }) {
-  const rules = useLoad(useCallback(() => admin.priceRules(product.id), [admin, product.id]))
-  const customers = useLoad(useCallback(() => (canManage ? admin.customers() : Promise.resolve([] as Customer[])), [admin, canManage]))
-  const regions = useLoad(useCallback(() => (canManage && canRegions ? admin.regions() : Promise.resolve([])), [admin, canManage, canRegions]))
-  const action = useAction(rules.reload)
-  const [kind, setKind] = useState<'customer' | 'region'>('customer')
-  const [target, setTarget] = useState('')
+function CityPrices({ admin, product, canManage }: { admin: AdminApi; product: Product; canManage: boolean }) {
+  const prices = useLoad(useCallback(() => admin.cityPrices(product.id), [admin, product.id]))
+  const cities = useLoad(useCallback(() => (canManage ? admin.places(null) : Promise.resolve([] as Place[])), [admin, canManage]))
+  const action = useAction(prices.reload)
+  const [city, setCity] = useState('')
   const [price, setPrice] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
   function add(e: FormEvent) {
     e.preventDefault()
-    if (!target || price === '') return
+    if (!city || price === '') return
     void action.run(async () => {
-      await admin.createPriceRule(product.id, {
-        ...(kind === 'customer' ? { customerId: target } : { regionId: target }),
-        price: Number(price), validFrom: from, validTo: to || null,
-      })
+      await admin.createCityPrice(product.id, { cityId: city, price: Number(price), validFrom: from || null, validTo: to || null })
       setPrice('')
     })
   }
 
-  function end(rule: PriceRule) {
-    const label = rule.targetName ?? ''
-    const day = window.prompt(t('web.catalog.endPrompt', { target: label }))?.trim()
-    if (day) void action.run(() => admin.endPriceRule(rule.id, day))
+  function end(row: CityPrice) {
+    const day = window.prompt(t('web.catalog.endPrompt', { target: row.cityName }))?.trim()
+    if (day) void action.run(() => admin.endCityPrice(row.id, day))
   }
 
-  const error = action.error ?? rules.error
+  const error = action.error ?? prices.error
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
-      <h3 className="font-semibold">{t('web.catalog.rulesFor', { code: product.code })}</h3>
-      <p className="text-slate-600">{t('web.catalog.ruleHint')}</p>
+      <h3 className="font-semibold">{t('web.catalog.cityPricesFor', { code: product.code })}</h3>
+      <p className="text-slate-600">{t('web.catalog.cityHint')}</p>
       {error && <p role="alert" className="text-red-700">{error}</p>}
-      {rules.data?.length === 0 && <p className="text-slate-600">{t('web.catalog.noRules')}</p>}
-      {rules.data && rules.data.length > 0 && (
+      {prices.data?.length === 0 && <p className="text-slate-600">{t('web.catalog.noCityPrices')}</p>}
+      {prices.data && prices.data.length > 0 && (
         <table className="w-full text-start">
           <thead>
             <tr className="border-b">
-              <th className="py-1">{t('web.catalog.target')}</th>
+              <th className="py-1">{t('web.catalog.city')}</th>
               <th>{t('web.catalog.price')}</th>
               <th>{t('web.catalog.from')}</th>
               <th>{t('web.catalog.to')}</th>
@@ -191,11 +185,9 @@ function PriceRules({ admin, product, canManage, canRegions }: { admin: AdminApi
             </tr>
           </thead>
           <tbody>
-            {rules.data.map((r) => (
+            {prices.data.map((r) => (
               <tr key={r.id} className="border-b">
-                <td className="py-1">
-                  {t(r.scope === 'customer' ? 'web.catalog.forCustomer' : 'web.catalog.forRegion')}: {r.targetName}
-                </td>
+                <td className="py-1">{r.cityName}</td>
                 <td>
                   {money(r.price)} {product.currency}
                 </td>
@@ -203,7 +195,7 @@ function PriceRules({ admin, product, canManage, canRegions }: { admin: AdminApi
                 <td>{r.validTo ?? t('web.catalog.open')}</td>
                 <td className="text-end">
                   {canManage && (
-                    <button className="rounded border px-2 py-1" aria-label={t('web.catalog.endRuleFor', { target: r.targetName ?? '' })} disabled={action.busy} onClick={() => end(r)}>
+                    <button className="rounded border px-2 py-1" aria-label={t('web.catalog.endPriceFor', { target: r.cityName })} disabled={action.busy} onClick={() => end(r)}>
                       {t('web.catalog.endRule')}
                     </button>
                   )}
@@ -215,20 +207,18 @@ function PriceRules({ admin, product, canManage, canRegions }: { admin: AdminApi
       )}
       {canManage && (
         <form onSubmit={add} className="flex flex-wrap items-center gap-2">
-          <select aria-label={t('web.catalog.target')} className="rounded border px-2 py-1" value={kind} onChange={(e) => { setKind(e.target.value as 'customer' | 'region'); setTarget('') }}>
-            <option value="customer">{t('web.catalog.forCustomer')}</option>
-            {(regions.data?.length ?? 0) > 0 && <option value="region">{t('web.catalog.forRegion')}</option>}
-          </select>
-          <select aria-label={t('web.catalog.targetValue')} className="rounded border px-2 py-1" value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">{t(kind === 'customer' ? 'web.catalog.chooseCustomer' : 'web.catalog.chooseRegion')}</option>
-            {kind === 'customer'
-              ? (customers.data ?? []).filter((c) => c.approvalStatus === 'approved').map((c) => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)
-              : (regions.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          <select aria-label={t('web.catalog.city')} className="rounded border px-2 py-1" value={city} onChange={(e) => setCity(e.target.value)}>
+            <option value="">{t('web.catalog.chooseCity')}</option>
+            {(cities.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </select>
           <input aria-label={t('web.catalog.price')} placeholder={t('web.catalog.price')} type="number" min={0} step="any" className="w-32 rounded border px-2 py-1" value={price} onChange={(e) => setPrice(e.target.value)} />
           <input aria-label={t('web.catalog.from')} type="date" className="rounded border px-2 py-1" value={from} onChange={(e) => setFrom(e.target.value)} />
           <input aria-label={t('web.catalog.to')} type="date" className="rounded border px-2 py-1" value={to} onChange={(e) => setTo(e.target.value)} />
-          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !target || price === ''}>
+          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !city || price === ''}>
             {t('web.catalog.addRule')}
           </button>
         </form>
@@ -237,17 +227,21 @@ function PriceRules({ admin, product, canManage, canRegions }: { admin: AdminApi
   )
 }
 
-// What a customer pays on a day, as the server computes it (customer rule, else region rule, else base price).
-function CustomerPriceCheck({ admin }: { admin: AdminApi }) {
+const discountText = (d: { kind: 'percent' | 'amount'; value: number }) => (d.kind === 'percent' ? `-${money(d.value)}%` : `-${money(d.value)}`)
+
+// What one customer pays on a day as the server works it out (general or city price, then the discounts), and the customer's discounts.
+function CustomerPrices({ admin, canManage }: { admin: AdminApi; canManage: boolean }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
   const [customer, setCustomer] = useState('')
   const [day, setDay] = useState('')
-  const prices = useLoad(useCallback(() => (customer ? admin.customerPrices(customer, day || new Date().toISOString().slice(0, 10)) : Promise.resolve(null)), [admin, customer, day]))
+  const prices = useLoad(
+    useCallback(() => (customer ? admin.customerPrices(customer, day || new Date().toISOString().slice(0, 10)) : Promise.resolve(null)), [admin, customer, day]),
+  )
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
       <h3 className="font-semibold">{t('web.catalog.checkTitle')}</h3>
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t('web.catalog.forCustomer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => setCustomer(e.target.value)}>
+        <select aria-label={t('web.catalog.customer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => setCustomer(e.target.value)}>
           <option value="">{t('web.catalog.chooseCustomer')}</option>
           {(customers.data ?? []).map((c) => (
             <option key={c.id} value={c.id}>
@@ -260,19 +254,108 @@ function CustomerPriceCheck({ admin }: { admin: AdminApi }) {
       {prices.error && <p role="alert" className="text-red-700">{prices.error}</p>}
       {prices.data && (
         <table className="w-full text-start">
+          <thead>
+            <tr className="border-b">
+              <th className="py-1">{t('web.catalog.code')}</th>
+              <th>{t('web.catalog.name')}</th>
+              <th>{t('web.catalog.listPrice')}</th>
+              <th>{t('web.catalog.discounts')}</th>
+              <th>{t('web.catalog.finalPrice')}</th>
+            </tr>
+          </thead>
           <tbody>
             {prices.data.map((p) => (
               <tr key={p.productId} className="border-b">
                 <td className="py-1">{p.code}</td>
                 <td>{p.name}</td>
                 <td>
+                  {money(p.listPrice)} {p.currency} ({t(`web.catalog.source.${p.listSource}` as TextKey)})
+                </td>
+                <td>{p.discounts.map(discountText).join(' ')}</td>
+                <td className="font-semibold">
                   {money(p.price)} {p.currency} / {p.unit}
                 </td>
-                <td>{t(`web.catalog.source.${p.source}` as TextKey)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+      {customer && <CustomerDiscounts key={customer} admin={admin} customerId={customer} canManage={canManage} onChanged={prices.reload} />}
+    </div>
+  )
+}
+
+function CustomerDiscounts({ admin, customerId, canManage, onChanged }: { admin: AdminApi; customerId: string; canManage: boolean; onChanged: () => void }) {
+  const discounts = useLoad(useCallback(() => admin.discounts(customerId), [admin, customerId]))
+  const products = useLoad(useCallback(() => (canManage ? admin.products(false) : Promise.resolve([] as Product[])), [admin, canManage]))
+  const action = useAction(() => {
+    discounts.reload()
+    onChanged()
+  })
+  const [product, setProduct] = useState('')
+  const [kind, setKind] = useState<'percent' | 'amount'>('percent')
+  const [value, setValue] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  // An amount is in the currency of one product, so it needs a product.
+  const effectiveKind = product ? kind : 'percent'
+
+  function add(e: FormEvent) {
+    e.preventDefault()
+    if (value === '') return
+    void action.run(async () => {
+      await admin.createDiscount(customerId, { productId: product || null, kind: effectiveKind, value: Number(value), validFrom: from || null, validTo: to || null })
+      setValue('')
+    })
+  }
+
+  function end(d: CustomerDiscount) {
+    const day = window.prompt(t('web.catalog.endPrompt', { target: discountText(d) }))?.trim()
+    if (day) void action.run(() => admin.endDiscount(d.id, day))
+  }
+
+  const error = action.error ?? discounts.error
+  return (
+    <div className="space-y-2 border-t pt-2">
+      <h4 className="font-semibold">{t('web.catalog.discounts')}</h4>
+      <p className="text-slate-600">{t('web.catalog.discountHint')}</p>
+      {error && <p role="alert" className="text-red-700">{error}</p>}
+      {discounts.data?.length === 0 && <p className="text-slate-600">{t('web.catalog.noDiscounts')}</p>}
+      {discounts.data?.map((d) => (
+        <div key={d.id} className="flex flex-wrap items-center gap-3 border-b py-1">
+          <span className="min-w-24 font-semibold">{discountText(d)}</span>
+          <span>{d.productCode ?? t('web.catalog.allProducts')}</span>
+          <span>
+            {d.validFrom} → {d.validTo ?? t('web.catalog.open')}
+          </span>
+          {canManage && (
+            <button className="rounded border px-2 py-1" aria-label={t('web.catalog.endDiscountFor', { value: discountText(d) })} disabled={action.busy} onClick={() => end(d)}>
+              {t('web.catalog.endRule')}
+            </button>
+          )}
+        </div>
+      ))}
+      {canManage && (
+        <form onSubmit={add} className="flex flex-wrap items-center gap-2">
+          <select aria-label={t('web.catalog.product')} className="rounded border px-2 py-1" value={product} onChange={(e) => setProduct(e.target.value)}>
+            <option value="">{t('web.catalog.allProducts')}</option>
+            {(products.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.code} · {p.name}
+              </option>
+            ))}
+          </select>
+          <select aria-label={t('web.catalog.discountKind')} className="rounded border px-2 py-1" value={effectiveKind} disabled={!product} onChange={(e) => setKind(e.target.value as 'percent' | 'amount')}>
+            <option value="percent">{t('web.catalog.percent')}</option>
+            <option value="amount">{t('web.catalog.amount')}</option>
+          </select>
+          <input aria-label={t('web.catalog.value')} placeholder={t('web.catalog.value')} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={value} onChange={(e) => setValue(e.target.value)} />
+          <input aria-label={t('web.catalog.from')} type="date" className="rounded border px-2 py-1" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <input aria-label={t('web.catalog.to')} type="date" className="rounded border px-2 py-1" value={to} onChange={(e) => setTo(e.target.value)} />
+          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || value === ''}>
+            {t('web.catalog.addDiscount')}
+          </button>
+        </form>
       )}
     </div>
   )

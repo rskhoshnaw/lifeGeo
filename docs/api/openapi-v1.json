@@ -2854,12 +2854,12 @@
         }
       }
     },
-    "/products/{productId}/price-rules": {
+    "/products/{productId}/city-prices": {
       "get": {
         "tags": [
           "Catalog"
         ],
-        "operationId": "ListPriceRules",
+        "operationId": "ListCityPrices",
         "parameters": [
           {
             "name": "productId",
@@ -2879,7 +2879,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PriceRuleDto"
+                    "$ref": "#/components/schemas/CityPriceDto"
                   }
                 }
               }
@@ -2941,7 +2941,7 @@
         "tags": [
           "Catalog"
         ],
-        "operationId": "CreatePriceRule",
+        "operationId": "CreateCityPrice",
         "parameters": [
           {
             "name": "productId",
@@ -2957,7 +2957,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePriceRuleRequest"
+                "$ref": "#/components/schemas/CreateCityPriceRequest"
               }
             }
           },
@@ -3047,15 +3047,15 @@
         }
       }
     },
-    "/price-rules/{ruleId}/end": {
+    "/city-prices/{cityPriceId}/end": {
       "post": {
         "tags": [
           "Catalog"
         ],
-        "operationId": "EndPriceRule",
+        "operationId": "EndCityPrice",
         "parameters": [
           {
-            "name": "ruleId",
+            "name": "cityPriceId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3068,7 +3068,294 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EndPriceRuleRequest"
+                "$ref": "#/components/schemas/EndRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers/{customerId}/discounts": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "ListCustomerDiscounts",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerDiscountDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "CreateCustomerDiscount",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDiscountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/discounts/{discountId}/end": {
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "EndCustomerDiscount",
+        "parameters": [
+          {
+            "name": "discountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndRuleRequest"
               }
             }
           },
@@ -6489,6 +6776,39 @@
   },
   "components": {
     "schemas": {
+      "AppliedDiscountDto": {
+        "required": [
+          "id",
+          "kind",
+          "value",
+          "productId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "productId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "AuditLogEntryDto": {
         "required": [
           "id",
@@ -6604,6 +6924,95 @@
           }
         }
       },
+      "CityPriceDto": {
+        "required": [
+          "id",
+          "productId",
+          "cityId",
+          "cityName",
+          "price",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cityName": {
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "CreateCityPriceRequest": {
+        "required": [
+          "cityId",
+          "price",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "cityId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
       "CreateCustomerRequest": {
         "required": [
           "type",
@@ -6627,6 +7036,54 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "CreateDiscountRequest": {
+        "required": [
+          "productId",
+          "kind",
+          "value",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "kind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -6680,55 +7137,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "CreatePriceRuleRequest": {
-        "required": [
-          "customerId",
-          "regionId",
-          "price",
-          "validFrom",
-          "validTo"
-        ],
-        "type": "object",
-        "properties": {
-          "customerId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "regionId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "price": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "validFrom": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date"
-          },
-          "validTo": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date"
           }
         }
       },
@@ -6852,6 +7260,64 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CustomerDiscountDto": {
+        "required": [
+          "id",
+          "customerId",
+          "productId",
+          "productCode",
+          "kind",
+          "value",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -7118,9 +7584,11 @@
           "nameEn",
           "unit",
           "currency",
-          "price",
-          "source",
-          "ruleId"
+          "listPrice",
+          "listSource",
+          "cityPriceId",
+          "discounts",
+          "price"
         ],
         "type": "object",
         "properties": {
@@ -7158,7 +7626,7 @@
           "currency": {
             "type": "string"
           },
-          "price": {
+          "listPrice": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
             "type": [
               "number",
@@ -7166,19 +7634,33 @@
             ],
             "format": "double"
           },
-          "source": {
+          "listSource": {
             "type": "string"
           },
-          "ruleId": {
+          "cityPriceId": {
             "type": [
               "null",
               "string"
             ],
             "format": "uuid"
+          },
+          "discounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedDiscountDto"
+            }
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
-      "EndPriceRuleRequest": {
+      "EndRuleRequest": {
         "required": [
           "validTo"
         ],
@@ -7961,72 +8443,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "PriceRuleDto": {
-        "required": [
-          "id",
-          "productId",
-          "scope",
-          "customerId",
-          "regionId",
-          "targetName",
-          "price",
-          "validFrom",
-          "validTo"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "productId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scope": {
-            "type": "string"
-          },
-          "customerId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "regionId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "targetName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "price": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "validFrom": {
-            "type": "string",
-            "format": "date"
-          },
-          "validTo": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date"
           }
         }
       },

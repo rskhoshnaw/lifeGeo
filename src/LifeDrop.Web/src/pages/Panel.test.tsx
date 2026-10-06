@@ -259,17 +259,20 @@ describe('panel management screens', () => {
     ])
   })
 
-  it('manages products and price rules, and reads the price a customer pays', async () => {
+  it('manages products, city prices and discounts, and reads the price a customer pays', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' 2026-12-31 ')
-    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage', 'customers.read', 'regions.read'] }
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage', 'customers.read'] }
     const product = { id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }
-    const rule = { id: 'ru1', productId: 'pr1', scope: 'region', customerId: null, regionId: 'rg1', targetName: 'Erbil', price: 1800, validFrom: '2026-10-01', validTo: null }
+    const cityPrice = { id: 'cp1', productId: 'pr1', cityId: 'p1', cityName: 'Erbil', price: 1800, validFrom: '2026-10-01', validTo: null }
+    const discount = { id: 'd1', customerId: 'c1', productId: null, productCode: null, kind: 'percent', value: 10, validFrom: '2026-10-01', validTo: null }
     const { api, calls } = server(seller, {
       '/products?': [product],
-      '/products/pr1/price-rules': [rule],
+      '/products?q=': [product],
+      '/products/pr1/city-prices': [cityPrice],
+      '/places?limit=2000&kind=city': [place('p1', 'city', 'Erbil')],
       '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
-      '/regions': [{ id: 'rg1', name: 'Erbil' }],
-      '/customers/c1/prices?date=2026-10-06': [{ productId: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', unit: 'box', currency: 'IQD', price: 1800, source: 'region' }],
+      '/customers/c1/discounts': [discount],
+      '/customers/c1/prices?date=2026-10-06': [{ productId: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', unit: 'box', currency: 'IQD', listPrice: 1800, listSource: 'city', discounts: [{ id: 'd1', kind: 'percent', value: 10, productId: null }], price: 1620 }],
     })
     const user = userEvent.setup()
     render(<App api={api} />)
@@ -288,38 +291,50 @@ describe('panel management screens', () => {
     await waitFor(() => expect(posts(calls)).toHaveLength(1))
     expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/products', body: { code: 'AMX-250', name: 'Amoxicillin 250', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'USD', basePrice: 3.5, status: 'active' } })
 
-    // The rules of a product: end one, add one for a customer
-    await user.click(screen.getByRole('button', { name: 'Price rules of PAR-500' }))
-    expect(await screen.findByText('Region: Erbil')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'End rule for Erbil' }))
-    await user.selectOptions(screen.getByLabelText('Customer or region'), 'c1')
-    await user.type(screen.getByLabelText('Price'), '1200')
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-10' } })
+    // City prices of a product: end one, add one for a city (no start day = today on the server)
+    await user.click(screen.getByRole('button', { name: 'City prices of PAR-500' }))
+    expect(await screen.findByText('Erbil', { selector: 'td' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'End price for Erbil' }))
+    await user.selectOptions(await screen.findByLabelText('City', { selector: 'select' }), 'p1')
+    await user.type(screen.getByLabelText('Price'), '1750')
     await user.click(screen.getByRole('button', { name: 'Add rule' }))
     await waitFor(() => expect(posts(calls)).toHaveLength(3))
     expect(prompt).toHaveBeenCalledTimes(1)
     expect(posts(calls).slice(1)).toEqual([
-      { method: 'POST', path: '/price-rules/ru1/end', body: { validTo: '2026-12-31' } },
-      { method: 'POST', path: '/products/pr1/price-rules', body: { customerId: 'c1', price: 1200, validFrom: '2026-10-10', validTo: null } },
+      { method: 'POST', path: '/city-prices/cp1/end', body: { validTo: '2026-12-31' } },
+      { method: 'POST', path: '/products/pr1/city-prices', body: { cityId: 'p1', price: 1750, validFrom: null, validTo: null } },
     ])
 
-    // What a customer pays that day comes from the server
+    // What a customer pays that day comes from the server, with the discounts
     await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
     fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-10-06' } })
-    expect(await screen.findByText('region rule')).toBeInTheDocument()
+    expect(await screen.findByText('1,620 IQD / box')).toBeInTheDocument()
+    expect(screen.getByText('1,800 IQD (city price)')).toBeInTheDocument()
+    expect(await screen.findByText('Several discounts', { exact: false })).toBeInTheDocument()
+
+    // Discounts: an amount needs a product; add one for all products as a percentage; end one
+    expect(screen.getByLabelText('Kind')).toBeDisabled()
+    await user.type(screen.getByLabelText('Value'), '5')
+    await user.click(screen.getByRole('button', { name: 'Add discount' }))
+    await user.click(await screen.findByRole('button', { name: 'End discount -10%' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(5))
+    expect(posts(calls).slice(3)).toEqual([
+      { method: 'POST', path: '/customers/c1/discounts', body: { productId: null, kind: 'percent', value: 5, validFrom: null, validTo: null } },
+      { method: 'POST', path: '/discounts/d1/end', body: { validTo: '2026-12-31' } },
+    ])
   })
 
   it('shows a reader the products without any change buttons', async () => {
     const reader: Me = { id: 'r', email: 'rep@t1', roles: ['SalesRep'], permissions: ['catalog.read'] }
-    const { api } = server(reader, { '/products?': [{ id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }], '/products/pr1/price-rules': [] })
+    const { api } = server(reader, { '/products?': [{ id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }], '/products/pr1/city-prices': [] })
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Products' }))
     await screen.findByText('PAR-500')
     expect(screen.queryByRole('button', { name: 'New product' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit PAR-500' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Price rules of PAR-500' }))
-    expect(await screen.findByText('No price rules: everyone pays the base price.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'City prices of PAR-500' }))
+    expect(await screen.findByText('No city prices: every city pays the general price.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add rule' })).not.toBeInTheDocument()
   })
 
