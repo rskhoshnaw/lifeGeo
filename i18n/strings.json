@@ -4744,5 +4744,263 @@
   "ckb": "هیتر",
   "ar": "أخرى",
   "fa": "سایر"
+ },
+ "app.home.followups": {
+  "en": "Follow-ups",
+  "ckb": "شوێنکەوتنەکان",
+  "ar": "المتابعات",
+  "fa": "پیگیری‌ها"
+ },
+ "app.followup.title": {
+  "en": "My follow-ups",
+  "ckb": "شوێنکەوتنەکانم",
+  "ar": "متابعاتي",
+  "fa": "پیگیری‌های من"
+ },
+ "app.followup.new": {
+  "en": "New follow-up",
+  "ckb": "شوێنکەوتنی نوێ",
+  "ar": "متابعة جديدة",
+  "fa": "پیگیری جدید"
+ },
+ "app.followup.subject": {
+  "en": "Subject",
+  "ckb": "بابەت",
+  "ar": "الموضوع",
+  "fa": "موضوع"
+ },
+ "app.followup.due": {
+  "en": "Due day",
+  "ckb": "ڕۆژی دیاریکراو",
+  "ar": "يوم الاستحقاق",
+  "fa": "روز موعد"
+ },
+ "app.followup.save": {
+  "en": "Save follow-up",
+  "ckb": "شوێنکەوتن پاشەکەوت بکە",
+  "ar": "حفظ المتابعة",
+  "fa": "ذخیره پیگیری"
+ },
+ "app.followup.saved": {
+  "en": "Follow-up saved.",
+  "ckb": "شوێنکەوتن پاشەکەوت کرا.",
+  "ar": "تم حفظ المتابعة.",
+  "fa": "پیگیری ذخیره شد."
+ },
+ "app.followup.none": {
+  "en": "No open follow-ups.",
+  "ckb": "هیچ شوێنکەوتنێکی کراوە نییە.",
+  "ar": "لا توجد متابعات مفتوحة.",
+  "fa": "پیگیری بازی نیست."
+ },
+ "app.followup.overdue": {
+  "en": "Overdue",
+  "ckb": "دواکەوتوو",
+  "ar": "متأخرة",
+  "fa": "سررسید گذشته"
+ },
+ "app.followup.status.pending": {
+  "en": "Pending",
+  "ckb": "چاوەڕوان",
+  "ar": "قيد الانتظار",
+  "fa": "در انتظار"
+ },
+ "app.followup.status.in_progress": {
+  "en": "In progress",
+  "ckb": "بەردەوامە",
+  "ar": "قيد التنفيذ",
+  "fa": "در حال انجام"
+ },
+ "app.followup.start": {
+  "en": "Start",
+  "ckb": "دەستپێکردن",
+  "ar": "بدء",
+  "fa": "شروع"
+ },
+ "app.followup.complete": {
+  "en": "Complete",
+  "ckb": "تەواوکردن",
+  "ar": "إنهاء",
+  "fa": "تکمیل"
+ },
+ "app.followup.cancel": {
+  "en": "Cancel",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "لغو"
+ },
+ "app.followup.close": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "app.followup.resultNote": {
+  "en": "Result note",
+  "ckb": "تێبینی ئەنجام",
+  "ar": "ملاحظة النتيجة",
+  "fa": "یادداشت نتیجه"
+ },
+ "app.followup.reason": {
+  "en": "Reason",
+  "ckb": "هۆکار",
+  "ar": "السبب",
+  "fa": "دلیل"
+ },
+ "web.tab.followups": {
+  "en": "Follow-ups",
+  "ckb": "شوێنکەوتنەکان",
+  "ar": "المتابعات",
+  "fa": "پیگیری‌ها"
+ },
+ "web.followups.title": {
+  "en": "Follow-ups",
+  "ckb": "شوێنکەوتنەکان",
+  "ar": "المتابعات",
+  "fa": "پیگیری‌ها"
+ },
+ "web.followups.filter": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.followups.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.followups.overdueOnly": {
+  "en": "Overdue only",
+  "ckb": "تەنها دواکەوتووەکان",
+  "ar": "المتأخرة فقط",
+  "fa": "فقط سررسید گذشته"
+ },
+ "web.followups.subject": {
+  "en": "Subject",
+  "ckb": "بابەت",
+  "ar": "الموضوع",
+  "fa": "موضوع"
+ },
+ "web.followups.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "الزبون",
+  "fa": "مشتری"
+ },
+ "web.followups.due": {
+  "en": "Due",
+  "ckb": "کۆتا ڕۆژ",
+  "ar": "الاستحقاق",
+  "fa": "موعد"
+ },
+ "web.followups.assignee": {
+  "en": "Responsible",
+  "ckb": "بەرپرس",
+  "ar": "المسؤول",
+  "fa": "مسئول"
+ },
+ "web.followups.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.followups.overdue": {
+  "en": "Overdue",
+  "ckb": "دواکەوتوو",
+  "ar": "متأخرة",
+  "fa": "سررسید گذشته"
+ },
+ "web.followups.none": {
+  "en": "No follow-ups.",
+  "ckb": "هیچ شوێنکەوتنێک نییە.",
+  "ar": "لا توجد متابعات.",
+  "fa": "پیگیری‌ای نیست."
+ },
+ "web.followups.status.pending": {
+  "en": "Pending",
+  "ckb": "چاوەڕوان",
+  "ar": "قيد الانتظار",
+  "fa": "در انتظار"
+ },
+ "web.followups.status.in_progress": {
+  "en": "In progress",
+  "ckb": "بەردەوامە",
+  "ar": "قيد التنفيذ",
+  "fa": "در حال انجام"
+ },
+ "web.followups.status.completed": {
+  "en": "Completed",
+  "ckb": "تەواوبوو",
+  "ar": "مكتملة",
+  "fa": "انجام‌شده"
+ },
+ "web.followups.status.cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێندراوە",
+  "ar": "ملغاة",
+  "fa": "لغوشده"
+ },
+ "web.followups.new": {
+  "en": "New follow-up",
+  "ckb": "شوێنکەوتنی نوێ",
+  "ar": "متابعة جديدة",
+  "fa": "پیگیری جدید"
+ },
+ "web.followups.chooseCustomer": {
+  "en": "Choose a customer",
+  "ckb": "کڕیارێک هەڵبژێرە",
+  "ar": "اختر زبوناً",
+  "fa": "مشتری را انتخاب کنید"
+ },
+ "web.followups.chooseAssignee": {
+  "en": "Responsible user",
+  "ckb": "بەکارهێنەری بەرپرس",
+  "ar": "المستخدم المسؤول",
+  "fa": "کاربر مسئول"
+ },
+ "web.followups.save": {
+  "en": "Save follow-up",
+  "ckb": "شوێنکەوتن پاشەکەوت بکە",
+  "ar": "حفظ المتابعة",
+  "fa": "ذخیره پیگیری"
+ },
+ "web.followups.cancel": {
+  "en": "Cancel",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "لغو"
+ },
+ "web.followups.cancelAction": {
+  "en": "Cancel {subject}",
+  "ckb": "هەڵوەشاندنەوەی {subject}",
+  "ar": "إلغاء {subject}",
+  "fa": "لغو {subject}"
+ },
+ "web.followups.reassign": {
+  "en": "Reassign",
+  "ckb": "گۆڕینی بەرپرس",
+  "ar": "إعادة التعيين",
+  "fa": "تغییر مسئول"
+ },
+ "web.followups.reassignAction": {
+  "en": "Reassign {subject}",
+  "ckb": "گۆڕینی بەرپرسی {subject}",
+  "ar": "إعادة تعيين {subject}",
+  "fa": "تغییر مسئول {subject}"
+ },
+ "web.followups.reasonPrompt": {
+  "en": "Reason?",
+  "ckb": "هۆکار؟",
+  "ar": "السبب؟",
+  "fa": "دلیل؟"
+ },
+ "web.followups.result": {
+  "en": "Result",
+  "ckb": "ئەنجام",
+  "ar": "النتيجة",
+  "fa": "نتیجه"
  }
 }

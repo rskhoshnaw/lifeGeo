@@ -412,6 +412,50 @@ describe('panel management screens', () => {
     expect(screen.getAllByRole('button', { name: /^Visit form of/ })).toHaveLength(2)   // the planned visit has none
   })
 
+  it('follow-ups: a manager sees overdue ones, makes one for a rep, reassigns and cancels with a reason', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' customer closed ')
+    const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['followups.read', 'followups.create', 'followups.manage', 'customers.read', 'user.manageroles'] }
+    const base = { customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', assigneeId: 'u1', assigneeEmail: 'rep@t1', createdBy: 'u1', createdByEmail: 'rep@t1', resultNote: null, cancelReason: null, createdAt: '2026-10-01T08:00:00Z', completedAt: null }
+    const { api, calls } = server(sm, {
+      '/followups?limit=200': [{ ...base, id: 'f1', subject: 'Old promise', dueDate: '2026-10-01', status: 'pending', isOverdue: true }, { ...base, id: 'f2', subject: 'Done thing', dueDate: '2026-10-02', status: 'completed', isOverdue: false, resultNote: 'got it' }],
+      '/followups?limit=200&overdue=true': [{ ...base, id: 'f1', subject: 'Old promise', dueDate: '2026-10-01', status: 'pending', isOverdue: true }],
+      '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
+      '/users': [rep, { ...rep, id: 'u2', email: 'rep2@t1' }],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Follow-ups' }))
+    expect(await screen.findByText('Old promise')).toBeInTheDocument()
+    expect(screen.getByText(/got it/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Overdue/).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Cancel Done thing' })).not.toBeInTheDocument()   // a completed one cannot be cancelled
+
+    // Cancel with a reason, reassign to another user
+    await user.click(screen.getByRole('button', { name: 'Cancel Old promise' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/followups/f1/cancel', body: { reason: 'customer closed' } })
+    await user.selectOptions(screen.getByLabelText('Reassign Old promise'), 'u2')
+    await user.click(screen.getByRole('button', { name: 'Reassign' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/followups/f1/reassign', body: { assigneeId: 'u2' } })
+
+    // A new one for a rep: the due day is not before today, the reference is stable per form
+    await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
+    await user.type(screen.getByLabelText('Subject', { selector: 'input' }), ' Call back ')
+    await user.selectOptions(screen.getByLabelText('Responsible user', { selector: 'select' }), 'u2')
+    await user.click(screen.getByRole('button', { name: 'Save follow-up' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    const sent = posts(calls)[2]!
+    expect(sent.path).toBe('/followups')
+    expect(sent.body).toMatchObject({ customerId: 'c1', subject: 'Call back', dueDate: iraqToday(), assigneeId: 'u2' })
+    expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
+
+    // The overdue filter asks the server
+    await user.click(screen.getByLabelText('Overdue only'))
+    await waitFor(() => expect(calls.some((c) => c.path === '/followups?limit=200&overdue=true')).toBe(true))
+  })
+
   it('samples: a manager reads the list and voids a record with a reason; a rep sees the tab without the void button', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' typed twice ')
     const sample = { id: 's1', number: 'S-000001', customerCode: 'P-1', customerName: 'Shifa', productCode: 'PAR-500', productName: 'Paracetamol 500', unit: 'box', quantity: 3, recipientName: 'Dr. Karwan',
