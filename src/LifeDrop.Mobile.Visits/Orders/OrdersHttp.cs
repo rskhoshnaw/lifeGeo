@@ -44,6 +44,7 @@ internal sealed class OrdersHttp(HttpClient httpClient, IAuthSession session)
                 HttpStatusCode.Forbidden => VisitActionResult.Forbidden,
                 HttpStatusCode.NotFound => VisitActionResult.NotFound,
                 HttpStatusCode.BadRequest => code == "CURRENCY_MISMATCH" ? VisitActionResult.CurrencyMismatch : VisitActionResult.InvalidData,
+                HttpStatusCode.UnprocessableEntity => code == "GPS_MOCKED" ? VisitActionResult.GpsMocked : VisitActionResult.ServerError,
                 HttpStatusCode.Conflict => code == "CUSTOMER_NOT_APPROVED" ? VisitActionResult.CustomerNotApproved : VisitActionResult.Conflict,
                 _ => VisitActionResult.ServerError
             }, default);

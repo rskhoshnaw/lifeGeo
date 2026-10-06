@@ -282,12 +282,20 @@ export interface OrderLine {
   discounts: { id: string; kind: 'percent' | 'amount'; value: number }[]
   preparedQuantity?: number | null
   shortageReason?: string | null
+  deliveredQuantity?: number | null
+  deliveryReason?: string | null
 }
 export interface OrderStep {
   status: string
   actorEmail: string | null
   note: string | null
   at: string
+  distanceMeters?: number | null
+}
+export interface DeliveryInfo {
+  receiverName: string | null
+  deliveryNote: string | null
+  failureReason: string | null
 }
 export interface StaffMember {
   userId: string
@@ -308,7 +316,7 @@ export interface Order {
   warehouseName: string
   createdBy: string
   createdByEmail: string | null
-  status: 'placed' | 'preparing' | 'ready' | 'handed_over' | 'cancelled'
+  status: 'placed' | 'preparing' | 'ready' | 'handed_over' | 'picked_up' | 'on_the_way' | 'delivered' | 'delivery_failed' | 'cancelled'
   currency: 'IQD' | 'USD'
   total: number
   note: string | null
@@ -318,6 +326,7 @@ export interface Order {
   driverId?: string | null
   driverEmail?: string | null
   history?: OrderStep[] | null
+  delivery?: DeliveryInfo | null
 }
 export interface CreatedOrder {
   id: string

@@ -476,6 +476,27 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('shows what was delivered, who received it and how far the driver was', async () => {
+    const reader: Me = { id: 'f', email: 'fin@t1', roles: ['FinanceManager'], permissions: ['orders.read'] }
+    const order = {
+      id: 'o1', number: 'O-000001', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', visitId: null, warehouseId: 'w1', warehouseName: 'Erbil warehouse', createdBy: 'u1',
+      createdByEmail: 'rep@t1', status: 'delivered', currency: 'IQD', total: 18000, note: null, cancelReason: null, createdAt: '2026-10-06T08:00:00Z', driverId: 'd1', driverEmail: 'driver@t1',
+      items: [{ lineNo: 1, productId: 'p1', productCode: 'PAR-500', productName: 'Paracetamol', unit: 'box', quantity: 4, listPrice: 1000, unitPrice: 1000, lineTotal: 4000, discounts: [], preparedQuantity: 3, shortageReason: 'stock', deliveredQuantity: 2, deliveryReason: 'refused one' }],
+      history: [{ status: 'placed', actorEmail: 'rep@t1', note: null, at: '2026-10-06T08:00:00Z' }, { status: 'delivered', actorEmail: 'driver@t1', note: null, at: '2026-10-06T12:00:00Z', distanceMeters: 15 }],
+      delivery: { receiverName: 'Ali Hassan', deliveryNote: 'at the door', failureReason: null },
+    }
+    const { api } = server(reader, { '/orders?limit=50': [{ ...order, items: [] }], '/orders/o1': order })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Orders' }))
+    await user.click(await screen.findByRole('button', { name: 'Details of O-000001' }))
+    expect(await screen.findByText('2 (refused one)')).toBeInTheDocument()       // delivered
+    expect(screen.getByText('3 (stock)')).toBeInTheDocument()                    // prepared
+    expect(screen.getByText('Received by: Ali Hassan · at the door')).toBeInTheDocument()
+    expect(screen.getByText(/delivered · driver@t1 · 15 m from the customer/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel order' })).not.toBeInTheDocument()   // delivered: nothing to cancel
+  })
+
   it('edits the visit hours of a customer and rejects hours that overlap', async () => {
     const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
     const hours = [{ weekday: 2, opensAt: '09:00:00', closesAt: '13:00:00' }]

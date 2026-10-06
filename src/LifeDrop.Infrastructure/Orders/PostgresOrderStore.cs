@@ -225,7 +225,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         var orderId = order.Id;
         var lines = new List<OrderLineDto>();
         await using (var items = new NpgsqlCommand("""
-            SELECT line_no, product_id, product_code, product_name, unit, quantity, list_price, unit_price, line_total, discounts::text, prepared_quantity, shortage_reason
+            SELECT line_no, product_id, product_code, product_name, unit, quantity, list_price, unit_price, line_total, discounts::text, prepared_quantity, shortage_reason, delivered_quantity, delivery_reason
             FROM order_items WHERE tenant_id = @tenant AND order_id = @id ORDER BY line_no
             """, connection, transaction))
         {
@@ -236,11 +236,12 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
                 lines.Add(new OrderLineDto(reader.GetInt32(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetDecimal(5),
                     reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8),
                     JsonSerializer.Deserialize<List<AppliedDiscountDto>>(reader.GetString(9), Json) ?? new List<AppliedDiscountDto>(),
-                    reader.IsDBNull(10) ? null : reader.GetDecimal(10), reader.IsDBNull(11) ? null : reader.GetString(11)));
+                    reader.IsDBNull(10) ? null : reader.GetDecimal(10), reader.IsDBNull(11) ? null : reader.GetString(11),
+                    reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.IsDBNull(13) ? null : reader.GetString(13)));
         }
         var history = new List<OrderHistoryDto>();
         await using (var steps = new NpgsqlCommand("""
-            SELECT s.status, u.email, s.note, s.occurred_at FROM order_status_history s
+            SELECT s.status, u.email, s.note, s.occurred_at, s.latitude, s.longitude, s.distance_m FROM order_status_history s
             LEFT JOIN users u ON u.tenant_id = s.tenant_id AND u.id = s.actor_id
             WHERE s.tenant_id = @tenant AND s.order_id = @id ORDER BY s.occurred_at, s.id
             """, connection, transaction))
@@ -249,9 +250,24 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             steps.Parameters.AddWithValue("id", orderId);
             await using var reader = await steps.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                history.Add(new OrderHistoryDto(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3)));
+                history.Add(new OrderHistoryDto(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3),
+                    reader.IsDBNull(4) ? null : reader.GetDouble(4), reader.IsDBNull(5) ? null : reader.GetDouble(5), reader.IsDBNull(6) ? null : reader.GetInt32(6)));
         }
-        return order with { Items = lines, History = history };
+        DeliveryInfo? info = null;
+        await using (var extra = new NpgsqlCommand("""
+            SELECT c.phone, c.address, ST_Y(c.geom::geometry), ST_X(c.geom::geometry), o.receiver_name, o.delivery_note, o.failure_reason
+            FROM orders o JOIN customers c ON c.tenant_id = o.tenant_id AND c.id = o.customer_id WHERE o.tenant_id = @tenant AND o.id = @id
+            """, connection, transaction))
+        {
+            extra.Parameters.AddWithValue("tenant", tenantId.Value);
+            extra.Parameters.AddWithValue("id", orderId);
+            await using var reader = await extra.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+                info = new DeliveryInfo(reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetDouble(2), reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6));
+        }
+        return order with { Items = lines, History = history, Delivery = info };
     }
 
     public async Task<IReadOnlyList<OrderDto>> ListAsync(TenantId tenantId, AccessScope scope, Guid? customerId, string? status, int limit, DateTimeOffset? before, Guid? beforeId,
@@ -548,18 +564,171 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await update.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    // The step of an order; a driver's step also keeps the phone's position and its distance to the customer (when both are known).
     private static async Task AddHistoryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, Guid orderId, string status, UserId actorId, string? note,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, DeliveryLocation? location = null)
     {
         await using var insert = new NpgsqlCommand("""
-            INSERT INTO order_status_history (tenant_id, order_id, status, actor_id, note) VALUES (@tenant, @order, @status, @actor, @note)
+            INSERT INTO order_status_history (tenant_id, order_id, status, actor_id, note, latitude, longitude, accuracy_m, distance_m)
+            SELECT @tenant, @order, @status, @actor, @note, @lat, @lon, @accuracy,
+                   CASE WHEN @lat::float8 IS NOT NULL AND c.geom IS NOT NULL
+                        THEN round(ST_Distance(c.geom, ST_SetSRID(ST_MakePoint(@lon::float8, @lat::float8), 4326)::geography))::int END
+            FROM orders o JOIN customers c ON c.tenant_id = o.tenant_id AND c.id = o.customer_id
+            WHERE o.tenant_id = @tenant AND o.id = @order
             """, connection, transaction);
         insert.Parameters.AddWithValue("tenant", tenantId.Value);
         insert.Parameters.AddWithValue("order", orderId);
         insert.Parameters.AddWithValue("status", status);
         insert.Parameters.AddWithValue("actor", actorId.Value);
         insert.Parameters.Add(new NpgsqlParameter("note", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)note ?? DBNull.Value });
+        insert.Parameters.Add(new NpgsqlParameter("lat", NpgsqlTypes.NpgsqlDbType.Double) { Value = (object?)location?.Latitude ?? DBNull.Value });
+        insert.Parameters.Add(new NpgsqlParameter("lon", NpgsqlTypes.NpgsqlDbType.Double) { Value = (object?)location?.Longitude ?? DBNull.Value });
+        insert.Parameters.Add(new NpgsqlParameter("accuracy", NpgsqlTypes.NpgsqlDbType.Double) { Value = (object?)location?.AccuracyMeters ?? DBNull.Value });
         await insert.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    // ---- Delivery by the driver ----
+
+    public async Task<IReadOnlyList<OrderDto>> ListForDriverAsync(TenantId tenantId, UserId actorId, string? status, int limit, DateTimeOffset? before, Guid? beforeId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            SELECT {OrderColumns} {OrderJoins}
+            WHERE o.tenant_id = @tenant AND o.driver_id = @actor
+              AND ((@status::text IS NULL AND o.status IN ('handed_over', 'picked_up', 'on_the_way')) OR o.status = @status)
+              AND (@before::timestamptz IS NULL OR (o.created_at, o.id) < (@before, @beforeId))
+            ORDER BY o.created_at DESC, o.id DESC
+            LIMIT @limit
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("actor", actorId.Value);
+        command.Parameters.Add(new NpgsqlParameter("status", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)status ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("before", NpgsqlTypes.NpgsqlDbType.TimestampTz) { Value = (object?)before ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("beforeId", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)beforeId ?? DBNull.Value });
+        command.Parameters.AddWithValue("limit", limit);
+        var items = new List<OrderDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) items.Add(ReadOrder(reader));
+        return items;
+    }
+
+    public async Task<OrderDto?> GetForDriverAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        OrderDto? order;
+        await using (var command = new NpgsqlCommand($"SELECT {OrderColumns} {OrderJoins} WHERE o.tenant_id = @tenant AND o.id = @id AND o.driver_id = @actor", connection, transaction))
+        {
+            command.Parameters.AddWithValue("tenant", tenantId.Value);
+            command.Parameters.AddWithValue("id", orderId);
+            command.Parameters.AddWithValue("actor", actorId.Value);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            order = await reader.ReadAsync(cancellationToken) ? ReadOrder(reader) : null;
+        }
+        return order is null ? null : await LoadDetailsAsync(connection, transaction, tenantId, order, cancellationToken);
+    }
+
+    private static async Task<string?> LockForDriverAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("SELECT status FROM orders WHERE tenant_id = @tenant AND id = @id AND driver_id = @actor FOR UPDATE", connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("id", orderId);
+        command.Parameters.AddWithValue("actor", actorId.Value);
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
+    }
+
+    public async Task<OrderResult> DriverStepAsync(TenantId tenantId, UserId actorId, Guid orderId, string step, DeliveryLocation? location, CancellationToken cancellationToken)
+    {
+        var (from, to, action) = step switch
+        {
+            "pickup" => ("handed_over", "picked_up", "order.picked_up"),
+            "depart" => ("picked_up", "on_the_way", "order.on_the_way"),
+            _ => throw new ArgumentOutOfRangeException(nameof(step))
+        };
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        var status = await LockForDriverAsync(connection, transaction, tenantId, actorId, orderId, cancellationToken);
+        if (status is null) return OrderResult.NotFound;
+        if (status != from) return OrderResult.Conflict;
+        await SetStatusAsync(connection, transaction, tenantId, orderId, to, cancellationToken);
+        await AddHistoryAsync(connection, transaction, tenantId, orderId, to, actorId, null, cancellationToken, location);
+        await AuditAsync(connection, transaction, tenantId, actorId, action, orderId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return OrderResult.Success;
+    }
+
+    public async Task<OrderResult> DeliverAsync(TenantId tenantId, UserId actorId, Guid orderId, string receiverName, string? note, IReadOnlyList<DeliveredLineRequest> lines,
+        DeliveryLocation? location, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        var status = await LockForDriverAsync(connection, transaction, tenantId, actorId, orderId, cancellationToken);
+        if (status is null) return OrderResult.NotFound;
+        if (status != "on_the_way") return OrderResult.Conflict;
+
+        // The baseline is what the warehouse prepared (the ordered quantity when nothing was reported).
+        var prepared = new Dictionary<int, decimal>();
+        await using (var read = new NpgsqlCommand("SELECT line_no, coalesce(prepared_quantity, quantity) FROM order_items WHERE tenant_id = @tenant AND order_id = @id", connection, transaction))
+        {
+            read.Parameters.AddWithValue("tenant", tenantId.Value);
+            read.Parameters.AddWithValue("id", orderId);
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) prepared[reader.GetInt32(0)] = reader.GetDecimal(1);
+        }
+        if (lines.Count != prepared.Count || lines.Any(l => !prepared.TryGetValue(l.LineNo!.Value, out var max) || l.Quantity > max || (l.Quantity < max && string.IsNullOrEmpty(l.Reason))))
+            return OrderResult.InvalidData;
+
+        var shortage = false;
+        foreach (var line in lines)
+        {
+            var less = line.Quantity < prepared[line.LineNo!.Value];
+            shortage |= less;
+            await using var update = new NpgsqlCommand("""
+                UPDATE order_items SET delivered_quantity = @quantity, delivery_reason = @reason WHERE tenant_id = @tenant AND order_id = @id AND line_no = @line
+                """, connection, transaction);
+            update.Parameters.AddWithValue("quantity", line.Quantity!.Value);
+            update.Parameters.Add(new NpgsqlParameter("reason", NpgsqlTypes.NpgsqlDbType.Text) { Value = less ? line.Reason : DBNull.Value });
+            update.Parameters.AddWithValue("tenant", tenantId.Value);
+            update.Parameters.AddWithValue("id", orderId);
+            update.Parameters.AddWithValue("line", line.LineNo!.Value);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var order = new NpgsqlCommand("UPDATE orders SET status = 'delivered', receiver_name = @receiver, delivery_note = @note WHERE tenant_id = @tenant AND id = @id", connection, transaction))
+        {
+            order.Parameters.AddWithValue("receiver", receiverName);
+            order.Parameters.Add(new NpgsqlParameter("note", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)note ?? DBNull.Value });
+            order.Parameters.AddWithValue("tenant", tenantId.Value);
+            order.Parameters.AddWithValue("id", orderId);
+            await order.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AddHistoryAsync(connection, transaction, tenantId, orderId, "delivered", actorId, shortage ? "shortage" : null, cancellationToken, location);
+        await AuditAsync(connection, transaction, tenantId, actorId, "order.delivered", orderId, cancellationToken);
+        if (shortage) await AuditAsync(connection, transaction, tenantId, actorId, "order.delivery_shortage", orderId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return OrderResult.Success;
+    }
+
+    public async Task<OrderResult> FailDeliveryAsync(TenantId tenantId, UserId actorId, Guid orderId, string reason, DeliveryLocation? location, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        var status = await LockForDriverAsync(connection, transaction, tenantId, actorId, orderId, cancellationToken);
+        if (status is null) return OrderResult.NotFound;
+        if (status is not ("handed_over" or "picked_up" or "on_the_way")) return OrderResult.Conflict;
+        await using (var update = new NpgsqlCommand("UPDATE orders SET status = 'delivery_failed', failure_reason = @reason WHERE tenant_id = @tenant AND id = @id", connection, transaction))
+        {
+            update.Parameters.AddWithValue("reason", reason);
+            update.Parameters.AddWithValue("tenant", tenantId.Value);
+            update.Parameters.AddWithValue("id", orderId);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AddHistoryAsync(connection, transaction, tenantId, orderId, "delivery_failed", actorId, reason, cancellationToken, location);
+        await AuditAsync(connection, transaction, tenantId, actorId, "order.delivery_failed", orderId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return OrderResult.Success;
     }
 
     public async Task<bool> HasPlacedOrderForVisitAsync(TenantId tenantId, Guid visitId, CancellationToken cancellationToken)

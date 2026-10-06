@@ -138,6 +138,64 @@ public static class OrderEndpoints
             .WithName("ListDrivers").WithTags("Warehouse").Produces<List<DriverDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        // Delivery by the driver (plan step 2.4): only the orders assigned to the driver.
+        app.MapGet("/deliveries", async (string? status, int? limit, DateTimeOffset? before, Guid? beforeId, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListForDriverAsync(tenantId, actorId, status, limit, before, beforeId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListDeliveries").WithTags("Delivery").Produces<List<OrderDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/deliveries/{orderId:guid}", async (Guid orderId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, order) = await service.GetForDriverAsync(tenantId, actorId, orderId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(order) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("GetDelivery").WithTags("Delivery").Produces<OrderDto>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        foreach (var step in new[] { "pickup", "depart" })
+        {
+            app.MapPost($"/deliveries/{{orderId:guid}}/{step}", async (Guid orderId, DeliveryStepRequest? request, HttpContext context, OrderService service,
+                DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+            {
+                if (securityState.IsInsecureDbRole) return Unavailable();
+                if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+                var result = await service.DriverStepAsync(tenantId, actorId, orderId, step, request ?? new DeliveryStepRequest(), cancellationToken);
+                return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+            }).RequireAuthorization()
+                .WithName(step == "pickup" ? "PickUpDelivery" : "DepartDelivery").WithTags("Delivery").Produces(204)
+                .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
+        }
+
+        app.MapPost("/deliveries/{orderId:guid}/deliver", async (Guid orderId, DeliverRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.DeliverAsync(tenantId, actorId, orderId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("DeliverOrder").WithTags("Delivery").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/deliveries/{orderId:guid}/fail", async (Guid orderId, FailDeliveryRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.FailDeliveryAsync(tenantId, actorId, orderId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("FailDelivery").WithTags("Delivery").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(422).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/orders", async (CreateOrderRequest request, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
@@ -202,6 +260,7 @@ public static class OrderEndpoints
         OrderResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         OrderResult.CustomerNotApproved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerNotApproved),
         OrderResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
+        OrderResult.GpsMocked => ApiErrors.Problem(StatusCodes.Status422UnprocessableEntity, ApiErrors.GpsMocked),
         _ => Results.Forbid()
     };
 }

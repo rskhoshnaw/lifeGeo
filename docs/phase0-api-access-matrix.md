@@ -395,3 +395,22 @@ Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; 
 
 Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).
 
+## Delivery by the driver (step 2.4)
+
+Migration 0028: orders get the statuses `picked_up`, `on_the_way`, `delivered`, `delivery_failed` (and `receiver_name`, `delivery_note`, `failure_reason`); order lines get `delivered_quantity` and `delivery_reason`; `order_status_history` gets `latitude`, `longitude`, `accuracy_m`, `distance_m`; permission `delivery.work` (Driver role; also for existing companies). Owner decisions 2026-10-07: steps **handed over → picked up → on the way → delivered, or not delivered with a reason**; evidence is **the phone's GPS position and time plus the receiver's name and a note** (no photo or signature yet); when the customer got less than what the warehouse prepared the driver enters the **delivered quantity of each line with a reason** (audited; the order total does not change).
+
+A driver sees and handles **only the orders assigned to them** (`driver_id`): any other order is 404, a user without `delivery.work` is 403. The position is evidence only: it is optional, nothing is refused for being far away, the server stores the distance to the customer when both positions are known, and a position the phone says is fake (`isMocked`) is refused (422 `GPS_MOCKED`); an impossible coordinate is 400.
+
+| Route | Permission and scope | Behaviour | Audit |
+| --- | --- | --- | --- |
+| `GET /deliveries?status=&limit=&before=&beforeId=` | `delivery.work`; own orders | Newest first; without `status` the open ones (`handed_over`, `picked_up`, `on_the_way`); other values: `delivered`, `delivery_failed` | — |
+| `GET /deliveries/{id}` | same | The order with lines (prepared and delivered quantities), `delivery` (customer phone, address, position, receiver, note, failure reason) and the steps with their evidence | — |
+| `POST /deliveries/{id}/pickup` | same | Optional body `{location: {latitude, longitude, accuracyMeters, isMocked}}`. `handed_over` → `picked_up`; 409 in another status | `order.picked_up` |
+| `POST /deliveries/{id}/depart` | same | Same body. `picked_up` → `on_the_way` | `order.on_the_way` |
+| `POST /deliveries/{id}/deliver` | same | `receiverName` (1-100), optional `note`, `lines` (every line once: `lineNo`, `quantity` 0 up to the prepared quantity, `reason` when less), optional `location`. At least one line above 0 (else use `fail`). `on_the_way` → `delivered`; 400 / 409 | `order.delivered` (+ `order.delivery_shortage` when less was delivered) |
+| `POST /deliveries/{id}/fail` | same | `reason` (1-300), optional `location`. From `handed_over`, `picked_up` or `on_the_way` → `delivery_failed` (final for now); 409 otherwise | `order.delivery_failed` |
+
+The sellers' and warehouse's `GET /orders/{id}` and `GET /warehouse/orders/{id}` now also show the delivered quantities, the receiver, the failure reason and the evidence of each step. Managers cancel only until the order is handed to a driver (unchanged).
+
+Tests: `Delivery_DriverSeesOnlyAssignedOrdersAndRecordsPickupDeliveryOrFailureWithEvidence`; app: `DeliveryTests`; panel: the delivered/receiver/distance display in `Panel.test.tsx`.
+

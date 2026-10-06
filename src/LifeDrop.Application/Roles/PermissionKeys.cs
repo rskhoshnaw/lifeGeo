@@ -42,6 +42,8 @@ public static class PermissionKeys
     public const string WarehousesManage = "warehouses.manage";
     // Plan step 2.3: prepare orders and hand them to a driver, in the warehouses the user works in.
     public const string WarehouseWork = "warehouse.work";
+    // Plan step 2.4: a driver picks up, delivers or fails the orders assigned to them.
+    public const string DeliveryWork = "delivery.work";
 
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
