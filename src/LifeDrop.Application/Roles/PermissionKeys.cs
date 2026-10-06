@@ -32,6 +32,9 @@ public static class PermissionKeys
     public const string PlacesManage = "places.manage";
 
     // Products and prices (plan step 2.1): read for sales, supervisors and finance; manage for the sales manager.
+    // Custom visit-form fields (plan step 3.2, part 2).
+    public const string FormsManage = "forms.manage";
+
     public const string CatalogRead = "catalog.read";
     public const string CatalogManage = "catalog.manage";
 

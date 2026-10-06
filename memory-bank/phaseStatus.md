@@ -32,7 +32,8 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 2.15 phase 2 exit test | in PR (same branch); one chained DB test |
 | 3.1 tenants + audited Super Admin access | in PR (same branch); migration 0038 |
 | 3.2 part 1 report builder + schedules | in PR (same branch); migration 0039; panel UI not built |
-| Next | **3.2 part 2** (visit-form builder), then panel UI for 3.1/3.2; **3.2** (form/report builder) — check the plan; 3.6/3.8 wait for D9/D8 (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| 3.2 part 2 form builder | in PR (same branch); migration 0040; panel/app UI not built |
+| Next | panel/app UI for 3.1/3.2 (needs i18n keys); then 3.3 (needs Iraq coverage test), 3.4, 3.5, 3.7, 3.9; **3.2** (form/report builder) — check the plan; 3.6/3.8 wait for D9/D8 (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
 Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
@@ -73,3 +74,4 @@ Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
 - 2.15: no migration. DB test `Phase2Exit_OrderToDeliveryPaymentAndReportRespectRoleRegionAndCompany` (order → warehouse → delivery → payment/confirm → balance → KPI → audit; roles, supervisor region, second company); `docs/PHASE2-EXIT-REPORT.md`; DB 61 tests expected (not run here: no .NET in this container).
 - 3.1: migration 0038 (platform company, `SuperAdmin` role, `platform_audit_logs` append-only, grants INSERT tenants/users/roles/role_permissions + UPDATE tenants), `Platform/PlatformOperations.cs` (`PlatformService`), `PostgresPlatformStore`, `PlatformEndpoints.cs` (`/platform/tenants*`, `/platform/audit-logs`), dev seed `root@platform.local`, `docs/PLATFORM.md`; DB 62 tests expected + openapi snapshot to regenerate (no .NET in this container, so not run here).
 - 3.2 (part 1): migration 0039 (`saved_reports`, `report_runs`), `Reports/SavedReports.cs` (`SavedReportService`, `ReportRanges`, `ReportSchedules`), `PostgresSavedReportStore`, `SavedReportEndpoints.cs`, `ReportScheduleService` (every 60 s); runs as the owner, failed run kept when the owner lost reports.read; unit tests `SavedReportScheduleTests`; DB 63 tests expected + openapi snapshot edited by hand (no .NET in this container, not run here). Panel UI and visit-form builder later.
+- 3.2 (part 2): migration 0040 (`form_fields`, `visit_custom_answers`, `forms.manage` in `seed_default_roles` copied from 0036 + backfill), `Forms/FormFields.cs` (`FormFieldService`), `PostgresFormFieldStore`, `FormFieldEndpoints.cs`; answers are strings checked by type; unit tests `FormFieldAnswerTests`; DB 64 tests expected + openapi snapshot edited by hand (no .NET in this container, not run here). Panel and app screens later.

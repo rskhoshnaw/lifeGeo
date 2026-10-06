@@ -303,6 +303,18 @@ The default `SalesRep` role now has data scope `region` (migration 0022, also fo
 
 Who is told: when somebody who is **not the owner** of a customer changes its profile (`PUT /customers/{id}/profile`) or location (`PUT /customers/{id}/location`), the message goes to the supervisors of the customer's region (users whose role has `customers.approve` with region scope and who are in a team of that region); when the region has none, to the sales managers (`customers.approve` with tenant scope). The person who made the change is never told, a supervisor's own change tells only the other supervisors, and the owner's own changes tell nobody. The message is stored in the same transaction as the change. Migration 0022 adds `notifications` (RLS); the grants file covers it. Test: `RegionReps_EditRegionCustomersAndTheResponsibleAreNotified`; panel: the Notifications tab with the unread count (`Panel.test.tsx`).
 
+## Custom visit-form fields (step 3.2, part 2)
+
+New permission `forms.manage` (SalesManager, CompanyManager; migration 0040 also grants it to existing companies). Definitions are per company; answers belong to a visit.
+
+| Route | Permission and scope | Behaviour |
+| --- | --- | --- |
+| `GET /form-fields?visitType=&includeInactive=` | Signed-in user | Active fields for that visit type (`pharmacy`/`doctor`/`wholesaler`/`other`; fields for all types always); `includeInactive` only counts for `forms.manage`; bad type 400 |
+| `POST /form-fields` | `forms.manage` | `{key, type, appliesTo, labelEn/Ckb/Ar/Fa (at least one, ≤100), options (choice: 2-20 distinct), isRequired, sortOrder 0-1000}`; key `^[a-z][a-z0-9_]{1,39}$`, unique per company (409); type `text`/`number`/`choice`/`yes_no`/`date`; appliesTo `all` or one visit type; at most 30 active fields (409). Audit `form_field.created` |
+| `PUT /form-fields/{id}` | `forms.manage` | Labels (not given = keep, blank = remove, one must stay), options (choice only), isRequired, sortOrder, isActive. Key, type and visit type never change; fields are never deleted. Audit `form_field.updated` / `form_field.deactivated`; unknown 404 |
+| `PUT /visits/{id}/report/custom` `{answers: [{fieldId, value}]}` | The assigned user, visit `InVisit` (else 403 / 409; unknown visit 404) | Replaces the answer set. Only active fields for the visit's type; every required field answered; values are strings checked by type (number ≤3 decimals, choice from options, yes_no `true`/`false`, date `yyyy-MM-dd`, text ≤1000); a blank value removes an answer; duplicates 400. Audit `visit.custom_answers_saved` |
+| `GET /visits/{id}/report/custom` | Same readers as the visit report | Answers with the field key; 404 when nothing saved or not readable |
+
 ## Saved and scheduled reports (step 3.2, part 1)
 
 Permission `reports.read` for every route; everybody reads, runs, changes and deletes **only their own** reports (another user or company gets 404). A run always uses the owner's current area (docs/KPI.md rules).

@@ -138,7 +138,8 @@ public class CustomerApiIntegrationTests
                 var m37 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0037_push.sql"));
                 var m38 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0038_platform.sql"));
                 var m39 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0039_saved_reports.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39;
+                var m40 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0040_custom_fields.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -7170,6 +7171,152 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await client.DeleteAsync($"/saved-reports/{reportId}"), HttpStatusCode.NotFound, "NOT_FOUND");
         await AssertProblemAsync(await client.GetAsync($"/saved-reports/{reportId}/runs"), HttpStatusCode.NotFound, "NOT_FOUND");
         Assert.Empty(await Mine());
+    }
+
+    [SkippableFact]
+    public async Task FormFields_ManagersDefineFieldsAndTheAssigneeAnswersThemWhileInVisit()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        Guid t1 = Guid.NewGuid(), t2 = Guid.NewGuid(), rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), manager2 = Guid.NewGuid(), c1 = Guid.NewGuid();
+        Guid vDoctor = Guid.NewGuid(), vPharmacy = Guid.NewGuid(), vPlanned = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1'), (@t2, 'T2', 'T2');
+                SELECT seed_default_roles(@t1);
+                SELECT seed_default_roles(@t2);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@m, @t1), (@m2, @t2);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t2, @m2, id FROM roles WHERE tenant_id = @t2 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep);
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, visit_type, created_at) VALUES
+                    (@vd, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'doctor', now()), (@vp, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'pharmacy', now()),
+                    (@vpl, @t1, @rep, @c1, 'Planned', '2026-10-05', 'doctor', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("t2", t2), ("rep", rep), ("rep2", rep2), ("m", manager), ("m2", manager2), ("c1", c1), ("vd", vDoctor), ("vp", vPharmacy), ("vpl", vPlanned) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid tenant, Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(tenant, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        object Field(string key, string type, string appliesTo = "all", string[]? options = null, bool required = false, int sort = 0) =>
+            new { Key = key, Type = type, AppliesTo = appliesTo, LabelEn = "Label " + key, Options = options, IsRequired = required, SortOrder = sort };
+        async Task<Guid> CreateField(object body)
+        {
+            var response = await client.PostAsJsonAsync("/form-fields", body);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreatedResponseDto>())!.Id;
+        }
+        async Task<List<LifeDrop.Application.Forms.FormFieldDto>> Fields(string query = "") =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Forms.FormFieldDto>>("/form-fields" + query))!;
+        Task<HttpResponseMessage> Answer(Guid visit, params (Guid Field, string? Value)[] answers) =>
+            client.PutAsJsonAsync($"/visits/{visit}/report/custom", new { Answers = answers.Select(a => new { FieldId = a.Field, a.Value }).ToArray() });
+        async Task<LifeDrop.Application.Forms.CustomAnswersDto> Saved(Guid visit) =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Forms.CustomAnswersDto>($"/visits/{visit}/report/custom"))!;
+
+        // Only forms.manage defines fields; everybody else just reads what they can answer
+        As(t1, rep);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", Field("notes", "text")), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Empty(await Fields());
+
+        // Validation of a definition
+        As(t1, manager);
+        foreach (var bad in new object[]
+        {
+            Field("Bad Key", "text"), Field("1abc", "text"), Field("a", "text"), Field("ok_key", "file"), Field("ok_key", "text", "vet"),
+            new { Key = "ok_key", Type = "text", AppliesTo = "all" },                                                    // no label
+            new { Key = "ok_key", Type = "text", AppliesTo = "all", LabelEn = new string('x', 101) },
+            Field("ok_key", "choice", options: new[] { "only" }), Field("ok_key", "choice", options: new[] { "a", "a" }), Field("ok_key", "choice"),
+            Field("ok_key", "text", options: new[] { "a", "b" }), Field("ok_key", "text", sort: 1001)
+        })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        var chairs = await CreateField(new { Key = "chairs", Type = "number", AppliesTo = "doctor", LabelCkb = "ژمارەی کورسی", IsRequired = true });
+        var rating = await CreateField(Field("rating", "choice", "pharmacy", new[] { "good", "bad" }));
+        var open = await CreateField(Field("open_late", "yes_no", required: true));
+        var next = await CreateField(Field("next_visit", "date"));
+        var notes = await CreateField(Field("notes", "text"));
+        await AssertProblemAsync(await client.PostAsJsonAsync("/form-fields", Field("notes", "number")), HttpStatusCode.Conflict, "CONFLICT");   // the key is unique in a company
+        As(t2, manager2);
+        await CreateField(Field("notes", "text"));   // another company may use it
+        Assert.Single(await Fields());
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { IsRequired = true }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // What a rep sees: the fields of the visit type and of all types
+        As(t1, rep);
+        Assert.Equal(new[] { "chairs", "next_visit", "notes", "open_late" }, (await Fields("?visitType=doctor")).Select(f => f.Key).ToArray());
+        Assert.Equal(new[] { "next_visit", "notes", "open_late", "rating" }, (await Fields("?visitType=pharmacy")).Select(f => f.Key).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/form-fields?visitType=vet"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var chairsField = (await Fields("?visitType=doctor")).Single(f => f.Key == "chairs");
+        Assert.Equal(("number", "doctor", true, "ژمارەی کورسی", (string?)null), (chairsField.Type, chairsField.AppliesTo, chairsField.IsRequired, chairsField.LabelCkb, chairsField.LabelEn));
+
+        // Answers: required fields, the visit's type only, valid values, no duplicates
+        foreach (var bad in new[]
+        {
+            new[] { (open, (string?)"true") },                                                                               // chairs is required for a doctor visit
+            new[] { (chairs, (string?)"4"), (open, (string?)"true"), (rating, (string?)"good") },                           // rating is a pharmacy field
+            new[] { (chairs, (string?)"abc"), (open, (string?)"true") }, new[] { (chairs, (string?)"1.2345"), (open, (string?)"true") },
+            new[] { (chairs, (string?)"4"), (open, (string?)"yes") }, new[] { (chairs, (string?)"4"), (open, (string?)"true"), (next, (string?)"2026-13-01") },
+            new[] { (chairs, (string?)"4"), (open, (string?)"true"), (notes, (string?)new string('x', 1001)) },
+            new[] { (chairs, (string?)"4"), (chairs, (string?)"5"), (open, (string?)"true") }, new[] { (Guid.NewGuid(), (string?)"x"), (chairs, (string?)"4"), (open, (string?)"true") }
+        })
+            await AssertProblemAsync(await Answer(vDoctor, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "4.50"), (open, "true"), (notes, "  hello  "), (next, "2026-10-20"))).StatusCode);
+        var answers = await Saved(vDoctor);
+        Assert.Equal(new[] { "chairs=4.5", "next_visit=2026-10-20", "notes=hello", "open_late=true" }, answers.Answers.Select(a => $"{a.Key}={a.Value}").ToArray());
+        As(t1, manager);
+        Assert.Equal(4, (await Saved(vDoctor)).Answers.Count);   // the sales manager reads it
+        As(t1, rep2);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{vDoctor}/report/custom"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Answer(vDoctor, (chairs, "1"), (open, "true")), HttpStatusCode.Forbidden, "FORBIDDEN");   // not the assignee
+
+        // The set is replaced; a blank value removes an answer; a visit that is not in progress takes nothing
+        As(t1, rep);
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "5"), (open, "false"), (notes, ""))).StatusCode);
+        Assert.Equal(new[] { "chairs=5", "open_late=false" }, (await Saved(vDoctor)).Answers.Select(a => $"{a.Key}={a.Value}").ToArray());
+        await AssertProblemAsync(await Answer(vPlanned, (chairs, "1"), (open, "true")), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Answer(Guid.NewGuid(), (open, "true")), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vPharmacy, (open, "true"), (rating, "good"))).StatusCode);   // the pharmacy visit has no required doctor field
+        await AssertProblemAsync(await Answer(vPharmacy, (open, "true"), (rating, "great")), HttpStatusCode.BadRequest, "INVALID_DATA");   // not one of the choices
+
+        // Changing a definition: labels, choices, required, order; never the key, type or visit type; a retired field is hidden and no longer required
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { IsRequired = true }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(t1, manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/form-fields/{rating}", new { LabelCkb = "هەڵسەنگاندن", Options = new[] { "good", "bad", "neutral" }, SortOrder = 7 })).StatusCode);
+        var updated = (await Fields("?visitType=pharmacy")).Single(f => f.Key == "rating");
+        Assert.Equal(new[] { "good", "bad", "neutral" }, updated.Options.ToArray());
+        Assert.Equal(("Label rating", "هەڵسەنگاندن", 7), (updated.LabelEn, updated.LabelCkb, updated.SortOrder));   // a label that is not given keeps its value
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { Options = new[] { "a", "b" } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{notes}", new { LabelEn = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");   // the only label cannot go
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/form-fields/{Guid.NewGuid()}", new { IsRequired = true }), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/form-fields/{open}", new { IsActive = false })).StatusCode);
+        Assert.DoesNotContain(await Fields(), f => f.Key == "open_late");
+        Assert.Contains(await Fields("?includeInactive=true"), f => f.Key == "open_late" && !f.IsActive);
+        As(t1, rep);
+        Assert.DoesNotContain(await Fields("?includeInactive=true"), f => f.Key == "open_late");   // inactive definitions are for the managers
+        Assert.Equal(HttpStatusCode.NoContent, (await Answer(vDoctor, (chairs, "6"))).StatusCode);   // open_late is no longer required
+
+        // Audit
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"") FROM (SELECT action, count(*) n FROM audit_logs WHERE tenant_id = @t AND action LIKE 'form_field.%' OR action = 'visit.custom_answers_saved' GROUP BY action) a", conn);
+            cmd.Parameters.AddWithValue("t", t1);
+            Assert.Equal("form_field.created=5,form_field.deactivated=1,form_field.updated=1,visit.custom_answers_saved=4", (string)(await cmd.ExecuteScalarAsync())!);
+        }
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)
