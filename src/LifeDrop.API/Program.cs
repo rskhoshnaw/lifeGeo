@@ -94,6 +94,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerVisitWindows>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitPlanBoard>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.IVisitDetailsStore, LifeDrop.Infrastructure.Visits.PostgresVisitDetailsStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReportDetails>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitCheckpoint>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerApprovalStore, LifeDrop.Infrastructure.Customers.PostgresCustomerApprovalStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerApprovals>();

@@ -352,6 +352,23 @@ export interface CustomerBalance {
   customerId: string
   items: BalanceItem[]
 }
+export interface VisitDetails {
+  visitId: string
+  visitType: string
+  purpose: string
+  personMet: string | null
+  personRole: string | null
+  needs: string | null
+  products: { id: string; code: string; name: string }[]
+  specialty: string | null
+  dailyPatients: number | null
+  monthlySales: number | null
+  competitors: string | null
+  monthlyVolume: number | null
+  paymentTerms: string | null
+  currency: string | null
+  updatedAt: string
+}
 export interface Sample {
   id: string
   number: string
@@ -611,6 +628,8 @@ export class AdminApi {
   correctPayment = (id: string, fix: { orderId: string | null; method: string; currency: string; amount: number; reference: string | null; note: string | null; reason: string }) =>
     this.post(`/payments/${id}/correct`, fix)
   customerBalance = (customerId: string) => this.get<CustomerBalance>(`/customers/${customerId}/balance`)
+  // The specialised visit form of a visit (step 2.7); 404 when the rep has not filled one.
+  visitDetails = (visitId: string) => this.get<VisitDetails>(`/visits/${visitId}/report/details`)
   // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
   samples = (before?: Sample) =>
     this.get<Sample[]>(before ? `/samples?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/samples?limit=50')

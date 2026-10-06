@@ -8859,6 +8859,189 @@
         }
       }
     },
+    "/visits/{visitId}/report/details": {
+      "put": {
+        "tags": [
+          "Visits"
+        ],
+        "operationId": "SaveVisitReportDetails",
+        "parameters": [
+          {
+            "name": "visitId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveVisitDetailsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Visits"
+        ],
+        "operationId": "GetVisitReportDetails",
+        "parameters": [
+          {
+            "name": "visitId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitDetailsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/offline-reviews": {
       "get": {
         "tags": [
@@ -11399,6 +11582,26 @@
           }
         }
       },
+      "DetailsProductDto": {
+        "required": [
+          "id",
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "DeviceSummaryDto": {
         "required": [
           "id",
@@ -13552,6 +13755,110 @@
           }
         }
       },
+      "SaveVisitDetailsRequest": {
+        "required": [
+          "purpose",
+          "personMet",
+          "personRole",
+          "needs",
+          "productIds",
+          "specialty",
+          "dailyPatients",
+          "monthlySales",
+          "competitors",
+          "monthlyVolume",
+          "paymentTerms",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "personMet": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "personRole": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "needs": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "productIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "specialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dailyPatients": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "monthlySales": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "competitors": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "monthlyVolume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "paymentTerms": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SaveVisitReportRequest": {
         "required": [
           "outcome",
@@ -14091,6 +14398,122 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "VisitDetailsDto": {
+        "required": [
+          "visitId",
+          "visitType",
+          "purpose",
+          "personMet",
+          "personRole",
+          "needs",
+          "products",
+          "specialty",
+          "dailyPatients",
+          "monthlySales",
+          "competitors",
+          "monthlyVolume",
+          "paymentTerms",
+          "currency",
+          "submittedAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "visitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "visitType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "personMet": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "personRole": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "needs": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetailsProductDto"
+            }
+          },
+          "specialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dailyPatients": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "monthlySales": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "competitors": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "monthlyVolume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "paymentTerms": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

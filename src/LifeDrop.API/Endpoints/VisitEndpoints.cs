@@ -176,6 +176,30 @@ public static class VisitEndpoints
             .WithName("GetVisitReport").WithTags("Visits").Produces<VisitReportDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Specialised visit form (plan step 2.7): details of the report by the visit's type.
+        app.MapPut("/visits/{visitId:guid}/report/details", async (Guid visitId, SaveVisitDetailsRequest request, HttpContext context,
+            VisitReportDetails details, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await details.SaveAsync(tenantId, actorId, visitId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SaveVisitReportDetails").WithTags("Visits").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/visits/{visitId:guid}/report/details", async (Guid visitId, HttpContext context,
+            VisitReportDetails details, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, item) = await details.GetAsync(tenantId, actorId, visitId, cancellationToken);
+            return result == ManageVisitResult.Success ? Results.Ok(item) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GetVisitReportDetails").WithTags("Visits").Produces<VisitDetailsDto>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // Offline check-ins/outs awaiting a manager's review (plan step 1.14, decision D5).
         app.MapGet("/offline-reviews", async (string? state, int? limit, HttpContext context, OfflineReviews reviews,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
