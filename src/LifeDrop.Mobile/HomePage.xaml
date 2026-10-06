@@ -30,6 +30,9 @@
             <!-- Drivers: the deliveries assigned to them (plan step 2.4) -->
             <Button x:Name="DeliveriesBtn" Clicked="OnDeliveriesClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- Money taken from customers and whether the finance manager confirmed it (plan step 2.5) -->
+            <Button x:Name="PaymentsBtn" Clicked="OnPaymentsClicked" HorizontalOptions="Center" WidthRequest="200" />
+
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
         </VerticalStackLayout>

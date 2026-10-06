@@ -305,6 +305,53 @@ export interface Driver {
   id: string
   email: string | null
 }
+export interface PaymentStep {
+  status: string
+  actorEmail: string | null
+  note: string | null
+  at: string
+}
+export interface Payment {
+  id: string
+  number: string
+  customerId: string
+  customerCode: string
+  customerName: string
+  orderId: string | null
+  orderNumber: string | null
+  method: 'cash' | 'fastpay' | 'fib' | 'other'
+  currency: 'IQD' | 'USD'
+  amount: number
+  reference: string | null
+  note: string | null
+  status: 'collected' | 'confirmed' | 'voided' | 'superseded'
+  receivedByEmail: string | null
+  confirmedByEmail: string | null
+  closedReason: string | null
+  createdAt: string
+  history?: PaymentStep[] | null
+}
+export interface NewPaymentInput {
+  customerId: string
+  orderId: string | null
+  method: string
+  currency: string
+  amount: number
+  reference: string | null
+  note: string | null
+  clientRef: string
+}
+export interface BalanceItem {
+  currency: string
+  delivered: number
+  confirmed: number
+  collected: number
+  balance: number
+}
+export interface CustomerBalance {
+  customerId: string
+  items: BalanceItem[]
+}
 export interface Order {
   id: string
   number: string
@@ -432,6 +479,9 @@ export const Permissions = {
   places: ['places.manage'],
   catalog: ['catalog.read'],
   orders: ['orders.read', 'orders.create'],
+  payments: ['payments.read', 'payments.record'],
+  recordPayments: ['payments.record'],
+  managePayments: ['payments.manage'],
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
   manageWarehouses: ['warehouses.manage'],
@@ -531,6 +581,16 @@ export class AdminApi {
   order = (id: string) => this.get<Order>(`/orders/${id}`)
   createOrder = (order: NewOrderInput) => this.postJson<CreatedOrder>('/orders', order)
   cancelOrder = (id: string, reason: string) => this.post(`/orders/${id}/cancel`, { reason })
+  // Payments (step 2.5): a visitor's payment is "collected" until the finance manager confirms it.
+  payments = (status: string, before?: Payment) =>
+    this.get<Payment[]>(`/payments?limit=50${status ? `&status=${status}` : ''}${before ? `&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : ''}`)
+  payment = (id: string) => this.get<Payment>(`/payments/${id}`)
+  recordPayment = (payment: NewPaymentInput) => this.postJson<{ id: string; number: string; status: string; replayed: boolean }>('/payments', payment)
+  confirmPayment = (id: string) => this.post(`/payments/${id}/confirm`)
+  voidPayment = (id: string, reason: string) => this.post(`/payments/${id}/void`, { reason })
+  correctPayment = (id: string, fix: { orderId: string | null; method: string; currency: string; amount: number; reference: string | null; note: string | null; reason: string }) =>
+    this.post(`/payments/${id}/correct`, fix)
+  customerBalance = (customerId: string) => this.get<CustomerBalance>(`/customers/${customerId}/balance`)
   // Warehouse staff and warehouse work (step 2.3).
   warehouseStaff = (warehouseId: string) => this.get<StaffMember[]>(`/warehouses/${warehouseId}/staff`)
   addWarehouseStaff = (warehouseId: string, userId: string) => this.post(`/warehouses/${warehouseId}/staff`, { userId })

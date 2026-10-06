@@ -124,7 +124,8 @@ public class CustomerApiIntegrationTests
                 var m26 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0026_orders_warehouses.sql"));
                 var m27 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0027_warehouse_work.sql"));
                 var m28 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0028_delivery.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28;
+                var m29 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0029_payments.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -1998,10 +1999,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "orders.create", "orders.read", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "orders.create", "orders.read", "payments.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "65" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4)
+        Assert.Equal(new[] { "72" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5213,6 +5214,207 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task Payments_VisitorCollectsFinanceConfirmsVoidsAndCorrectsWithHistoryAndBalance()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid finance = Guid.NewGuid(), rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), worker = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid w1 = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@f, @t1), (@rep, @t1), (@rep2, @t1), (@m, @t1), (@w, @t1), (@d, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @w, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @d, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w1, @t1, 'W1', 'Erbil warehouse');
+                INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES (@t1, @w1, @w);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', ST_SetSRID(ST_MakePoint(44.0192, 36.1911), 4326)::geography, 'located', @rep2);
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES
+                    (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 2000);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("f", finance), ("rep", rep), ("rep2", rep2), ("m", manager), ("w", worker), ("d", driver), ("w1", w1), ("c1", c1), ("c2", c2), ("p1", p1), ("p2", p2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+        async Task<LifeDrop.Application.Payments.PaymentDto> Get(Guid id) => (await client.GetFromJsonAsync<LifeDrop.Application.Payments.PaymentDto>($"/payments/{id}"))!;
+
+        // The order that is delivered: 10 x 1000 + 2 x 2000 = 14000 IQD
+        As(manager);
+        var created = await client.PostAsJsonAsync("/orders", new { CustomerId = c1, WarehouseId = w1, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = p1, Quantity = 10m }, new { ProductId = p2, Quantity = 4m } } });
+        var orderId = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!.Id;
+        As(worker);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/start")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/ready", new { Lines = new object[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 3m, Reason = "stock" } } })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/warehouse/orders/{orderId}/handover", new { DriverId = driver })).StatusCode);
+        As(driver);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/pickup")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/depart")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/deliveries/{orderId}/deliver", new
+        {
+            ReceiverName = "Ali", Lines = new object[] { new { LineNo = 1, Quantity = 10m }, new { LineNo = 2, Quantity = 2m, Reason = "refused one" } }
+        })).StatusCode);
+
+        // The driver, the warehouse and the sales manager cannot record or read payments
+        foreach (var other in new[] { driver, worker })
+        {
+            As(other);
+            await AssertProblemAsync(await Post("/payments", new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 1m, ClientRef = Guid.NewGuid() }), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync("/payments"), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.GetAsync($"/customers/{c1}/balance"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        }
+
+        // A visitor takes cash: "collected"; a retry gives the same payment; another user cannot reuse the reference
+        As(rep);
+        var ref1 = Guid.NewGuid();
+        object Cash(decimal amount, Guid cr, Guid? order = null) => new { CustomerId = c1, OrderId = order, Method = "cash", Currency = "IQD", Amount = amount, Note = " first part ", ClientRef = cr };
+        var first = await Post("/payments", Cash(5000m, ref1, orderId));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var firstPayment = (await first.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal(("P-000001", "collected", false), (firstPayment.Number, firstPayment.Status, firstPayment.Replayed));
+        var again = await Post("/payments", Cash(5000m, ref1, orderId));
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        var replay = (await again.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal((firstPayment.Id, true), (replay.Id, replay.Replayed));
+        As(finance);
+        await AssertProblemAsync(await Post("/payments", Cash(5000m, ref1, orderId)), HttpStatusCode.Conflict, "CONFLICT");
+
+        // What is refused: a system without its reference, no amount, too many decimals, another currency than the order, a customer outside the area, a missing order
+        As(rep);
+        foreach (var bad in new object[]
+        {
+            new { CustomerId = c1, Method = "fastpay", Currency = "IQD", Amount = 1000m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "fib", Currency = "IQD", Amount = 1000m, Reference = " ", ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 0m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = -5m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 1.0001m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "EUR", Amount = 10m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "barter", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 10m },
+            new { Method = "cash", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 10m, Note = new string('x', 501), ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, OrderId = orderId, Method = "cash", Currency = "USD", Amount = 10m, ClientRef = Guid.NewGuid() }   // the order is in IQD
+        })
+            await AssertProblemAsync(await Post("/payments", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post("/payments", new { CustomerId = c2, Method = "cash", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await Post("/payments", new { CustomerId = c1, OrderId = Guid.NewGuid(), Method = "cash", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(finance);
+        var otherOrder = await Post("/payments", new { CustomerId = c2, OrderId = orderId, Method = "cash", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() });   // the order is c1's
+        await AssertProblemAsync(otherOrder, HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Visibility: a visitor sees what they recorded; the finance manager sees all
+        As(rep);
+        var mine = (await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments/mine"))!;
+        Assert.Equal(new[] { firstPayment.Id }, mine.Select(p => p.Id).ToArray());
+        Assert.Equal(("C1", orderId, "O-000001", "first part"), (mine[0].CustomerCode, mine[0].OrderId, mine[0].OrderNumber, mine[0].Note));
+        As(rep2);
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments/mine"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments"))!);
+        await AssertProblemAsync(await client.GetAsync($"/payments/{firstPayment.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.GetAsync($"/customers/{c1}/balance"), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // The finance manager records FIB (reference needed): confirmed at once
+        As(finance);
+        var fibResponse = await Post("/payments", new { CustomerId = c1, OrderId = orderId, Method = "fib", Currency = "IQD", Amount = 4000m, Reference = " TX-77 ", ClientRef = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.Created, fibResponse.StatusCode);
+        var fib = (await fibResponse.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal(("P-000002", "confirmed"), (fib.Number, fib.Status));
+        var fibDetail = await Get(fib.Id);
+        Assert.Equal(("fib", "TX-77", "confirmed"), (fibDetail.Method, fibDetail.Reference, fibDetail.Status));
+        Assert.Equal(2, (await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments"))!.Count);
+        Assert.Equal(new[] { fib.Id }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Payments.PaymentDto>>("/payments?status=confirmed"))!.Select(p => p.Id).ToArray());
+        await AssertProblemAsync(await client.GetAsync("/payments?status=weird"), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // Balance: delivered 14000; the cash is only collected, so 4000 is confirmed
+        var balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal(new[] { ("IQD", 14000m, 4000m, 5000m, 10000m) }, balance.Items.Select(i => (i.Currency, i.Delivered, i.Confirmed, i.Collected, i.Balance)).ToArray());
+
+        // Confirming: only the finance manager, only a collected payment
+        As(rep);
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/confirm"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(finance);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/payments/{firstPayment.Id}/confirm")).StatusCode);
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/confirm"), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await Post($"/payments/{Guid.NewGuid()}/confirm"), HttpStatusCode.NotFound, "NOT_FOUND");
+        var confirmed = await Get(firstPayment.Id);
+        Assert.Equal(("confirmed", "P-000001"), (confirmed.Status, confirmed.Number));
+        Assert.NotNull(confirmed.ConfirmedAt);
+        Assert.Equal(new[] { "collected", "confirmed" }, confirmed.History!.Select(h => h.Status).ToArray());
+        balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal((9000m, 0m, 5000m), (balance.Items[0].Confirmed, balance.Items[0].Collected, balance.Items[0].Balance));
+
+        // A visitor takes back only their own payment that is still collected, with a reason
+        As(rep);
+        var third = (await (await Post("/payments", Cash(700m, Guid.NewGuid()))).Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        await AssertProblemAsync(await Post($"/payments/{third.Id}/void", new { Reason = " " }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/void", new { Reason = "oops" }), HttpStatusCode.Forbidden, "FORBIDDEN");   // already confirmed
+        As(rep2);
+        await AssertProblemAsync(await Post($"/payments/{third.Id}/void", new { Reason = "not mine" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(rep);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/payments/{third.Id}/void", new { Reason = "typed twice" })).StatusCode);
+        await AssertProblemAsync(await Post($"/payments/{third.Id}/void", new { Reason = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        var voided = await Get(third.Id);
+        Assert.Equal(("voided", "typed twice"), (voided.Status, voided.ClosedReason));
+        Assert.Equal(new[] { "collected", "voided" }, voided.History!.Select(h => h.Status).ToArray());
+        balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal(0m, balance.Items[0].Collected);   // a voided payment counts nowhere
+
+        // Correcting: only the finance manager; the old payment stays as "superseded", a new confirmed one replaces it
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 4500m, Reason = "counted again" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(finance);
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 4500m }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/correct", new { Method = "fib", Currency = "IQD", Amount = 4500m, Reason = "x" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Post($"/payments/{third.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 1m, Reason = "x" }), HttpStatusCode.Conflict, "CONFLICT");
+        var fix = await Post($"/payments/{firstPayment.Id}/correct", new { OrderId = orderId, Method = "cash", Currency = "IQD", Amount = 4500m, Reason = "counted again" });
+        Assert.Equal(HttpStatusCode.Created, fix.StatusCode);
+        var fixPayment = (await fix.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal(("P-000004", "confirmed"), (fixPayment.Number, fixPayment.Status));
+        var old = await Get(firstPayment.Id);
+        Assert.Equal(("superseded", "counted again", fixPayment.Id), (old.Status, old.ClosedReason, old.ReplacedByPaymentId));
+        Assert.Equal(new[] { "collected", "confirmed", "superseded" }, old.History!.Select(h => h.Status).ToArray());
+        var replacement = await Get(fixPayment.Id);
+        Assert.Equal((firstPayment.Id, 4500m, c1), (replacement.ReplacesPaymentId, replacement.Amount, replacement.CustomerId));
+        await AssertProblemAsync(await Post($"/payments/{firstPayment.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 1m, Reason = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal((14000m, 8500m, 5500m), (balance.Items[0].Delivered, balance.Items[0].Confirmed, balance.Items[0].Balance));
+
+        // The finance manager voids a confirmed payment
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/payments/{fib.Id}/void", new { Reason = "bank reversed it" })).StatusCode);
+        balance = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!;
+        Assert.Equal((4500m, 9500m), (balance.Items[0].Confirmed, balance.Items[0].Balance));
+
+        // Every step is in the audit log
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using var audit = new NpgsqlCommand("SELECT action, count(*) FROM audit_logs WHERE action LIKE 'payment.%' GROUP BY action ORDER BY action", verify);
+        var actions = new List<string>();
+        await using (var reader = await audit.ExecuteReaderAsync())
+            while (await reader.ReadAsync()) actions.Add($"{reader.GetString(0)}={reader.GetInt64(1)}");
+        Assert.Equal(new[] { "payment.confirmed=1", "payment.corrected=1", "payment.recorded=2", "payment.recorded_confirmed=1", "payment.voided=2" }, actions);
     }
 
     [SkippableFact]

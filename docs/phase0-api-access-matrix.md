@@ -412,5 +412,20 @@ A driver sees and handles **only the orders assigned to them** (`driver_id`): an
 
 The sellers' and warehouse's `GET /orders/{id}` and `GET /warehouse/orders/{id}` now also show the delivered quantities, the receiver, the failure reason and the evidence of each step. Managers cancel only until the order is handed to a driver (unchanged).
 
+### Payments (plan step 2.5)
+
+Permissions: `payments.record` (FinanceManager, SalesRep), `payments.manage` (FinanceManager), `payments.read` (FinanceManager, CompanyManager, SalesManager: all; Supervisor: the region). A payment belongs to a customer (inside the caller's area) and optionally to one of its orders (same customer, not cancelled, same currency). Methods `cash`, `fastpay`, `fib`, `other`; `fastpay` and `fib` need `reference`. Currency `IQD` or `USD`; amount above 0, at most 3 decimals. Status: `collected` (a visitor took the money) → `confirmed` (finance manager received it) → `voided` or `superseded` (corrected). Number `P-000001`.
+
+| Route | Who | Rules | Audit |
+|---|---|---|---|
+| `POST /payments` | `payments.record` | `{customerId, orderId?, method, currency, amount, reference?, note?, clientRef}`. 201 `{id, number, status, replayed}`; 200 for a retry of the same `clientRef` (same user and customer, else 409). Status is `confirmed` when the caller also has `payments.manage`, else `collected`. 400 invalid or order mismatch, 404 customer outside the area or order missing | `payment.recorded` / `payment.recorded_confirmed` |
+| `GET /payments?customerId=&status=&limit=&before=&beforeId=` | `payments.read` (all or region); a user who only records sees what they recorded | Newest first | — |
+| `GET /payments/mine` | `payments.record` | What the caller recorded | — |
+| `GET /payments/{id}` | same visibility | The payment with its history; 404 outside the visibility | — |
+| `POST /payments/{id}/confirm` | `payments.manage` | `collected` → `confirmed`; 409 otherwise | `payment.confirmed` |
+| `POST /payments/{id}/void` | `payments.manage`; a visitor only their own `collected` payment (403 once confirmed, 404 for another user's) | `{reason}` (1-500); `collected`/`confirmed` → `voided`; 409 otherwise | `payment.voided` |
+| `POST /payments/{id}/correct` | `payments.manage` | `{orderId?, method, currency, amount, reference?, note?, reason}`; the old payment becomes `superseded`, a new `confirmed` payment points at it (`replacesPaymentId`); 409 if the old one is closed | `payment.corrected` |
+| `GET /customers/{id}/balance` | `payments.read` or `payments.record`, customer inside the area | Per currency: `delivered` (delivered quantity x unit price of delivered orders), `confirmed`, `collected`, `balance` = delivered − confirmed | — |
+
 Tests: `Delivery_DriverSeesOnlyAssignedOrdersAndRecordsPickupDeliveryOrFailureWithEvidence`; app: `DeliveryTests`; panel: the delivered/receiver/distance display in `Panel.test.tsx`.
 

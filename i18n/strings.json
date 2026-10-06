@@ -3970,5 +3970,377 @@
   "ckb": "{meters} م لە کڕیارەوە",
   "ar": "{meters} م من العميل",
   "fa": "{meters} متر از مشتری"
+ },
+ "web.tab.payments": {
+  "en": "Payments",
+  "ckb": "پارەدان",
+  "ar": "المدفوعات",
+  "fa": "پرداخت‌ها"
+ },
+ "web.payments.title": {
+  "en": "Payments",
+  "ckb": "پارەدان",
+  "ar": "المدفوعات",
+  "fa": "پرداخت‌ها"
+ },
+ "web.payments.filter": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.payments.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.payments.status.collected": {
+  "en": "Collected, waiting for finance",
+  "ckb": "وەرگیراوە، چاوەڕێی دارایی",
+  "ar": "محصّل، بانتظار المالية",
+  "fa": "دریافت‌شده، منتظر مالی"
+ },
+ "web.payments.status.confirmed": {
+  "en": "Confirmed",
+  "ckb": "پشتڕاستکراوە",
+  "ar": "مؤكد",
+  "fa": "تأییدشده"
+ },
+ "web.payments.status.voided": {
+  "en": "Voided",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "ابطال‌شده"
+ },
+ "web.payments.status.superseded": {
+  "en": "Corrected",
+  "ckb": "ڕاستکراوەتەوە",
+  "ar": "مصحَّح",
+  "fa": "اصلاح‌شده"
+ },
+ "web.payments.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "الرقم",
+  "fa": "شماره"
+ },
+ "web.payments.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "الزبون",
+  "fa": "مشتری"
+ },
+ "web.payments.order": {
+  "en": "Order (optional)",
+  "ckb": "داواکاری (ئارەزوومەندانە)",
+  "ar": "الطلب (اختياري)",
+  "fa": "سفارش (اختیاری)"
+ },
+ "web.payments.noOrder": {
+  "en": "No order",
+  "ckb": "بێ داواکاری",
+  "ar": "بدون طلب",
+  "fa": "بدون سفارش"
+ },
+ "web.payments.method": {
+  "en": "Method",
+  "ckb": "شێواز",
+  "ar": "الطريقة",
+  "fa": "روش"
+ },
+ "web.payments.method.cash": {
+  "en": "Cash",
+  "ckb": "نەقد",
+  "ar": "نقداً",
+  "fa": "نقدی"
+ },
+ "web.payments.method.fastpay": {
+  "en": "FastPay",
+  "ckb": "فاست پەی",
+  "ar": "فاست باي",
+  "fa": "فست‌پی"
+ },
+ "web.payments.method.fib": {
+  "en": "FIB",
+  "ckb": "FIB",
+  "ar": "FIB",
+  "fa": "FIB"
+ },
+ "web.payments.method.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "web.payments.currency": {
+  "en": "Currency",
+  "ckb": "دراو",
+  "ar": "العملة",
+  "fa": "ارز"
+ },
+ "web.payments.amount": {
+  "en": "Amount",
+  "ckb": "بڕ",
+  "ar": "المبلغ",
+  "fa": "مبلغ"
+ },
+ "web.payments.reference": {
+  "en": "Reference (transaction number)",
+  "ckb": "ژمارەی مامەڵە",
+  "ar": "المرجع (رقم العملية)",
+  "fa": "شناسه (شماره تراکنش)"
+ },
+ "web.payments.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.payments.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.payments.receivedBy": {
+  "en": "Received by",
+  "ckb": "وەریگر",
+  "ar": "المستلم",
+  "fa": "دریافت‌کننده"
+ },
+ "web.payments.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.payments.none": {
+  "en": "No payments.",
+  "ckb": "هیچ پارەدانێک نییە.",
+  "ar": "لا توجد مدفوعات.",
+  "fa": "پرداختی نیست."
+ },
+ "web.payments.record": {
+  "en": "Record a payment",
+  "ckb": "تۆمارکردنی پارەدان",
+  "ar": "تسجيل دفعة",
+  "fa": "ثبت پرداخت"
+ },
+ "web.payments.chooseCustomer": {
+  "en": "Choose a customer",
+  "ckb": "کڕیارێک هەڵبژێرە",
+  "ar": "اختر زبوناً",
+  "fa": "مشتری را انتخاب کنید"
+ },
+ "web.payments.save": {
+  "en": "Save payment",
+  "ckb": "پارەدان پاشەکەوت بکە",
+  "ar": "حفظ الدفعة",
+  "fa": "ذخیره پرداخت"
+ },
+ "web.payments.saved": {
+  "en": "Payment {number} saved",
+  "ckb": "پارەدانی {number} پاشەکەوت کرا",
+  "ar": "تم حفظ الدفعة {number}",
+  "fa": "پرداخت {number} ذخیره شد"
+ },
+ "web.payments.view": {
+  "en": "Details",
+  "ckb": "وردەکاری",
+  "ar": "التفاصيل",
+  "fa": "جزئیات"
+ },
+ "web.payments.details": {
+  "en": "Details of {number}",
+  "ckb": "وردەکاری {number}",
+  "ar": "تفاصيل {number}",
+  "fa": "جزئیات {number}"
+ },
+ "web.payments.confirm": {
+  "en": "Confirm received",
+  "ckb": "پشتڕاستکردنەوەی وەرگرتن",
+  "ar": "تأكيد الاستلام",
+  "fa": "تأیید دریافت"
+ },
+ "web.payments.void": {
+  "en": "Void",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "ابطال"
+ },
+ "web.payments.correct": {
+  "en": "Correct",
+  "ckb": "ڕاستکردنەوە",
+  "ar": "تصحيح",
+  "fa": "اصلاح"
+ },
+ "web.payments.reasonPrompt": {
+  "en": "Reason?",
+  "ckb": "هۆکار؟",
+  "ar": "السبب؟",
+  "fa": "دلیل؟"
+ },
+ "web.payments.amountPrompt": {
+  "en": "Correct amount?",
+  "ckb": "بڕی دروست؟",
+  "ar": "المبلغ الصحيح؟",
+  "fa": "مبلغ درست؟"
+ },
+ "web.payments.history": {
+  "en": "History",
+  "ckb": "مێژوو",
+  "ar": "السجل",
+  "fa": "تاریخچه"
+ },
+ "web.payments.balance": {
+  "en": "Customer balance",
+  "ckb": "هەژماری کڕیار",
+  "ar": "رصيد الزبون",
+  "fa": "مانده مشتری"
+ },
+ "web.payments.delivered": {
+  "en": "Delivered",
+  "ckb": "گەیەندراو",
+  "ar": "المسلَّم",
+  "fa": "تحویل‌شده"
+ },
+ "web.payments.confirmedTotal": {
+  "en": "Confirmed payments",
+  "ckb": "پارەدانە پشتڕاستکراوەکان",
+  "ar": "المدفوعات المؤكدة",
+  "fa": "پرداخت‌های تأییدشده"
+ },
+ "web.payments.collectedTotal": {
+  "en": "Collected, not confirmed",
+  "ckb": "وەرگیراو، پشتڕاستنەکراوە",
+  "ar": "محصّل غير مؤكد",
+  "fa": "دریافتی تأییدنشده"
+ },
+ "web.payments.owes": {
+  "en": "Still owed",
+  "ckb": "ماوە",
+  "ar": "المتبقي",
+  "fa": "باقی‌مانده"
+ },
+ "app.home.payments": {
+  "en": "Payments",
+  "ckb": "پارەدانەکان",
+  "ar": "المدفوعات",
+  "fa": "پرداخت‌ها"
+ },
+ "app.payment.button": {
+  "en": "Record payment",
+  "ckb": "تۆمارکردنی پارەدان",
+  "ar": "تسجيل دفعة",
+  "fa": "ثبت پرداخت"
+ },
+ "app.payment.title": {
+  "en": "Record a payment",
+  "ckb": "تۆمارکردنی پارەدان",
+  "ar": "تسجيل دفعة",
+  "fa": "ثبت پرداخت"
+ },
+ "app.payment.method.cash": {
+  "en": "Cash",
+  "ckb": "نەقد",
+  "ar": "نقداً",
+  "fa": "نقدی"
+ },
+ "app.payment.method.fastpay": {
+  "en": "FastPay",
+  "ckb": "فاست پەی",
+  "ar": "فاست باي",
+  "fa": "فست‌پی"
+ },
+ "app.payment.method.fib": {
+  "en": "FIB",
+  "ckb": "FIB",
+  "ar": "FIB",
+  "fa": "FIB"
+ },
+ "app.payment.method.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "app.payment.amount": {
+  "en": "Amount",
+  "ckb": "بڕ",
+  "ar": "المبلغ",
+  "fa": "مبلغ"
+ },
+ "app.payment.reference": {
+  "en": "Transaction number (FastPay / FIB)",
+  "ckb": "ژمارەی مامەڵە (فاست پەی / FIB)",
+  "ar": "رقم العملية (فاست باي / FIB)",
+  "fa": "شماره تراکنش (فست‌پی / FIB)"
+ },
+ "app.payment.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "app.payment.save": {
+  "en": "Save payment",
+  "ckb": "پارەدان پاشەکەوت بکە",
+  "ar": "حفظ الدفعة",
+  "fa": "ذخیره پرداخت"
+ },
+ "app.payment.saved": {
+  "en": "Payment {number} recorded. It counts after the finance manager confirms it.",
+  "ckb": "پارەدانی {number} تۆمارکرا. دوای پشتڕاستکردنەوەی بەڕێوەبەری دارایی دەژمێردرێت.",
+  "ar": "تم تسجيل الدفعة {number}. تُحتسب بعد تأكيد مدير المالية.",
+  "fa": "پرداخت {number} ثبت شد. پس از تأیید مدیر مالی محاسبه می‌شود."
+ },
+ "app.payment.savedConfirmed": {
+  "en": "Payment {number} recorded.",
+  "ckb": "پارەدانی {number} تۆمارکرا.",
+  "ar": "تم تسجيل الدفعة {number}.",
+  "fa": "پرداخت {number} ثبت شد."
+ },
+ "app.payment.owes": {
+  "en": "Still owed: {amount} {currency}",
+  "ckb": "ماوە: {amount} {currency}",
+  "ar": "المتبقي: {amount} {currency}",
+  "fa": "باقی‌مانده: {amount} {currency}"
+ },
+ "app.payment.list.title": {
+  "en": "My payments",
+  "ckb": "پارەدانەکانم",
+  "ar": "مدفوعاتي",
+  "fa": "پرداخت‌های من"
+ },
+ "app.payment.none": {
+  "en": "No payments yet.",
+  "ckb": "هێشتا هیچ پارەدانێک نییە.",
+  "ar": "لا توجد مدفوعات بعد.",
+  "fa": "هنوز پرداختی نیست."
+ },
+ "app.payment.status.collected": {
+  "en": "Waiting for finance",
+  "ckb": "چاوەڕێی دارایی",
+  "ar": "بانتظار المالية",
+  "fa": "منتظر مالی"
+ },
+ "app.payment.status.confirmed": {
+  "en": "Confirmed",
+  "ckb": "پشتڕاستکراوە",
+  "ar": "مؤكد",
+  "fa": "تأییدشده"
+ },
+ "app.payment.status.voided": {
+  "en": "Voided",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "ابطال‌شده"
+ },
+ "app.payment.status.superseded": {
+  "en": "Corrected",
+  "ckb": "ڕاستکراوەتەوە",
+  "ar": "مصحَّح",
+  "fa": "اصلاح‌شده"
  }
 }
