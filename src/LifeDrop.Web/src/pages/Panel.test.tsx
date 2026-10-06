@@ -412,6 +412,43 @@ describe('panel management screens', () => {
     expect(screen.getAllByRole('button', { name: /^Visit form of/ })).toHaveLength(2)   // the planned visit has none
   })
 
+  it('reports: the totals show numerator over denominator, nothing to measure is a dash, the filters go to the server and the table downloads as CSV', async () => {
+    const mgr: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['reports.read'] }
+    const counts = { visitsPlanned: 6, visitsCompleted: 3, visitsFailed: 1, delayBase: 3, delayedVisits: 2, newCustomers: 2, approvedNewCustomers: 1, orders: 3, ordersDelivered: 1, ordersDeliveryFailed: 1,
+      orderTotals: [{ currency: 'IQD', total: 3000 }, { currency: 'USD', total: 5 }], followUpBase: 0, followUpsOverdue: 0 }
+    const rates = { visitCompletion: 50, visitFailure: 16.7, delay: 66.7, orderDelivery: 50, followUpOverdue: null }
+    const row = { userId: 'u1', email: 'rep@t1', teamName: 'Team A', counts, rates }
+    const report = { from: '2026-10-01', to: '2026-10-05', total: { ...row, userId: '00000000-0000-0000-0000-000000000000', email: null, teamName: null }, users: [row],
+      alerts: [{ kind: 'gps_mocked', category: 'security', total: 1, handled: 1, valid: 0, suspicious: 0, fraud: 1 }] }
+    const { api } = server(mgr, {}, {})
+    const original = api.request.bind(api)
+    const asked: string[] = []
+    api.request = async (path: string, init?: RequestInit) => (path.startsWith('/reports/kpis') ? (asked.push(path), json(report)) : path === '/regions' ? json([{ id: 'r1', name: 'Erbil' }]) : path === '/teams' ? json([{ id: 't1', name: 'Team A', regionId: 'r1' }]) : original(path, init))
+    const saved: { name: string; text: string }[] = []
+    const createUrl = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { void (blob as Blob).text().then((text) => saved.push({ name: 'file', text })); return 'blob:x' })
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Reports' }))
+    expect(await screen.findByText('3 of 6')).toBeInTheDocument()                  // completed of planned
+    expect(screen.getAllByText('50%').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/3,000 IQD · 5 USD/).length).toBeGreaterThan(0)    // money stays per currency
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)                    // overdue follow-ups: nothing to measure
+    expect(screen.getByText('rep@t1 · Team A')).toBeInTheDocument()
+    expect(screen.getByText('Fake GPS position')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Customer type'), 'Doctor')
+    await waitFor(() => expect(asked.some((p) => p.includes('customerType=Doctor'))).toBe(true))
+    await user.selectOptions(screen.getByLabelText('Region'), 'r1')
+    await waitFor(() => expect(asked.some((p) => p.includes('regionId=r1') && p.includes('customerType=Doctor'))).toBe(true))
+
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]!.text).toContain('rep@t1,Team A,6,3,1,50,16.7,3,2,66.7')
+    createUrl.mockRestore()
+  })
+
   it('anti-fraud: a security alert shows its evidence and cannot be handled without the result of the review', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' phone was in a car ')
     const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['alerts.read', 'alerts.security.read', 'alerts.handle'] }

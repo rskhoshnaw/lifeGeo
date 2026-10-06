@@ -58,6 +58,7 @@ public static class PermissionKeys
     public const string AlertsRead = "alerts.read";
     public const string AlertsSecurityRead = "alerts.security.read";
     public const string AlertsHandle = "alerts.handle";
+    public const string ReportsRead = "reports.read";
 
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";

@@ -5386,5 +5386,173 @@
   "ckb": "کڕیارەکان لەسەر نەخشە (کۆکراونەتەوە کاتێک دوورن؛ بازنەکە ئەوپەڕی چوونەژوورەوەیە)",
   "ar": "الزبائن على الخريطة (يتجمعون عند الابتعاد؛ الدائرة هي نطاق تسجيل الدخول)",
   "fa": "مشتری‌ها روی نقشه (در دوری گروه می‌شوند؛ دایره شعاع check-in است)"
+ },
+ "web.tab.reports": {
+  "en": "Reports",
+  "ckb": "ڕاپۆرتەکان",
+  "ar": "التقارير",
+  "fa": "گزارش‌ها"
+ },
+ "web.reports.title": {
+  "en": "Reports and KPIs",
+  "ckb": "ڕاپۆرت و KPI",
+  "ar": "التقارير ومؤشرات الأداء",
+  "fa": "گزارش‌ها و KPI"
+ },
+ "web.reports.from": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.reports.to": {
+  "en": "To",
+  "ckb": "بۆ",
+  "ar": "إلى",
+  "fa": "تا"
+ },
+ "web.reports.region": {
+  "en": "Region",
+  "ckb": "ناوچە",
+  "ar": "المنطقة",
+  "fa": "منطقه"
+ },
+ "web.reports.team": {
+  "en": "Team",
+  "ckb": "تیم",
+  "ar": "الفريق",
+  "fa": "تیم"
+ },
+ "web.reports.customerType": {
+  "en": "Customer type",
+  "ckb": "جۆری کڕیار",
+  "ar": "نوع الزبون",
+  "fa": "نوع مشتری"
+ },
+ "web.reports.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.reports.download": {
+  "en": "Download CSV",
+  "ckb": "داگرتنی CSV",
+  "ar": "تنزيل CSV",
+  "fa": "دانلود CSV"
+ },
+ "web.reports.none": {
+  "en": "No data in this period.",
+  "ckb": "هیچ داتایەک لەم ماوەیەدا نییە.",
+  "ar": "لا توجد بيانات في هذه الفترة.",
+  "fa": "در این بازه داده‌ای نیست."
+ },
+ "web.reports.noValue": {
+  "en": "—",
+  "ckb": "—",
+  "ar": "—",
+  "fa": "—"
+ },
+ "web.reports.kpi": {
+  "en": "Indicator",
+  "ckb": "نیشاندەر",
+  "ar": "المؤشر",
+  "fa": "شاخص"
+ },
+ "web.reports.of": {
+  "en": "{numerator} of {denominator}",
+  "ckb": "{numerator} لە {denominator}",
+  "ar": "{numerator} من {denominator}",
+  "fa": "{numerator} از {denominator}"
+ },
+ "web.reports.completion": {
+  "en": "Visits completed",
+  "ckb": "سەردانی تەواوکراو",
+  "ar": "الزيارات المنجزة",
+  "fa": "ویزیت‌های انجام‌شده"
+ },
+ "web.reports.failure": {
+  "en": "Visits failed",
+  "ckb": "سەردانی سەرنەکەوتوو",
+  "ar": "الزيارات الفاشلة",
+  "fa": "ویزیت‌های ناموفق"
+ },
+ "web.reports.delay": {
+  "en": "Visits started late",
+  "ckb": "سەردانی درەنگ دەستپێکراو",
+  "ar": "الزيارات المتأخرة",
+  "fa": "ویزیت‌های دیرشروع"
+ },
+ "web.reports.newCustomers": {
+  "en": "New customers",
+  "ckb": "کڕیاری نوێ",
+  "ar": "زبائن جدد",
+  "fa": "مشتری جدید"
+ },
+ "web.reports.approved": {
+  "en": "approved",
+  "ckb": "پەسەندکراو",
+  "ar": "معتمد",
+  "fa": "تأییدشده"
+ },
+ "web.reports.orders": {
+  "en": "Orders (not cancelled)",
+  "ckb": "داواکاری (هەڵنەوەشێندراو)",
+  "ar": "الطلبات (غير الملغاة)",
+  "fa": "سفارش‌ها (غیر لغوشده)"
+ },
+ "web.reports.delivery": {
+  "en": "Orders delivered",
+  "ckb": "داواکاری گەیەندراو",
+  "ar": "الطلبات المسلَّمة",
+  "fa": "سفارش‌های تحویل‌شده"
+ },
+ "web.reports.followups": {
+  "en": "Follow-ups overdue",
+  "ckb": "شوێنکەوتنی دواکەوتوو",
+  "ar": "متابعات متأخرة",
+  "fa": "پیگیری‌های معوق"
+ },
+ "web.reports.definitions": {
+  "en": "How each number is counted: docs/KPI.md. A total adds the numerators and the denominators of the users; money is never added across currencies.",
+  "ckb": "ژمێرەکان لە docs/KPI.md. کۆی گشتی ژمارەکان و خوار هێڵەکان کۆدەکاتەوە؛ پارە لە نێوان دراوەکاندا کۆناکرێتەوە.",
+  "ar": "طريقة الحساب في docs/KPI.md. المجموع يجمع البسط والمقام ولا تُجمع الأموال بين العملات.",
+  "fa": "نحوهٔ شمارش در docs/KPI.md. جمع کل، صورت‌ها و مخرج‌ها را جمع می‌کند؛ پول بین ارزها جمع نمی‌شود."
+ },
+ "web.reports.byUser": {
+  "en": "By user",
+  "ckb": "بەپێی بەکارهێنەر",
+  "ar": "حسب المستخدم",
+  "fa": "به تفکیک کاربر"
+ },
+ "web.reports.user": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.reports.total": {
+  "en": "Total",
+  "ckb": "کۆی گشتی",
+  "ar": "المجموع",
+  "fa": "جمع کل"
+ },
+ "web.reports.alerts": {
+  "en": "Alerts",
+  "ckb": "ئاگادارکردنەوەکان",
+  "ar": "التنبيهات",
+  "fa": "هشدارها"
+ },
+ "web.reports.alertTotal": {
+  "en": "total",
+  "ckb": "کۆ",
+  "ar": "المجموع",
+  "fa": "کل"
+ },
+ "web.reports.alertHandled": {
+  "en": "handled",
+  "ckb": "چارەسەرکراو",
+  "ar": "تمت المعالجة",
+  "fa": "رسیدگی‌شده"
  }
 }

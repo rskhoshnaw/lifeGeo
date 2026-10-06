@@ -494,3 +494,11 @@ Retention: exact tracking points are kept 90 days. The background job (same loop
 | `GET /tracking/users` | `tracking.read` | Active users inside the caller's area that have had a shift | — |
 | `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) |
 | `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — |
+
+### Reports and KPIs (plan step 2.12)
+
+Permission `reports.read` (CompanyManager, SalesManager: all users; Supervisor: the users of the region). Definitions of every number: `docs/KPI.md`.
+
+| Route | Who | Rules |
+|---|---|---|
+| `GET /reports/kpis?from=&to=&regionId=&teamId=&customerType=` | `reports.read` | `from`/`to` are Iraq days (`to` not before `from`, at most 366 days; else 400). Returns `total` and `users` (one row each, users without data left out) with `counts` (numerators, denominators, money per currency) and `rates` (percent, `null` when the denominator is 0), and `alerts` by kind with handled and review results, only the categories the caller may read (`alerts.read`, `alerts.security.read`) |
