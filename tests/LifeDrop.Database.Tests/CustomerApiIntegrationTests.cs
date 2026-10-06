@@ -126,7 +126,8 @@ public class CustomerApiIntegrationTests
                 var m28 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0028_delivery.sql"));
                 var m29 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0029_payments.sql"));
                 var m30 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0030_samples.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30;
+                var m31 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0031_visit_report_details.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5215,6 +5216,122 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("order.cancelled=1,order.created=3,order.handed_over=1,order.preparing=2,order.ready=1,order.shortage=1,warehouse.staff_added=3,warehouse.staff_removed=1", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task VisitDetails_SpecialisedFormByVisitTypeOnlyForTheAssigneeWhileInVisit()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), manager = Guid.NewGuid(), driver = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid(), p3 = Guid.NewGuid();
+        Guid vDoctor = Guid.NewGuid(), vPharmacy = Guid.NewGuid(), vWholesaler = Guid.NewGuid(), vOther = Guid.NewGuid(), vPlanned = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@m, @t1), (@d, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @d, id FROM roles WHERE tenant_id = @t1 AND name = 'Driver';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep);
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price, status) VALUES
+                    (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000, 'active'), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 2000, 'active'), (@p3, @t1, 'P3', 'Product 3', 'box', 'IQD', 3000, 'inactive');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, visit_type, created_at) VALUES
+                    (@vd, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'doctor', now()), (@vp, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'pharmacy', now()),
+                    (@vw, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'wholesaler', now()), (@vo, @t1, @rep, @c1, 'InVisit', '2026-10-05', 'other', now()),
+                    (@vpl, @t1, @rep, @c1, 'Planned', '2026-10-05', 'doctor', now());", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("m", manager), ("d", driver), ("c1", c1), ("p1", p1), ("p2", p2), ("p3", p3), ("vd", vDoctor), ("vp", vPharmacy), ("vw", vWholesaler), ("vo", vOther), ("vpl", vPlanned) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Put(Guid visit, object body) => client.PutAsJsonAsync($"/visits/{visit}/report/details", body);
+        Task<LifeDrop.Application.Visits.VisitDetailsDto?> Get(Guid visit) => client.GetFromJsonAsync<LifeDrop.Application.Visits.VisitDetailsDto>($"/visits/{visit}/report/details");
+
+        // A doctor visit: common fields and the doctor's own
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{vDoctor}/report/details"), HttpStatusCode.NotFound, "NOT_FOUND");   // nothing saved yet
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(vDoctor, new
+        {
+            Purpose = "product_intro", PersonMet = " Dr. Karwan ", PersonRole = "Cardiologist", Needs = "  samples of P1 ", ProductIds = new[] { p2, p1 }, Specialty = "Cardiology", DailyPatients = 40
+        })).StatusCode);
+        var saved = (await Get(vDoctor))!;
+        Assert.Equal(("doctor", "product_intro", "Dr. Karwan", "samples of P1", "Cardiology", 40), (saved.VisitType, saved.Purpose, saved.PersonMet, saved.Needs, saved.Specialty, saved.DailyPatients));
+        Assert.Equal(new[] { "P1", "P2" }, saved.Products.Select(p => p.Code).ToArray());
+        Assert.Null(saved.MonthlySales);
+
+        // A second save replaces everything
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(vDoctor, new { Purpose = "complaint" })).StatusCode);
+        var replaced = (await Get(vDoctor))!;
+        Assert.Equal(("complaint", null, null, 0), (replaced.Purpose, replaced.PersonMet, replaced.Specialty, replaced.Products.Count));
+
+        // Pharmacy and wholesaler forms, with the currency that goes with the amount
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(vPharmacy, new { Purpose = "order_follow_up", MonthlySales = 1500000m, Currency = "IQD", Competitors = "Pharma X, Pharma Y" })).StatusCode);
+        var pharmacy = (await Get(vPharmacy))!;
+        Assert.Equal(("pharmacy", 1500000m, "IQD", "Pharma X, Pharma Y"), (pharmacy.VisitType, pharmacy.MonthlySales, pharmacy.Currency, pharmacy.Competitors));
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(vWholesaler, new { Purpose = "collection", MonthlyVolume = 20000m, Currency = "USD", PaymentTerms = "30 days" })).StatusCode);
+        Assert.Equal(("USD", "30 days"), ((await Get(vWholesaler))!.Currency, (await Get(vWholesaler))!.PaymentTerms));
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(vOther, new { Purpose = "other", PersonMet = "Someone" })).StatusCode);
+
+        // What is refused: another type's fields, a bad purpose, an amount without its currency, products that are inactive, repeated or unknown, too long texts
+        foreach (var (visit, bad) in new (Guid, object)[]
+        {
+            (vDoctor, new { Purpose = "product_intro", MonthlySales = 10m, Currency = "IQD" }),
+            (vDoctor, new { Purpose = "product_intro", Competitors = "X" }),
+            (vPharmacy, new { Purpose = "product_intro", Specialty = "Cardiology" }),
+            (vPharmacy, new { Purpose = "product_intro", MonthlyVolume = 10m, Currency = "IQD" }),
+            (vWholesaler, new { Purpose = "product_intro", DailyPatients = 3 }),
+            (vOther, new { Purpose = "product_intro", Specialty = "Cardiology" }),
+            (vDoctor, new { Purpose = "lunch" }),
+            (vDoctor, new { PersonMet = "No purpose" }),
+            (vPharmacy, new { Purpose = "collection", MonthlySales = 10m }),
+            (vPharmacy, new { Purpose = "collection", Currency = "IQD" }),
+            (vPharmacy, new { Purpose = "collection", MonthlySales = -1m, Currency = "IQD" }),
+            (vPharmacy, new { Purpose = "collection", MonthlySales = 10m, Currency = "EUR" }),
+            (vDoctor, new { Purpose = "product_intro", DailyPatients = -1 }),
+            (vDoctor, new { Purpose = "product_intro", ProductIds = new[] { p3 } }),
+            (vDoctor, new { Purpose = "product_intro", ProductIds = new[] { p1, p1 } }),
+            (vDoctor, new { Purpose = "product_intro", ProductIds = new[] { Guid.NewGuid() } }),
+            (vDoctor, new { Purpose = "product_intro", Needs = new string('x', 1001) }),
+            (vDoctor, new { Purpose = "product_intro", PersonMet = new string('x', 101) })
+        })
+            await AssertProblemAsync(await Put(visit, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal("complaint", (await Get(vDoctor))!.Purpose);   // nothing refused changed it
+
+        // Only while InVisit
+        await AssertProblemAsync(await Put(vPlanned, new { Purpose = "other" }), HttpStatusCode.BadRequest, "INVALID_STATE");
+
+        // Only the assignee writes; readers: the assignee and a manager whose scope covers them
+        As(rep2);
+        await AssertProblemAsync(await Put(vDoctor, new { Purpose = "other" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.GetAsync($"/visits/{vDoctor}/report/details"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(driver);
+        await AssertProblemAsync(await client.GetAsync($"/visits/{vDoctor}/report/details"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(manager);
+        Assert.Equal("complaint", (await Get(vDoctor))!.Purpose);
+        await AssertProblemAsync(await Put(vDoctor, new { Purpose = "other" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        await using var verify = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await verify.OpenAsync();
+        await using var audit = new NpgsqlCommand("SELECT count(*) FROM audit_logs WHERE action = 'visit.report_details_saved'", verify);
+        Assert.Equal(5L, await audit.ExecuteScalarAsync());
     }
 
     [SkippableFact]

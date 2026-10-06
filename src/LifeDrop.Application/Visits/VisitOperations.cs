@@ -414,7 +414,7 @@ public sealed class VisitReports(IVisitStore store, LifeDrop.Application.Roles.I
     }
 
     // The assignee, or a user whose visits.write scope covers the assignee.
-    private static async Task<bool> CanReadAsync(LifeDrop.Application.Roles.IPermissionStore permissions, TenantId tenantId, UserId actorId,
+    internal static async Task<bool> CanReadAsync(LifeDrop.Application.Roles.IPermissionStore permissions, TenantId tenantId, UserId actorId,
         Visit visit, CancellationToken cancellationToken)
     {
         if (visit.UserId == actorId) return true;

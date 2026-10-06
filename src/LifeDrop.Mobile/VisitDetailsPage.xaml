@@ -18,6 +18,9 @@
             <!-- An order for this customer, linked to this visit (plan step 2.2) -->
             <Button x:Name="OrderBtn" Clicked="OnOrderClicked" HorizontalOptions="Start" />
 
+            <!-- The specialised visit form (plan step 2.7) -->
+            <Button x:Name="FormBtn" Clicked="OnFormClicked" HorizontalOptions="Start" />
+
             <!-- Start trip / I have arrived / Check in here -->
             <Button x:Name="StepBtn" Clicked="OnStepClicked" IsVisible="False" />
 

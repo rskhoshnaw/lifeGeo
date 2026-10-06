@@ -4510,5 +4510,239 @@
   "ckb": "هۆکار؟",
   "ar": "السبب؟",
   "fa": "دلیل؟"
+ },
+ "app.form.button": {
+  "en": "Visit form",
+  "ckb": "فۆڕمی سەردان",
+  "ar": "نموذج الزيارة",
+  "fa": "فرم ویزیت"
+ },
+ "app.form.title": {
+  "en": "Visit form",
+  "ckb": "فۆڕمی سەردان",
+  "ar": "نموذج الزيارة",
+  "fa": "فرم ویزیت"
+ },
+ "app.form.purpose": {
+  "en": "Purpose of the visit",
+  "ckb": "ئامانجی سەردان",
+  "ar": "هدف الزيارة",
+  "fa": "هدف ویزیت"
+ },
+ "app.form.purpose.product_intro": {
+  "en": "Product introduction",
+  "ckb": "ناساندنی بەرهەم",
+  "ar": "تعريف بالمنتج",
+  "fa": "معرفی محصول"
+ },
+ "app.form.purpose.order_follow_up": {
+  "en": "Order follow-up",
+  "ckb": "شوێنکەوتنی داواکاری",
+  "ar": "متابعة طلب",
+  "fa": "پیگیری سفارش"
+ },
+ "app.form.purpose.collection": {
+  "en": "Collection",
+  "ckb": "کۆکردنەوەی پارە",
+  "ar": "تحصيل",
+  "fa": "وصول"
+ },
+ "app.form.purpose.complaint": {
+  "en": "Complaint",
+  "ckb": "سکاڵا",
+  "ar": "شكوى",
+  "fa": "شکایت"
+ },
+ "app.form.purpose.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "app.form.personMet": {
+  "en": "Person met",
+  "ckb": "کەسی چاوپێکەوتوو",
+  "ar": "الشخص الذي تم لقاؤه",
+  "fa": "شخص ملاقات‌شده"
+ },
+ "app.form.personRole": {
+  "en": "Position",
+  "ckb": "پێگە",
+  "ar": "المنصب",
+  "fa": "سمت"
+ },
+ "app.form.products": {
+  "en": "Products presented",
+  "ckb": "بەرهەمە ناساندراوەکان",
+  "ar": "المنتجات المعروضة",
+  "fa": "محصولات معرفی‌شده"
+ },
+ "app.form.needs": {
+  "en": "Needs",
+  "ckb": "پێداویستییەکان",
+  "ar": "الاحتياجات",
+  "fa": "نیازها"
+ },
+ "app.form.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "التخصص",
+  "fa": "تخصص"
+ },
+ "app.form.dailyPatients": {
+  "en": "Patients per day",
+  "ckb": "نەخۆش بۆ هەر ڕۆژێک",
+  "ar": "المرضى يومياً",
+  "fa": "بیمار در روز"
+ },
+ "app.form.monthlySales": {
+  "en": "Approximate monthly sales",
+  "ckb": "فرۆشتنی مانگانەی نزیکەیی",
+  "ar": "المبيعات الشهرية التقريبية",
+  "fa": "فروش ماهانهٔ تقریبی"
+ },
+ "app.form.competitors": {
+  "en": "Competitors",
+  "ckb": "ڕکابەرەکان",
+  "ar": "المنافسون",
+  "fa": "رقبا"
+ },
+ "app.form.monthlyVolume": {
+  "en": "Monthly purchase volume",
+  "ckb": "قەبارەی کڕینی مانگانە",
+  "ar": "حجم الشراء الشهري",
+  "fa": "حجم خرید ماهانه"
+ },
+ "app.form.paymentTerms": {
+  "en": "Payment terms",
+  "ckb": "مەرجەکانی پارەدان",
+  "ar": "شروط الدفع",
+  "fa": "شرایط پرداخت"
+ },
+ "app.form.save": {
+  "en": "Save form",
+  "ckb": "فۆڕم پاشەکەوت بکە",
+  "ar": "حفظ النموذج",
+  "fa": "ذخیره فرم"
+ },
+ "app.form.saved": {
+  "en": "Form saved.",
+  "ckb": "فۆڕم پاشەکەوت کرا.",
+  "ar": "تم حفظ النموذج.",
+  "fa": "فرم ذخیره شد."
+ },
+ "web.visits.form": {
+  "en": "Visit form",
+  "ckb": "فۆڕمی سەردان",
+  "ar": "نموذج الزيارة",
+  "fa": "فرم ویزیت"
+ },
+ "web.visits.formOf": {
+  "en": "Visit form of {customer}",
+  "ckb": "فۆڕمی سەردانی {customer}",
+  "ar": "نموذج زيارة {customer}",
+  "fa": "فرم ویزیت {customer}"
+ },
+ "web.visits.formNone": {
+  "en": "No visit form was filled.",
+  "ckb": "هیچ فۆڕمێک پڕ نەکراوەتەوە.",
+  "ar": "لم يتم ملء نموذج.",
+  "fa": "فرمی پر نشده است."
+ },
+ "web.visits.form.purpose": {
+  "en": "Purpose",
+  "ckb": "ئامانج",
+  "ar": "الهدف",
+  "fa": "هدف"
+ },
+ "web.visits.form.personMet": {
+  "en": "Person met",
+  "ckb": "کەسی چاوپێکەوتوو",
+  "ar": "الشخص الذي تم لقاؤه",
+  "fa": "شخص ملاقات‌شده"
+ },
+ "web.visits.form.personRole": {
+  "en": "Position",
+  "ckb": "پێگە",
+  "ar": "المنصب",
+  "fa": "سمت"
+ },
+ "web.visits.form.products": {
+  "en": "Products presented",
+  "ckb": "بەرهەمە ناساندراوەکان",
+  "ar": "المنتجات المعروضة",
+  "fa": "محصولات معرفی‌شده"
+ },
+ "web.visits.form.needs": {
+  "en": "Needs",
+  "ckb": "پێداویستییەکان",
+  "ar": "الاحتياجات",
+  "fa": "نیازها"
+ },
+ "web.visits.form.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "التخصص",
+  "fa": "تخصص"
+ },
+ "web.visits.form.dailyPatients": {
+  "en": "Patients per day",
+  "ckb": "نەخۆش بۆ هەر ڕۆژێک",
+  "ar": "المرضى يومياً",
+  "fa": "بیمار در روز"
+ },
+ "web.visits.form.monthlySales": {
+  "en": "Approximate monthly sales",
+  "ckb": "فرۆشتنی مانگانەی نزیکەیی",
+  "ar": "المبيعات الشهرية التقريبية",
+  "fa": "فروش ماهانهٔ تقریبی"
+ },
+ "web.visits.form.competitors": {
+  "en": "Competitors",
+  "ckb": "ڕکابەرەکان",
+  "ar": "المنافسون",
+  "fa": "رقبا"
+ },
+ "web.visits.form.monthlyVolume": {
+  "en": "Monthly purchase volume",
+  "ckb": "قەبارەی کڕینی مانگانە",
+  "ar": "حجم الشراء الشهري",
+  "fa": "حجم خرید ماهانه"
+ },
+ "web.visits.form.paymentTerms": {
+  "en": "Payment terms",
+  "ckb": "مەرجەکانی پارەدان",
+  "ar": "شروط الدفع",
+  "fa": "شرایط پرداخت"
+ },
+ "web.form.purpose.product_intro": {
+  "en": "Product introduction",
+  "ckb": "ناساندنی بەرهەم",
+  "ar": "تعريف بالمنتج",
+  "fa": "معرفی محصول"
+ },
+ "web.form.purpose.order_follow_up": {
+  "en": "Order follow-up",
+  "ckb": "شوێنکەوتنی داواکاری",
+  "ar": "متابعة طلب",
+  "fa": "پیگیری سفارش"
+ },
+ "web.form.purpose.collection": {
+  "en": "Collection",
+  "ckb": "کۆکردنەوەی پارە",
+  "ar": "تحصيل",
+  "fa": "وصول"
+ },
+ "web.form.purpose.complaint": {
+  "en": "Complaint",
+  "ckb": "سکاڵا",
+  "ar": "شكوى",
+  "fa": "شکایت"
+ },
+ "web.form.purpose.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "سایر"
  }
 }

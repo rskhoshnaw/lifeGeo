@@ -439,3 +439,12 @@ Permissions: `samples.record` (ScientificRep, SalesRep), `samples.read` (Company
 | `GET /samples?customerId=&productId=&limit=&before=&beforeId=` | `samples.read` or `samples.record` | Newest first, visibility as above | — |
 | `GET /samples/{id}` | same | 404 outside the visibility | — |
 | `POST /samples/{id}/void` | `samples.manage` | `{reason}` (1-500); `given` → `voided`; 409 when already voided | `sample.voided` |
+
+### Specialised visit form (plan step 2.7)
+
+Written beside the base report (unchanged). No new permission: the assignee writes, readers are the same as for the report (the assignee and `visits.write` scope over the assignee).
+
+| Route | Who | Rules | Audit |
+|---|---|---|---|
+| `PUT /visits/{id}/report/details` | the visit's assignee, while `InVisit` (400 `INVALID_STATE` otherwise; another user 403) | Replaces the whole form. `purpose` (required: `product_intro`, `order_follow_up`, `collection`, `complaint`, `other`), `personMet`/`personRole` (≤100), `needs` (≤1000), `productIds` (≤50, distinct, active catalogue products), and by the visit's type: doctor `specialty` (≤100), `dailyPatients` (0-10000); pharmacy `monthlySales`, `competitors` (≤500); wholesaler `monthlyVolume`, `paymentTerms` (≤500). A field of another type is refused (400), not ignored. `currency` (`IQD`/`USD`) is required exactly when `monthlySales` or `monthlyVolume` is sent. 204 | `visit.report_details_saved` |
+| `GET /visits/{id}/report/details` | same readers as the report | The form with `visitType` and the products (code, name); 404 when none was saved or the caller may not read the visit | — |

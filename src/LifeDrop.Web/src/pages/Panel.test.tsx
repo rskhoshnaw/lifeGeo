@@ -391,6 +391,27 @@ describe('panel management screens', () => {
     expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('visits: a manager opens the specialised form of a visit in progress, and a visit without a form says so', async () => {
+    const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['visits.write', 'visits.cancel', 'customers.read'] }
+    const { api } = server(sm, {
+      [`/visit-plan?scheduleDate=${iraqToday()}`]: [visit('v1', 'InVisit'), { ...visit('v2', 'Completed'), customerCode: 'P-9', customerName: 'Noor' }, visit('v3', 'Planned')],
+      '/visits/v1/report/details': { visitId: 'v1', visitType: 'pharmacy', purpose: 'order_follow_up', personMet: 'Dr. Karwan', personRole: null, needs: 'more stock', products: [{ id: 'p1', code: 'PAR-500', name: 'Paracetamol' }],
+        specialty: null, dailyPatients: null, monthlySales: 1500000, competitors: 'Pharma X', monthlyVolume: null, paymentTerms: null, currency: 'IQD', updatedAt: '2026-10-07T08:00:00Z' },
+      '/users': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Visits' }))
+    await user.click(await screen.findByRole('button', { name: 'Visit form of P-1' }))
+    expect(await screen.findByText('Order follow-up', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText(/PAR-500 · Paracetamol/)).toBeInTheDocument()
+    expect(screen.getByText(/Pharma X/)).toBeInTheDocument()
+    expect(screen.getByText(/1500000 IQD/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Visit form of P-9' }))
+    expect(await screen.findByText('No visit form was filled.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^Visit form of/ })).toHaveLength(2)   // the planned visit has none
+  })
+
   it('samples: a manager reads the list and voids a record with a reason; a rep sees the tab without the void button', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' typed twice ')
     const sample = { id: 's1', number: 'S-000001', customerCode: 'P-1', customerName: 'Shifa', productCode: 'PAR-500', productName: 'Paracetamol 500', unit: 'box', quantity: 3, recipientName: 'Dr. Karwan',

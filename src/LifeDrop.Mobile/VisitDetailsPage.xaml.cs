@@ -25,6 +25,7 @@ public partial class VisitDetailsPage : ContentPage
         Title = Texts.Get("app.visit.title");
         CustomerBtn.Text = Texts.Get("app.customer.details");
         OrderBtn.Text = Texts.Get("app.order.button");
+        FormBtn.Text = Texts.Get("app.form.button");
         ReportTitleLabel.Text = Texts.Get("app.visit.report");
         OutcomePicker.Title = Texts.Get("app.visit.result");
         NoteEditor.Placeholder = Texts.Get("app.visit.notePlaceholder");
@@ -69,6 +70,9 @@ public partial class VisitDetailsPage : ContentPage
 
     private async void OnOrderClicked(object? sender, EventArgs e) =>
         await Navigation.PushAsync(new OrderPage(_lifecycle.Visit.CustomerId, _lifecycle.Visit.CustomerName, _lifecycle.Visit.Id));
+
+    private async void OnFormClicked(object? sender, EventArgs e) =>
+        await Navigation.PushAsync(new VisitFormPage(_lifecycle.Visit.Id, _lifecycle.Visit.CustomerName, _lifecycle.Visit.VisitType));
 
     private async void OnStepClicked(object? sender, EventArgs e) => await RunAsync(ct => _lifecycle.RunNextStepAsync(ct));
 

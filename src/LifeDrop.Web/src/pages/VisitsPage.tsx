@@ -57,6 +57,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
     void action.run(() => admin.postponeVisit(visit.id, day, reason.trim()))
   }
 
+  const [formFor, setFormFor] = useState<PlannedVisit | null>(null)
   const error = action.error ?? plan.error ?? users.error
   return (
     <section className="space-y-8 p-6">
@@ -115,6 +116,11 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                     <td>{t(`web.priority.${visit.priority}`)}</td>
                     <td>{statusText(visit.status)}</td>
                     <td className="space-x-2 py-2 text-end">
+                      {(visit.status === 'InVisit' || visit.status === 'Completed') && (
+                        <button className="rounded border px-2 py-1" aria-label={t('web.visits.formOf', { customer: label })} onClick={() => setFormFor(formFor?.id === visit.id ? null : visit)}>
+                          {t('web.visits.form')}
+                        </button>
+                      )}
                       {movable && (
                         <>
                           <input type="date" aria-label={t('web.visits.moveToDay', { customer: label })} className="rounded border px-1 py-1" min={iraqToday()} value={moveDay[visit.id] ?? ''} onChange={(e) => setMoveDay({ ...moveDay, [visit.id]: e.target.value })} />
@@ -150,6 +156,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
             </tbody>
           </table>
         )}
+        {formFor && <VisitFormView key={formFor.id} admin={admin} visit={formFor} />}
       </div>
       {can(me, ...Permissions.planVisits) && users.data && <PlanFromPlaces admin={admin} me={me} date={date} users={users.data} onCreated={plan.reload} />}
       {can(me, ...Permissions.customers) && users.data && <NewVisitForm admin={admin} date={date} users={users.data} onCreated={plan.reload} />}
@@ -215,5 +222,33 @@ function NewVisitForm({ admin, date, users, onCreated }: { admin: AdminApi; date
         {t('web.visits.create')}
       </button>
     </form>
+  )
+}
+
+// The specialised form of one visit (plan step 2.7): what the rep wrote beside the base report.
+function VisitFormView({ admin, visit }: { admin: AdminApi; visit: PlannedVisit }) {
+  const form = useLoad(useCallback(() => admin.visitDetails(visit.id), [admin, visit.id]))
+  const d = form.data
+  const row = (label: TextKey, value: string | number | null) => (value === null || value === '' ? null : <li key={label}>{t(label)}: {value}</li>)
+  return (
+    <div className="mt-4 space-y-1 rounded border p-3 text-sm">
+      <h3 className="font-semibold">{visit.customerCode} · {visit.customerName}</h3>
+      {form.error && <p className="text-slate-600">{t('web.visits.formNone')}</p>}
+      {d && (
+        <ul>
+          {row('web.visits.form.purpose', t(`web.form.purpose.${d.purpose}` as TextKey))}
+          {row('web.visits.form.personMet', d.personMet)}
+          {row('web.visits.form.personRole', d.personRole)}
+          {row('web.visits.form.products', d.products.map((p) => `${p.code} · ${p.name}`).join('، '))}
+          {row('web.visits.form.needs', d.needs)}
+          {row('web.visits.form.specialty', d.specialty)}
+          {row('web.visits.form.dailyPatients', d.dailyPatients)}
+          {row('web.visits.form.monthlySales', d.monthlySales === null ? null : `${d.monthlySales} ${d.currency ?? ''}`)}
+          {row('web.visits.form.competitors', d.competitors)}
+          {row('web.visits.form.monthlyVolume', d.monthlyVolume === null ? null : `${d.monthlyVolume} ${d.currency ?? ''}`)}
+          {row('web.visits.form.paymentTerms', d.paymentTerms)}
+        </ul>
+      )}
+    </div>
   )
 }
