@@ -4342,5 +4342,173 @@
   "ckb": "ڕاستکراوەتەوە",
   "ar": "مصحَّح",
   "fa": "اصلاح‌شده"
+ },
+ "app.sample.button": {
+  "en": "Give samples",
+  "ckb": "پێدانی نموونە",
+  "ar": "تسليم عينات",
+  "fa": "ثبت نمونه"
+ },
+ "app.sample.title": {
+  "en": "Pharma samples",
+  "ckb": "نموونەی دەرمان",
+  "ar": "عينات دوائية",
+  "fa": "نمونه دارویی"
+ },
+ "app.sample.chooseProduct": {
+  "en": "Choose a product",
+  "ckb": "بەرهەمێک هەڵبژێرە",
+  "ar": "اختر منتجاً",
+  "fa": "محصول را انتخاب کنید"
+ },
+ "app.sample.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "app.sample.recipient": {
+  "en": "Recipient (doctor or person)",
+  "ckb": "وەرگر (دکتۆر یان کەس)",
+  "ar": "المستلم (الطبيب أو الشخص)",
+  "fa": "گیرنده (پزشک یا شخص)"
+ },
+ "app.sample.batch": {
+  "en": "Batch number",
+  "ckb": "ژمارەی دەستە",
+  "ar": "رقم التشغيلة",
+  "fa": "شماره بچ"
+ },
+ "app.sample.expiry": {
+  "en": "Expiry date (yyyy-mm-dd)",
+  "ckb": "بەرواری بەسەرچوون (ساڵ-مانگ-ڕۆژ)",
+  "ar": "تاريخ الانتهاء (سنة-شهر-يوم)",
+  "fa": "تاریخ انقضا (سال-ماه-روز)"
+ },
+ "app.sample.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "app.sample.save": {
+  "en": "Save samples",
+  "ckb": "نموونە پاشەکەوت بکە",
+  "ar": "حفظ العينات",
+  "fa": "ذخیره نمونه"
+ },
+ "app.sample.saved": {
+  "en": "Samples {number} recorded.",
+  "ckb": "نموونەی {number} تۆمارکرا.",
+  "ar": "تم تسجيل العينات {number}.",
+  "fa": "نمونه {number} ثبت شد."
+ },
+ "web.tab.samples": {
+  "en": "Samples",
+  "ckb": "نموونەکان",
+  "ar": "العينات",
+  "fa": "نمونه‌ها"
+ },
+ "web.samples.title": {
+  "en": "Pharma samples",
+  "ckb": "نموونەی دەرمان",
+  "ar": "العينات الدوائية",
+  "fa": "نمونه‌های دارویی"
+ },
+ "web.samples.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "الرقم",
+  "fa": "شماره"
+ },
+ "web.samples.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "الزبون",
+  "fa": "مشتری"
+ },
+ "web.samples.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.samples.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "web.samples.recipient": {
+  "en": "Recipient",
+  "ckb": "وەرگر",
+  "ar": "المستلم",
+  "fa": "گیرنده"
+ },
+ "web.samples.batch": {
+  "en": "Batch",
+  "ckb": "دەستە",
+  "ar": "التشغيلة",
+  "fa": "بچ"
+ },
+ "web.samples.expiry": {
+  "en": "Expiry",
+  "ckb": "بەسەرچوون",
+  "ar": "الانتهاء",
+  "fa": "انقضا"
+ },
+ "web.samples.by": {
+  "en": "Given by",
+  "ckb": "پێدەر",
+  "ar": "المسلِّم",
+  "fa": "تحویل‌دهنده"
+ },
+ "web.samples.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.samples.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.samples.status.given": {
+  "en": "Given",
+  "ckb": "دراوە",
+  "ar": "مسلَّمة",
+  "fa": "داده‌شده"
+ },
+ "web.samples.status.voided": {
+  "en": "Voided",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغاة",
+  "fa": "ابطال‌شده"
+ },
+ "web.samples.none": {
+  "en": "No samples.",
+  "ckb": "هیچ نموونەیەک نییە.",
+  "ar": "لا توجد عينات.",
+  "fa": "نمونه‌ای نیست."
+ },
+ "web.samples.void": {
+  "en": "Void",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "ابطال"
+ },
+ "web.samples.voidAction": {
+  "en": "Void {number}",
+  "ckb": "هەڵوەشاندنەوەی {number}",
+  "ar": "إلغاء {number}",
+  "fa": "ابطال {number}"
+ },
+ "web.samples.reasonPrompt": {
+  "en": "Reason?",
+  "ckb": "هۆکار؟",
+  "ar": "السبب؟",
+  "fa": "دلیل؟"
  }
 }

@@ -391,6 +391,31 @@ describe('panel management screens', () => {
     expect((sent.body as { clientRef: string }).clientRef).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('samples: a manager reads the list and voids a record with a reason; a rep sees the tab without the void button', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' typed twice ')
+    const sample = { id: 's1', number: 'S-000001', customerCode: 'P-1', customerName: 'Shifa', productCode: 'PAR-500', productName: 'Paracetamol 500', unit: 'box', quantity: 3, recipientName: 'Dr. Karwan',
+      batchNumber: 'B-17', expiryDate: '2027-03-31', note: null, distributedByEmail: 'sci@t1', status: 'given', voidReason: null, createdAt: '2026-10-07T08:00:00Z' }
+    const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['samples.read', 'samples.manage'] }
+    const { api, calls } = server(sm, { '/samples?limit=50': [sample] })
+    const user = userEvent.setup()
+    const view = render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Samples' }))
+    expect(await screen.findByText('S-000001')).toBeInTheDocument()
+    expect(screen.getByText('B-17')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Void S-000001' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/samples/s1/void', body: { reason: 'typed twice' } })
+    view.unmount()
+
+    const sci: Me = { id: 'u1', email: 'sci@t1', roles: ['ScientificRep'], permissions: ['samples.record'] }
+    const second = server(sci, { '/samples?limit=50': [sample] })
+    render(<App api={second.api} />)
+    await user.click(await screen.findByRole('button', { name: 'Samples' }))
+    expect(await screen.findByText('S-000001')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Void S-000001' })).not.toBeInTheDocument()
+  })
+
   it('payments: the finance manager confirms a visitor\'s payment, corrects and voids it, and a record needs the reference for FIB', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValueOnce(' counted again ').mockReturnValueOnce('4500')
     const finance: Me = { id: 'f', email: 'fin@t1', roles: ['FinanceManager'], permissions: ['payments.read', 'payments.record', 'payments.manage', 'customers.read', 'orders.read'] }
