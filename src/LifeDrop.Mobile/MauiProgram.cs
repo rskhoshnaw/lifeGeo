@@ -15,8 +15,8 @@ public static class MauiProgram
 			.UseMauiApp<App>()
 			.ConfigureFonts(fonts =>
 			{
-				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+				fonts.AddFont("Vazirmatn-Regular.ttf", "VazirmatnRegular");
+				fonts.AddFont("Vazirmatn-SemiBold.ttf", "VazirmatnSemibold");
 			});
 
 		// Removed hardcoded API URL. The authentication screen will construct

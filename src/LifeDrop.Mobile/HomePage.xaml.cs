@@ -31,6 +31,7 @@ public partial class HomePage : ContentPage
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
+        SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
         RenderShift();
     }
 
