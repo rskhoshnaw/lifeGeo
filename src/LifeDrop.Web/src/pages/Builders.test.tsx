@@ -112,6 +112,24 @@ describe('companies screen (step 3.1)', () => {
   ]
   const log: PlatformAuditEntry[] = [{ id: 'a1', actorId: 'm', actorEmail: 'root@platform', action: 'platform.tenant_created', targetTenantId: 't1', targetTenantCode: 'acme', reason: null, detail: 'code=acme', occurredAt: '2026-10-05T06:00:00Z' }]
 
+  it('shows the links and the QR code of a company, never for the platform company', async () => {
+    const { api } = server(me(['platform.tenants.manage']), { '/platform/tenants': tenants, '/platform/audit-logs': log })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Companies' }))
+    await screen.findByText('Acme')
+    expect(within(screen.getByText('Platform').closest('tr')!).queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
+    await user.click(within(screen.getByText('Acme').closest('tr')!).getByRole('button', { name: 'Invite' }))
+    expect(screen.getByText('lifedrop://join/acme')).toBeInTheDocument()
+    expect(screen.getByText(`${window.location.origin}/?company=acme`)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /QR code of the app link of company acme/ }).querySelector('svg')).not.toBeNull()
+    await user.click(screen.getAllByRole('button', { name: 'Copy' })[1]!)
+    expect(await navigator.clipboard.readText()).toBe('lifedrop://join/acme')
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    await user.click(within(screen.getByText('Acme').closest('tr')!).getByRole('button', { name: 'Invite' }))
+    expect(screen.queryByText('lifedrop://join/acme')).not.toBeInTheDocument()   // closes again
+  })
+
   it('creates, switches off and reads another company with a reason', async () => {
     vi.spyOn(window, 'prompt').mockReturnValue('unpaid invoice')
     const { api, calls } = server(me(['platform.tenants.manage']), { '/platform/tenants': tenants, '/platform/audit-logs': log, '/platform/tenants/t1/audit-logs?reason=support%20ticket%204711': [{ id: 'e1', actorId: 'u', actorEmail: 'rep@acme', action: 'payment.recorded', entityId: 'p-1', occurredAt: '2026-10-05T05:00:00Z' }] })

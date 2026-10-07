@@ -4,6 +4,7 @@ import { t, type TextKey } from '../i18n.ts'
 import { LanguagePicker } from '../components/I18n.tsx'
 import { Logo } from '../components/Shell.tsx'
 import { contours } from '../components/contours.ts'
+import { companyFromSearch } from '../components/inviteLinks.ts'
 import { LoginFailed, type Account, type ApiClient, type LoginError } from '../api/client.ts'
 
 const messages: Record<LoginError, TextKey> = {
@@ -15,7 +16,8 @@ const messages: Record<LoginError, TextKey> = {
 }
 
 export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (account: Account) => void }) {
-  const [tenantCode, setTenantCode] = useState('')
+  // A company link (…/?company=acme, plan step 4.7) fills the company code; the user only types the e-mail and the password.
+  const [tenantCode, setTenantCode] = useState(() => companyFromSearch(window.location.search))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
