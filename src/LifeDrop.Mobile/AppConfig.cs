@@ -18,4 +18,9 @@ public static class AppConfig
     public static string BootstrapUrl { get; } = Metadata("BootstrapUrl");
 
     public static string SupportPhone => Preferences.Get("SupportPhone", DefaultSupportPhone);
+
+    // Set by the Android activity when the app is opened via a lifedrop:// deep link; consumed once by MainPage.
+    private static volatile string? _pendingJoinCode;
+    public static string? ConsumePendingJoinCode() { var c = _pendingJoinCode; _pendingJoinCode = null; return c; }
+    public static void SetPendingJoinCode(string code) => _pendingJoinCode = code;
 }

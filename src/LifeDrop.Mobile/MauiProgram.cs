@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using LifeDrop.Mobile.Auth;
+using ZXing.Net.Maui.Controls;
 #if ANDROID
 using LifeDrop.Mobile.Auth.Android;
 #endif
@@ -13,6 +14,7 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseBarcodeReader()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Vazirmatn-Regular.ttf", "VazirmatnRegular");

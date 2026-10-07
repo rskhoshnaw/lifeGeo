@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI.Controls"
+             x:Class="LifeDrop.Mobile.QrScanPage"
+             x:Name="ScanPage">
+
+    <Grid>
+        <zxing:CameraBarcodeReaderView x:Name="BarcodeReader"
+                                       BarcodeDetected="OnBarcodeDetected"
+                                       Options="{Binding ScanOptions, Source={x:Reference ScanPage}}" />
+
+        <Grid VerticalOptions="End" Padding="20" BackgroundColor="#80000000">
+            <Label x:Name="HintLabel" TextColor="White" HorizontalOptions="Center" FontSize="14" />
+        </Grid>
+    </Grid>
+
+</ContentPage>
