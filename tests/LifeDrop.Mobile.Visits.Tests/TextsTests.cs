@@ -36,6 +36,22 @@ public class TextsTests
     }
 
     [Fact]
+    public void FoodProfileReplacesPharmacyWordingAndOnlyThat()
+    {
+        try
+        {
+            Texts.Profile = "";
+            Assert.Equal("Pharmacy", Texts.Get("en", "app.type.pharmacy"));
+            Texts.Profile = "food";
+            Assert.Equal("Shop / supermarket", Texts.Get("en", "app.type.pharmacy"));
+            Assert.Equal("Restaurant / hotel", Texts.Get("en", "app.type.doctor"));
+            Assert.Equal("Wholesaler", Texts.Get("en", "app.type.wholesaler"));
+            Assert.DoesNotContain("octor", Texts.Get("en", "app.sample.recipient"));
+        }
+        finally { Texts.Profile = ""; }
+    }
+
+    [Fact]
     public void EveryKeyUsedByTheAppExists()
     {
         var root = RepoRoot();

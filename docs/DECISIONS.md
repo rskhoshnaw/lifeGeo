@@ -29,3 +29,8 @@ Source: owner chat. Update this file when a decision changes.
 - Build as an optional provider layer, **disabled by default**; activate only when the owner says.
 - Prefer free/open options: Telegram bot, self-hosted Android SMS gateway (own SIM), WhatsApp Business Cloud API (free only inside the 24 h customer-service window; templates are paid).
 - Anything that costs money or needs a secret stays off until the owner activates it; secrets only in `deploy/.env` on the server.
+
+## Architecture clarification (2026-10-07, later)
+- **One VPS (API + database) per company**, fully isolated; one mobile app (Android + iOS) for all. The app derives the company server from the company code (base domain at build time) and then reads that server's public company config.
+- First customer: the company "Life Drops" (pharma). Developer credit: Pixelo Design (https://pixelo-design.com/); support +9647510686828.
+- The product is also to be installed for a **food distributor**: wording profile `COMPANY_INDUSTRY=food` (shops/restaurants instead of pharmacies/doctors). More wording changes are added as `key@food` texts.

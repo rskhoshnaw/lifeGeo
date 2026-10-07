@@ -26,7 +26,7 @@ import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
-import { t, useLang } from './i18n.ts'
+import { setCurrentProfile, t, useLang } from './i18n.ts'
 
 type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications'
 
@@ -55,6 +55,15 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   const [tab, setTab] = useState<Tab>('home')
   const [unread, setUnread] = useState(0)
   const [alertCount, setAlertCount] = useState(0)
+  const [, setWording] = useState('')
+
+  // Wording of the company (a food distributor says shops and restaurants, not pharmacies and doctors).
+  useEffect(() => {
+    void api.industry(account.tenantCode).then((industry) => {
+      setCurrentProfile(industry === 'food' ? 'food' : '')
+      setWording(industry)
+    })
+  }, [api, account.tenantCode])
 
   // The unread count next to the Notifications tab: read when the page opens and again every minute. A failure is ignored (the tab
   // still works, the number just stays).

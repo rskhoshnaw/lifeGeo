@@ -31,10 +31,12 @@ public static partial class CompanyConfigEndpoints
                 !(Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps))
                 apiBaseUrl = null; // a bad entry must not point the app at an insecure address
             var supportPhone = configuration["Branding:SupportPhone"];
+            // Wording profile of the business: "pharma" (default) or "food" (shops and restaurants instead of pharmacies and doctors).
+            var industry = string.Equals(configuration["Company:Industry"], "food", StringComparison.OrdinalIgnoreCase) ? "food" : "pharma";
             return Results.Ok(new CompanyConfigResponse(tenantCode, name, string.IsNullOrWhiteSpace(apiBaseUrl) ? null : apiBaseUrl.TrimEnd('/'),
-                string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone));
+                string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone, industry));
         }).ExcludeFromDescription();
     }
 
-    public sealed record CompanyConfigResponse(string TenantCode, string Name, string? ApiBaseUrl, string? SupportPhone);
+    public sealed record CompanyConfigResponse(string TenantCode, string Name, string? ApiBaseUrl, string? SupportPhone, string Industry);
 }

@@ -75,6 +75,23 @@ public class CompanyDirectoryTests
     }
 
     [Theory]
+    [InlineData("acme", "lifedrop.example", "https://acme.lifedrop.example")]
+    [InlineData(" ACME ", ".lifedrop.example.", "https://acme.lifedrop.example")]
+    [InlineData("acme", "", "https://fallback.example")]
+    [InlineData("a/../b", "lifedrop.example", "https://fallback.example")]
+    [InlineData("my_co", "lifedrop.example", "https://fallback.example")]
+    public void Every_company_has_its_own_server_named_by_its_code(string code, string baseDomain, string expected) =>
+        Assert.Equal(expected, CompanyDirectory.ServerFor(code, baseDomain, "https://fallback.example"));
+
+    [Theory]
+    [InlineData("""{"tenantCode":"acme","name":"Acme","industry":"food"}""", "food")]
+    [InlineData("""{"tenantCode":"acme","name":"Acme","industry":"pharma"}""", "pharma")]
+    [InlineData("""{"tenantCode":"acme","name":"Acme"}""", "pharma")]
+    [InlineData("""{"tenantCode":"acme","name":"Acme","industry":"x"}""", "pharma")]
+    public async Task Industry_defaults_to_pharma(string json, string expected) =>
+        Assert.Equal(expected, (await Resolve(StubHttpMessageHandler.FromResponse(HttpStatusCode.OK, json))).Config!.Industry);
+
+    [Theory]
     [InlineData(null, "acme", false)]
     [InlineData("acme", "ACME", false)]
     [InlineData("acme", "beta", true)]

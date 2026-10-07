@@ -10,8 +10,12 @@ public static class AppConfig
     public const string DeveloperUrl = "https://pixelo-design.com/";
     public const string DefaultSupportPhone = "+9647510686828";
 
-    public static string BootstrapUrl { get; } = Assembly.GetExecutingAssembly().GetCustomAttributes<AssemblyMetadataAttribute>()
-        .FirstOrDefault(a => a.Key == "BootstrapUrl")?.Value ?? "";
+    private static string Metadata(string key) => Assembly.GetExecutingAssembly().GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(a => a.Key == key)?.Value ?? "";
+
+    // Every company has its own server: code "acme" is https://acme.<BaseDomain>. BootstrapUrl is only the fallback for a single server.
+    public static string BaseDomain { get; } = Metadata("BaseDomain");
+    public static string BootstrapUrl { get; } = Metadata("BootstrapUrl");
 
     public static string SupportPhone => Preferences.Get("SupportPhone", DefaultSupportPhone);
 }

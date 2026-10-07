@@ -35,6 +35,7 @@ services:
       RateLimit__PerMinute: ${RATE_LIMIT_PER_MINUTE:-600}
       Tracking__RetentionDays: ${TRACKING_RETENTION_DAYS:-30}
       Metrics__Token: ${METRICS_TOKEN:-}
+      Company__Industry: ${COMPANY_INDUSTRY:-pharma}
       Branding__SupportPhone: ${SUPPORT_PHONE:-+9647510686828}
       Push__Fcm__ServiceAccountFile: /run/fcm/service-account.json
     volumes:

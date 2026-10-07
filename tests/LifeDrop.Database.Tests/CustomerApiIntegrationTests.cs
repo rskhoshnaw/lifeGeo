@@ -7452,6 +7452,7 @@ public class CustomerApiIntegrationTests
             b.UseSetting("CompanyDirectory:moved:ApiBaseUrl", "https://api.moved.example/");
             b.UseSetting("CompanyDirectory:badurl:ApiBaseUrl", "http://insecure.example");
             b.UseSetting("Branding:SupportPhone", "+9647510686828");
+            b.UseSetting("Company:Industry", "food");
         });
         var client = configured.CreateClient();
 
@@ -7461,6 +7462,7 @@ public class CustomerApiIntegrationTests
             Assert.Equal("Acme Trading", acme.RootElement.GetProperty("name").GetString());
             Assert.Equal(System.Text.Json.JsonValueKind.Null, acme.RootElement.GetProperty("apiBaseUrl").ValueKind);   // default: this server
             Assert.Equal("+9647510686828", acme.RootElement.GetProperty("supportPhone").GetString());
+            Assert.Equal("food", acme.RootElement.GetProperty("industry").GetString());
         }
         using (var moved = await (await client.GetAsync("/company-config/moved")).Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
             Assert.Equal("https://api.moved.example", moved!.RootElement.GetProperty("apiBaseUrl").GetString());

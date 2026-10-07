@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace LifeDrop.Mobile.Auth;
 
 /// <summary>What the app needs to know about a company before sign-in (plan step 4.2).</summary>
-public sealed record CompanyConfig(string TenantCode, string Name, string ApiBaseUrl, string? SupportPhone);
+public sealed record CompanyConfig(string TenantCode, string Name, string ApiBaseUrl, string? SupportPhone, string Industry = "pharma");
 
 public enum CompanyLookupStatus { Found, NotFound, InvalidCode, NotConfigured, InsecureAddress, Unavailable }
 
@@ -22,6 +22,18 @@ public static partial class CompanyDirectory
     private static partial Regex CodePattern();
 
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// The server that answers for a company. Every company has its own server, so the code decides the address: code "acme" is the
+    /// subdomain acme.&lt;base domain&gt; of the build's base domain. Without a base domain the fallback (single-server installs, development) is used.
+    /// </summary>
+    public static string? ServerFor(string? code, string? baseDomain, string? fallbackUrl)
+    {
+        var c = (code ?? "").Trim().ToLowerInvariant();
+        var domain = (baseDomain ?? "").Trim().Trim('.').ToLowerInvariant();
+        if (domain.Length > 0 && IsValidCode(c) && !c.Contains('_')) return "https://" + c + "." + domain;
+        return fallbackUrl;
+    }
 
     public static bool IsValidCode(string? code) => code is not null && CodePattern().IsMatch(code.Trim().ToLowerInvariant());
 
@@ -53,7 +65,8 @@ public static partial class CompanyDirectory
                 if (!IsAllowed(api, allowInsecure)) return new CompanyLookup(CompanyLookupStatus.InsecureAddress);
             }
             return new CompanyLookup(CompanyLookupStatus.Found,
-                new CompanyConfig(body.TenantCode, body.Name, api.GetLeftPart(UriPartial.Authority), string.IsNullOrWhiteSpace(body.SupportPhone) ? null : body.SupportPhone));
+                new CompanyConfig(body.TenantCode, body.Name, api.GetLeftPart(UriPartial.Authority), string.IsNullOrWhiteSpace(body.SupportPhone) ? null : body.SupportPhone,
+                    string.Equals(body.Industry, "food", StringComparison.OrdinalIgnoreCase) ? "food" : "pharma"));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -71,5 +84,5 @@ public static partial class CompanyDirectory
 
     private static bool IsAllowed(Uri uri, bool allowInsecure) => uri.Scheme == Uri.UriSchemeHttps || (allowInsecure && uri.Scheme == Uri.UriSchemeHttp);
 
-    private sealed record Body(string? TenantCode, string? Name, string? ApiBaseUrl, string? SupportPhone);
+    private sealed record Body(string? TenantCode, string? Name, string? ApiBaseUrl, string? SupportPhone, string? Industry);
 }

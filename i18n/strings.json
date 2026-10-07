@@ -6460,5 +6460,47 @@
   "ckb": "پشتگیری: {phone}",
   "ar": "الدعم: {phone}",
   "fa": "پشتیبانی: {phone}"
+ },
+ "web.visitType.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "web.visitType.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "app.type.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "app.type.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "web.forms.applies.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "web.forms.applies.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "app.sample.recipient@food": {
+  "en": "Recipient (buyer or person)",
+  "ckb": "وەرگر (کڕیار یان کەس)",
+  "ar": "المستلم (مشتري أو شخص)",
+  "fa": "گیرنده (خریدار یا شخص)"
  }
 }

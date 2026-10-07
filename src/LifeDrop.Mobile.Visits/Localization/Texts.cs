@@ -21,6 +21,9 @@ public static partial class Texts
         set => _language = Languages.Any(l => l.Code == value) ? value : DefaultLanguage;
     }
 
+    // Industry profile of the company (plan step 4.3). "food" swaps the pharmacy wording for shops and restaurants: a text "key@food" replaces "key".
+    public static string Profile { get; set; } = "";
+
     public static bool IsRightToLeft => Language != "en";
 
     // Dates such as the plan header; falls back to Arabic (Iraq) where the phone has no Kurdish calendar data.
@@ -44,7 +47,9 @@ public static partial class Texts
 
     public static string Get(string language, string key, params (string Name, object Value)[] vars)
     {
-        if (!All.TryGetValue(key, out var entry)) return key;
+        Dictionary<string, string>? entry;
+        if (!string.IsNullOrEmpty(Profile) && All.TryGetValue(key + "@" + Profile, out var special)) entry = special;
+        else if (!All.TryGetValue(key, out entry)) return key;
         var text = entry.TryGetValue(language, out var t) && !string.IsNullOrWhiteSpace(t) ? t : entry.GetValueOrDefault("en", key);
         foreach (var (name, value) in vars)
             text = text.Replace("{" + name + "}", Convert.ToString(value, CultureInfo.InvariantCulture));

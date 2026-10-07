@@ -115,6 +115,18 @@ export class ApiClient {
     return response
   }
 
+  /** Wording profile of the company ("food" or "pharma"), read from the public company directory; any failure means the default wording. */
+  async industry(tenantCode: string): Promise<string> {
+    try {
+      const response = await this.fetcher(`${this.baseUrl}/company-config/${encodeURIComponent(tenantCode.toLowerCase())}`)
+      if (!response.ok) return 'pharma'
+      const body = (await response.json()) as { industry?: string }
+      return body.industry === 'food' ? 'food' : 'pharma'
+    } catch {
+      return 'pharma'
+    }
+  }
+
   private send(path: string, init: RequestInit): Promise<Response> {
     const headers = new Headers(init.headers)
     headers.set('Authorization', `Bearer ${this.accessToken}`)

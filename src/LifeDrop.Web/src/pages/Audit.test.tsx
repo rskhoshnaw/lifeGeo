@@ -19,6 +19,7 @@ function serve(me: Me, later: AuditEntry[] = [row(51)]) {
     if (path === '/auth/refresh') return new Response(JSON.stringify({ accessToken: 'a', refreshToken: 'r', tokenType: 'Bearer', expiresAt: '', refreshExpiresAt: '' }))
     if (path === '/me') return new Response(JSON.stringify(me))
     if (path === '/notifications/unread-count') return new Response(JSON.stringify({ count: 0 }))
+    if (path.startsWith('/company-config/')) return new Response('', { status: 404 })
     audit.push(path)
     const body = audit.length === 1 ? Array.from({ length: 50 }, (_, i) => row(i + 1)) : later
     return new Response(JSON.stringify(body))

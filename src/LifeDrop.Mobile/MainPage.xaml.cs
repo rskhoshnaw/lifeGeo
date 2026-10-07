@@ -104,7 +104,9 @@ public partial class MainPage : ContentPage
 #else
         ISecureCredentialStore store = null!;
 #endif
-        var bootstrap = ApiUrlEntry.IsVisible && !string.IsNullOrWhiteSpace(ApiUrlEntry.Text) ? ApiUrlEntry.Text.Trim() : AppConfig.BootstrapUrl;
+        var fallback = ApiUrlEntry.IsVisible && !string.IsNullOrWhiteSpace(ApiUrlEntry.Text) ? ApiUrlEntry.Text.Trim() : AppConfig.BootstrapUrl;
+        // A development address typed into the debug field wins; otherwise the company code names the company's own server.
+        var bootstrap = ApiUrlEntry.IsVisible && !string.IsNullOrWhiteSpace(ApiUrlEntry.Text) ? fallback : CompanyDirectory.ServerFor(TenantEntry.Text, AppConfig.BaseDomain, fallback);
 #if DEBUG
         const bool allowInsecure = true;
 #else
@@ -135,6 +137,8 @@ public partial class MainPage : ContentPage
         Preferences.Set("CompanyName", config.Name);
         Preferences.Set("ApiUrl", config.ApiBaseUrl);
         if (config.SupportPhone is { } phone) Preferences.Set("SupportPhone", phone);
+        Preferences.Set("Industry", config.Industry);
+        Texts.Profile = config.Industry == "food" ? "food" : "";
 
         return (new AuthApiClient(new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) }), store);
     }

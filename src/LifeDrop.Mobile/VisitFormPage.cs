@@ -77,7 +77,7 @@ public sealed class VisitFormPage : ContentPage
                 Field("app.form.needs", v => _draft.Needs = v, max: 1000)
             }
         };
-        if (_draft.IsDoctor)
+        if (_draft.IsDoctor && Texts.Profile != "food")   // medical details do not apply to a food distributor
         {
             layout.Children.Add(Field("app.form.specialty", v => _draft.Specialty = v));
             layout.Children.Add(Field("app.form.dailyPatients", v => _draft.DailyPatientsText = v, Keyboard.Numeric));

@@ -99,9 +99,14 @@ docker compose up -d --build
 | ورود از پنل خطای شبکه می‌دهد | `PANEL_ORIGIN` با نشانی دقیق پنل یکی نیست |
 | همه ۴۲۹ می‌گیرند | `RATE_LIMIT_PER_MINUTE` را بالاتر ببرید (و `ForwardedHeaders__Enabled` در compose فعال است) |
 
-## Company directory and app server address (step 4.2)
-The mobile app does not contain a server address per company. At build time give it one bootstrap server
-(`dotnet publish -p:LifeDropBootstrapUrl=https://app.example.com`); at sign-in the app asks it `GET /company-config/<company code>`.
-By default every company uses that same server. To give one company its own API server, set
-`CompanyDirectory__<code>__ApiBaseUrl=https://api.company.example` in the API environment (https only). The support phone shown in the
-panel and app login screens is `SUPPORT_PHONE` in `deploy/.env` (default `+9647510686828`).
+## One server per company, one app for all (steps 4.2 / 4.3)
+Every company gets its own VPS, database and API, so a problem on one never touches another. The app is the same for all of them and holds
+no company address. At build time give it a base domain (`dotnet publish -p:LifeDropBaseDomain=lifedrop.example`); company code `acme` then means
+`https://acme.lifedrop.example`. To add a company: create its VPS, deploy this kit on it, point the DNS name `acme.<base domain>` at that VPS (Caddy
+gets the certificate), create the tenant with code `acme` (`deploy/create-super-admin.sh` / platform company). Nothing changes in the app.
+`-p:LifeDropBootstrapUrl=https://...` is only a single-server fallback (and the debug server field in debug builds).
+
+Per-company settings in that server's `deploy/.env`:
+- `COMPANY_INDUSTRY=pharma` (default) or `food`: a food distributor gets shops/restaurants wording instead of pharmacies/doctors, and no doctor-only form fields. Panel and app both read it from `GET /company-config/<code>`.
+- `SUPPORT_PHONE=+9647510686828`: shown on the panel and app sign-in screens.
+- Optional `CompanyDirectory__<code>__ApiBaseUrl` (https) if that company's API lives under another address.
