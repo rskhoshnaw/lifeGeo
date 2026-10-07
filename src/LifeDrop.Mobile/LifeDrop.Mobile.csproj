@@ -63,4 +63,14 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
+	<!-- Push messages (plan step 2.14, docs/PUSH.md): Firebase is added only when google-services.json (from the owner's Firebase project) is in this folder, so a
+	     build without the file works as before. The file is never committed; CI creates a dummy one to prove the Firebase code compiles. -->
+	<PropertyGroup Condition="Exists('google-services.json') And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<DefineConstants>$(DefineConstants);FIREBASE</DefineConstants>
+	</PropertyGroup>
+	<ItemGroup Condition="Exists('google-services.json') And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
+		<GoogleServicesJson Include="google-services.json" />
+	</ItemGroup>
+
 </Project>

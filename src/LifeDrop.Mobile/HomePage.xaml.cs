@@ -68,6 +68,7 @@ public partial class HomePage : ContentPage
             }
         }
         RenderShift();
+        if (tracker is not null) await PushHost.EnsureAsync();   // push token (needs Firebase; does nothing without it)
     }
 
     // Start and end of the shift (plan step 1.13, decision D1): tracking runs only between the two.
@@ -219,6 +220,7 @@ public partial class HomePage : ContentPage
             try { await tracker.EndAsync(endCts.Token); } catch (OperationCanceledException) { }
         }
         StopTrackingService();
+        await PushHost.RemoveAsync();   // the server stops pushing to this phone for this user
         TrackingHost.Reset();
         StatusLabel.Text = Texts.Get("app.home.loggingOut");
 

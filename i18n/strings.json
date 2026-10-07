@@ -6346,5 +6346,23 @@
   "ckb": "بەروار (ساڵ-مانگ-ڕۆژ، yyyy-mm-dd)",
   "ar": "التاريخ (yyyy-mm-dd)",
   "fa": "تاریخ (yyyy-mm-dd)"
+ },
+ "app.push.channel": {
+  "en": "Messages",
+  "ckb": "نامەکان",
+  "ar": "الرسائل",
+  "fa": "پیام‌ها"
+ },
+ "app.push.customerProfileChanged": {
+  "en": "A customer in your area was changed.",
+  "ckb": "کڕیارێکی ناوچەکەت گۆڕدرا.",
+  "ar": "تم تعديل بيانات عميل في منطقتك.",
+  "fa": "اطلاعات یکی از مشتریان منطقهٔ شما تغییر کرد."
+ },
+ "app.push.customerLocationChanged": {
+  "en": "The location of a customer in your area was changed.",
+  "ckb": "شوێنی کڕیارێکی ناوچەکەت گۆڕدرا.",
+  "ar": "تم تغيير موقع عميل في منطقتك.",
+  "fa": "موقعیت یکی از مشتریان منطقهٔ شما تغییر کرد."
  }
 }
