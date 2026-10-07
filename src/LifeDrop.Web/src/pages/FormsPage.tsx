@@ -85,7 +85,7 @@ export function FormsPage({ admin }: { admin: AdminApi }) {
           {t('web.forms.required')}
         </label>
         <div className="text-end">
-          <button className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !(form.labelEn || form.labelCkb || form.labelAr || form.labelFa)}>
+          <button className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !(form.labelEn || form.labelCkb || form.labelAr || form.labelFa)}>
             {t('web.forms.add')}
           </button>
         </div>

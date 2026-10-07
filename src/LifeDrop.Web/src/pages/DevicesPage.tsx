@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { AdminApi, type Device, type DeviceStatus } from '../api/admin.ts'
+import { Badge } from '../components/Badge.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -58,7 +59,7 @@ export function DevicesPage({ admin }: { admin: AdminApi }) {
                 </td>
                 <td>{device.appVersion}</td>
                 <td>{new Date(device.registeredAt).toLocaleString('en-GB', { timeZone: 'Asia/Baghdad' })}</td>
-                <td>{t(statusText[device.status])}</td>
+                <td><Badge tone={({ approved: 'good', pending: 'warn', blocked: 'bad' } as const)[device.status]}>{t(statusText[device.status])}</Badge></td>
                 <td className="space-x-2 py-2 text-end">
                   {device.status === 'pending' && (
                     <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.approveDevice(device.id))}>

@@ -24,7 +24,8 @@ import { PaymentsPage } from './pages/PaymentsPage.tsx'
 import { WarehousePage } from './pages/WarehousePage.tsx'
 import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
-import { I18nProvider, LanguagePicker } from './components/I18n.tsx'
+import { I18nProvider } from './components/I18n.tsx'
+import { Shell } from './components/Shell.tsx'
 import { t, useLang } from './i18n.ts'
 
 type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications'
@@ -103,31 +104,21 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
     { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
     { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
-    { id: 'notifications', label: unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications'), visible: true },
   ]
+  const notificationsLabel = unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications')
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <nav className="flex items-center gap-4">
-          <span className="font-semibold">LifeDrop</span>
-          {tabs
-            .filter((t) => t.visible)
-            .map((t) => (
-              <button key={t.id} className={t.id === tab ? 'font-medium underline' : 'text-slate-600'} aria-current={t.id === tab ? 'page' : undefined} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          <LanguagePicker />
-          <button className="rounded border px-3 py-1 text-sm" onClick={() => void api.logout()}>
-            {t('web.signOut')}
-          </button>
-        </div>
-      </header>
+    <Shell
+      items={tabs}
+      current={tab}
+      onSelect={(id) => setTab(id as Tab)}
+      notifications={{ id: 'notifications', label: notificationsLabel, count: unread }}
+      email={account.email}
+      company={account.tenantCode}
+      onSignOut={() => void api.logout()}
+    >
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
-      {tab === 'home' && <HomePage account={account} />}
+      {tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}
       {me && tab === 'users' && <UsersPage admin={admin} me={me} />}
       {me && tab === 'devices' && <DevicesPage admin={admin} />}
       {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}
@@ -149,6 +140,6 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'forms' && <FormsPage admin={admin} />}
       {me && tab === 'platform' && <PlatformPage admin={admin} />}
       {me && tab === 'notifications' && <NotificationsPage admin={admin} onChanged={refreshUnread} />}
-    </div>
+    </Shell>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { AdminApi, can, errorMessage, Permissions, type Customer, type Me } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
+import { Badge, type Tone } from '../components/Badge.tsx'
 
 const approvalText = (status: string) =>
   ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
@@ -130,7 +131,7 @@ function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canE
                 <td className="py-2">{customer.code}</td>
                 <td>{customer.name}</td>
                 <td>{customer.type}</td>
-                <td>{approvalText(customer.approvalStatus)}</td>
+                <td><Badge tone={({ approved: 'good', pending: 'warn', rejected: 'bad' } as Record<string, Tone>)[customer.approvalStatus] ?? 'neutral'}>{approvalText(customer.approvalStatus)}</Badge></td>
                 <td>{t(`web.priority.${customer.priority}`)}</td>
                 <td className="space-x-2 text-end">
                   <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.profile')} ${customer.code}`} onClick={() => setProfileFor(customer)}>
