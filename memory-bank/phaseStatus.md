@@ -36,10 +36,10 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 3.1/3.2 panel screens | in PR (same branch): Companies tab, Visit forms tab, Saved reports in Reports; panel 79 tests; app screen for form answers not built |
 | 3.7 observability + load script | in PR (same branch); no migration |
 | 3.9 wall screen (TV tab) | in PR (same branch): panel only, totals only |
-| Next | app screen for the custom form fields; 3.3 (needs Iraq coverage test), 3.4, 3.5, 3.7, 3.9; **3.2** (form/report builder) — check the plan; 3.6/3.8 wait for D9/D8 (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
+| Next | see plan section 7 (final order): CI green for 4.2/4.3, 4.4 panel visual review, 4.5 app look, 4.6 company link/QR, 3.4 optional off-by-default messaging, 3.8 iOS after the owner buys the Apple account, real-device tests, load test, then buy domain/VPS and deploy (3.3 last) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
-Open decisions: D4, D6, D8; API host. Decisions of 2026-10-07 (no RMR, plain root VPS, deploy only after everything is tested, buy Apple/Google accounts when asked, SMS/WhatsApp optional and off): see `docs/DECISIONS.md`.
+Open decisions: D4 only (Backup delete permission); API host is now per company (D15). Owner decisions D6, D8, D9, D14–D18 are recorded in the plan and `docs/DECISIONS.md`.
 
 ## Log (one line per step, newest last)
 - 1.15: migration 0018, `/customer-approvals`, `POST /customers/{id}/approval`; DB 33/33.

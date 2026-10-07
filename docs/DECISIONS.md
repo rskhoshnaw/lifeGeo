@@ -1,5 +1,7 @@
 # Owner decisions (recorded 2026-10-07)
 
+Summary table with codes D6, D8, D9, D14–D18 lives in `docs/IMPLEMENTATION-PLAN.md` section 2; the final step order is section 7.
+
 Source: owner chat. Update this file when a decision changes.
 
 ## Working method
@@ -23,7 +25,7 @@ Source: owner chat. Update this file when a decision changes.
 - Apple Developer and Google Play developer accounts: the owner will buy when asked. Ask at the step where it is needed:
   - Google Play account: before the first Play/Internal-testing upload.
   - Apple Developer account: before native iOS (TestFlight) work.
-- Pending: iPhone route (PWA without background GPS vs native iOS with Apple account) — owner has accepted buying the account, so native iOS via GitHub macOS runner is the plan.
+- iPhone: native iOS app (decision D8): owner buys the Apple Developer account when asked; build, signing and TestFlight run on a GitHub macOS runner. The PWA alternative was rejected (no background GPS).
 
 ## SMS / WhatsApp (plan 3.4)
 - Build as an optional provider layer, **disabled by default**; activate only when the owner says.
