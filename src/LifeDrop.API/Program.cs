@@ -279,6 +279,7 @@ public partial class Program
         app.UseAuthorization();
 
         app.MapObservabilityEndpoints();
+        app.MapCompanyConfigEndpoints();
 
         app.MapGet("/", () => Results.Ok(new
         {

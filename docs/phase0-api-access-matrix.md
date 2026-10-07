@@ -560,3 +560,9 @@ No new route or permission. Changes to existing routes, all used by the phone fo
 | `POST /samples` | Optional `detachVisitIfInvalid`: a cancelled/failed visit (or one that is not the caller's) is dropped; answer `detached: true` |
 | `POST /orders` | Optional `detachVisitIfInvalid`: the order is placed without a cancelled/failed visit; answer `visitDetached: true`. The server prices it at the day it arrives |
 | `POST /followups/{id}/start`, `/complete`, `/cancel` | A step sent again after a lost answer is a success without a second write (start of an in-progress follow-up; complete / cancel with the same note / reason). Another status or text stays 409 |
+
+## Company directory (plan step 4.2)
+
+| Route | Access | Notes |
+|---|---|---|
+| `GET /company-config/{code}` | public (no token), global rate limit | Returns `tenantCode`, `name`, `apiBaseUrl` (null = this server), `supportPhone` for an active company; unknown/inactive/invalid code → 404. Public facts only. Excluded from the OpenAPI contract. |

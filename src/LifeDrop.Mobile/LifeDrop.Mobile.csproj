@@ -80,4 +80,13 @@
 		<GoogleServicesJson Include="google-services.json" />
 	</ItemGroup>
 
+
+	<!-- Bootstrap server for the company directory (plan step 4.2): -p:LifeDropBootstrapUrl=https://... -->
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+			<_Parameter1>BootstrapUrl</_Parameter1>
+			<_Parameter2>$(LifeDropBootstrapUrl)</_Parameter2>
+		</AssemblyAttribute>
+	</ItemGroup>
+
 </Project>
