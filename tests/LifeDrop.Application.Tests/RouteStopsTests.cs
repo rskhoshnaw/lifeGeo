@@ -51,3 +51,26 @@ public class RouteStopsTests
         Assert.InRange(RouteStops.DistanceMeters(36.0, 44.0, 37.0, 44.0), 111_000, 111_400);   // one degree of latitude
     }
 }
+
+// Keeping fewer days of exact points (docs/DEPLOY.md: Tracking:RetentionDays): clamped to 7-365 days, 90 by default.
+public class TrackingRetentionSettingTests
+{
+    [Fact]
+    public void RetentionDaysAreClampedAndTheDefaultIsNinety()
+    {
+        Assert.Equal(System.TimeSpan.FromDays(90), LifeDrop.Application.Tracking.RouteHistory.Retention);
+        try
+        {
+            LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(30);
+            Assert.Equal(System.TimeSpan.FromDays(30), LifeDrop.Application.Tracking.RouteHistory.Retention);
+            LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(1);
+            Assert.Equal(System.TimeSpan.FromDays(7), LifeDrop.Application.Tracking.RouteHistory.Retention);
+            LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(10_000);
+            Assert.Equal(System.TimeSpan.FromDays(365), LifeDrop.Application.Tracking.RouteHistory.Retention);
+        }
+        finally
+        {
+            LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(90);
+        }
+    }
+}

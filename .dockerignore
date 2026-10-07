@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+.github/
+src/LifeDrop.Web/dist/
+src/LifeDrop.Mobile/
+src/LifeDrop.Mobile.Auth/
+src/LifeDrop.Mobile.Auth.Android/
+src/LifeDrop.Mobile.Visits/
+tests/
+tools/
+memory-bank/
+docs/
+**/*.user
+deploy/.env

@@ -130,6 +130,7 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Tracking.IRouteHistoryStore, LifeDrop.Infrastructure.Tracking.PostgresRouteHistoryStore>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.RouteHistory>();
         builder.Services.AddScoped<LifeDrop.Application.Tracking.TrackingRetention>();
+        if (builder.Configuration.GetValue<int?>("Tracking:RetentionDays") is { } retentionDays) LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(retentionDays);
         builder.Services.AddScoped<LifeDrop.Application.Tracking.CustomerMap>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.IReportStore, LifeDrop.Infrastructure.Reports.PostgresReportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.KpiReport>();
@@ -151,6 +152,17 @@ public partial class Program
             policy.WithOrigins(panelOrigins).WithHeaders("Authorization", "Content-Type", "Idempotency-Key")
                 .WithMethods("GET", "POST", "PUT", "DELETE")));
 
+        // Behind the reverse proxy (Caddy, docs/DEPLOY.md) the caller's address and https come from X-Forwarded-*. Off unless ForwardedHeaders:Enabled is true, because it is
+        // only safe when the API port is reachable through the proxy alone (the compose file does not publish it); otherwise anybody could fake their address.
+        if (builder.Configuration.GetValue("ForwardedHeaders:Enabled", false))
+            builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+                options.KnownIPNetworks.Clear();
+                options.KnownProxies.Clear();
+                options.ForwardLimit = 1;
+            });
+        var permitPerMinute = Math.Clamp(builder.Configuration.GetValue("RateLimit:PerMinute", 100), 20, 10_000);
         builder.Services.AddRateLimiter(options =>
         {
             options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -158,7 +170,7 @@ public partial class Program
                     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                     factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 100,
+                        PermitLimit = permitPerMinute,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0
                     }));
@@ -255,6 +267,7 @@ public partial class Program
             return new SessionIdentity(new TenantId(tenantId), new UserId(userId),
                 familyId, device is null ? null : Guid.Parse(device));
         }
+        if (app.Configuration.GetValue("ForwardedHeaders:Enabled", false)) app.UseForwardedHeaders();
         app.UseRequestObservability();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
