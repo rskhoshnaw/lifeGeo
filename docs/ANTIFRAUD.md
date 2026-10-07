@@ -14,6 +14,9 @@ The scan runs every 5 minutes (and on demand) and looks only at the tracking poi
 | Far from the work area (`outside_area`) | A tracking point is more than 30 km from every located customer of the region of the user's team. The region has no drawn border yet, so its customers stand for the work area. Users without a team region, or regions without a located customer, are not checked | 30 km | point, position, region, distance to the nearest customer |
 | Many inaccurate points (`poor_accuracy`) | 5 or more points of a shift have an accuracy worse than 200 m | 5 points, 200 m | count, worst accuracy, first time |
 | Another phone in the shift (`device_mismatch`) | A point of a shift was sent by a phone other than the one that started the shift | any | shift device, other device ids, count |
+| Impossible travel between visits (`impossible_travel`, 4.8) | Two accepted check-in/out events of one user, from different visits, are more than 1 km apart and the speed between them (previous check-out or check-in to this check-in) is above 180 km/h. Needs no tracking points | 1 km and 180 km/h | both visit ids, times, distance, seconds, speed |
+| Stay too short (`short_stay`, 4.8) | Accepted check-out less than 2 minutes after the accepted check-in of the same visit | 2 minutes | check-in and check-out time, seconds |
+| Low shift coverage (`low_coverage`, 4.8, operational, no review result needed) | A finished shift of at least 1 hour has fewer than 50 % of the expected tracking points (one per 3 minutes, same rule as the shift summary) | 1 hour, 50 % | points, expected points, coverage, shift times |
 | Tracking gap (`tracking_gap`, 2.9) | An open shift with no point for 15 minutes | 15 minutes | shift |
 | New device (`new_device`, 2.9) | A phone waits for approval | — | device label |
 

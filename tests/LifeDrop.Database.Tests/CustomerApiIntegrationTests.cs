@@ -139,7 +139,8 @@ public class CustomerApiIntegrationTests
                 var m38 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0038_platform.sql"));
                 var m39 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0039_saved_reports.sql"));
                 var m40 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0040_custom_fields.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40;
+                var m41 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0041_antifraud_visits.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5828,9 +5829,9 @@ public class CustomerApiIntegrationTests
         async Task<List<LifeDrop.Application.Alerts.AlertDto>> List(string query = "") => (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts" + query))!;
 
         As(manager);
-        Assert.Equal(6, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+        Assert.Equal(8, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
         Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);   // one alert per event
-        var all = await List();
+        var all = await List("?category=security");   // the two finished sparse shifts also make low_coverage (operational, step 4.8), checked in its own test
         Assert.All(all, a => Assert.Equal(("security", "new"), (a.Category, a.Status)));
         Assert.Equal(new[] { "clock_tamper=2", "device_mismatch=1", "impossible_speed=1", "outside_area=1", "poor_accuracy=1" },
             all.GroupBy(a => a.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key}={g.Count()}").ToArray());
@@ -5854,7 +5855,7 @@ public class CustomerApiIntegrationTests
 
         // Only security readers see them; a supervisor only reads operational alerts
         As(company);
-        Assert.Equal(6, (await List()).Count);
+        Assert.Equal(6, (await List("?category=security")).Count);
         As(sup);
         Assert.Empty(await List("?category=security"));   // alerts.read only: no security audience
 
@@ -5871,6 +5872,102 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{poor.Id}/handle", new { Note = "bad phone", Outcome = "suspicious" })).StatusCode);
         Assert.Equal("suspicious", (await client.GetFromJsonAsync<LifeDrop.Application.Alerts.AlertDto>($"/alerts/{poor.Id}"))!.HandledOutcome);
         Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);   // reviewed ones are not made again
+    }
+
+    [SkippableFact]
+    public async Task AntiFraud_VisitSignalsTravelTimeShortStayAndLowCoverage()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), manager = Guid.NewGuid(), r1 = Guid.NewGuid(), teamA = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid(), v1 = Guid.NewGuid(), v2 = Guid.NewGuid(), v3 = Guid.NewGuid(), d1 = Guid.NewGuid(), s1 = Guid.NewGuid(), s2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@m, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @ta);
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id, region_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @rep, @r1),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', ST_SetSRID(ST_MakePoint(44.0092, 36.6000), 4326)::geography, 'located', @rep, @r1),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Customer 3', ST_SetSRID(ST_MakePoint(44.0100, 36.6000), 4326)::geography, 'located', @rep, @r1);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@d1, @t1, @rep, 'Rep phone', 'android', 'i1', '1.0', '\x00', 'approved');
+                INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at) VALUES
+                    (@v1, @t1, @rep, @c1, 'Planned', '2026-10-05', now()), (@v2, @t1, @rep, @c2, 'Planned', '2026-10-05', now()), (@v3, @t1, @rep, @c3, 'Planned', '2026-10-05', now());
+                -- Visit 1: a normal stay (30 minutes). Visit 2: arrives 10 minutes later at a customer about 45 km away, leaves after 1 minute. Visit 3: a normal stay nearby.
+                INSERT INTO visit_location_events (id, tenant_id, visit_id, user_id, device_id, kind, accepted, geom, accuracy_m, captured_at, is_mocked) VALUES
+                    (gen_random_uuid(), @t1, @v1, @rep, @d1, 'check_in', true, ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 5, '2026-10-05 05:00:00+00', false),
+                    (gen_random_uuid(), @t1, @v1, @rep, @d1, 'check_out', true, ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 5, '2026-10-05 05:30:00+00', false),
+                    (gen_random_uuid(), @t1, @v2, @rep, @d1, 'check_in', true, ST_SetSRID(ST_MakePoint(44.0092, 36.6000), 4326)::geography, 5, '2026-10-05 05:40:00+00', false),
+                    (gen_random_uuid(), @t1, @v2, @rep, @d1, 'check_out', true, ST_SetSRID(ST_MakePoint(44.0092, 36.6000), 4326)::geography, 5, '2026-10-05 05:41:00+00', false),
+                    (gen_random_uuid(), @t1, @v3, @rep, @d1, 'check_in', true, ST_SetSRID(ST_MakePoint(44.0100, 36.6000), 4326)::geography, 5, '2026-10-05 06:30:00+00', false),
+                    (gen_random_uuid(), @t1, @v3, @rep, @d1, 'check_out', true, ST_SetSRID(ST_MakePoint(44.0100, 36.6000), 4326)::geography, 5, '2026-10-05 07:00:00+00', false);
+                -- Shift 1: 4 hours with only 10 points (expected 80). Shift 2: 4 hours with 80 points. Both finished.
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at, ended_at) VALUES
+                    (@s1, @t1, @rep, @d1, '2026-10-05 04:00:00+00', '2026-10-05 08:00:00+00');
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at, received_at)
+                SELECT @t1, @s1, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 10, '2026-10-05 04:00:00+00'::timestamptz + n * interval '20 minutes', '2026-10-05 04:00:00+00'::timestamptz + n * interval '20 minutes'
+                FROM generate_series(1, 10) n;", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("m", manager), ("r1", r1), ("ta", teamA), ("c1", c1), ("c2", c2), ("c3", c3), ("v1", v1), ("v2", v2), ("v3", v3), ("d1", d1), ("s1", s1) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
+
+        As(manager);
+        Assert.Equal(3, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+        Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);   // one alert per event
+        var all = (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts"))!;
+        Assert.Equal(new[] { "impossible_travel=1", "low_coverage=1", "short_stay=1" },
+            all.GroupBy(a => a.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key}={g.Count()}").ToArray());
+        Assert.All(all, a => Assert.Equal(rep, a.SubjectUserId));
+
+        var travel = all.Single(a => a.Kind == "impossible_travel");
+        Assert.Equal(("security", v2.ToString()), (travel.Category, travel.EntityId));   // the visit that was reached too fast (visit 3 is a normal stay, 59 minutes after leaving visit 2)
+        using (var evidence = System.Text.Json.JsonDocument.Parse(travel.Evidence!))
+        {
+            Assert.True(evidence.RootElement.GetProperty("distanceM").GetDouble() > 40_000);
+            Assert.True(evidence.RootElement.GetProperty("speedKmh").GetDouble() > 180);
+            Assert.Equal(600, evidence.RootElement.GetProperty("seconds").GetInt32());   // from the check-out at 05:30 to the check-in at 05:40
+        }
+        var shortStay = all.Single(a => a.Kind == "short_stay");
+        Assert.Equal(("security", v2.ToString()), (shortStay.Category, shortStay.EntityId));
+        using (var evidence = System.Text.Json.JsonDocument.Parse(shortStay.Evidence!))
+            Assert.Equal(60, evidence.RootElement.GetProperty("seconds").GetInt32());
+        var coverage = all.Single(a => a.Kind == "low_coverage");
+        Assert.Equal(("operational", s1.ToString()), (coverage.Category, coverage.EntityId));
+        using (var evidence = System.Text.Json.JsonDocument.Parse(coverage.Evidence!))
+        {
+            Assert.Equal(10, evidence.RootElement.GetProperty("points").GetInt32());
+            Assert.Equal(80, evidence.RootElement.GetProperty("expectedPoints").GetInt32());
+        }
+
+        // The review result is needed for the behaviour signals, not for the coverage alert
+        await AssertProblemAsync(await Post($"/alerts/{travel.Id}/handle", new { Note = "checked" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{travel.Id}/handle", new { Note = "customer address was wrong", Outcome = "valid" })).StatusCode);
+        await AssertProblemAsync(await Post($"/alerts/{coverage.Id}/handle", new { Note = "phone battery", Outcome = "valid" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{coverage.Id}/handle", new { Note = "phone battery" })).StatusCode);
+        Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
     }
 
     [SkippableFact]

@@ -41,8 +41,12 @@ public static class AlertRules
     public const double PoorAccuracyMeters = 200;
     public const int PoorAccuracyCount = 5;
     public static readonly TimeSpan ScanWindow = TimeSpan.FromHours(48);
+    // Anti-fraud from visit events and shift summaries (plan step 4.8).
+    public static readonly TimeSpan MinStay = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan CoverageMinShift = TimeSpan.FromHours(1);
+    public const double LowCoveragePercent = 50;
     // A manager who handles one of these must say what the review found.
-    public static readonly string[] ReviewedKinds = ["gps_mocked", "impossible_speed", "clock_tamper", "outside_area", "poor_accuracy", "device_mismatch"];
+    public static readonly string[] ReviewedKinds = ["gps_mocked", "impossible_speed", "clock_tamper", "outside_area", "poor_accuracy", "device_mismatch", "impossible_travel", "short_stay"];
 }
 
 public interface IAlertStore

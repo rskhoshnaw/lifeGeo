@@ -6502,5 +6502,23 @@
   "ckb": "وەرگر (کڕیار یان کەس)",
   "ar": "المستلم (مشتري أو شخص)",
   "fa": "گیرنده (خریدار یا شخص)"
+ },
+ "web.alerts.kind.impossible_travel": {
+  "en": "Impossible travel time between two visits",
+  "ckb": "کاتی گەشتی نەگونجاو لە نێوان دوو سەردان",
+  "ar": "زمن تنقل غير ممكن بين زيارتين",
+  "fa": "زمان سفر غیرممکن بین دو ویزیت"
+ },
+ "web.alerts.kind.short_stay": {
+  "en": "Visit shorter than the minimum stay",
+  "ckb": "سەردان کورتتر لە کەمترین ماوەی مانەوە",
+  "ar": "زيارة أقصر من الحد الأدنى للبقاء",
+  "fa": "ویزیت کوتاه‌تر از حداقل زمان حضور"
+ },
+ "web.alerts.kind.low_coverage": {
+  "en": "Shift with too few tracking points",
+  "ckb": "شیفت بە خاڵی شوێنپێی کەم",
+  "ar": "وردية بنقاط تتبع قليلة",
+  "fa": "شیفت با نقاط ردیابی کم"
  }
 }

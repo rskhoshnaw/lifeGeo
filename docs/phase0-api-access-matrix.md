@@ -566,3 +566,7 @@ No new route or permission. Changes to existing routes, all used by the phone fo
 | Route | Access | Notes |
 |---|---|---|
 | `GET /company-config/{code}` | public (no token), global rate limit | Returns `tenantCode`, `name`, `apiBaseUrl` (null = this server), `supportPhone` for an active company; unknown/inactive/invalid code → 404. Public facts only. Excluded from the OpenAPI contract. |
+
+### Anti-fraud from visits (plan step 4.8)
+
+No new route or permission. The alert scan makes three more kinds: `impossible_travel` and `short_stay` (security, `alerts.security.read`; `outcome` is required when handled, like the kinds of 2.10) and `low_coverage` (operational, `alerts.read`; no outcome). See `docs/ANTIFRAUD.md`.
