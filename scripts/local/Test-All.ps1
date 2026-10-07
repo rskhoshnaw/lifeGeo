@@ -12,8 +12,8 @@ function Step([string]$Name, [scriptblock]$Command) {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: $Name" -ForegroundColor Red; exit 1 }
 }
 
-$env:TEST_DATABASE_URL = "Host=localhost;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=test_user;Password=test_pass;Include Error Detail=true"
-$env:TEST_SUPERUSER_DATABASE_URL = "Host=localhost;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=postgres;Password=temp_root;Include Error Detail=true"
+$env:TEST_DATABASE_URL = "Host=127.0.0.1;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=test_user;Password=test_pass;Include Error Detail=true"
+$env:TEST_SUPERUSER_DATABASE_URL = "Host=127.0.0.1;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=postgres;Password=temp_root;Include Error Detail=true"
 
 Step 'Database tests' { dotnet test tests\LifeDrop.Database.Tests }
 Step '.NET unit tests' { dotnet test LifeDrop.CI.slnf }

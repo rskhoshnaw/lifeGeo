@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'LocalDb.ps1')
 Set-Location (Resolve-Path (Join-Path $PSScriptRoot '..\..'))
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
-$env:ConnectionStrings__LifeDrop = "Host=localhost;Port=$LocalDbPort;Database=lifedrop_dev;Username=lifedrop_app;Password=lifedrop_app_local"
+$env:ConnectionStrings__LifeDrop = "Host=127.0.0.1;Port=$LocalDbPort;Database=lifedrop_dev;Username=lifedrop_app;Password=lifedrop_app_local"
 $env:Jwt__Issuer = 'lifedrop-local'
 $env:Jwt__Audience = 'lifedrop-local'
 $env:Jwt__SigningKey = 'local-development-signing-key-not-for-production-0001'
