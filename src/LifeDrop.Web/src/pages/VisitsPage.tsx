@@ -11,6 +11,7 @@ import {
   type VisitPriority,
   type VisitType,
 } from '../api/admin.ts'
+import { Badge, type Tone } from '../components/Badge.tsx'
 import { t, type TextKey } from '../i18n.ts'
 
 const visitStatuses = ['Planned', 'EnRoute', 'Arrived', 'InVisit', 'Completed', 'Failed', 'Cancelled']
@@ -114,7 +115,7 @@ export function VisitsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                     <td>{visit.assigneeEmail ?? visit.userId}</td>
                     <td>{t(`web.visitType.${visit.visitType}`)}</td>
                     <td>{t(`web.priority.${visit.priority}`)}</td>
-                    <td>{statusText(visit.status)}</td>
+                    <td><Badge tone={({ Completed: 'good', Failed: 'bad', Cancelled: 'neutral', Planned: 'info' } as Record<string, Tone>)[visit.status] ?? 'warn'}>{statusText(visit.status)}</Badge></td>
                     <td className="space-x-2 py-2 text-end">
                       {(visit.status === 'InVisit' || visit.status === 'Completed') && (
                         <button className="rounded border px-2 py-1" aria-label={t('web.visits.formOf', { customer: label })} onClick={() => setFormFor(formFor?.id === visit.id ? null : visit)}>
