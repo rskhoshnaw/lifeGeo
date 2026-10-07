@@ -12,4 +12,7 @@ Free Firebase Cloud Messaging only. SMS costs money per message, so it is not bu
 1. Firebase console → new project (Spark plan is free) → add the Android app (package id of `LifeDrop.Mobile`).
 2. Project settings → Service accounts → generate a private key (JSON). Keep it secret; never commit it.
 3. Give it to the API: `Push__Fcm__ServiceAccountFile=C:\path\key.json` (or `Push__Fcm__ServiceAccountJson` with the JSON text).
-4. App side (not built yet, needs the Android SDK): add `google-services.json`, read the FCM token, call `PUT /push-token`, show a local notification from the data.
+4. App side (Android, built): put the downloaded `google-services.json` in `src/LifeDrop.Mobile/` (it is git-ignored; never commit it). With the file present the project adds Firebase automatically (`FIREBASE` build constant). Before that, **change `ApplicationId`** in `src/LifeDrop.Mobile/LifeDrop.Mobile.csproj` from the template value `com.companyname.lifedrop.mobile` to your real package id and register the app in Firebase with exactly that id.
+   - After sign-in the app asks Android 13+ for the notification permission once, gets the Firebase token and registers it (`PUT /push-token`); a refreshed token is registered at the next start; at sign-out the token is removed (`POST /push-token/remove`).
+   - The server sends data-only messages (kind and ids). The phone writes the text in the app's language (`app.push.*` in `i18n/strings.json`) and shows a notification; tapping it opens the app. Today the kinds are `customer.profile_changed` and `customer.location_changed` (the in-app messages of step 1.23-c).
+   - Without the file the app is built without Firebase and works as before. CI builds with a dummy file to prove the push code compiles.

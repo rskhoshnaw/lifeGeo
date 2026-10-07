@@ -1,0 +1,19 @@
+# HTTPS for the API with a certificate from Let's Encrypt, renewed by Caddy itself. The domain must point to this server (A record) before the first start.
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# Metrics are for the monitor on this server only (docker compose exec), never for the internet.
+	@internal path /metrics
+	respond @internal 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	reverse_proxy api:8080 {
+		health_uri /health/live
+		health_interval 15s
+	}
+}

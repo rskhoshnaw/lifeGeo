@@ -76,7 +76,9 @@ public static class RouteStops
 
 public sealed class RouteHistory(IRouteHistoryStore store, IPermissionStore permissions, TimeProvider clock)
 {
-    public static readonly TimeSpan Retention = TimeSpan.FromDays(90);
+    // 90 days by default (decision D6); a company may keep less through Tracking:RetentionDays (7-365), applied once at start (docs/DEPLOY.md).
+    public static TimeSpan Retention { get; private set; } = TimeSpan.FromDays(90);
+    public static void UseRetentionDays(int days) => Retention = TimeSpan.FromDays(Math.Clamp(days, 7, 365));
     public const int MaxPoints = 20_000;
     public const int StopCustomerMeters = 150;
 

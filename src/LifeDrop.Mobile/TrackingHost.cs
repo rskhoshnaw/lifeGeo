@@ -30,6 +30,8 @@ public static class TrackingHost
     private static ISamplesApiClient? _samples;
     private static IFollowUpsApiClient? _followUps;
     private static IVisitDetailsApiClient? _visitDetails;
+    private static ICustomFieldsApiClient? _customFields;
+    private static PushTokenSync? _pushSync;
     private static WorkQueue? _workQueue;
     private static WorkExecutor? _workExecutor;
     private static ReferenceCache? _cache;
@@ -76,6 +78,16 @@ public static class TrackingHost
     public static IVisitDetailsApiClient? VisitDetailsApi
     {
         get { lock (Gate) return _visitDetails; }
+    }
+
+    public static ICustomFieldsApiClient? CustomFieldsApi
+    {
+        get { lock (Gate) return _customFields; }
+    }
+
+    public static PushTokenSync? PushSync
+    {
+        get { lock (Gate) return _pushSync; }
     }
 
     public static IFollowUpsApiClient? FollowUpsApi
@@ -132,6 +144,8 @@ public static class TrackingHost
             _samples = new SamplesApiClient(http, session);
             _followUps = new FollowUpsApiClient(http, session);
             _visitDetails = new VisitDetailsApiClient(http, session);
+            _customFields = new CustomFieldsApiClient(http, session);
+            _pushSync = new PushTokenSync(new PushApiClient(http, session), _store);
             _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
             _workQueue = new WorkQueue(TimeProvider.System, _store);
             _workExecutor = new WorkExecutor(_orders, _payments, _samples, _followUps, _visitDetails);
@@ -187,6 +201,8 @@ public static class TrackingHost
             _delivery = null;
             _workQueue = null;
             _workExecutor = null;
+            _pushSync = null;
+            _customFields = null;
             _cache = null;
             _store = null;
             try

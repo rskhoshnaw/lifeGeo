@@ -72,6 +72,13 @@ jobs:
     - name: Ensure Android platform 36
       run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
+    # A dummy Firebase config (never the owner's) so the push code (plan step 2.14) is compiled too; builds without the file skip it.
+    - name: Dummy Firebase config
+      run: |
+        cat > src/LifeDrop.Mobile/google-services.json <<'JSON'
+        {"project_info":{"project_number":"000000000000","project_id":"lifedrop-ci","storage_bucket":"lifedrop-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.companyname.lifedrop.mobile"}},"api_key":[{"current_key":"ci-dummy-key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
+        JSON
+
     - name: Build Android app
       run: dotnet build src/LifeDrop.Mobile/LifeDrop.Mobile.csproj -f net10.0-android --configuration Release -p:AndroidSdkDirectory="$ANDROID_HOME"
 

@@ -4339,7 +4339,9 @@ public class CustomerApiIntegrationTests
         var publicRoutes = new[]
         {
             "GET /", "POST /auth/login", "POST /auth/refresh", "POST /auth/devices/register",
-            "GET /openapi/{documentName}.json" // Development only
+            "GET /openapi/{documentName}.json", // Development only
+            // Monitors (plan step 3.7): no business data; /metrics answers 404 without Metrics:Token and 401 without the token.
+            "GET /health/live", "GET /health/ready", "GET /metrics"
         };
 
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
@@ -7321,6 +7323,106 @@ public class CustomerApiIntegrationTests
             cmd.Parameters.AddWithValue("t", t1);
             Assert.Equal("form_field.created=5,form_field.deactivated=1,form_field.updated=1,visit.custom_answers_saved=4", (string)(await cmd.ExecuteScalarAsync())!);
         }
+    }
+
+    [Fact]
+    public void Observability_JobsGoStaleAfterThreeIntervalsAndTheHistogramIsCumulativeAndEscaped()
+    {
+        var jobs = new LifeDrop.API.Observability.JobHealth();
+        var t0 = new DateTimeOffset(2026, 10, 5, 6, 0, 0, TimeSpan.Zero);
+        var interval = TimeSpan.FromMinutes(5);
+        jobs.Report("scan", true, interval, t0);
+        jobs.Report("broken", false, interval, t0);
+        Assert.False(jobs.Snapshot(t0.AddMinutes(14)).Single(j => j.Name == "scan").Stale);
+        Assert.True(jobs.Snapshot(t0.AddMinutes(16)).Single(j => j.Name == "scan").Stale);
+        Assert.True(jobs.Snapshot(t0).Single(j => j.Name == "broken").Stale);   // only ever failed
+        jobs.Report("broken", true, interval, t0.AddMinutes(1));
+        Assert.False(jobs.Snapshot(t0.AddMinutes(2)).Single(j => j.Name == "broken").Stale);   // one success clears it
+        Assert.Equal((2L, 1L), (jobs.Snapshot(t0).Single(j => j.Name == "broken").Runs, jobs.Snapshot(t0).Single(j => j.Name == "broken").Failures));
+
+        var metrics = new LifeDrop.API.Observability.RequestMetrics();
+        metrics.Record("/x/{id}", "GET", 200, 0.04);
+        metrics.Record("/x/{id}", "GET", 200, 0.3);
+        metrics.Record("/x/{id}", "GET", 200, 20);
+        metrics.Record("/we\"ird\\route", "POST", 500, 0.01);
+        var text = metrics.Render(jobs, t0);
+        Assert.Contains("lifedrop_http_requests_total{route=\"/x/{id}\",method=\"GET\",status=\"200\"} 3", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_bucket{route=\"/x/{id}\",method=\"GET\",status=\"200\",le=\"0.05\"} 1", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_bucket{route=\"/x/{id}\",method=\"GET\",status=\"200\",le=\"0.25\"} 1", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_bucket{route=\"/x/{id}\",method=\"GET\",status=\"200\",le=\"0.5\"} 2", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_bucket{route=\"/x/{id}\",method=\"GET\",status=\"200\",le=\"10\"} 2", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_bucket{route=\"/x/{id}\",method=\"GET\",status=\"200\",le=\"+Inf\"} 3", text);
+        Assert.Contains("lifedrop_http_request_duration_seconds_sum{route=\"/x/{id}\",method=\"GET\",status=\"200\"} 20.34", text);
+        Assert.Contains("route=\"/we\\\"ird\\\\route\",method=\"POST\",status=\"500\"", text);
+        Assert.Contains("lifedrop_job_failures_total{job=\"broken\"} 1", text);
+        Assert.Contains($"lifedrop_job_last_success_timestamp_seconds{{job=\"scan\"}} {t0.ToUnixTimeSeconds()}", text);
+    }
+
+    [SkippableFact]
+    public async Task Observability_HealthAndTokenProtectedMetricsCarryNoBusinessData()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        await using var secured = factory.WithWebHostBuilder(b => b.UseSetting("Metrics:Token", "secret-token"));
+        var open = factory.CreateClient();
+        var client = secured.CreateClient();
+
+        // Without a token configured the metrics do not exist
+        Assert.Equal(HttpStatusCode.NotFound, (await open.GetAsync("/metrics")).StatusCode);
+
+        // Liveness and readiness (database up) are open and are not rate limited
+        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+        var ready = await client.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        using (var body = System.Text.Json.JsonDocument.Parse(await ready.Content.ReadAsStringAsync()))
+            Assert.Equal(("ready", "up"), (body.RootElement.GetProperty("status").GetString(), body.RootElement.GetProperty("database").GetString()));
+        for (var batch = 0; batch < 6; batch++)   // 120 requests in six groups of 20 at once: far above the 100 per minute of the API, and the connection pool is not the test
+        {
+            var burst = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => client.GetAsync("/health/ready")));
+            Assert.All(burst, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));   // monitors are never refused
+        }
+
+        // A business route and a path with an id: only the route template is a label
+        var secret = Guid.NewGuid();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/notifications/unread-count")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/orders/{secret}")).StatusCode);
+
+        // The token is needed
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/metrics")).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "wrong");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/metrics")).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "secret-token");
+
+        // Jobs report into readiness and the metrics; a job that only ever failed makes readiness "degraded" (still 200)
+        var jobs = secured.Services.GetRequiredService<LifeDrop.API.Observability.JobHealth>();
+        var now = secured.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        jobs.Report("test_job", true, TimeSpan.FromMinutes(5), now);
+        jobs.Report("bad_job", false, TimeSpan.FromMinutes(5), now);
+        using (var body = System.Text.Json.JsonDocument.Parse(await (await client.GetAsync("/health/ready")).Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("degraded", body.RootElement.GetProperty("status").GetString());
+            var list = body.RootElement.GetProperty("jobs").EnumerateArray().ToDictionary(j => j.GetProperty("name").GetString()!, j => j.GetProperty("stale").GetBoolean());
+            Assert.Equal((false, true), (list["test_job"], list["bad_job"]));
+        }
+
+        var metrics = await client.GetAsync("/metrics");
+        Assert.Equal(HttpStatusCode.OK, metrics.StatusCode);
+        Assert.StartsWith("text/plain", metrics.Content.Headers.ContentType!.MediaType);
+        var text = await metrics.Content.ReadAsStringAsync();
+        Assert.Contains("lifedrop_http_requests_total{route=\"/health/live\",method=\"GET\",status=\"200\"} 3", text);
+        Assert.Contains("lifedrop_http_requests_total{route=\"/health/ready\",method=\"GET\",status=\"200\"} 122", text);   // 1 + 120 + the one with the jobs
+        Assert.Contains("lifedrop_http_requests_total{route=\"/notifications/unread-count\",method=\"GET\",status=\"401\"} 1", text);
+        Assert.Contains("lifedrop_http_requests_total{route=\"/metrics\",method=\"GET\",status=\"401\"} 2", text);
+        Assert.Contains("method=\"GET\",status=\"401\"} 1", text);
+        Assert.DoesNotContain(secret.ToString(), text);   // ids of the path never reach the metrics
+        Assert.Contains("lifedrop_job_runs_total{job=\"test_job\"} 1", text);
+        Assert.Contains("lifedrop_job_failures_total{job=\"bad_job\"} 1", text);
+        Assert.Contains($"lifedrop_job_last_success_timestamp_seconds{{job=\"test_job\"}} {now.ToUnixTimeSeconds()}", text);
+        Assert.DoesNotContain("lifedrop_job_last_success_timestamp_seconds{job=\"bad_job\"}", text);   // it never succeeded
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

@@ -508,3 +508,6 @@ appsettings.*.local.json
 *.db
 *.db-shm
 *.db-wal
+
+# Firebase client config of the owner (docs/PUSH.md); never committed
+src/LifeDrop.Mobile/google-services.json

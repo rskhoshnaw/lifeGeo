@@ -1,3 +1,4 @@
+using LifeDrop.API.Observability;
 using LifeDrop.Application.Alerts;
 using LifeDrop.Application.Reports;
 
@@ -5,7 +6,7 @@ namespace LifeDrop.API;
 
 // Runs the scheduled reports that are due, in every active company, every minute (Reports:ScheduleIntervalSeconds, default 60; 0 turns it off).
 // One company or report failing never stops the others.
-public sealed class ReportScheduleService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<ReportScheduleService> logger) : BackgroundService
+public sealed class ReportScheduleService(IServiceScopeFactory scopes, IConfiguration configuration, ILogger<ReportScheduleService> logger, JobHealth jobs, TimeProvider clock) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -14,6 +15,7 @@ public sealed class ReportScheduleService(IServiceScopeFactory scopes, IConfigur
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(seconds));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            var ok = true;
             try
             {
                 using var scope = scopes.CreateScope();
@@ -22,13 +24,15 @@ public sealed class ReportScheduleService(IServiceScopeFactory scopes, IConfigur
                 foreach (var tenant in tenants)
                 {
                     try { await service.RunDueAsync(tenant, stoppingToken); }
-                    catch (Exception e) when (e is not OperationCanceledException) { logger.LogWarning(e, "Scheduled reports failed for one company"); }
+                    catch (Exception e) when (e is not OperationCanceledException) { ok = false; logger.LogWarning(e, "Scheduled reports failed for one company"); }
                 }
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
+                ok = false;
                 logger.LogWarning(e, "Scheduled reports failed");
             }
+            jobs.Report("report_schedule", ok, TimeSpan.FromSeconds(seconds), clock.GetUtcNow());
         }
     }
 }

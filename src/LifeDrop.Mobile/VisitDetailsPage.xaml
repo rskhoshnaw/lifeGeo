@@ -21,6 +21,9 @@
             <!-- The specialised visit form (plan step 2.7) -->
             <Button x:Name="FormBtn" Clicked="OnFormClicked" HorizontalOptions="Start" />
 
+            <!-- The extra fields the company added to the report (plan step 3.2) -->
+            <Button x:Name="CustomBtn" Clicked="OnCustomClicked" HorizontalOptions="Start" />
+
             <!-- Start trip / I have arrived / Check in here -->
             <Button x:Name="StepBtn" Clicked="OnStepClicked" IsVisible="False" />
 

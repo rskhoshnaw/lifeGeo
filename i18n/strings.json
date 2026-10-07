@@ -6244,5 +6244,125 @@
   "ckb": "هۆکار",
   "ar": "السبب",
   "fa": "دلیل"
+ },
+ "web.tab.tv": {
+  "en": "Wall screen",
+  "ckb": "شاشەی دیوار",
+  "ar": "شاشة الحائط",
+  "fa": "نمایش دیواری"
+ },
+ "web.tv.title": {
+  "en": "Today at a glance",
+  "ckb": "ئەمڕۆ بە کورتی",
+  "ar": "اليوم بنظرة سريعة",
+  "fa": "امروز در یک نگاه"
+ },
+ "web.tv.privacy": {
+  "en": "Totals only: no names, positions or phone numbers are shown on this screen.",
+  "ckb": "تەنها کۆی گشتی: هیچ ناو و شوێن و ژمارەی تەلەفۆنێک لەم شاشەیەدا نیشان نادرێت.",
+  "ar": "المجاميع فقط: لا تُعرض أسماء أو مواقع أو أرقام هواتف على هذه الشاشة.",
+  "fa": "فقط جمع کل‌ها: هیچ نام، موقعیت یا شمارهٔ تلفنی در این صفحه نمایش داده نمی‌شود."
+ },
+ "web.tv.updated": {
+  "en": "Updated {time}",
+  "ckb": "نوێکرایەوە {time}",
+  "ar": "آخر تحديث {time}",
+  "fa": "به‌روزرسانی {time}"
+ },
+ "web.tv.fullscreen": {
+  "en": "Full screen",
+  "ckb": "شاشەی تەواو",
+  "ar": "ملء الشاشة",
+  "fa": "تمام‌صفحه"
+ },
+ "web.tv.onShift": {
+  "en": "On shift now",
+  "ckb": "ئێستا لە شیفتدان",
+  "ar": "في الدوام الآن",
+  "fa": "اکنون در شیفت"
+ },
+ "web.tv.liveOf": {
+  "en": "{live} live of {total}",
+  "ckb": "{live} ڕاستەوخۆ لە {total}",
+  "ar": "{live} مباشر من {total}",
+  "fa": "{live} زنده از {total}"
+ },
+ "app.custom.button": {
+  "en": "Extra fields",
+  "ckb": "خانە زیادەکان",
+  "ar": "حقول إضافية",
+  "fa": "فیلدهای اضافه"
+ },
+ "app.custom.title": {
+  "en": "Extra fields of the visit",
+  "ckb": "خانە زیادەکانی سەردان",
+  "ar": "الحقول الإضافية للزيارة",
+  "fa": "فیلدهای اضافهٔ ویزیت"
+ },
+ "app.custom.none": {
+  "en": "Your company has no extra fields for this visit.",
+  "ckb": "کۆمپانیاکەت هیچ خانەیەکی زیادەی بۆ ئەم سەردانە نییە.",
+  "ar": "لا تملك شركتك حقولاً إضافية لهذه الزيارة.",
+  "fa": "شرکت شما برای این ویزیت فیلد اضافه‌ای ندارد."
+ },
+ "app.custom.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوتکردن",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "app.custom.saved": {
+  "en": "Saved.",
+  "ckb": "پاشەکەوت کرا.",
+  "ar": "تم الحفظ.",
+  "fa": "ذخیره شد."
+ },
+ "app.custom.required": {
+  "en": "required",
+  "ckb": "پێویستە",
+  "ar": "إلزامي",
+  "fa": "الزامی"
+ },
+ "app.custom.choose": {
+  "en": "Choose",
+  "ckb": "هەڵبژێرە",
+  "ar": "اختر",
+  "fa": "انتخاب کنید"
+ },
+ "app.custom.yes": {
+  "en": "Yes",
+  "ckb": "بەڵێ",
+  "ar": "نعم",
+  "fa": "بله"
+ },
+ "app.custom.no": {
+  "en": "No",
+  "ckb": "نەخێر",
+  "ar": "لا",
+  "fa": "خیر"
+ },
+ "app.custom.date": {
+  "en": "Date (yyyy-mm-dd)",
+  "ckb": "بەروار (ساڵ-مانگ-ڕۆژ، yyyy-mm-dd)",
+  "ar": "التاريخ (yyyy-mm-dd)",
+  "fa": "تاریخ (yyyy-mm-dd)"
+ },
+ "app.push.channel": {
+  "en": "Messages",
+  "ckb": "نامەکان",
+  "ar": "الرسائل",
+  "fa": "پیام‌ها"
+ },
+ "app.push.customerProfileChanged": {
+  "en": "A customer in your area was changed.",
+  "ckb": "کڕیارێکی ناوچەکەت گۆڕدرا.",
+  "ar": "تم تعديل بيانات عميل في منطقتك.",
+  "fa": "اطلاعات یکی از مشتریان منطقهٔ شما تغییر کرد."
+ },
+ "app.push.customerLocationChanged": {
+  "en": "The location of a customer in your area was changed.",
+  "ckb": "شوێنی کڕیارێکی ناوچەکەت گۆڕدرا.",
+  "ar": "تم تغيير موقع عميل في منطقتك.",
+  "fa": "موقعیت یکی از مشتریان منطقهٔ شما تغییر کرد."
  }
 }
