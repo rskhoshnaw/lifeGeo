@@ -43,6 +43,7 @@ export function RegionsPage({ admin, me }: { admin: AdminApi; me: Me }) {
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <div>
         <h2 className="mb-4 text-xl font-semibold">{t('web.regions.title')}</h2>
+        {regions.data?.length === 0 && <p className="mb-3 text-sm text-slate-600">{t('web.regions.none')}</p>}
         <ul className="mb-3 list-disc ps-6 text-sm">
           {regions.data?.map((region) => (
             <li key={region.id}>{region.name}</li>
@@ -60,6 +61,7 @@ export function RegionsPage({ admin, me }: { admin: AdminApi; me: Me }) {
       {canTeams && (
         <div>
           <h2 className="mb-4 text-xl font-semibold">{t('web.teams.title')}</h2>
+          {teams.data?.length === 0 && <p className="mb-3 text-sm text-slate-600">{t('web.teams.none')}</p>}
           {teams.data?.map((team) => {
             const members = (users.data ?? []).filter((u) => u.teamId === team.id)
             const others = (users.data ?? []).filter((u) => u.teamId !== team.id)

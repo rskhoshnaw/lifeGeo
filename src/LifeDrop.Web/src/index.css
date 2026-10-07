@@ -136,6 +136,17 @@
     background: var(--color-brand-800);
   }
 
+  /* Phones and touch screens (step 4.5): bigger targets for a finger. Fields 44 px, the two kinds of main buttons 40 px; link-like buttons and the
+     icon buttons of the top bar keep their size. Desktop with a mouse is unchanged. */
+  @media (max-width: 1023px), (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea {
+      min-height: 2.75rem;
+    }
+    main button.border, main button.bg-brand-700 {
+      min-height: 2.5rem;
+    }
+  }
+
   /* Tables: hairlines, small muted headings, a quiet row highlight. */
   table {
     border-collapse: collapse;

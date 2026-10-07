@@ -1035,4 +1035,16 @@ describe('panel management screens', () => {
     expect(screen.queryAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Language'])
     expect(calls.some((c) => c.path === '/users')).toBe(false)
   })
+
+  it('says so when there are no users, regions or teams yet (a new company starts empty)', async () => {
+    const { api } = server({ id: 'x', email: 'ceo@t1', roles: ['CompanyManager'], permissions: ['sessions.kill', 'regions.read', 'teams.read'] }, { '/users': [], '/regions': [], '/teams': [] })
+    render(<App api={api} />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Users' }))
+    expect(await screen.findByText('No users.')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Regions & teams' }))
+    expect(await screen.findByText('No regions yet.')).toBeInTheDocument()
+    expect(screen.getByText('No teams yet.')).toBeInTheDocument()
+  })
 })
