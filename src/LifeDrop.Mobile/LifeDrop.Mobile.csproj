@@ -70,6 +70,13 @@
 	</PropertyGroup>
 	<ItemGroup Condition="Exists('google-services.json') And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
+		<!-- Firebase pulls newer AndroidX cores than MAUI's own "-ktx" packages: with the old ones the build fails ("Type androidx.fragment.app.FragmentKt is defined
+		     multiple times"). These versions line the "-ktx" packages up with the cores NuGet resolves; update them together when MAUI or Firebase is updated. -->
+		<PackageReference Include="Xamarin.AndroidX.Fragment.Ktx" Version="1.9.0" />
+		<PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData" Version="2.11.0.1" />
+		<PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core.Ktx" Version="2.11.0.1" />
+		<PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.11.0.1" />
+		<PackageReference Include="Xamarin.AndroidX.Collection.Ktx" Version="1.6.0.1" />
 		<GoogleServicesJson Include="google-services.json" />
 	</ItemGroup>
 
