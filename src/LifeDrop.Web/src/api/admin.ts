@@ -799,6 +799,17 @@ export function errorMessage(error: unknown): string {
   }
 }
 
+export interface ChannelStatus {
+  enabled: boolean
+  botUsername: string | null
+  telegramLinked: boolean
+}
+export interface TelegramLink {
+  code: string
+  botUsername: string | null
+  expiresAt: string
+}
+
 export class AdminApi {
   private readonly api: ApiClient
   constructor(api: ApiClient) {
@@ -928,6 +939,9 @@ export class AdminApi {
   }
   setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
   notifications = (unreadOnly = false) => this.get<Notification[]>(`/notifications?limit=200${unreadOnly ? '&unread=true' : ''}`)
+  channels = () => this.get<ChannelStatus>('/channels')
+  startTelegramLink = () => this.postJson<TelegramLink>('/channels/telegram/link', {})
+  unlinkTelegram = () => this.post('/channels/telegram/unlink')
   unreadCount = async () => (await this.get<{ count: number }>('/notifications/unread-count')).count
   markRead = (id: string) => this.post(`/notifications/${id}/read`)
   markAllRead = () => this.post('/notifications/read-all')

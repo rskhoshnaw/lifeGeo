@@ -22,3 +22,5 @@ GRANT INSERT ON tenants, users, roles, role_permissions, platform_audit_logs, sa
 GRANT UPDATE ON tenants TO lifedrop_app;
 GRANT DELETE ON push_tokens TO lifedrop_app;
 GRANT DELETE ON team_members, customer_visit_windows, warehouse_staff, tracking_points TO lifedrop_app;
+-- Step 3.4: message channels (the user links and unlinks only their own channel; the code row is replaced and removed).
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_channels, channel_link_codes TO lifedrop_app;

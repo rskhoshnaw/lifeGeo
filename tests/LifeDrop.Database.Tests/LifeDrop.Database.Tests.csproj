@@ -57,6 +57,7 @@
     <None Include="../../db/migrations/0039_saved_reports.sql" Link="0039_saved_reports.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0040_custom_fields.sql" Link="0040_custom_fields.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0041_antifraud_visits.sql" Link="0041_antifraud_visits.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0042_channels.sql" Link="0042_channels.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

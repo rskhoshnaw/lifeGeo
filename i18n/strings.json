@@ -6586,5 +6586,95 @@
   "ckb": "لەبەرگیرایەوە",
   "ar": "تم النسخ",
   "fa": "کپی شد"
+ },
+ "msg.channel.customerProfileChanged": {
+  "en": "{name} ({code}): the customer details were changed.",
+  "ckb": "{name} ({code}): زانیاری کڕیار گۆڕدرا.",
+  "ar": "{name} ({code}): تم تغيير بيانات العميل.",
+  "fa": "{name} ({code}): اطلاعات مشتری تغییر کرد."
+ },
+ "msg.channel.customerLocationChanged": {
+  "en": "{name} ({code}): the customer location was changed.",
+  "ckb": "{name} ({code}): شوێنی کڕیار گۆڕدرا.",
+  "ar": "{name} ({code}): تم تغيير موقع العميل.",
+  "fa": "{name} ({code}): موقعیت مشتری تغییر کرد."
+ },
+ "msg.channel.linked": {
+  "en": "Telegram is connected. You will get your LifeDrop messages here.",
+  "ckb": "تێلێگرام پەیوەست کرا. پەیامەکانی LifeDrop لێرە دەگەنە دەستت.",
+  "ar": "تم ربط تيليجرام. ستصلك رسائل LifeDrop هنا.",
+  "fa": "تلگرام متصل شد. پیام‌های LifeDrop اینجا به شما می‌رسد."
+ },
+ "msg.channel.linkInvalid": {
+  "en": "This code is not valid or has expired. Create a new code in the LifeDrop panel.",
+  "ckb": "ئەم کۆدە دروست نییە یان بەسەرچووە. لە پانێڵی LifeDrop کۆدێکی نوێ دروست بکە.",
+  "ar": "هذا الرمز غير صالح أو منتهي. أنشئ رمزاً جديداً في لوحة LifeDrop.",
+  "fa": "این کد معتبر نیست یا منقضی شده. در پنل LifeDrop کد جدیدی بسازید."
+ },
+ "web.channels.title": {
+  "en": "Telegram messages",
+  "ckb": "پەیامەکانی تێلێگرام",
+  "ar": "رسائل تيليجرام",
+  "fa": "پیام‌های تلگرام"
+ },
+ "web.channels.off": {
+  "en": "Telegram messages are not turned on for this company.",
+  "ckb": "پەیامەکانی تێلێگرام بۆ ئەم کۆمپانیایە چالاک نەکراون.",
+  "ar": "رسائل تيليجرام غير مفعّلة لهذه الشركة.",
+  "fa": "پیام‌های تلگرام برای این شرکت فعال نشده است."
+ },
+ "web.channels.connect": {
+  "en": "Connect Telegram",
+  "ckb": "پەیوەستکردنی تێلێگرام",
+  "ar": "ربط تيليجرام",
+  "fa": "اتصال تلگرام"
+ },
+ "web.channels.connected": {
+  "en": "Telegram is connected: these messages also arrive in your Telegram.",
+  "ckb": "تێلێگرام پەیوەستە: ئەم پەیامانە لە تێلێگرامیشت دێن.",
+  "ar": "تيليجرام مرتبط: ستصلك هذه الرسائل أيضاً على تيليجرام.",
+  "fa": "تلگرام متصل است: این پیام‌ها در تلگرام شما هم می‌رسند."
+ },
+ "web.channels.disconnect": {
+  "en": "Disconnect",
+  "ckb": "پچڕاندن",
+  "ar": "فصل الربط",
+  "fa": "قطع اتصال"
+ },
+ "web.channels.open": {
+  "en": "Open Telegram and press Start",
+  "ckb": "تێلێگرام بکەرەوە و Start دابگرە",
+  "ar": "افتح تيليجرام واضغط Start",
+  "fa": "تلگرام را باز کنید و Start را بزنید"
+ },
+ "web.channels.sendTo": {
+  "en": "Or send this message to @{bot}:",
+  "ckb": "یان ئەم پەیامە بنێرە بۆ @{bot}:",
+  "ar": "أو أرسل هذه الرسالة إلى @{bot}:",
+  "fa": "یا این پیام را به @{bot} بفرستید:"
+ },
+ "web.channels.sendToBot": {
+  "en": "Or send this message to the company bot:",
+  "ckb": "یان ئەم پەیامە بنێرە بۆ بۆتی کۆمپانیا:",
+  "ar": "أو أرسل هذه الرسالة إلى بوت الشركة:",
+  "fa": "یا این پیام را به ربات شرکت بفرستید:"
+ },
+ "web.channels.expires": {
+  "en": "The code works for 15 minutes and only once.",
+  "ckb": "کۆدەکە ١٥ خولەک کار دەکات و تەنها یەک جار.",
+  "ar": "الرمز صالح ١٥ دقيقة ولمرة واحدة فقط.",
+  "fa": "کد ۱۵ دقیقه معتبر است و فقط یک بار."
+ },
+ "web.channels.check": {
+  "en": "I did it: check again",
+  "ckb": "کردم: دووبارە بپشکنە",
+  "ar": "تم: تحقق مرة أخرى",
+  "fa": "انجام دادم: دوباره بررسی کن"
+ },
+ "web.channels.privacy": {
+  "en": "Messages contain customer names and codes and pass through Telegram. Connect only your own private chat.",
+  "ckb": "پەیامەکان ناو و کۆدی کڕیار هەڵدەگرن و بە تێلێگرامدا تێدەپەڕن. تەنها چاتی تایبەتی خۆت ببەستەرەوە.",
+  "ar": "تحتوي الرسائل أسماء ورموز العملاء وتمر عبر تيليجرام. اربط محادثتك الخاصة فقط.",
+  "fa": "پیام‌ها نام و کد مشتری دارند و از تلگرام عبور می‌کنند. فقط چت خصوصی خودتان را متصل کنید."
  }
 }

@@ -7,6 +7,10 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The texts of the channel messages (step 3.4) come from the same file as the panel and the app. -->
+    <EmbeddedResource Include="../../i18n/strings.json" LogicalName="LifeDrop.strings.json" />
+  </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

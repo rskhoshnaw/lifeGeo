@@ -570,3 +570,13 @@ No new route or permission. Changes to existing routes, all used by the phone fo
 ### Anti-fraud from visits (plan step 4.8)
 
 No new route or permission. The alert scan makes three more kinds: `impossible_travel` and `short_stay` (security, `alerts.security.read`; `outcome` is required when handled, like the kinds of 2.10) and `low_coverage` (operational, `alerts.read`; no outcome). See `docs/ANTIFRAUD.md`.
+
+## Message channels (plan step 3.4, decision D17)
+
+Optional and off until `Channels:Enabled` and a bot token are set (`docs/CHANNELS.md`). Every user sees and changes only their own link; no permission key.
+
+| Route | Access | Notes |
+|---|---|---|
+| `GET /channels` | any signed-in user | `{enabled, botUsername, telegramLinked}`; `botUsername` is null while the channel is off |
+| `POST /channels/telegram/link` | any signed-in user | One-time code `<company code>_<12 random>`, valid 15 minutes (only its hash is stored). 503 while the channel is off or has no token |
+| `POST /channels/telegram/unlink` | any signed-in user | 204; 404 when there was no link or waiting code. Audit `channel.telegram_unlinked` (and `channel.telegram_linked` when the bot confirms the code) |
