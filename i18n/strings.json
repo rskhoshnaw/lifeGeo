@@ -6538,5 +6538,53 @@
   "ckb": "هێشتا هیچ تیمێک نییە.",
   "ar": "لا توجد فرق بعد.",
   "fa": "هنوز تیمی نیست."
+ },
+ "web.platform.invite": {
+  "en": "Invite",
+  "ckb": "بانگێشتن",
+  "ar": "دعوة",
+  "fa": "دعوت"
+ },
+ "web.platform.inviteTitle": {
+  "en": "Links of company {code}",
+  "ckb": "بەستەرەکانی کۆمپانیای {code}",
+  "ar": "روابط الشركة {code}",
+  "fa": "لینک‌های شرکت {code}"
+ },
+ "web.platform.invitePanel": {
+  "en": "Panel link (opens sign-in with the company code filled)",
+  "ckb": "بەستەری پانێڵ (چوونەژوورەوە دەکاتەوە و کۆدی کۆمپانیا پڕ دەکاتەوە)",
+  "ar": "رابط اللوحة (يفتح تسجيل الدخول مع رمز الشركة)",
+  "fa": "لینک پنل (ورود را با کد شرکت پر می‌کند)"
+ },
+ "web.platform.inviteApp": {
+  "en": "App link (in the QR code)",
+  "ckb": "بەستەری ئەپ (لە QR دایە)",
+  "ar": "رابط التطبيق (في رمز QR)",
+  "fa": "لینک اپ (در QR)"
+ },
+ "web.platform.inviteNote": {
+  "en": "The links carry only the public company code, never a password. In the app, paste the app link into the company field.",
+  "ckb": "بەستەرەکان تەنها کۆدی گشتیی کۆمپانیا هەڵدەگرن، هەرگیز وشەی نهێنی نا. لە ئەپدا بەستەری ئەپ لە خانەی کۆمپانیا بلکێنە.",
+  "ar": "الروابط تحمل رمز الشركة العام فقط، وليس كلمة مرور. في التطبيق الصق رابط التطبيق في حقل الشركة.",
+  "fa": "لینک‌ها فقط کد عمومی شرکت را دارند، هرگز رمز عبور را نه. در اپ لینک اپ را در خانهٔ شرکت بچسبانید."
+ },
+ "web.platform.inviteQr": {
+  "en": "QR code of the app link of company {code}",
+  "ckb": "کۆدی QR ی بەستەری ئەپی کۆمپانیای {code}",
+  "ar": "رمز QR لرابط تطبيق الشركة {code}",
+  "fa": "QR لینک اپ شرکت {code}"
+ },
+ "web.platform.copy": {
+  "en": "Copy",
+  "ckb": "لەبەرگرتنەوە",
+  "ar": "نسخ",
+  "fa": "کپی"
+ },
+ "web.platform.copied": {
+  "en": "Copied",
+  "ckb": "لەبەرگیرایەوە",
+  "ar": "تم النسخ",
+  "fa": "کپی شد"
  }
 }

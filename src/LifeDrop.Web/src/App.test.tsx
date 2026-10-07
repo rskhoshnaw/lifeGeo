@@ -26,6 +26,21 @@ describe('App', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('fills the company code from a company link and keeps it editable', async () => {
+    window.history.pushState({}, '', '/?company=acme')
+    try {
+      const user = userEvent.setup()
+      render(<App api={client(ok)} />)
+      const code = screen.getByLabelText('Company code')
+      expect(code).toHaveValue('acme')
+      await user.clear(code)
+      await user.type(code, 'other')
+      expect(code).toHaveValue('other')
+    } finally {
+      window.history.pushState({}, '', '/')
+    }
+  })
+
   it('signs in, shows the account and signs out', async () => {
     const user = userEvent.setup()
     const me = { id: 'm', email: 'manager@t1.iq', roles: [], permissions: [] }

@@ -5,3 +5,14 @@
 - Create a company: `POST /platform/tenants` (creates default roles and the first CompanyManager). Deactivate: `PUT /platform/tenants/{id}` with `isActive:false` and a reason; its users can no longer sign in and open sessions stop.
 - Cross-company reading is explicit: `GET /platform/tenants/{id}/audit-logs?reason=...` (reason at least 10 characters). The reason, the actor and the company go to `platform_audit_logs` in the same transaction as the read. That table cannot be changed or deleted.
 - Not in this step: reading business data (customers, orders) of another company, a panel screen for these routes, and a way for a company manager to see who from the platform looked at their audit log.
+
+## Invitation links and QR (step 4.7)
+
+The Companies tab has an **Invite** button for each company (not for the platform company). It shows two links and a QR code; the links carry only the public company code, never a password or a token.
+
+| Link | Form | Use |
+|---|---|---|
+| Panel | `https://<panel address>/?company=<code>` | opens the sign-in with the company code filled (still editable) |
+| App | `lifedrop://join/<code>` (this is the text in the QR code) | in the app, paste it into the company field: the code is taken out of it (`CompanyJoinLink`) |
+
+Not built yet because it needs a real phone: opening `lifedrop://` links directly in the app (Android intent filter) and scanning the QR code inside the app. Until then the QR code can be scanned by any QR reader and the text pasted into the app.

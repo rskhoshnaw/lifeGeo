@@ -2,6 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, type Tenant, type TenantAuditEntry } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { appLink, panelLink, qrSvg } from '../components/inviteLinks.ts'
 
 const emptyTenant = { code: '', name: '', managerEmail: '', managerPassword: '' }
 const when = (iso: string) => new Date(iso).toISOString().replace('T', ' ').slice(0, 16)
@@ -21,6 +22,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
   const [reason, setReason] = useState('')
   const [actionFilter, setActionFilter] = useState('')
   const [entries, setEntries] = useState<TenantAuditEntry[] | null>(null)
+  const [inviting, setInviting] = useState<string | null>(null)
 
   async function add(event: FormEvent) {
     event.preventDefault()
@@ -100,6 +102,11 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
                     {t('web.platform.rename')}
                   </button>
                   {x.code !== 'platform' && (
+                    <button className="rounded border px-2 py-1" aria-expanded={inviting === x.id} onClick={() => setInviting(inviting === x.id ? null : x.id)}>
+                      {t('web.platform.invite')}
+                    </button>
+                  )}
+                  {x.code !== 'platform' && (
                     <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => toggle(x)}>
                       {x.isActive ? t('web.platform.deactivate') : t('web.platform.activate')}
                     </button>
@@ -110,6 +117,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
           </tbody>
         </table>
       )}
+      {tenants.data?.filter((x) => x.id === inviting).map((x) => <InviteCard key={x.id} code={x.code} />)}
 
       <form className="grid max-w-3xl grid-cols-2 gap-3 rounded border p-4" onSubmit={(e) => void read(e)}>
         <h3 className="col-span-2 font-medium">{t('web.platform.audit.title')}</h3>
@@ -195,5 +203,31 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
         )}
       </div>
     </section>
+  )
+}
+
+// The links of one company: the panel link (opens the sign-in with the code filled) and the app link, which is also shown as a QR code.
+function InviteCard({ code }: { code: string }) {
+  const panel = panelLink(window.location.origin, code)
+  const app = appLink(code)
+  const [copied, setCopied] = useState('')
+  const copy = (text: string) => void navigator.clipboard?.writeText(text).then(() => setCopied(text), () => {})
+  return (
+    <div className="flex max-w-3xl flex-wrap items-start gap-6 rounded border p-4 text-sm" aria-label={t('web.platform.invite')}>
+      <div className="min-w-0 flex-1 space-y-3">
+        <h3 className="font-medium">{t('web.platform.inviteTitle', { code })}</h3>
+        {[[t('web.platform.invitePanel'), panel], [t('web.platform.inviteApp'), app]].map(([label, link]) => (
+          <div key={link}>
+            <p className="text-slate-600">{label}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <code dir="ltr" className="min-w-0 flex-1 break-all rounded bg-slate-100 px-2 py-1">{link}</code>
+              <button className="rounded border px-2 py-1" onClick={() => copy(link!)}>{copied === link ? t('web.platform.copied') : t('web.platform.copy')}</button>
+            </div>
+          </div>
+        ))}
+        <p className="text-slate-600">{t('web.platform.inviteNote')}</p>
+      </div>
+      <div className="w-40 shrink-0" role="img" aria-label={t('web.platform.inviteQr', { code })} dangerouslySetInnerHTML={{ __html: qrSvg(app) }} />
+    </div>
   )
 }

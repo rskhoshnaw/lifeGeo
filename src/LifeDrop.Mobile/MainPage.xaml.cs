@@ -21,6 +21,11 @@ public partial class MainPage : ContentPage
         LanguageItem.Text = AppLanguage.CurrentName;
         ApiUrlEntry.Placeholder = Texts.Get("app.login.apiUrl");
         TenantEntry.Placeholder = Texts.Get("app.login.tenant");
+        // An invitation link pasted into the company field (plan step 4.7) is replaced by the company code it carries.
+        TenantEntry.TextChanged += (_, e) =>
+        {
+            if (CompanyJoinLink.LooksLikeLink(e.NewTextValue) && CompanyJoinLink.TryGetCode(e.NewTextValue) is { } code) TenantEntry.Text = code;
+        };
         EmailEntry.Placeholder = Texts.Get("app.login.email");
         PasswordEntry.Placeholder = Texts.Get("app.login.password");
         DeviceLabelEntry.Placeholder = Texts.Get("app.login.deviceLabel");
