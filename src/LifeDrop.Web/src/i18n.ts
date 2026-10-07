@@ -18,8 +18,16 @@ export const isRtl = (lang: Lang) => lang !== 'en'
 // The active language for t(); set by I18nProvider before its children render.
 let current: Lang = defaultLang
 
+// Industry profile of the company (plan step 4.3): a text "key@food" replaces "key" for a food distributor.
+let profile = ''
+
+export function setCurrentProfile(next: string) {
+  profile = next
+}
+
 export function t(key: TextKey, vars: Record<string, string | number> = {}, lang: Lang = current): string {
-  const entry = strings[key] as Record<Lang, string>
+  const special = profile ? (strings as Record<string, unknown>)[`${key}@${profile}`] : undefined
+  const entry = (special ?? strings[key]) as Record<Lang, string>
   return (entry[lang] || entry.en).replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match))
 }
 

@@ -1,4 +1,6 @@
-# استقرار LifeDrop روی یک سرور (ترکیه)
+# استقرار LifeDrop روی یک سرور (برای هر شرکت یک سرور جدا)
+
+**توجه (D14):** این راهنما هنگام استقرار به‌کار می‌رود؛ تا پایان کامل تست‌ها و امکانات چیزی روی سرور نمی‌رود. هر شرکت مشتری سرور (VPS) و دیتابیس جدا دارد (بخش «یک سرور برای هر شرکت» پایین فایل).
 
 هدف: یک سرور برای حداکثر حدود ۵۰ ویزیتور، با API، پایگاه‌داده و HTTPS روی همان سرور؛ پنل وب روی Cloudflare Pages. فایل‌ها در پوشهٔ `deploy/` هستند.
 این راهنما با Docker کار می‌کند؛ هیچ چیز دیگری (دات‌نت، PostgreSQL) روی سرور نصب نمی‌شود.
@@ -7,7 +9,7 @@
 
 | مورد | مشخصات |
 | --- | --- |
-| سرور مجازی (VPS) در ترکیه | حداقل ۲ vCPU، ۴ گیگابایت RAM، ۴۰ گیگابایت SSD/NVMe؛ پیشنهاد: ۲–۴ vCPU، ۸ گیگابایت RAM، ۸۰ گیگابایت NVMe؛ Ubuntu 24.04 LTS؛ IP ثابت؛ دسترسی root |
+| سرور مجازی (VPS) ساده با root، پیشنهاد: Hetzner Cloud (آلمان یا فنلاند) یا Contabo؛ نه سرویس «مدیریت‌شده» بدون root | حداقل ۲ vCPU، ۴ گیگابایت RAM، ۴۰ گیگابایت SSD/NVMe؛ پیشنهاد: ۲–۴ vCPU، ۸ گیگابایت RAM، ۸۰ گیگابایت NVMe؛ Ubuntu 24.04 LTS؛ IP ثابت؛ دسترسی root |
 | دامنه | مثلاً `yourdomain.com`؛ دو زیردامنه: `api.yourdomain.com` (سرور) و `panel.yourdomain.com` (پنل) |
 | فضای backup | یک فضای جدا از سرور (سرور دوم، Object Storage یا حتی کامپیوتر خودتان با scp)، ۲۰–۵۰ گیگابایت |
 
@@ -98,3 +100,15 @@ docker compose up -d --build
 | `/health/ready` ۵۰۳ با `database: down` | رمز `APP_DB_PASSWORD` با آنچه `setup-db.sh` گذاشته فرق دارد؛ دوباره `./setup-db.sh` را اجرا کنید |
 | ورود از پنل خطای شبکه می‌دهد | `PANEL_ORIGIN` با نشانی دقیق پنل یکی نیست |
 | همه ۴۲۹ می‌گیرند | `RATE_LIMIT_PER_MINUTE` را بالاتر ببرید (و `ForwardedHeaders__Enabled` در compose فعال است) |
+
+## One server per company, one app for all (steps 4.2 / 4.3)
+Every company gets its own VPS, database and API, so a problem on one never touches another. The app is the same for all of them and holds
+no company address. At build time give it a base domain (`dotnet publish -p:LifeDropBaseDomain=lifedrop.example`); company code `acme` then means
+`https://acme.lifedrop.example`. To add a company: create its VPS, deploy this kit on it, point the DNS name `acme.<base domain>` at that VPS (Caddy
+gets the certificate), create the tenant with code `acme` (`deploy/create-super-admin.sh` / platform company). Nothing changes in the app.
+`-p:LifeDropBootstrapUrl=https://...` is only a single-server fallback (and the debug server field in debug builds).
+
+Per-company settings in that server's `deploy/.env`:
+- `COMPANY_INDUSTRY=pharma` (default) or `food`: a food distributor gets shops/restaurants wording instead of pharmacies/doctors, and no doctor-only form fields. Panel and app both read it from `GET /company-config/<code>`.
+- `SUPPORT_PHONE=+9647510686828`: shown on the panel and app sign-in screens.
+- Optional `CompanyDirectory__<code>__ApiBaseUrl` (https) if that company's API lives under another address.

@@ -27,6 +27,7 @@ public partial class MainPage : ContentPage
         RegisterBtn.Text = Texts.Get("app.login.register");
         LoginBtn.Text = Texts.Get("app.login.submit");
         StatusLabel.Text = Texts.Get("app.login.checking");
+        SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
 
 #if !DEBUG
         // Completely hide the URL field in Release
@@ -94,35 +95,52 @@ public partial class MainPage : ContentPage
         LoginBtn.IsEnabled = !isBusy;
     }
 
-    private (AuthApiClient? Client, ISecureCredentialStore? Store) SetupServices()
+    // Company code -> the company's own API address (plan step 4.2). Nothing about a company is built into the app: the bootstrap server
+    // answers for the code, and the answer is kept on the phone. Changing to another company wipes the old company's session and offline data first.
+    private async Task<(AuthApiClient? Client, ISecureCredentialStore? Store)> SetupServicesAsync(CancellationToken cancellationToken)
     {
-        var url = ApiUrlEntry.Text;
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            StatusLabel.Text = Texts.Get("app.login.urlRequired");
-            return (null, null);
-        }
-
-#if !DEBUG
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-        {
-            StatusLabel.Text = Texts.Get("app.login.httpNotAllowed");
-            return (null, null);
-        }
-#endif
-
-        var client = new HttpClient { BaseAddress = new Uri(url) };
-        var apiClient = new AuthApiClient(client);
-
-        Preferences.Set("ApiUrl", url);
-
 #if ANDROID
         var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
 #else
         ISecureCredentialStore store = null!;
 #endif
+        var fallback = ApiUrlEntry.IsVisible && !string.IsNullOrWhiteSpace(ApiUrlEntry.Text) ? ApiUrlEntry.Text.Trim() : AppConfig.BootstrapUrl;
+        // A development address typed into the debug field wins; otherwise the company code names the company's own server.
+        var bootstrap = ApiUrlEntry.IsVisible && !string.IsNullOrWhiteSpace(ApiUrlEntry.Text) ? fallback : CompanyDirectory.ServerFor(TenantEntry.Text, AppConfig.BaseDomain, fallback);
+#if DEBUG
+        const bool allowInsecure = true;
+#else
+        const bool allowInsecure = false;
+#endif
+        using var lookupHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var lookup = await CompanyDirectory.ResolveAsync(lookupHttp, bootstrap, TenantEntry.Text, allowInsecure, cancellationToken);
+        if (lookup.Status != CompanyLookupStatus.Found || lookup.Config is null)
+        {
+            StatusLabel.Text = lookup.Status switch
+            {
+                CompanyLookupStatus.InvalidCode => Texts.Get("app.login.companyInvalid"),
+                CompanyLookupStatus.NotFound => Texts.Get("app.login.companyNotFound"),
+                CompanyLookupStatus.NotConfigured => Texts.Get("app.login.notConfigured"),
+                CompanyLookupStatus.InsecureAddress => Texts.Get("app.login.httpNotAllowed"),
+                _ => Texts.Get("app.login.companyUnavailable"),
+            };
+            return (null, null);
+        }
 
-        return (apiClient, store);
+        var config = lookup.Config;
+        if (CompanyDirectory.IsCompanyChange(Preferences.Get("CompanyCode", (string?)null), config.TenantCode))
+        {
+            await store.ClearAllAsync(cancellationToken);
+            TrackingHost.Reset();
+        }
+        Preferences.Set("CompanyCode", config.TenantCode);
+        Preferences.Set("CompanyName", config.Name);
+        Preferences.Set("ApiUrl", config.ApiBaseUrl);
+        if (config.SupportPhone is { } phone) Preferences.Set("SupportPhone", phone);
+        Preferences.Set("Industry", config.Industry);
+        Texts.Profile = config.Industry == "food" ? "food" : "";
+
+        return (new AuthApiClient(new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) }), store);
     }
 
     private async void OnRegisterClicked(object sender, EventArgs e)
@@ -132,7 +150,8 @@ public partial class MainPage : ContentPage
 
         try
         {
-            var (apiClient, store) = SetupServices();
+            using var lookupCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var (apiClient, store) = await SetupServicesAsync(lookupCts.Token);
             if (apiClient == null || store == null) return;
 
             var installId = GetInstallId();
@@ -180,7 +199,8 @@ public partial class MainPage : ContentPage
 
         try
         {
-            var (apiClient, store) = SetupServices();
+            using var lookupCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var (apiClient, store) = await SetupServicesAsync(lookupCts.Token);
             if (apiClient == null || store == null) return;
 
             var coord = new LoginCoordinator(apiClient, store);

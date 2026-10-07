@@ -1,14 +1,15 @@
 # Product Context
 
 ## Purpose
-LifeDrop manages pharmaceutical field work from assignment through travel, arrival, visit, reporting or order capture, checkout, follow-up, and analysis. Initial deployment targets about 50 field staff in Iraq; the design target is 150 without a major redesign.
+LifeDrop manages field sales and visit work (first customer: pharma company "Life Drops"; also installable for a food distributor via `COMPANY_INDUSTRY=food`) from assignment through travel, arrival, visit, reporting or order capture, checkout, follow-up, and analysis. Initial deployment targets about 50 field staff in Iraq; the design target is 150 without a major redesign.
 
 ## Users and experience
-- Field representatives use a mobile app, with Android first and iOS also planned. Workday data and actions must survive loss of connectivity.
+- Field representatives use a mobile app, with Android first; native iOS planned (owner buys the Apple Developer account when asked). Workday data and actions must survive loss of connectivity.
 - Managers use a React + TypeScript web panel for users, visits, tracking, sales, and audit.
 - The UI is planned for Kurdish, Arabic, Persian, and English, including RTL layouts.
 
 ## Product rules
+- Every customer company gets its own VPS + database + API; one mobile app for all finds the company server from the company code (decisions D14–D16, `docs/DECISIONS.md`).
 - Isolate every tenant and enforce permissions on the server.
 - The server owns visit state transitions and final GPS/geofence decisions; the default geofence radius in the PRD summary is 20 m and configurable.
 - Check-out, like check-in, must be inside the customer's geofence with fresh valid GPS; recording any location is not enough (decision D2).

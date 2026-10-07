@@ -8,7 +8,11 @@ public static class AppLanguage
 {
     private const string PreferenceKey = "lang";
 
-    public static void Load() => Texts.Language = Preferences.Get(PreferenceKey, Texts.DefaultLanguage);
+    public static void Load()
+    {
+        Texts.Language = Preferences.Get(PreferenceKey, Texts.DefaultLanguage);
+        Texts.Profile = Preferences.Get("Industry", "") == "food" ? "food" : "";   // wording of the company (plan step 4.3)
+    }
 
     public static FlowDirection Direction => Texts.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 

@@ -80,4 +80,17 @@
 		<GoogleServicesJson Include="google-services.json" />
 	</ItemGroup>
 
+
+	<!-- Company servers (plan step 4.2): -p:LifeDropBaseDomain=lifedrop.example (code acme -> https://acme.lifedrop.example); -p:LifeDropBootstrapUrl is the single-server fallback -->
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+			<_Parameter1>BootstrapUrl</_Parameter1>
+			<_Parameter2>$(LifeDropBootstrapUrl)</_Parameter2>
+		</AssemblyAttribute>
+		<AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+			<_Parameter1>BaseDomain</_Parameter1>
+			<_Parameter2>$(LifeDropBaseDomain)</_Parameter2>
+		</AssemblyAttribute>
+	</ItemGroup>
+
 </Project>

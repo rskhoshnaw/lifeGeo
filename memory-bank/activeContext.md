@@ -1,6 +1,6 @@
 # Active Context
 
-Updated: 2026-10-04 (handoff for a new session).
+Updated: 2026-10-07. Latest owner decisions D14–D18 (plan section 2) and the final step order (plan section 7) are authoritative; work happens on GitHub only (owner syncs the local machine later); nothing goes to a production server until everything is tested (D14).
 
 ## Where we are
 Work follows `docs/IMPLEMENTATION-PLAN.md` step by step. Phase 0 is done (exit report `docs/PHASE0-EXIT-REPORT.md`). Phase 1:

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Bell, LogOut, Menu, X } from 'lucide-react'
 import { LanguagePicker } from './I18n.tsx'
+import { Credit } from './Credit.tsx'
 import { t } from '../i18n.ts'
 
 import { groups, placement, type NavItem } from './nav.ts'
@@ -84,6 +85,7 @@ export function Shell({ items, current, onSelect, notifications, email, company,
         <div className="shrink-0 border-t px-4 py-3 text-xs text-slate-500">
           <p className="truncate font-medium text-slate-700">{email}</p>
           <p className="truncate">{company}</p>
+          <Credit className="mt-2 leading-relaxed" />
         </div>
       </aside>
 

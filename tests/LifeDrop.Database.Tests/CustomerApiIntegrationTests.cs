@@ -4341,7 +4341,9 @@ public class CustomerApiIntegrationTests
             "GET /", "POST /auth/login", "POST /auth/refresh", "POST /auth/devices/register",
             "GET /openapi/{documentName}.json", // Development only
             // Monitors (plan step 3.7): no business data; /metrics answers 404 without Metrics:Token and 401 without the token.
-            "GET /health/live", "GET /health/ready", "GET /metrics"
+            "GET /health/live", "GET /health/ready", "GET /metrics",
+            // Company directory for the app (plan step 4.2): public facts only (name, API address, support phone).
+            "GET /company-config/{code}"
         };
 
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
@@ -7423,6 +7425,53 @@ public class CustomerApiIntegrationTests
         Assert.Contains("lifedrop_job_failures_total{job=\"bad_job\"} 1", text);
         Assert.Contains($"lifedrop_job_last_success_timestamp_seconds{{job=\"test_job\"}} {now.ToUnixTimeSeconds()}", text);
         Assert.DoesNotContain("lifedrop_job_last_success_timestamp_seconds{job=\"bad_job\"}", text);   // it never succeeded
+    }
+
+    [SkippableFact]
+    public async Task CompanyConfig_ReturnsPublicFactsOnlyForActiveCompanies()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code, is_active) VALUES
+                  (gen_random_uuid(), 'Acme Trading', 'acme', true),
+                  (gen_random_uuid(), 'Moved Co', 'moved', true),
+                  (gen_random_uuid(), 'Bad Url Co', 'badurl', true),
+                  (gen_random_uuid(), 'Closed Co', 'closed', false);", conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await using var configured = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("CompanyDirectory:moved:ApiBaseUrl", "https://api.moved.example/");
+            b.UseSetting("CompanyDirectory:badurl:ApiBaseUrl", "http://insecure.example");
+            b.UseSetting("Branding:SupportPhone", "+9647510686828");
+            b.UseSetting("Company:Industry", "food");
+        });
+        var client = configured.CreateClient();
+
+        using (var acme = await (await client.GetAsync("/company-config/ACME")).Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
+        {
+            Assert.Equal("acme", acme!.RootElement.GetProperty("tenantCode").GetString());
+            Assert.Equal("Acme Trading", acme.RootElement.GetProperty("name").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, acme.RootElement.GetProperty("apiBaseUrl").ValueKind);   // default: this server
+            Assert.Equal("+9647510686828", acme.RootElement.GetProperty("supportPhone").GetString());
+            Assert.Equal("food", acme.RootElement.GetProperty("industry").GetString());
+        }
+        using (var moved = await (await client.GetAsync("/company-config/moved")).Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
+            Assert.Equal("https://api.moved.example", moved!.RootElement.GetProperty("apiBaseUrl").GetString());
+        using (var bad = await (await client.GetAsync("/company-config/badurl")).Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, bad!.RootElement.GetProperty("apiBaseUrl").ValueKind);   // an insecure entry is ignored
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/company-config/closed")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/company-config/nobody")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/company-config/a%27%3B--")).StatusCode);   // not a company code
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expectedStatus, string expectedCode)

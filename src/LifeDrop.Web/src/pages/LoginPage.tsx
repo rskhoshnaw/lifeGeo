@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Credit } from '../components/Credit.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { LanguagePicker } from '../components/I18n.tsx'
 import { Logo } from '../components/Shell.tsx'
@@ -84,6 +85,7 @@ export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (ac
               {busy ? t('web.login.busy') : t('web.login.submit')}
             </button>
           </form>
+          <Credit className="mt-8" />
         </div>
       </section>
     </main>

@@ -6424,5 +6424,83 @@
   "ckb": "چوونەژوورەوە",
   "ar": "تسجيل الدخول",
   "fa": "ورود"
+ },
+ "app.login.companyNotFound": {
+  "en": "Company code not found.",
+  "ckb": "کۆدی کۆمپانیا نەدۆزرایەوە.",
+  "ar": "رمز الشركة غير موجود.",
+  "fa": "کد شرکت پیدا نشد."
+ },
+ "app.login.companyInvalid": {
+  "en": "Enter a valid company code.",
+  "ckb": "کۆدی دروستی کۆمپانیا بنووسە.",
+  "ar": "أدخل رمز شركة صالحاً.",
+  "fa": "کد شرکت معتبر وارد کنید."
+ },
+ "app.login.companyUnavailable": {
+  "en": "Could not reach the company server. Check the internet and try again.",
+  "ckb": "نەتوانرا بە سێرڤەری کۆمپانیا بگەیت. ئینتەرنێت بپشکنە و دووبارە هەوڵبدەوە.",
+  "ar": "تعذر الوصول إلى خادم الشركة. تحقق من الإنترنت وحاول مجدداً.",
+  "fa": "اتصال به سرور شرکت ممکن نشد. اینترنت را بررسی و دوباره تلاش کنید."
+ },
+ "app.login.notConfigured": {
+  "en": "This build has no server address. Contact support.",
+  "ckb": "ئەم وەشانە ناونیشانی سێرڤەری تێدا نییە. پەیوەندی بە پشتگیرییەوە بکە.",
+  "ar": "لا يحتوي هذا الإصدار على عنوان خادم. تواصل مع الدعم.",
+  "fa": "این نسخه نشانی سرور ندارد. با پشتیبانی تماس بگیرید."
+ },
+ "app.support": {
+  "en": "Support: {phone}",
+  "ckb": "پشتگیری: {phone}",
+  "ar": "الدعم: {phone}",
+  "fa": "پشتیبانی: {phone}"
+ },
+ "web.support": {
+  "en": "Support: {phone}",
+  "ckb": "پشتگیری: {phone}",
+  "ar": "الدعم: {phone}",
+  "fa": "پشتیبانی: {phone}"
+ },
+ "web.visitType.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "web.visitType.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "app.type.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "app.type.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "web.forms.applies.pharmacy@food": {
+  "en": "Shop / supermarket",
+  "ckb": "دوکان / سوپەرمارکێت",
+  "ar": "متجر / سوبرماركت",
+  "fa": "فروشگاه / سوپرمارکت"
+ },
+ "web.forms.applies.doctor@food": {
+  "en": "Restaurant / hotel",
+  "ckb": "چێشتخانە / هۆتێل",
+  "ar": "مطعم / فندق",
+  "fa": "رستوران / هتل"
+ },
+ "app.sample.recipient@food": {
+  "en": "Recipient (buyer or person)",
+  "ckb": "وەرگر (کڕیار یان کەس)",
+  "ar": "المستلم (مشتري أو شخص)",
+  "fa": "گیرنده (خریدار یا شخص)"
  }
 }
