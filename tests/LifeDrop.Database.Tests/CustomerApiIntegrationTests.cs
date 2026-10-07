@@ -1166,7 +1166,9 @@ public class CustomerApiIntegrationTests
             TimeProvider.System);
         Assert.Equal(LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, await tracker.ResumeAsync());
         var mobileShift = tracker.Shift!.Id;
-        for (var i = 0; i < 3; i++) tracker.AddFix(36.19 + i * 0.0001, 44.01, 9, DateTimeOffset.UtcNow, false);
+        // Times come from the shift start the server gave (not this computer's clock): the database may run in Docker/WSL2 with a clock a few milliseconds apart,
+        // and the server refuses points captured before the shift started.
+        for (var i = 0; i < 3; i++) tracker.AddFix(36.19 + i * 0.0001, 44.01, 9, tracker.Shift!.StartedAt.AddSeconds(1 + i), false);
         Assert.Equal(LifeDrop.Mobile.Tracking.ShiftCallStatus.Success, await tracker.EndAsync());
         Assert.Equal((0, 3), (tracker.QueuedPoints, tracker.SentPoints));
         var mobileSummary = (await client.GetFromJsonAsync<LifeDrop.Application.Tracking.ShiftSummaryDto>($"/shifts/{mobileShift}/summary"))!;
