@@ -42,9 +42,11 @@ public enum ShiftResult { Success, Created, NotFound, DeviceRequired, DeviceMism
 public sealed class ShiftTracking(IShiftStore store, TimeProvider clock)
 {
     public const int MaxPointsPerUpload = 200;
-    public static readonly TimeSpan ExpectedInterval = TimeSpan.FromSeconds(30);
+    // Owner decision 2026-10-07 (replaces the 30 s / 5 min of D1): a point about every 3 minutes saves battery on Android and fits iOS limits.
+    // Trust comes from proofs at the moments that matter (check-in/out, orders, payments), not from a dense trail.
+    public static readonly TimeSpan ExpectedInterval = TimeSpan.FromMinutes(3);
     public const double TargetCoveragePercent = 90;
-    public static readonly TimeSpan TargetMaxGap = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan TargetMaxGap = TimeSpan.FromMinutes(15);
     // A point may be up to this far ahead of the server clock (phone clock drift).
     public static readonly TimeSpan MaxFutureSkew = TimeSpan.FromSeconds(30);
 

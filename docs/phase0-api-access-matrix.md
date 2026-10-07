@@ -200,7 +200,7 @@ All routes act on the caller's own shift only (another user's or tenant's shift 
 | `GET /shifts/current` | The open shift, or 404 | — |
 | `POST /shifts/{id}/end` | Ends it (204); ending again also returns 204 | `shift.ended` |
 | `POST /shifts/{id}/points` | 1–200 points `{clientPointId, latitude, longitude, accuracyMeters, capturedAt, isMocked}` from the shift's device (else 403 `DEVICE_MISMATCH`). Points that are malformed, before the start, after the end or more than 30 s in the future are counted as `rejected`; a `clientPointId` already stored (or repeated in the batch) counts as `duplicate`. Returns `{accepted, duplicates, rejected}` | — (points are the record) |
-| `GET /shifts/{id}/summary` | `pointCount`, `expectedPoints` (one per 30 s), `coveragePercent`, `maxGapSeconds` (including start→first and last→end/now), `meetsTarget` (≥ 90 % and ≤ 5 min) — for the real-device test | — |
+| `GET /shifts/{id}/summary` | `pointCount`, `expectedPoints` (one per 3 minutes), `coveragePercent`, `maxGapSeconds` (including start→first and last→end/now), `meetsTarget` (≥ 90 % and ≤ 5 min) — for the real-device test | — |
 
 Migration 0016 adds `shifts` and `tracking_points` (tenant RLS). Coordinates are never written to audit or logs. Viewing other users' points is for the live map (step 1.19, D3). Retention (D6) is still open. Tests: `Shift_StartTrackEndWithDeviceDedupAndSummary`, `ShiftSummaryTests`, and the deployment rehearsal.
 

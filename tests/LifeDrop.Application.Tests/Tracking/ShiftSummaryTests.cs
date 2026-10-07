@@ -5,61 +5,65 @@ using Xunit;
 
 namespace LifeDrop.Application.Tests.Tracking;
 
-// Coverage rules for the real-device tracking test (plan step 1.13): >= 90 % of the expected 30 s points and no
-// gap over 5 minutes, counting from the shift start and up to its end.
+// Coverage rules for the real-device tracking test: >= 90 % of the expected points (one per 3 minutes, owner decision 2026-10-07)
+// and no gap over 15 minutes, counting from the shift start and up to its end.
 public class ShiftSummaryTests
 {
     private static readonly DateTimeOffset Start = new(2026, 10, 5, 5, 0, 0, TimeSpan.Zero);
-    private static ShiftDto Shift => new(Guid.NewGuid(), Guid.NewGuid(), Start, Start.AddMinutes(10));
+    private static ShiftDto Shift => new(Guid.NewGuid(), Guid.NewGuid(), Start, Start.AddMinutes(60));
 
-    private static DateTimeOffset[] Every30s(int count, int offsetSeconds = 30) =>
-        Enumerable.Range(0, count).Select(i => Start.AddSeconds(offsetSeconds + i * 30)).ToArray();
+    private static DateTimeOffset[] Every3Min(int count) =>
+        Enumerable.Range(1, count).Select(i => Start.AddMinutes(i * 3)).ToArray();
 
     [Fact]
     public void FullCoverageMeetsTarget()
     {
-        var summary = ShiftTracking.Summarize(Shift, Every30s(20), Start.AddMinutes(10));
-        Assert.Equal((20, 20, 100.0, 30, true), (summary.PointCount, summary.ExpectedPoints, summary.CoveragePercent, summary.MaxGapSeconds, summary.MeetsTarget));
+        var summary = ShiftTracking.Summarize(Shift, Every3Min(20), Start.AddMinutes(60));
+        Assert.Equal((20, 20, 100.0, 180, true), (summary.PointCount, summary.ExpectedPoints, summary.CoveragePercent, summary.MaxGapSeconds, summary.MeetsTarget));
     }
 
     [Fact]
     public void NinetyPercentWithShortGapsMeetsTarget()
     {
-        var points = Every30s(20).Where((_, i) => i is not (5 or 12)).ToArray(); // 18 of 20, two 60 s gaps
-        var summary = ShiftTracking.Summarize(Shift, points, Start.AddMinutes(10));
-        Assert.Equal((90.0, 60, true), (summary.CoveragePercent, summary.MaxGapSeconds, summary.MeetsTarget));
+        var points = Every3Min(20).Where((_, i) => i is not (5 or 12)).ToArray(); // 18 of 20, two 6-minute gaps
+        var summary = ShiftTracking.Summarize(Shift, points, Start.AddMinutes(60));
+        Assert.Equal((90.0, 360, true), (summary.CoveragePercent, summary.MaxGapSeconds, summary.MeetsTarget));
     }
 
     [Fact]
     public void LowCoverageFails()
     {
-        var summary = ShiftTracking.Summarize(Shift, Every30s(17), Start.AddMinutes(10)); // 85 %
+        var summary = ShiftTracking.Summarize(Shift, Every3Min(17), Start.AddMinutes(60)); // 85 %
         Assert.Equal(85.0, summary.CoveragePercent);
         Assert.False(summary.MeetsTarget);
     }
 
     [Fact]
-    public void LongGapFailsEvenWithEnoughPoints()
+    public void GapOfExactlyFifteenMinutesPassesAndLongerFails()
     {
-        // 20 points over 20 minutes, but none between minute 2 and minute 8
-        var shift = new ShiftDto(Guid.NewGuid(), Guid.NewGuid(), Start, Start.AddMinutes(10));
-        var points = Every30s(4).Concat(Enumerable.Range(0, 16).Select(i => Start.AddMinutes(8).AddSeconds(i * 7))).ToArray();
-        var summary = ShiftTracking.Summarize(shift, points, Start.AddMinutes(10));
-        Assert.Equal(360, summary.MaxGapSeconds);
-        Assert.False(summary.MeetsTarget);
+        var ok = Every3Min(4).Concat(Enumerable.Range(0, 16).Select(i => Start.AddMinutes(27).AddSeconds(i * 120))).ToArray(); // 12 -> 27 min
+        var okSummary = ShiftTracking.Summarize(Shift, ok, Start.AddMinutes(60));
+        Assert.Equal(900, okSummary.MaxGapSeconds);
+        Assert.True(okSummary.MeetsTarget);
+
+        var bad = Every3Min(4).Concat(Enumerable.Range(0, 16).Select(i => Start.AddMinutes(28).AddSeconds(i * 120))).ToArray(); // 12 -> 28 min
+        var badSummary = ShiftTracking.Summarize(Shift, bad, Start.AddMinutes(60));
+        Assert.Equal(960, badSummary.MaxGapSeconds);
+        Assert.Equal(100.0, badSummary.CoveragePercent);   // enough points, but the long gap alone fails it
+        Assert.False(badSummary.MeetsTarget);
     }
 
     [Fact]
     public void GapsAtStartAndEndCount()
     {
-        var late = ShiftTracking.Summarize(Shift, [Start.AddMinutes(6)], Start.AddMinutes(10));
-        Assert.Equal(360, late.MaxGapSeconds);
+        var late = ShiftTracking.Summarize(Shift, [Start.AddMinutes(16)], Start.AddMinutes(30));
+        Assert.Equal(960, late.MaxGapSeconds);
 
-        var silentEnd = ShiftTracking.Summarize(Shift, Every30s(8), Start.AddMinutes(10)); // last point at 4:00
-        Assert.Equal(360, silentEnd.MaxGapSeconds);
+        var silentEnd = ShiftTracking.Summarize(Shift, Every3Min(4), Start.AddMinutes(30)); // last point at 12:00
+        Assert.Equal(1080, silentEnd.MaxGapSeconds);
 
-        var none = ShiftTracking.Summarize(Shift, [], Start.AddMinutes(10));
-        Assert.Equal((0, 0.0, 600, false), (none.PointCount, none.CoveragePercent, none.MaxGapSeconds, none.MeetsTarget));
+        var none = ShiftTracking.Summarize(Shift, [], Start.AddMinutes(60));
+        Assert.Equal((0, 0.0, 3600, false), (none.PointCount, none.CoveragePercent, none.MaxGapSeconds, none.MeetsTarget));
     }
 
     [Fact]

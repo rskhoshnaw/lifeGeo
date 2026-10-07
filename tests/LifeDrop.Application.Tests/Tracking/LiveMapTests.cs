@@ -21,10 +21,10 @@ public class LiveMapTests
         new(user, "u@t1", "Team", region, Now.AddHours(-2), lastPoint, 36.19, 44.01, 12.5, false, "Shifa", Now.AddMinutes(-20));
 
     [Fact]
-    public void PointWithinFiveMinutesIsLive_OlderIsNot()
+    public void PointWithinTenMinutesIsLive_OlderIsNot()
     {
-        Assert.True(LiveMap.ToEntry(Row(Guid.NewGuid(), null, Now.AddMinutes(-5)), true, Now).IsLive);
-        var stale = LiveMap.ToEntry(Row(Guid.NewGuid(), null, Now.AddMinutes(-5).AddSeconds(-1)), true, Now);
+        Assert.True(LiveMap.ToEntry(Row(Guid.NewGuid(), null, Now.AddMinutes(-10)), true, Now).IsLive);
+        var stale = LiveMap.ToEntry(Row(Guid.NewGuid(), null, Now.AddMinutes(-10).AddSeconds(-1)), true, Now);
         Assert.False(stale.IsLive);
         Assert.Equal(36.19, stale.Latitude); // still shown, but as last known, not live
         Assert.False(LiveMap.ToEntry(Row(Guid.NewGuid(), null, null), true, Now).IsLive);
