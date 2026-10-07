@@ -41,6 +41,10 @@
 
             <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
 
+            <!-- Support line and developer credit (plan step 4.6), as on the sign-in page -->
+            <Label x:Name="SupportLabel" FontSize="13" TextColor="{StaticResource Gray500}" HorizontalOptions="Center" />
+            <Label Text="© 2026 Pixelo Design" FontSize="12" TextColor="{StaticResource Gray500}" HorizontalOptions="Center" />
+
         </VerticalStackLayout>
     </ScrollView>
 
