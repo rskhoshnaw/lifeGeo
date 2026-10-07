@@ -61,8 +61,13 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
-		<!-- QR code scanning in the sign-in screen (plan step 4.7). -->
-		<PackageReference Include="ZXing.Net.MAUI.Controls" Version="0.4.0.196" />
+		<!-- QR code scanning in the sign-in screen (plan step 4.7). NuGet resolves 0.5.0 (0.4.0.196 is not on the feed). -->
+		<PackageReference Include="ZXing.Net.MAUI.Controls" Version="0.5.0" />
+		<!-- ZXing 0.5.0's CameraX dependencies pull Xamarin.AndroidX.Tracing.Tracing 2.0.0 and
+		     Xamarin.AndroidX.Concurrent.Futures 1.3.0.4, conflicting with the 1.x Ktx bindings
+		     ("Type ... is defined multiple times" in R8). Pin the cores down to match the Ktx versions. -->
+		<PackageReference Include="Xamarin.AndroidX.Tracing.Tracing" Version="1.2.0.9" />
+		<PackageReference Include="Xamarin.AndroidX.Concurrent.Futures" Version="1.2.0.5" />
 	</ItemGroup>
 
 	<!-- Push messages (plan step 2.14, docs/PUSH.md): Firebase is added only when google-services.json (from the owner's Firebase project) is in this folder, so a
