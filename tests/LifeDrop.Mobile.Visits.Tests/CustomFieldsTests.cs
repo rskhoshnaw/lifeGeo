@@ -67,7 +67,9 @@ public class CustomFieldsTests
         Assert.True(draft.IsMissing(chairs));
         draft.Set(chairs.Id, "5");
         draft.Set(notes.Id, "");
-        Assert.Equal([(chairs.Id, "5")], draft.ToAnswers());
+        var answers = draft.ToAnswers();
+        Assert.Equal(1, answers.Count);
+        Assert.Equal((chairs.Id, "5"), answers[0]);
     }
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
