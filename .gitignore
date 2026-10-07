@@ -488,6 +488,7 @@ $RECYCLE.BIN/
 
 # Local LifeDrop development credentials
 src/LifeDrop.API/appsettings.Development.local.json
+src/LifeDrop.API/appsettings.Development.json
 
 # LifeDrop source and local-only artifacts
 !tools/
@@ -511,3 +512,5 @@ appsettings.*.local.json
 
 # Firebase client config of the owner (docs/PUSH.md); never committed
 src/LifeDrop.Mobile/google-services.json
+/opt/lifedrop/secrets/firebase-service-account.json
+
