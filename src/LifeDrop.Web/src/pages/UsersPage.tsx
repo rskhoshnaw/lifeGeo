@@ -19,7 +19,8 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
     <section className="p-6">
       <h2 className="mb-4 text-xl font-semibold">{t('web.users.title')}</h2>
       {(users.error ?? action.error) && <p role="alert" className="mb-3 text-sm text-red-700">{action.error ?? users.error}</p>}
-      {users.data && (
+      {users.data?.length === 0 && <p className="text-slate-600">{t('web.users.none')}</p>}
+      {users.data && users.data.length > 0 && (
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
