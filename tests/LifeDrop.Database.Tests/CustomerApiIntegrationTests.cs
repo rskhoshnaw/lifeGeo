@@ -4339,7 +4339,9 @@ public class CustomerApiIntegrationTests
         var publicRoutes = new[]
         {
             "GET /", "POST /auth/login", "POST /auth/refresh", "POST /auth/devices/register",
-            "GET /openapi/{documentName}.json" // Development only
+            "GET /openapi/{documentName}.json", // Development only
+            // Monitors (plan step 3.7): no business data; /metrics answers 404 without Metrics:Token and 401 without the token.
+            "GET /health/live", "GET /health/ready", "GET /metrics"
         };
 
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
@@ -7378,8 +7380,11 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
         using (var body = System.Text.Json.JsonDocument.Parse(await ready.Content.ReadAsStringAsync()))
             Assert.Equal(("ready", "up"), (body.RootElement.GetProperty("status").GetString(), body.RootElement.GetProperty("database").GetString()));
-        var burst = await Task.WhenAll(Enumerable.Range(0, 120).Select(_ => client.GetAsync("/health/ready")));
-        Assert.All(burst, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));   // far above the 100 per minute of the API: monitors are never refused
+        for (var batch = 0; batch < 6; batch++)   // 120 requests in six groups of 20 at once: far above the 100 per minute of the API, and the connection pool is not the test
+        {
+            var burst = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => client.GetAsync("/health/ready")));
+            Assert.All(burst, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));   // monitors are never refused
+        }
 
         // A business route and a path with an id: only the route template is a label
         var secret = Guid.NewGuid();
