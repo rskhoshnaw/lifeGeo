@@ -6449,6 +6449,18 @@
   "ar": "لا يحتوي هذا الإصدار على عنوان خادم. تواصل مع الدعم.",
   "fa": "این نسخه نشانی سرور ندارد. با پشتیبانی تماس بگیرید."
  },
+ "app.login.scanQr": {
+  "en": "QR",
+  "ckb": "QR",
+  "ar": "QR",
+  "fa": "QR"
+ },
+ "app.login.scanHint": {
+  "en": "Point the camera at the company QR code",
+  "ckb": "دوربین ئامانج بکە بە QR کۆمپانیا",
+  "ar": "وجّه الكاميرا نحو رمز QR للشركة",
+  "fa": "دوربین را به QR کد شرکت نشانه بگیرید"
+ },
  "app.support": {
   "en": "Support: {phone}",
   "ckb": "پشتگیری: {phone}",

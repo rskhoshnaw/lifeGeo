@@ -21,11 +21,12 @@ public partial class MainPage : ContentPage
         LanguageItem.Text = AppLanguage.CurrentName;
         ApiUrlEntry.Placeholder = Texts.Get("app.login.apiUrl");
         TenantEntry.Placeholder = Texts.Get("app.login.tenant");
-        // An invitation link pasted into the company field (plan step 4.7) is replaced by the company code it carries.
+        // A pasted link or deep-link into the company field is replaced by its code (plan step 4.7).
         TenantEntry.TextChanged += (_, e) =>
         {
             if (CompanyJoinLink.LooksLikeLink(e.NewTextValue) && CompanyJoinLink.TryGetCode(e.NewTextValue) is { } code) TenantEntry.Text = code;
         };
+        QrScanBtn.Text = Texts.Get("app.login.scanQr");
         EmailEntry.Placeholder = Texts.Get("app.login.email");
         PasswordEntry.Placeholder = Texts.Get("app.login.password");
         DeviceLabelEntry.Placeholder = Texts.Get("app.login.deviceLabel");
@@ -49,9 +50,14 @@ public partial class MainPage : ContentPage
     private static string Describe(AuthStatus status) =>
         status == AuthStatus.Success ? "" : Texts.Get("app.auth." + status);
 
+    // Called by MainActivity when the app is opened via a lifedrop:// deep link (plan step 4.7).
+    public void ApplyJoinCode(string code) => TenantEntry.Text = code;
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        var pending = AppConfig.ConsumePendingJoinCode();
+        if (pending is not null) TenantEntry.Text = pending;
         await CheckStatusAsync();
     }
 
@@ -146,6 +152,11 @@ public partial class MainPage : ContentPage
         Texts.Profile = config.Industry == "food" ? "food" : "";
 
         return (new AuthApiClient(new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) }), store);
+    }
+
+    private async void OnQrScanClicked(object sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new QrScanPage(code => TenantEntry.Text = code));
     }
 
     private async void OnRegisterClicked(object sender, EventArgs e)

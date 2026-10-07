@@ -15,4 +15,4 @@ The Companies tab has an **Invite** button for each company (not for the platfor
 | Panel | `https://<panel address>/?company=<code>` | opens the sign-in with the company code filled (still editable) |
 | App | `lifedrop://join/<code>` (this is the text in the QR code) | in the app, paste it into the company field: the code is taken out of it (`CompanyJoinLink`) |
 
-Not built yet because it needs a real phone: opening `lifedrop://` links directly in the app (Android intent filter) and scanning the QR code inside the app. Until then the QR code can be scanned by any QR reader and the text pasted into the app.
+Built in step 4.7 (final part): Android intent filter for `lifedrop://join/<code>` (`[IntentFilter]` on `MainActivity`, handled in `OnCreate`/`OnNewIntent`) and in-app QR scanner (`QrScanPage` with `ZXing.Net.MAUI.Controls`). Needs a real phone to verify.

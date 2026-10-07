@@ -15,7 +15,12 @@
             <!-- Development-only setting -->
             <Entry x:Name="ApiUrlEntry" Text="http://127.0.0.1:5256" IsVisible="True" FlowDirection="LeftToRight" />
             
-            <Entry x:Name="TenantEntry" FlowDirection="LeftToRight" />
+            <Grid ColumnDefinitions="*,Auto">
+                <Entry x:Name="TenantEntry" FlowDirection="LeftToRight" Grid.Column="0" />
+                <Button x:Name="QrScanBtn" Grid.Column="1" Margin="6,0,0,0"
+                        WidthRequest="44" HeightRequest="44" Padding="0"
+                        Clicked="OnQrScanClicked" />
+            </Grid>
             <Entry x:Name="EmailEntry" Keyboard="Email" FlowDirection="LeftToRight" />
             <Entry x:Name="PasswordEntry" IsPassword="True" FlowDirection="LeftToRight" />
             <Entry x:Name="DeviceLabelEntry" />
