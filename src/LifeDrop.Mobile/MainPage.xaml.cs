@@ -156,6 +156,10 @@ public partial class MainPage : ContentPage
 
     private async void OnQrScanClicked(object sender, EventArgs e)
     {
+        var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
+        if (status != PermissionStatus.Granted)
+            status = await Permissions.RequestAsync<Permissions.Camera>();
+        if (status != PermissionStatus.Granted) return;
         await Navigation.PushAsync(new QrScanPage(code => TenantEntry.Text = code));
     }
 
