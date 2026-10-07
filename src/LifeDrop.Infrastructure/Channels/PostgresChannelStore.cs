@@ -62,8 +62,8 @@ public sealed class PostgresChannelStore(NpgsqlDataSource dataSource) : IChannel
     public async Task<TenantId?> FindTenantAsync(string tenantCode, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT id FROM tenants WHERE code = @code AND is_active", connection);
-        command.Parameters.AddWithValue("code", tenantCode);
+        await using var command = new NpgsqlCommand("SELECT id FROM tenants WHERE lower(code) = @code AND is_active", connection);   // company codes are case-insensitive everywhere (the link code is lower case)
+        command.Parameters.AddWithValue("code", tenantCode.ToLowerInvariant());
         return await command.ExecuteScalarAsync(cancellationToken) is Guid id ? new TenantId(id) : null;
     }
 
