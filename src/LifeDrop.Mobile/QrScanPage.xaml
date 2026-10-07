@@ -7,7 +7,7 @@
 
     <Grid>
         <zxing:CameraBarcodeReaderView x:Name="BarcodeReader"
-                                       BarcodeDetected="OnBarcodeDetected"
+                                       BarcodesDetected="OnBarcodesDetected"
                                        Options="{Binding ScanOptions, Source={x:Reference ScanPage}}" />
 
         <Grid VerticalOptions="End" Padding="20" BackgroundColor="#80000000">

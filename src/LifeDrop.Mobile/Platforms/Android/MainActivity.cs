@@ -35,7 +35,7 @@ public class MainActivity : MauiAppCompatActivity
         if (intent?.Action != Intent.ActionView) return;
         var code = CompanyJoinLink.TryGetCode(intent.DataString);
         if (code is null) return;
-        if (Application.Current?.MainPage is MainPage page) page.ApplyJoinCode(code);
+        if (Microsoft.Maui.Controls.Application.Current?.MainPage is MainPage page) page.ApplyJoinCode(code);
         else AppConfig.SetPendingJoinCode(code);
     }
 }

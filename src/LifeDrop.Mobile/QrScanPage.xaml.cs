@@ -13,7 +13,7 @@ public partial class QrScanPage : ContentPage
 
     public BarcodeReaderOptions ScanOptions { get; } = new()
     {
-        Formats = BarcodeFormats.QrCode,
+        Formats = BarcodeFormats.All,
         AutoRotate = true,
         Multiple = false,
     };
@@ -37,7 +37,7 @@ public partial class QrScanPage : ContentPage
         base.OnDisappearing();
     }
 
-    private void OnBarcodeDetected(object? sender, BarcodeDetectionEventArgs e)
+    private void OnBarcodesDetected(object? sender, BarcodeDetectionEventArgs e)
     {
         if (_handled) return;
         var raw = e.Results.FirstOrDefault()?.Value;
