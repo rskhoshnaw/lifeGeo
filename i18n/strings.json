@@ -6286,5 +6286,65 @@
   "ckb": "{live} ڕاستەوخۆ لە {total}",
   "ar": "{live} مباشر من {total}",
   "fa": "{live} زنده از {total}"
+ },
+ "app.custom.button": {
+  "en": "Extra fields",
+  "ckb": "خانە زیادەکان",
+  "ar": "حقول إضافية",
+  "fa": "فیلدهای اضافه"
+ },
+ "app.custom.title": {
+  "en": "Extra fields of the visit",
+  "ckb": "خانە زیادەکانی سەردان",
+  "ar": "الحقول الإضافية للزيارة",
+  "fa": "فیلدهای اضافهٔ ویزیت"
+ },
+ "app.custom.none": {
+  "en": "Your company has no extra fields for this visit.",
+  "ckb": "کۆمپانیاکەت هیچ خانەیەکی زیادەی بۆ ئەم سەردانە نییە.",
+  "ar": "لا تملك شركتك حقولاً إضافية لهذه الزيارة.",
+  "fa": "شرکت شما برای این ویزیت فیلد اضافه‌ای ندارد."
+ },
+ "app.custom.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوتکردن",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "app.custom.saved": {
+  "en": "Saved.",
+  "ckb": "پاشەکەوت کرا.",
+  "ar": "تم الحفظ.",
+  "fa": "ذخیره شد."
+ },
+ "app.custom.required": {
+  "en": "required",
+  "ckb": "پێویستە",
+  "ar": "إلزامي",
+  "fa": "الزامی"
+ },
+ "app.custom.choose": {
+  "en": "Choose",
+  "ckb": "هەڵبژێرە",
+  "ar": "اختر",
+  "fa": "انتخاب کنید"
+ },
+ "app.custom.yes": {
+  "en": "Yes",
+  "ckb": "بەڵێ",
+  "ar": "نعم",
+  "fa": "بله"
+ },
+ "app.custom.no": {
+  "en": "No",
+  "ckb": "نەخێر",
+  "ar": "لا",
+  "fa": "خیر"
+ },
+ "app.custom.date": {
+  "en": "Date (yyyy-mm-dd)",
+  "ckb": "بەروار (ساڵ-مانگ-ڕۆژ، yyyy-mm-dd)",
+  "ar": "التاريخ (yyyy-mm-dd)",
+  "fa": "تاریخ (yyyy-mm-dd)"
  }
 }
