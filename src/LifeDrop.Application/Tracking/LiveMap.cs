@@ -23,8 +23,8 @@ public interface ILiveMapStore
 
 public sealed class LiveMap(ILiveMapStore store, IPermissionStore permissions, TimeProvider clock)
 {
-    // Decision D1: points about every 30 s, at most a 5-minute gap.
-    public static readonly TimeSpan LiveWindow = TimeSpan.FromMinutes(5);
+    // Points arrive about every 3 minutes (owner decision 2026-10-07), so a user is "live" while the last point is at most 10 minutes old.
+    public static readonly TimeSpan LiveWindow = TimeSpan.FromMinutes(10);
 
     public async Task<IReadOnlyList<LiveMapEntryDto>?> ListAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
     {

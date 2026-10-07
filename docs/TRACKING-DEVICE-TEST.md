@@ -1,7 +1,7 @@
 # Real-device tracking test (plan step 1.13)
 
-Target (decision D1, 2026-10-04): while moving, at least **90 %** of the expected points (one per 30 s) arrive and
-no gap is longer than **5 minutes**. Battery use is measured on the same run.
+Target (decision D1 as changed by the owner on 2026-10-07): while moving, at least **90 %** of the expected points (one per 3 minutes) arrive and
+no gap is longer than **15 minutes**. Battery use is measured on the same run.
 
 ## Setup
 1. Apply migrations up to `0016` and the grants file on the test database; run the API.

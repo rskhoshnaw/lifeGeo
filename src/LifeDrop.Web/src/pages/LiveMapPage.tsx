@@ -9,7 +9,7 @@ const refreshMs = 30_000
 const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
 
 // Basic live map (plan step 1.19, decision D3): users on shift, refreshed every 30 s. A point older than
-// 5 minutes is never shown as live. Users without tracking.read see status only; the server sends no coordinates.
+// 10 minutes (points arrive about every 3 minutes) is never shown as live. Users without tracking.read see status only; the server sends no coordinates.
 export function LiveMapPage({ admin }: { admin: AdminApi }) {
   const live = useLoad(useCallback(() => admin.liveMap(), [admin]))
   const { reload } = live

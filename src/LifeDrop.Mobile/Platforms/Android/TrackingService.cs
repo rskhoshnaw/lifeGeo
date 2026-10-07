@@ -12,16 +12,16 @@ using System.Threading.Tasks;
 
 namespace LifeDrop.Mobile;
 
-// Foreground service that records the position about every 30 s while a shift is on (plan step 1.13, PRD §6.2,
+// Foreground service that records the position about every 3 minutes while a shift is on (plan step 1.13, PRD §6.2,
 // decision D1). A visible notification says tracking is active. Points are queued in the shared ShiftTracker and
-// uploaded every minute. The service stops itself when no shift is on.
+// uploaded every 3 minutes. The service stops itself when no shift is on.
 [Service(Exported = false, ForegroundServiceType = ForegroundService.TypeLocation)]
 public sealed class TrackingService : Service, ILocationListener
 {
-    public const long IntervalMilliseconds = 30_000;
+    public const long IntervalMilliseconds = 180_000;   // owner decision 2026-10-07: fewer fixes, less battery
     private const int NotificationId = 1013;
     private const string ChannelId = "lifedrop_tracking";
-    private static readonly TimeSpan UploadEvery = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan UploadEvery = TimeSpan.FromMinutes(3);
 
     private LocationManager? _locations;
     private Timer? _uploadTimer;
