@@ -69,7 +69,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
           <input type="password" autoComplete="new-password" className="mt-1 block w-full rounded border px-2 py-1" value={form.managerPassword} required minLength={12} maxLength={200} onChange={(e) => setForm({ ...form, managerPassword: e.target.value })} />
         </label>
         <div className="col-span-2 text-end">
-          <button className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy}>
+          <button className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy}>
             {t('web.platform.add')}
           </button>
         </div>
@@ -133,7 +133,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
           <input className="mt-1 block w-full rounded border px-2 py-1" value={reason} required minLength={10} maxLength={500} onChange={(e) => setReason(e.target.value)} />
         </label>
         <div className="col-span-2 text-end">
-          <button className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !company || reason.trim().length < 10}>
+          <button className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !company || reason.trim().length < 10}>
             {t('web.platform.audit.read')}
           </button>
         </div>

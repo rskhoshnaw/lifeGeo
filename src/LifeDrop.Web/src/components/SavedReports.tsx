@@ -129,7 +129,7 @@ export function SavedReports({ admin, filter, onOpen }: { admin: AdminApi; filte
             <input type="number" min={0} max={23} className="mt-1 block w-20 rounded border px-2 py-1" value={hour} onChange={(e) => setHour(Math.min(23, Math.max(0, Number(e.target.value) || 0)))} />
           </label>
         )}
-        <button className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !name.trim()}>
+        <button className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || !name.trim()}>
           {t('web.saved.save')}
         </button>
       </form>
