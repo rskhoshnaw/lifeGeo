@@ -4,6 +4,7 @@ using Android.Content;
 using Android.Gms.Tasks;
 using Firebase.Messaging;
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;

@@ -1,4 +1,5 @@
 using LifeDrop.Mobile.Localization;
+using LifeDrop.Mobile.Offline;
 using Xunit;
 
 namespace LifeDrop.Mobile.Visits.Tests;
