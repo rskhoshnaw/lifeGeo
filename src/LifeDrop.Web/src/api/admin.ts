@@ -389,7 +389,7 @@ export interface FollowUp {
 }
 export interface Alert {
   id: string
-  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch'
+  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch' | 'impossible_travel' | 'short_stay' | 'low_coverage'
   category: 'operational' | 'security'
   severity: 'info' | 'warning' | 'critical'
   subjectEmail: string | null
@@ -404,7 +404,7 @@ export interface Alert {
   handledOutcome?: 'valid' | 'suspicious' | 'fraud' | null
 }
 // Security alerts about behaviour: handling them needs the result of the review (step 2.10).
-export const reviewedAlertKinds = ['gps_mocked', 'impossible_speed', 'clock_tamper', 'outside_area', 'poor_accuracy', 'device_mismatch']
+export const reviewedAlertKinds = ['gps_mocked', 'impossible_speed', 'clock_tamper', 'outside_area', 'poor_accuracy', 'device_mismatch', 'impossible_travel', 'short_stay']
 // Route history of one user on one day (step 2.11, decision D6): points in time order, stops (5 minutes within 50 m), check-ins/outs and shifts.
 export interface RoutePoint {
   latitude: number

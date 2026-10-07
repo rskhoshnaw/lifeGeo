@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LifeDrop.Application.Alerts;
+using LifeDrop.Application.Tracking;
 using LifeDrop.Domain.Common;
 using Npgsql;
 using NpgsqlTypes;
@@ -170,6 +171,10 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             command.Parameters.AddWithValue("areaRadius", AlertRules.AreaRadiusMeters);
             command.Parameters.AddWithValue("poorMeters", AlertRules.PoorAccuracyMeters);
             command.Parameters.AddWithValue("poorCount", AlertRules.PoorAccuracyCount);
+            command.Parameters.Add(P("minStay", NpgsqlDbType.Interval, AlertRules.MinStay));
+            command.Parameters.Add(P("coverageMinShift", NpgsqlDbType.Interval, AlertRules.CoverageMinShift));
+            command.Parameters.AddWithValue("coveragePercent", AlertRules.LowCoveragePercent);
+            command.Parameters.AddWithValue("expectedSeconds", ShiftTracking.ExpectedInterval.TotalSeconds);
             created += await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -318,6 +323,58 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
                 WHERE p.tenant_id = @tenant AND sh.started_at > @now - @window AND p.device_id <> sh.device_id
                 GROUP BY p.tenant_id, p.shift_id, p.user_id, sh.device_id
             ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        // Plan step 4.8: signals that need no dense tracking. Travel time between two visits (accepted check-in/out events of one user), a stay that is too short,
+        // and a finished shift with too few tracking points.
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, customer_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'impossible_travel', 'security', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.customer_id, x.visit_id::text, round(x.speed)::text || ' km/h',
+                   jsonb_build_object('fromVisitId', x.prev_visit_id, 'toVisitId', x.visit_id, 'fromAt', x.prev_at, 'toAt', x.captured_at, 'distanceM', round(x.dist), 'seconds', round(x.dt),
+                                      'speedKmh', round(x.speed)),
+                   'impossible_travel:' || x.visit_id, x.captured_at
+            FROM (
+                SELECT q.*, v.customer_id, ST_Distance(q.geom, q.prev_geom) AS dist, extract(epoch FROM q.captured_at - q.prev_at) AS dt,
+                       ST_Distance(q.geom, q.prev_geom) / extract(epoch FROM q.captured_at - q.prev_at) * 3.6 AS speed
+                FROM (
+                    SELECT e.tenant_id, e.user_id, e.visit_id, e.kind, e.geom, e.captured_at,
+                           lag(e.visit_id) OVER w AS prev_visit_id, lag(e.geom) OVER w AS prev_geom, lag(e.captured_at) OVER w AS prev_at
+                    FROM visit_location_events e
+                    WHERE e.tenant_id = @tenant AND e.accepted AND e.captured_at > @now - @window - @window
+                    WINDOW w AS (PARTITION BY e.user_id ORDER BY e.captured_at, e.id)
+                ) q
+                JOIN visits v ON v.tenant_id = q.tenant_id AND v.id = q.visit_id
+                WHERE q.kind = 'check_in' AND q.prev_visit_id IS NOT NULL AND q.prev_visit_id <> q.visit_id AND q.captured_at > q.prev_at AND q.captured_at > @now - @window
+                  AND ST_Distance(q.geom, q.prev_geom) > @minJump
+                  AND ST_Distance(q.geom, q.prev_geom) / extract(epoch FROM q.captured_at - q.prev_at) * 3.6 > @maxSpeed
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, customer_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT i.tenant_id, 'short_stay', 'security', 'info', i.user_id, {string.Format(RegionOf, "i.user_id")}, v.customer_id, i.visit_id::text, round(extract(epoch FROM o.captured_at - i.captured_at))::text || ' s',
+                   jsonb_build_object('checkInAt', i.captured_at, 'checkOutAt', o.captured_at, 'seconds', round(extract(epoch FROM o.captured_at - i.captured_at)), 'minSeconds', extract(epoch FROM @minStay)),
+                   'short_stay:' || i.visit_id, o.captured_at
+            FROM visit_location_events i
+            JOIN visit_location_events o ON o.tenant_id = i.tenant_id AND o.visit_id = i.visit_id AND o.kind = 'check_out' AND o.accepted
+            JOIN visits v ON v.tenant_id = i.tenant_id AND v.id = i.visit_id
+            WHERE i.tenant_id = @tenant AND i.kind = 'check_in' AND i.accepted AND o.captured_at > @now - @window
+              AND o.captured_at >= i.captured_at AND o.captured_at - i.captured_at < @minStay
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'low_coverage', 'operational', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.id::text, x.coverage::text || ' %',
+                   jsonb_build_object('points', x.n, 'expectedPoints', x.expected, 'coveragePercent', x.coverage, 'startedAt', x.started_at, 'endedAt', x.ended_at),
+                   'low_coverage:' || x.id, x.ended_at
+            FROM (
+                SELECT sh.tenant_id, sh.id, sh.user_id, sh.started_at, sh.ended_at, p.n, e.expected, round((100.0 * p.n / e.expected)::numeric, 1) AS coverage
+                FROM shifts sh
+                CROSS JOIN LATERAL (SELECT count(*) AS n FROM tracking_points tp WHERE tp.tenant_id = sh.tenant_id AND tp.shift_id = sh.id) p
+                CROSS JOIN LATERAL (SELECT greatest(1, floor(extract(epoch FROM sh.ended_at - sh.started_at) / @expectedSeconds)) AS expected) e
+                WHERE sh.tenant_id = @tenant AND sh.ended_at IS NOT NULL AND sh.started_at > @now - @window AND sh.ended_at - sh.started_at >= @coverageMinShift
+            ) x
+            WHERE x.coverage < @coveragePercent
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
         await transaction.CommitAsync(cancellationToken);
