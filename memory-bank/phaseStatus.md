@@ -39,7 +39,7 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | Next | app screen for the custom form fields; 3.3 (needs Iraq coverage test), 3.4, 3.5, 3.7, 3.9; **3.2** (form/report builder) — check the plan; 3.6/3.8 wait for D9/D8 (phase 1 exit also waits for the owner review of translations and the real-device tracking/offline tests) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
-Open decisions: D4, D6, D8, D9; API host (needed for panel deploy).
+Open decisions: D4, D6, D8; API host. Decisions of 2026-10-07 (no RMR, plain root VPS, deploy only after everything is tested, buy Apple/Google accounts when asked, SMS/WhatsApp optional and off): see `docs/DECISIONS.md`.
 
 ## Log (one line per step, newest last)
 - 1.15: migration 0018, `/customer-approvals`, `POST /customers/{id}/approval`; DB 33/33.
