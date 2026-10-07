@@ -101,6 +101,14 @@ public partial class Program
             return new LifeDrop.Infrastructure.Push.FcmPushSender(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }, json);
         });
         builder.Services.AddHostedService<LifeDrop.API.PushDispatchService>();
+        // Message channels (step 3.4, D17): off by default. Channels:Enabled=true plus Channels:Telegram:BotToken (and :BotUsername) turn Telegram on (docs/CHANNELS.md).
+        builder.Services.AddScoped<LifeDrop.Application.Channels.IChannelStore, LifeDrop.Infrastructure.Channels.PostgresChannelStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Channels.ChannelLinkService>();
+        builder.Services.AddScoped<LifeDrop.Application.Channels.ChannelDispatcher>();
+        builder.Services.AddSingleton<LifeDrop.Application.Channels.IChannelTexts>(_ => new LifeDrop.Infrastructure.Channels.ChannelTexts(builder.Configuration["Channels:Language"]));
+        builder.Services.AddSingleton<LifeDrop.Application.Channels.ITelegramBot>(_ => new LifeDrop.Infrastructure.Channels.TelegramBot(new HttpClient { Timeout = TimeSpan.FromSeconds(15) },
+            builder.Configuration.GetValue("Channels:Enabled", false), builder.Configuration["Channels:Telegram:BotToken"], builder.Configuration["Channels:Telegram:BotUsername"]));
+        builder.Services.AddHostedService<LifeDrop.API.ChannelService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerPriorityStore, LifeDrop.Infrastructure.Customers.PostgresCustomerPriorityStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
@@ -697,6 +705,7 @@ public partial class Program
         LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
         LifeDrop.API.Endpoints.CustomerEndpoints.MapCustomerEndpoints(app);
         LifeDrop.API.Endpoints.ShiftEndpoints.MapShiftEndpoints(app);
+        LifeDrop.API.Endpoints.ChannelEndpoints.MapChannelEndpoints(app);
 
         app.Run();
     }

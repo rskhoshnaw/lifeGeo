@@ -1048,3 +1048,48 @@ describe('panel management screens', () => {
     expect(screen.getByText('No teams yet.')).toBeInTheDocument()
   })
 })
+
+describe('Telegram link (step 3.4)', () => {
+  const staff: Me = { id: 's', email: 'sv@t1', roles: ['Supervisor'], permissions: ['customers.read'] }
+  const base = { '/notifications/unread-count': { count: 0 }, '/notifications?limit=200': [] }
+
+  it('says the channel is off and offers nothing while the company has not turned it on', async () => {
+    const { api } = server(staff, { ...base, '/channels': { enabled: false, botUsername: null, telegramLinked: false } })
+    render(<App api={api} />)
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Notifications' }))
+    expect(await screen.findByText('Telegram messages are not turned on for this company.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect Telegram' })).not.toBeInTheDocument()
+  })
+
+  it('gives a one-time code and a link to the company bot, then shows the link once Telegram confirmed it, and disconnects', async () => {
+    const data: Record<string, unknown> = { ...base, '/channels': { enabled: true, botUsername: 'lifedrop_bot', telegramLinked: false } }
+    const { api, calls } = server(staff, data, { '/channels/telegram/link': json({ code: 'acme_k3m9q2x7wb4d', botUsername: 'lifedrop_bot', expiresAt: '2026-10-07T12:15:00Z' }) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    await user.click(await screen.findByRole('button', { name: 'Connect Telegram' }))
+
+    expect(await screen.findByRole('link', { name: 'Open Telegram and press Start' })).toHaveAttribute('href', 'https://t.me/lifedrop_bot?start=acme_k3m9q2x7wb4d')
+    expect(screen.getByText('/start acme_k3m9q2x7wb4d')).toBeInTheDocument()
+    expect(screen.getByText('Or send this message to @lifedrop_bot:')).toBeInTheDocument()
+    expect(screen.getByText('Messages contain customer names and codes and pass through Telegram. Connect only your own private chat.')).toBeInTheDocument()
+
+    data['/channels'] = { enabled: true, botUsername: 'lifedrop_bot', telegramLinked: true }   // the user pressed Start in Telegram
+    await user.click(screen.getByRole('button', { name: 'I did it: check again' }))
+    expect(await screen.findByText('Telegram is connected: these messages also arrive in your Telegram.')).toBeInTheDocument()
+    expect(screen.queryByText('/start acme_k3m9q2x7wb4d')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }))
+    expect(posts(calls).map((c) => c.path)).toEqual(['/channels/telegram/link', '/channels/telegram/unlink'])
+  })
+
+  it('shows the error when the code cannot be made', async () => {
+    const { api } = server(staff, { ...base, '/channels': { enabled: true, botUsername: null, telegramLinked: false } }, { '/channels/telegram/link': json({ code: 'SERVICE_UNAVAILABLE' }, 503) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    await user.click(await screen.findByRole('button', { name: 'Connect Telegram' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText(/^\/start /)).not.toBeInTheDocument()
+  })
+})

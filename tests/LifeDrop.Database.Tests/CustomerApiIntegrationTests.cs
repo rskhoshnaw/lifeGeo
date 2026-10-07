@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text;
@@ -140,7 +141,8 @@ public class CustomerApiIntegrationTests
                 var m39 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0039_saved_reports.sql"));
                 var m40 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0040_custom_fields.sql"));
                 var m41 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0041_antifraud_visits.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41;
+                var m42 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0042_channels.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5970,6 +5972,169 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Post($"/alerts/{coverage.Id}/handle", new { Note = "phone battery", Outcome = "valid" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         Assert.Equal(HttpStatusCode.NoContent, (await Post($"/alerts/{coverage.Id}/handle", new { Note = "phone battery" })).StatusCode);
         Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+    }
+
+    private sealed class ChannelBotFake : LifeDrop.Application.Channels.ITelegramBot
+    {
+        public bool IsConfigured => true;
+        public string? BotUsername => "lifedrop_bot";
+        public LifeDrop.Application.Channels.ChannelOutcome Next { get; set; } = LifeDrop.Application.Channels.ChannelOutcome.Sent;
+        public List<(string Chat, string Text)> Sent { get; } = new();
+        public Task<LifeDrop.Application.Channels.ChannelOutcome> SendAsync(string chatId, string text, CancellationToken cancellationToken)
+        {
+            Sent.Add((chatId, text));
+            return Task.FromResult(Next);
+        }
+        public Task<IReadOnlyList<LifeDrop.Application.Channels.TelegramUpdate>?> GetUpdatesAsync(long offset, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<LifeDrop.Application.Channels.TelegramUpdate>?>(null);
+    }
+
+    private sealed class ChannelTextsFake : LifeDrop.Application.Channels.IChannelTexts
+    {
+        public string Get(string key, params (string Name, object Value)[] vars) => vars.Length == 0 ? key : key + ":" + string.Join(",", vars.Select(v => v.Name + "=" + v.Value));
+    }
+
+    [SkippableFact]
+    public async Task Channels_TelegramLinkNeedsTheOneTimeCodeFromAPrivateChatThenMessagesGoAndTheLinkCanBeDropped()
+    {
+        // Plan step 3.4, D17: optional channels. The fake bot stands for Telegram; the test drives the background job itself (Channels:IntervalSeconds = 0).
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, baseFactory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = baseFactory;
+        var bot = new ChannelBotFake();
+        await using var factory = baseFactory.WithWebHostBuilder(webBuilder =>
+        {
+            webBuilder.UseSetting("Channels:IntervalSeconds", "0");
+            webBuilder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<LifeDrop.Application.Channels.ITelegramBot>(bot);
+                services.AddSingleton<LifeDrop.Application.Channels.IChannelTexts>(new ChannelTextsFake());
+            });
+        });
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid staff = Guid.NewGuid(), other = Guid.NewGuid(), actor = Guid.NewGuid(), region = Guid.NewGuid(), c1 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                INSERT INTO users (id, tenant_id) VALUES (@staff, @t1), (@other, @t1), (@actor, @t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil');
+                INSERT INTO customers (id, tenant_id, type, code, name, geom, status, owner_user_id, region_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'P-1', 'Shifa', ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 'located', @staff, @r1);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("staff", staff), ("other", other), ("actor", actor), ("r1", region), ("c1", c1) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        async Task<T> Sql<T>(string sql, params (string Name, object Value)[] args)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using (var set = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false)", conn))
+            {
+                set.Parameters.AddWithValue("t1", t1);
+                await set.ExecuteNonQueryAsync();
+            }
+            await using var query = new NpgsqlCommand(sql, conn);
+            query.Parameters.AddWithValue("t1", t1);
+            foreach (var (name, value) in args) query.Parameters.AddWithValue(name, value);
+            var result = await query.ExecuteScalarAsync();
+            return result is null or DBNull ? default! : (T)result;
+        }
+        Task<long> AddNotification(Guid user) => Sql<long>(@"
+            WITH x AS (INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id) VALUES (@t1, @user, 'customer.profile_changed', @c1::text, @actor) RETURNING 1)
+            SELECT count(*) FROM x", ("user", user), ("c1", c1), ("actor", actor));
+        Task<long> UnsentCount() => Sql<long>("SELECT count(*) FROM notifications WHERE channel_sent_at IS NULL");
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<LifeDrop.Application.Channels.ChannelStatus> Status() => (await client.GetFromJsonAsync<LifeDrop.Application.Channels.ChannelStatus>("/channels"))!;
+        async Task<LifeDrop.Application.Channels.TelegramLink> StartLink()
+        {
+            var response = await client.PostAsync("/channels/telegram/link", null);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Channels.TelegramLink>())!;
+        }
+        long updateId = 0;
+        async Task Update(string chat, bool isPrivate, string text)
+        {
+            using var scope = factory.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Channels.ChannelLinkService>()
+                .HandleUpdateAsync(new LifeDrop.Application.Channels.TelegramUpdate(++updateId, chat, isPrivate, text), CancellationToken.None);
+        }
+        async Task<int> Dispatch()
+        {
+            using var scope = factory.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Channels.ChannelDispatcher>()
+                .DispatchTenantAsync(new LifeDrop.Domain.Common.TenantId(t1), CancellationToken.None);
+        }
+
+        // Everybody sees only their own status; the bot is on
+        As(staff);
+        var status = await Status();
+        Assert.Equal((true, "lifedrop_bot", false), (status.Enabled, status.BotUsername, status.TelegramLinked));
+
+        // The code is the company code plus a random part; only its hash is stored
+        var link = await StartLink();
+        Assert.StartsWith("t1_", link.Code);
+        Assert.Equal("t1_".Length + LifeDrop.Application.Channels.ChannelLinkService.RandomLength, link.Code.Length);
+        Assert.Equal(32, await Sql<int>("SELECT octet_length(code_hash) FROM channel_link_codes WHERE user_id = @u", ("u", staff)));
+        Assert.Equal(0L, await Sql<long>("SELECT count(*) FROM channel_link_codes WHERE code_hash = convert_to(@code, 'UTF8')", ("code", link.Code)));
+
+        // A group chat and other talk do nothing; a wrong code is answered as invalid; the right code from a private chat links
+        await Update("-100", false, "/start " + link.Code);
+        await Update("777", true, "hello");
+        Assert.Empty(bot.Sent);
+        Assert.False((await Status()).TelegramLinked);
+        await Update("777", true, "/start t1_zzzzzzzzzzzz");
+        Assert.Equal(("777", "msg.channel.linkInvalid"), bot.Sent.Last());
+        Assert.False((await Status()).TelegramLinked);
+        await Update("777", true, "/start " + link.Code);
+        Assert.Equal(("777", "msg.channel.linked"), bot.Sent.Last());
+        Assert.True((await Status()).TelegramLinked);
+        await Update("888", true, "/start " + link.Code);   // the code works once
+        Assert.Equal(("888", "msg.channel.linkInvalid"), bot.Sent.Last());
+        Assert.Equal("777", await Sql<string>("SELECT address FROM user_channels WHERE user_id = @u", ("u", staff)));
+        As(other);
+        Assert.False((await Status()).TelegramLinked);   // nobody else is linked by it
+
+        // Messages: the linked user gets one with the customer; the user without a link gets nothing and is not left waiting
+        await AddNotification(staff);
+        await AddNotification(other);
+        var sentBefore = bot.Sent.Count;
+        Assert.Equal(1, await Dispatch());
+        Assert.Equal(("777", "msg.channel.customerProfileChanged:name=Shifa,code=P-1"), bot.Sent[sentBefore]);
+        Assert.Equal(sentBefore + 1, bot.Sent.Count);
+        Assert.Equal(0L, await UnsentCount());
+        Assert.Equal(0, await Dispatch());   // each message once
+
+        // Unlinking: only the own link; the second time there is nothing to remove
+        As(staff);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/channels/telegram/unlink", null)).StatusCode);
+        await AssertProblemAsync(await client.PostAsync("/channels/telegram/unlink", null), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.False((await Status()).TelegramLinked);
+
+        // A chat Telegram says is gone loses its link, and its message is done
+        var again = await StartLink();
+        await Update("999", true, "/start " + again.Code);
+        Assert.True((await Status()).TelegramLinked);
+        bot.Next = LifeDrop.Application.Channels.ChannelOutcome.InvalidAddress;
+        await AddNotification(staff);
+        Assert.Equal(0, await Dispatch());
+        Assert.False((await Status()).TelegramLinked);
+        Assert.Equal(0L, await UnsentCount());
+
+        Assert.Equal("channel.telegram_linked=2,channel.telegram_unlinked=1", await Sql<string>(@"
+            SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
+            FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'channel.%' GROUP BY action) a"));
     }
 
     [SkippableFact]

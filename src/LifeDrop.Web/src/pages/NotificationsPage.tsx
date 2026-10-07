@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { AdminApi, type Notification } from '../api/admin.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { TelegramCard } from '../components/TelegramCard.tsx'
 import { t } from '../i18n.ts'
 
 const when = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', dateStyle: 'short', timeStyle: 'short' })
@@ -34,6 +35,7 @@ export function NotificationsPage({ admin, onChanged }: { admin: AdminApi; onCha
           </>
         )}
       </div>
+      <TelegramCard admin={admin} />
       {(action.error ?? list.error) && <p role="alert" className="text-red-700">{action.error ?? list.error}</p>}
       {list.data && items.length === 0 && <p className="text-slate-600">{t('web.notifications.none')}</p>}
       <ul className="space-y-2">
