@@ -1,48 +1,139 @@
 @import "tailwindcss";
 @import "@fontsource-variable/vazirmatn";
 
-/* LifeDrop panel design (plan step 4.1). A calm working tool, not a marketing page: warm paper neutrals, one pine-green brand colour, hairline borders instead of
-   shadows, small radii, tabular figures, generous line height for Arabic-script text. Vazirmatn (self-hosted) covers Kurdish (Sorani), Arabic, Persian and Latin in
-   one family, so the whole panel reads the same in every language and works without internet fonts. The existing screens use the "slate" utilities: here they are
-   re-defined as the warm neutral scale, so every screen follows the palette without edits. */
+/* LifeDrop panel design — Pixelo GeoTracking identity: Electric Crimson primary, Royal Blue secondary, cool Slate neutrals.
+   Vazirmatn (self-hosted) covers Kurdish (Sorani), Arabic, Persian and Latin in one family, so the whole panel reads the
+   same in every language and works without internet fonts. The "slate" utilities are re-defined to the Pixelo palette so
+   every screen follows it without per-file edits. */
 @theme {
   --font-sans: "Vazirmatn Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 
-  --color-slate-50: #f7f6f1;
-  --color-slate-100: #efede5;
-  --color-slate-200: #e3e0d4;
-  --color-slate-300: #cfcbbb;
-  --color-slate-400: #a39e8b;
-  --color-slate-500: #7a7563;
-  --color-slate-600: #5c5848;
-  --color-slate-700: #46433a;
-  --color-slate-800: #2f2d27;
-  --color-slate-900: #1f1e1a;
-  --color-slate-950: #12110f;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
 
-  --color-brand-50: #edf6f2;
-  --color-brand-100: #d5eae1;
-  --color-brand-200: #afd4c4;
-  --color-brand-300: #82b8a3;
-  --color-brand-400: #4f9780;
-  --color-brand-500: #327c66;
-  --color-brand-600: #266452;
-  --color-brand-700: #1f5143;
-  --color-brand-800: #1b4136;
-  --color-brand-900: #17352c;
+  /* Primary: Electric Crimson */
+  --color-brand-50: #fff0f3;
+  --color-brand-100: #ffdde4;
+  --color-brand-200: #ffb3be;
+  --color-brand-300: #ff8fa3;
+  --color-brand-400: #f76282;
+  --color-brand-500: #e52b50;
+  --color-brand-600: #d01e42;
+  --color-brand-700: #ba0037;
+  --color-brand-800: #9c0030;
+  --color-brand-900: #7e0028;
 
-  --color-clay-500: #b9602b;
-  --color-clay-600: #9d4f22;
-  --color-red-700: #a3302a;
-  --color-red-100: #f6e0dd;
-  --color-amber-100: #f7ecd0;
-  --color-amber-800: #7a5410;
-  --color-green-100: #dcefe3;
-  --color-green-800: #1c5b34;
+  /* Secondary: Royal Blue — used for geofence, timeline, nav chrome */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dce1ff;
+  --color-blue-500: #2a52be;
+  --color-blue-600: #1e43a8;
+  --color-blue-700: #1d4ed8;
+
+  /* Functional semantics */
+  --color-clay-500: #e52b50;
+  --color-clay-600: #d01e42;
+  --color-red-700: #991b1b;
+  --color-red-100: #fef2f2;
+  --color-amber-100: #fffbeb;
+  --color-amber-800: #92400e;
+  --color-green-100: #ecfdf5;
+  --color-green-800: #065f46;
 
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ── تاریک (Dark) ─────────────────────────────────── */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-theme="ocean"]) {
+  --color-slate-50:  #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-brand-50:  rgba(255,107,135,.15);
+  --color-brand-100: rgba(255,107,135,.22);
+  --color-brand-500: #ff6b87;
+  --color-brand-600: #ff8fa3;
+  --color-brand-700: #ffb2c1;
+  --color-brand-800: #ffdde4;
+  --color-blue-50:   rgba(109,144,255,.15);
+  --color-blue-100:  rgba(109,144,255,.22);
+  --color-blue-500:  #6d90ff;
+  --color-blue-600:  #93aeff;
+  --color-clay-500:  #ff6b87;
+  --color-clay-600:  #ff8fa3;
+  color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --color-slate-50:  #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-brand-50:  rgba(255,107,135,.15);
+  --color-brand-100: rgba(255,107,135,.22);
+  --color-brand-500: #ff6b87;
+  --color-brand-600: #ff8fa3;
+  --color-brand-700: #ffb2c1;
+  --color-brand-800: #ffdde4;
+  --color-blue-50:   rgba(109,144,255,.15);
+  --color-blue-100:  rgba(109,144,255,.22);
+  --color-blue-500:  #6d90ff;
+  --color-blue-600:  #93aeff;
+  --color-clay-500:  #ff6b87;
+  --color-clay-600:  #ff8fa3;
+  color-scheme: dark;
+}
+
+/* ── اقیانوسی (Ocean / Cyan-Teal) ───────────────── */
+:root[data-theme="ocean"] {
+  --color-slate-50:  #f0fdfa;
+  --color-slate-100: #ccfbf1;
+  --color-slate-200: #99f6e4;
+  --color-slate-300: #5eead4;
+  --color-slate-400: #2dd4bf;
+  --color-slate-500: #0d9488;
+  --color-slate-600: #0f766e;
+  --color-slate-700: #115e59;
+  --color-slate-800: #134e4a;
+  --color-slate-900: #042f2e;
+  --color-brand-50:  #ecfeff;
+  --color-brand-100: #cffafe;
+  --color-brand-200: #a5f3fc;
+  --color-brand-300: #67e8f9;
+  --color-brand-400: #22d3ee;
+  --color-brand-500: #0891b2;
+  --color-brand-600: #0e7490;
+  --color-brand-700: #155e75;
+  --color-brand-800: #164e63;
+  --color-brand-900: #0c4a6e;
+  --color-blue-50:   #f0fdfa;
+  --color-blue-100:  #ccfbf1;
+  --color-blue-500:  #0f766e;
+  --color-blue-600:  #115e59;
+  --color-clay-500:  #0891b2;
+  --color-clay-600:  #0e7490;
 }
 
 @layer base {

@@ -8,30 +8,67 @@
     </ContentPage.ToolbarItems>
 
     <ScrollView>
-        <VerticalStackLayout Padding="30,0" Spacing="15" VerticalOptions="Center">
+        <VerticalStackLayout Spacing="0">
 
-            <Label Text="LifeDrop" Style="{StaticResource Headline}" HorizontalOptions="Center" />
-
-            <!-- Development-only setting -->
-            <Entry x:Name="ApiUrlEntry" Text="http://127.0.0.1:5256" IsVisible="True" FlowDirection="LeftToRight" />
-            
-            <Grid ColumnDefinitions="*,Auto">
-                <Entry x:Name="TenantEntry" FlowDirection="LeftToRight" Grid.Column="0" />
-                <Button x:Name="QrScanBtn" Grid.Column="1" Margin="6,0,0,0"
-                        WidthRequest="44" HeightRequest="44" Padding="0"
-                        Clicked="OnQrScanClicked" />
+            <!-- Brand Header -->
+            <Grid HeightRequest="220" BackgroundColor="{StaticResource Primary}">
+                <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12">
+                    <Border BackgroundColor="White" StrokeThickness="0"
+                            HeightRequest="68" WidthRequest="68"
+                            HorizontalOptions="Center">
+                        <Border.StrokeShape>RoundRectangle CornerRadius="34"</Border.StrokeShape>
+                        <Label Text="●" FontSize="30" TextColor="{StaticResource Primary}"
+                               VerticalOptions="Center" HorizontalOptions="Center" />
+                    </Border>
+                    <Label Text="LifeDrop" FontSize="26" FontAttributes="Bold"
+                           TextColor="White" HorizontalOptions="Center" />
+                </VerticalStackLayout>
             </Grid>
-            <Entry x:Name="EmailEntry" Keyboard="Email" FlowDirection="LeftToRight" />
-            <Entry x:Name="PasswordEntry" IsPassword="True" FlowDirection="LeftToRight" />
-            <Entry x:Name="DeviceLabelEntry" />
 
-            <Button x:Name="RegisterBtn" Clicked="OnRegisterClicked" />
-            <Button x:Name="LoginBtn" Clicked="OnLoginClicked" />
+            <!-- Login Form Card -->
+            <Border Margin="20,-28,20,0" Padding="20" StrokeThickness="0"
+                    BackgroundColor="{StaticResource White}">
+                <Border.StrokeShape>RoundRectangle CornerRadius="16"</Border.StrokeShape>
+                <Border.Shadow>
+                    <Shadow Brush="Black" Radius="24" Offset="0,6" Opacity="0.08" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
 
-            <Label x:Name="StatusLabel" TextColor="Gray" Margin="0,20,0,0" />
+                    <!-- Development-only setting -->
+                    <Entry x:Name="ApiUrlEntry" Text="http://127.0.0.1:5256"
+                           IsVisible="True" FlowDirection="LeftToRight" />
 
-            <Label x:Name="SupportLabel" FontSize="13" TextColor="Gray" HorizontalOptions="Center" />
-            <Label Text="© 2026 Pixelo Design" FontSize="12" TextColor="Gray" HorizontalOptions="Center" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Entry x:Name="TenantEntry" FlowDirection="LeftToRight" Grid.Column="0" />
+                        <Button x:Name="QrScanBtn" Grid.Column="1" Margin="8,0,0,0"
+                                WidthRequest="44" HeightRequest="44" Padding="0"
+                                CornerRadius="8" Clicked="OnQrScanClicked" />
+                    </Grid>
+
+                    <Entry x:Name="EmailEntry" Keyboard="Email" FlowDirection="LeftToRight" />
+                    <Entry x:Name="PasswordEntry" IsPassword="True" FlowDirection="LeftToRight" />
+                    <Entry x:Name="DeviceLabelEntry" />
+
+                    <Button x:Name="LoginBtn" Clicked="OnLoginClicked"
+                            Margin="0,8,0,0" HeightRequest="48" />
+
+                    <Button x:Name="RegisterBtn" Clicked="OnRegisterClicked"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Primary}"
+                            BorderWidth="1" BorderColor="{StaticResource Primary}"
+                            CornerRadius="8" HeightRequest="44" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <Label x:Name="StatusLabel" TextColor="{StaticResource Gray500}"
+                   Margin="20,16,20,0" HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center" />
+
+            <Label x:Name="SupportLabel" FontSize="13" TextColor="{StaticResource Gray500}"
+                   Margin="0,24,0,4" HorizontalOptions="Center" />
+            <Label Text="© 2026 Pixelo Design" FontSize="12" TextColor="{StaticResource Gray400}"
+                   Margin="0,0,0,40" HorizontalOptions="Center" />
 
         </VerticalStackLayout>
     </ScrollView>
