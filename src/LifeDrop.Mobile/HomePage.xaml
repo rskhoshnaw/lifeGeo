@@ -24,8 +24,8 @@
 
             <!-- Shift / CTA Hero Card (overlapping header) -->
             <Border Margin="16,-28,16,0" Padding="16,14" StrokeThickness="0"
-                    BackgroundColor="{StaticResource Secondary}">
-                <Border.StrokeShape>RoundRectangle CornerRadius="16"</Border.StrokeShape>
+                    BackgroundColor="{StaticResource Secondary}"
+                    StrokeShape="RoundRectangle 16">
                 <Border.Shadow>
                     <Shadow Brush="#2A52BE" Radius="18" Offset="0,4" Opacity="0.28" />
                 </Border.Shadow>
@@ -44,8 +44,8 @@
                   ColumnSpacing="12" RowSpacing="12" Padding="16,20,16,8">
 
                 <Border Grid.Row="0" Grid.Column="0" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="PlanBtn" Clicked="OnPlanClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -53,8 +53,8 @@
                 </Border>
 
                 <Border Grid.Row="0" Grid.Column="1" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="NewCustomerBtn" Clicked="OnNewCustomerClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -62,8 +62,8 @@
                 </Border>
 
                 <Border Grid.Row="1" Grid.Column="0" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="PaymentsBtn" Clicked="OnPaymentsClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -71,8 +71,8 @@
                 </Border>
 
                 <Border Grid.Row="1" Grid.Column="1" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="FollowUpsBtn" Clicked="OnFollowUpsClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -80,8 +80,8 @@
                 </Border>
 
                 <Border Grid.Row="2" Grid.Column="0" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="WarehouseBtn" Clicked="OnWarehouseClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -89,8 +89,8 @@
                 </Border>
 
                 <Border Grid.Row="2" Grid.Column="1" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="DeliveriesBtn" Clicked="OnDeliveriesClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
@@ -98,8 +98,8 @@
                 </Border>
 
                 <Border Grid.Row="3" Grid.Column="0" StrokeThickness="1"
-                        BackgroundColor="{StaticResource White}">
-                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
                     <Button x:Name="PendingBtn" Clicked="OnPendingClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"

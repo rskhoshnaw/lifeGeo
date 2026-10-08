@@ -15,8 +15,8 @@
                 <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12">
                     <Border BackgroundColor="White" StrokeThickness="0"
                             HeightRequest="68" WidthRequest="68"
-                            HorizontalOptions="Center">
-                        <Border.StrokeShape>RoundRectangle CornerRadius="34"</Border.StrokeShape>
+                            HorizontalOptions="Center"
+                            StrokeShape="RoundRectangle 34">
                         <Label Text="●" FontSize="30" TextColor="{StaticResource Primary}"
                                VerticalOptions="Center" HorizontalOptions="Center" />
                     </Border>
@@ -27,8 +27,8 @@
 
             <!-- Login Form Card -->
             <Border Margin="20,-28,20,0" Padding="20" StrokeThickness="0"
-                    BackgroundColor="{StaticResource White}">
-                <Border.StrokeShape>RoundRectangle CornerRadius="16"</Border.StrokeShape>
+                    BackgroundColor="{StaticResource White}"
+                    StrokeShape="RoundRectangle 16">
                 <Border.Shadow>
                     <Shadow Brush="Black" Radius="24" Offset="0,6" Opacity="0.08" />
                 </Border.Shadow>
