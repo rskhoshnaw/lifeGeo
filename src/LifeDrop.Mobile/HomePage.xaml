@@ -8,42 +8,118 @@
     </ContentPage.ToolbarItems>
 
     <ScrollView>
-        <VerticalStackLayout Padding="30,0" Spacing="25" VerticalOptions="Center">
+        <VerticalStackLayout Spacing="0">
 
-            <Label x:Name="WelcomeLabel" Style="{StaticResource Headline}" HorizontalOptions="Center" />
+            <!-- Header: greeting + status on crimson background -->
+            <Grid RowDefinitions="Auto,Auto" BackgroundColor="{StaticResource Primary}"
+                  Padding="20,20,20,44">
+                <Label x:Name="WelcomeLabel" Grid.Row="0"
+                       Style="{StaticResource Headline}"
+                       TextColor="White" HorizontalOptions="Start"
+                       HorizontalTextAlignment="Start" FontSize="24" />
+                <Label x:Name="StatusLabel" Grid.Row="1"
+                       TextColor="#FFD5DA" FontSize="13"
+                       HorizontalOptions="Start" Margin="0,4,0,0" />
+            </Grid>
 
-            <Label x:Name="StatusLabel" HorizontalOptions="Center" />
+            <!-- Shift / CTA Hero Card (overlapping header) -->
+            <Border Margin="16,-28,16,0" Padding="16,14" StrokeThickness="0"
+                    BackgroundColor="{StaticResource Secondary}">
+                <Border.StrokeShape>RoundRectangle CornerRadius="16"</Border.StrokeShape>
+                <Border.Shadow>
+                    <Shadow Brush="#2A52BE" Radius="18" Offset="0,4" Opacity="0.28" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="6">
+                    <Label x:Name="ShiftStatusLabel" FontAttributes="Bold" FontSize="16" TextColor="White" />
+                    <Label x:Name="ShiftDetailLabel" IsVisible="False" FontSize="13" TextColor="#B5C4FF" />
+                    <Button x:Name="ShiftBtn" Clicked="OnShiftClicked"
+                            BackgroundColor="White" TextColor="{StaticResource Secondary}"
+                            CornerRadius="8" Margin="0,6,0,0" HeightRequest="44"
+                            FontAttributes="Bold" />
+                </VerticalStackLayout>
+            </Border>
 
-            <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
-                <Label x:Name="ShiftStatusLabel" FontAttributes="Bold" HorizontalOptions="Center" />
-                <Label x:Name="ShiftDetailLabel" IsVisible="False" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
-                <Button x:Name="ShiftBtn" Clicked="OnShiftClicked" HorizontalOptions="Center" WidthRequest="200" />
+            <!-- Module Cards Grid -->
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+                  ColumnSpacing="12" RowSpacing="12" Padding="16,20,16,8">
+
+                <Border Grid.Row="0" Grid.Column="0" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="PlanBtn" Clicked="OnPlanClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="0" Grid.Column="1" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="NewCustomerBtn" Clicked="OnNewCustomerClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="0" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="PaymentsBtn" Clicked="OnPaymentsClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="1" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="FollowUpsBtn" Clicked="OnFollowUpsClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="2" Grid.Column="0" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="WarehouseBtn" Clicked="OnWarehouseClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="2" Grid.Column="1" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="DeliveriesBtn" Clicked="OnDeliveriesClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="3" Grid.Column="0" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}">
+                    <Border.StrokeShape>RoundRectangle CornerRadius="14"</Border.StrokeShape>
+                    <Button x:Name="PendingBtn" Clicked="OnPendingClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+            </Grid>
+
+            <!-- Footer: logout + credits -->
+            <VerticalStackLayout Padding="16,12,16,40" Spacing="10">
+                <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked"
+                        BackgroundColor="Transparent"
+                        TextColor="{StaticResource Gray500}"
+                        BorderWidth="1" BorderColor="{StaticResource Gray200}"
+                        CornerRadius="8" HeightRequest="44" />
+                <Label x:Name="SupportLabel" FontSize="13" TextColor="{StaticResource Gray500}"
+                       HorizontalOptions="Center" />
+                <Label Text="© 2026 Pixelo Design" FontSize="12" TextColor="{StaticResource Gray400}"
+                       HorizontalOptions="Center" />
             </VerticalStackLayout>
-
-            <Button x:Name="PlanBtn" Clicked="OnPlanClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <Button x:Name="NewCustomerBtn" Clicked="OnNewCustomerClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- Warehouse workers: the orders of their warehouse (plan step 2.3) -->
-            <Button x:Name="WarehouseBtn" Clicked="OnWarehouseClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- Drivers: the deliveries assigned to them (plan step 2.4) -->
-            <Button x:Name="DeliveriesBtn" Clicked="OnDeliveriesClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- Money taken from customers and whether the finance manager confirmed it (plan step 2.5) -->
-            <Button x:Name="PaymentsBtn" Clicked="OnPaymentsClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- My follow-ups (plan step 2.8) -->
-            <Button x:Name="FollowUpsBtn" Clicked="OnFollowUpsClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- Work kept on the phone for the internet (plan step 2.13) -->
-            <Button x:Name="PendingBtn" Clicked="OnPendingClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <Button x:Name="LogoutBtn" Clicked="OnLogoutClicked" HorizontalOptions="Center" WidthRequest="200" />
-
-            <!-- Support line and developer credit (plan step 4.6), as on the sign-in page -->
-            <Label x:Name="SupportLabel" FontSize="13" TextColor="{StaticResource Gray500}" HorizontalOptions="Center" />
-            <Label Text="© 2026 Pixelo Design" FontSize="12" TextColor="{StaticResource Gray500}" HorizontalOptions="Center" />
 
         </VerticalStackLayout>
     </ScrollView>
