@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
-		<!-- Ready for later: <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios</TargetFrameworks> -->
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">$(TargetFrameworks);net10.0-ios</TargetFrameworks>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>LifeDrop.Mobile</RootNamespace>
@@ -15,10 +15,10 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>LifeDrop.Mobile</ApplicationTitle>
+		<ApplicationTitle>GeoTrack by Pixelo</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.lifedrop.mobile</ApplicationId>
+		<ApplicationId>com.pixelo.geotrack</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
