@@ -47,24 +47,9 @@ public partial class QrScanPage : ContentPage
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             var code = CompanyJoinLink.TryGetCode(raw);
-            if (code is not null)
-            {
-                HintLabel.Text = $"OK: {code}";
-                await Task.Delay(800);
-                await Navigation.PopAsync();
-                _onCode(code);
-            }
-            else
-            {
-                // DEBUG: show URI parts to diagnose parsing failure
-                Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri);
-                HintLabel.Text = uri is null
-                    ? $"URI fail: {raw}"
-                    : $"s={uri.Scheme} h={uri.Host} p={uri.AbsolutePath}";
-                await Task.Delay(5000);
-                _handled = false;
-                HintLabel.Text = Texts.Get("app.login.scanHint");
-            }
+            if (code is null) { _handled = false; return; }
+            await Navigation.PopAsync();
+            _onCode(code);
         });
     }
 }
