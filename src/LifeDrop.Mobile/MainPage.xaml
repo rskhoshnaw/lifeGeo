@@ -27,7 +27,7 @@
 
             <!-- Login Form Card -->
             <Border Margin="20,-28,20,0" Padding="20" StrokeThickness="0"
-                    BackgroundColor="{StaticResource White}"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray900}}"
                     StrokeShape="RoundRectangle 16">
                 <Border.Shadow>
                     <Shadow Brush="Black" Radius="24" Offset="0,6" Opacity="0.08" />

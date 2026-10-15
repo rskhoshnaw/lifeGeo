@@ -42,14 +42,29 @@ public partial class QrScanPage : ContentPage
         if (_handled) return;
         var raw = e.Results.FirstOrDefault()?.Value;
         if (string.IsNullOrWhiteSpace(raw)) return;
-        var code = CompanyJoinLink.TryGetCode(raw);
-        if (code is null) return;
         _handled = true;
 
         MainThread.BeginInvokeOnMainThread(async () =>
         {
-            await Navigation.PopAsync();
-            _onCode(code);
+            var code = CompanyJoinLink.TryGetCode(raw);
+            if (code is not null)
+            {
+                HintLabel.Text = $"OK: {code}";
+                await Task.Delay(800);
+                await Navigation.PopAsync();
+                _onCode(code);
+            }
+            else
+            {
+                // DEBUG: show URI parts to diagnose parsing failure
+                Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri);
+                HintLabel.Text = uri is null
+                    ? $"URI fail: {raw}"
+                    : $"s={uri.Scheme} h={uri.Host} p={uri.AbsolutePath}";
+                await Task.Delay(5000);
+                _handled = false;
+                HintLabel.Text = Texts.Get("app.login.scanHint");
+            }
         });
     }
 }
