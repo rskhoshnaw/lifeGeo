@@ -38,6 +38,12 @@ public static class TrackingHost
     private static IDurableStore? _store;
     private static bool _listening;
 
+#if IOS
+    private const string PushPlatform = "ios";
+#else
+    private const string PushPlatform = "android";
+#endif
+
     public static ShiftTracker? Tracker
     {
         get { lock (Gate) return _tracker; }
@@ -151,7 +157,7 @@ public static class TrackingHost
             _followUps = new FollowUpsApiClient(http, session);
             _visitDetails = new VisitDetailsApiClient(http, session);
             _customFields = new CustomFieldsApiClient(http, session);
-            _pushSync = new PushTokenSync(new PushApiClient(http, session), _store);
+            _pushSync = new PushTokenSync(new PushApiClient(http, session), _store, PushPlatform);
             _outbox = new Outbox(_visits, clock, TimeProvider.System, _store);
             _workQueue = new WorkQueue(TimeProvider.System, _store);
             _workExecutor = new WorkExecutor(_orders, _payments, _samples, _followUps, _visitDetails);

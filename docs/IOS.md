@@ -5,5 +5,12 @@ Secrets used: `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_PROVISION_B
 The workflow pins workload set 10.0.401 and MAUI 10.0.20 (the runner has Xcode 26.6); move the pin when the runner image has Xcode 27.
 
 Works on iOS: sign-in (Keychain), shift tracking in the background (CoreLocation, When-In-Use + background location, blue indicator), offline outbox, `lifedrop://join/<code>` links and QR scan.
-Not yet: push messages. They need, from the owner: an APNs key (.p8) from the Apple Developer account, uploaded in the Firebase project (Cloud Messaging > Apple app), and `GoogleService-Info.plist` for bundle id `com.pixelo.geotrack`. After that the app gets the Firebase iOS messaging package and `PushHost` an `IOS` branch (the server already sends through FCM).
-Real iPhone checks pending: background tracking with the screen locked, link opening, camera QR.
+Push messages (code written, needs the owner's Firebase file; see below): Firebase Cloud Messaging with the APNs key. The server already sends through FCM; for an iPhone it adds a system alert whose text is in `Platforms/iOS/Resources/<lang>.lproj/Localizable.strings` (same texts as `app.push.*` in `i18n/strings.json`).
+
+## Push setup (owner, once)
+1. Apple Developer > Keys: create a key with "Apple Push Notifications service (APNs)", environment "Sandbox & Production", "Team Scoped (All Topics)"; download the `.p8` (only once). Identifiers > `com.pixelo.geotrack` > tick Push Notifications > Save. Profiles > "GeoTrack Pixelo AppStore" > Edit > Save > Download, and update the secret `APPLE_PROVISION_BASE64`.
+2. Firebase console (the Android project) > Project settings > Add app > iOS, bundle id `com.pixelo.geotrack` > download `GoogleService-Info.plist`. Project settings > Cloud Messaging > Apple app configuration > APNs Authentication Key > upload the `.p8` with its Key ID and Team ID `R285PY37J5`.
+3. GitHub secret `IOS_GOOGLE_SERVICE_INFO_BASE64` = the plist in base64 (PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("path\GoogleService-Info.plist")) | Set-Clipboard`). The workflow writes it to `src/LifeDrop.Mobile/GoogleService-Info.plist` (git-ignored); with the file present the project adds the Firebase package and the `aps-environment` entitlement. A build that is not uploaded uses a dummy file when the secret is missing; an upload fails without the real one.
+4. The server needs the same Firebase project's service-account key (`docs/PUSH.md` step 2-3).
+
+Real iPhone checks pending: background tracking with the screen locked, link opening, camera QR, push (app open, in background, closed).

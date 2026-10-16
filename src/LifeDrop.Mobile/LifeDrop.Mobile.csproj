@@ -105,6 +105,18 @@
 	</ItemGroup>
 
 
+	<!-- iOS push (plan step 3.8, docs/IOS.md): Firebase Messaging for iOS and the push entitlement are added only when GoogleService-Info.plist is in this folder (git-ignored; the iOS CI
+	     workflow writes it from the IOS_GOOGLE_SERVICE_INFO_BASE64 secret). Without it the app builds and works as before, without push. -->
+	<PropertyGroup Condition="Exists('GoogleService-Info.plist') And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<DefineConstants>$(DefineConstants);FIREBASE</DefineConstants>
+		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
+	</PropertyGroup>
+	<ItemGroup Condition="Exists('GoogleService-Info.plist') And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<PackageReference Include="AdamE.Firebase.iOS.CloudMessaging" Version="12.10.0" />
+		<BundleResource Include="GoogleService-Info.plist" />
+	</ItemGroup>
+
+
 	<!-- Company servers (plan step 4.2): -p:LifeDropBaseDomain=lifedrop.example (code acme -> https://acme.lifedrop.example); -p:LifeDropBootstrapUrl is the single-server fallback -->
 	<ItemGroup>
 		<AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">

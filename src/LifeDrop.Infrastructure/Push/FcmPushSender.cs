@@ -67,16 +67,35 @@ public sealed class FcmPushSender : IPushSender
         }
     }
 
-    // Data values must be strings in FCM.
-    public static string BuildBody(string token, PushMessage message) => JsonSerializer.Serialize(new
+    // Data values must be strings in FCM. Android reads the data and writes the text itself. An iPhone gets the same data plus a system alert: iOS does not
+    // run the app for a data-only message that arrives while it is closed, so the alert names a key of the app's Localizable.strings (the phone's language).
+    public static string BuildBody(string token, PushMessage message)
     {
-        message = new
+        var data = new Dictionary<string, string> { ["kind"] = message.Kind, ["entityId"] = message.EntityId, ["notificationId"] = message.NotificationId.ToString() };
+        var locKey = AlertKey(message.Kind);
+        if (locKey is null)
+            return JsonSerializer.Serialize(new { message = new { token, data, android = new { priority = "HIGH" } } });
+        var apns = new Dictionary<string, object>
         {
-            token,
-            data = new Dictionary<string, string> { ["kind"] = message.Kind, ["entityId"] = message.EntityId, ["notificationId"] = message.NotificationId.ToString() },
-            android = new { priority = "HIGH" }
-        }
-    });
+            ["headers"] = new Dictionary<string, string> { ["apns-priority"] = "10" },
+            ["payload"] = new Dictionary<string, object>
+            {
+                ["aps"] = new Dictionary<string, object>
+                {
+                    ["alert"] = new Dictionary<string, string> { ["loc-key"] = locKey },
+                    ["sound"] = "default"
+                }
+            }
+        };
+        return JsonSerializer.Serialize(new { message = new { token, data, android = new { priority = "HIGH" }, apns } });
+    }
+
+    public static string? AlertKey(string kind) => kind switch
+    {
+        "customer.profile_changed" => "push_customer_profile_changed",
+        "customer.location_changed" => "push_customer_location_changed",
+        _ => null
+    };
 
     // 404 UNREGISTERED and 400 INVALID_ARGUMENT mean the token is dead; anything else (quota, 5xx) is temporary.
     public static bool IsDeadToken(HttpStatusCode status, string body) =>
