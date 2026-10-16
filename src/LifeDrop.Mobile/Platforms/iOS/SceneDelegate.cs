@@ -15,9 +15,9 @@ public class SceneDelegate : MauiUISceneDelegate
     }
 
     // ... or was already running.
-    public override void OpenUrlContexts(UIScene scene, NSSet<UIOpenUrlContext> urlContexts)
+    [Export("scene:openURLContexts:")]
+    public void HandleOpenUrlContexts(UIScene scene, NSSet<UIOpenUrlContext> urlContexts)
     {
-        base.OpenUrlContexts(scene, urlContexts);
         Apply(urlContexts);
     }
 
