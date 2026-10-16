@@ -76,11 +76,69 @@ jobs:
     - name: Dummy Firebase config
       run: |
         cat > src/LifeDrop.Mobile/google-services.json <<'JSON'
-        {"project_info":{"project_number":"000000000000","project_id":"lifedrop-ci","storage_bucket":"lifedrop-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.companyname.lifedrop.mobile"}},"api_key":[{"current_key":"ci-dummy-key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
+        {"project_info":{"project_number":"000000000000","project_id":"lifedrop-ci","storage_bucket":"lifedrop-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.pixelo.geotrack"}},"api_key":[{"current_key":"ci-dummy-key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
         JSON
 
     - name: Build Android app
       run: dotnet build src/LifeDrop.Mobile/LifeDrop.Mobile.csproj -f net10.0-android --configuration Release -p:AndroidSdkDirectory="$ANDROID_HOME"
+
+  # iOS app built on macOS, signed with Apple Distribution certificate, uploaded to TestFlight.
+  mobile-ios:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v7
+      name: Checkout code
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    # Pinned to a workload set, not the newest. Since 2026-09-30 the newest set (10.0.401.1, 10.0.402) carries iOS 27.0, which refuses to build unless the Mac has Xcode 27;
+    # the macos-latest image has Xcode 26.6. Set 10.0.401 carries iOS 26.5.10318, whose Versions.plist recommends Xcode 26.6 (the check compares major.minor), and MAUI 10.0.20.
+    # Apple needs Xcode 26 or newer for uploads, so 26.6 is fine. Move the pin when the image has Xcode 27: `dotnet workload search version` lists every set with its iOS SDK.
+    - name: Install MAUI iOS workload (pinned set)
+      run: dotnet workload install maui-ios --version 10.0.401
+
+    - name: Show toolchain versions
+      run: |
+        xcodebuild -version
+        dotnet --version
+        dotnet workload list
+
+    - name: Import Apple Distribution certificate
+      uses: apple-actions/import-codesign-certs@v3
+      with:
+        p12-file-base64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+        p12-password: ${{ secrets.APPLE_CERT_PASSWORD }}
+
+    - name: Install provisioning profile
+      run: |
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        echo "${{ secrets.APPLE_PROVISION_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/GeoTrack.mobileprovision
+
+    - name: Build and publish iOS app
+      run: |
+        dotnet publish src/LifeDrop.Mobile/LifeDrop.Mobile.csproj \
+          -f net10.0-ios \
+          -c Release \
+          -p:LifeDropIosOnly=true \
+          -p:ApplicationVersion=${{ github.run_number }} \
+          -p:LifeDropMauiVersion=10.0.20 \
+          -p:ArchiveOnBuild=true \
+          -p:RuntimeIdentifier=ios-arm64 \
+          -p:CodesignKey="Apple Distribution: Rasul Saleh (R285PY37J5)" \
+          -p:CodesignProvision="GeoTrack Pixelo AppStore"
+
+    - name: Upload to TestFlight
+      uses: apple-actions/upload-testflight-build@v3
+      with:
+        app-path: src/LifeDrop.Mobile/bin/Release/net10.0-ios/ios-arm64/publish/LifeDrop.Mobile.ipa
+        issuer-id: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+        api-key-id: ${{ secrets.APPLE_ASC_KEY_ID }}
+        api-private-key: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
 
   # Web panel (plan step 1.16, decisions D10, D12): lint, type check, tests and production build.
   web:

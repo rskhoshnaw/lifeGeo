@@ -55,42 +55,9 @@
 }
 
 /* ── تاریک (Dark) ─────────────────────────────────── */
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-theme="ocean"]) {
-  --color-slate-50:  #0f172a;
-  --color-slate-100: #1e293b;
-  --color-slate-200: #334155;
-  --color-slate-300: #475569;
-  --color-slate-400: #64748b;
-  --color-slate-500: #94a3b8;
-  --color-slate-600: #cbd5e1;
-  --color-slate-700: #e2e8f0;
-  --color-slate-800: #f1f5f9;
-  --color-slate-900: #f8fafc;
-  --color-brand-50:  rgba(255,107,135,.15);
-  --color-brand-100: rgba(255,107,135,.22);
-  --color-brand-500: #ff6b87;
-  --color-brand-600: #ff8fa3;
-  --color-brand-700: #ffb2c1;
-  --color-brand-800: #ffdde4;
-  --color-blue-50:   rgba(109,144,255,.15);
-  --color-blue-100:  rgba(109,144,255,.22);
-  --color-blue-500:  #6d90ff;
-  --color-blue-600:  #93aeff;
-  --color-clay-500:  #ff6b87;
-  --color-clay-600:  #ff8fa3;
-  color-scheme: dark;
-}}
+/* نکته: slate scale برعکس نمی‌شود — کامپوننت‌ها برای dark mode طراحی نشده‌اند.
+   فقط رنگ‌های brand در dark mode روشن‌تر می‌شوند. */
 :root[data-theme="dark"] {
-  --color-slate-50:  #0f172a;
-  --color-slate-100: #1e293b;
-  --color-slate-200: #334155;
-  --color-slate-300: #475569;
-  --color-slate-400: #64748b;
-  --color-slate-500: #94a3b8;
-  --color-slate-600: #cbd5e1;
-  --color-slate-700: #e2e8f0;
-  --color-slate-800: #f1f5f9;
-  --color-slate-900: #f8fafc;
   --color-brand-50:  rgba(255,107,135,.15);
   --color-brand-100: rgba(255,107,135,.22);
   --color-brand-500: #ff6b87;
@@ -103,7 +70,6 @@
   --color-blue-600:  #93aeff;
   --color-clay-500:  #ff6b87;
   --color-clay-600:  #ff8fa3;
-  color-scheme: dark;
 }
 
 /* ── اقیانوسی (Ocean / Cyan-Teal) ───────────────── */

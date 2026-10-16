@@ -42,12 +42,12 @@ public partial class QrScanPage : ContentPage
         if (_handled) return;
         var raw = e.Results.FirstOrDefault()?.Value;
         if (string.IsNullOrWhiteSpace(raw)) return;
-        var code = CompanyJoinLink.TryGetCode(raw);
-        if (code is null) return;
         _handled = true;
 
         MainThread.BeginInvokeOnMainThread(async () =>
         {
+            var code = CompanyJoinLink.TryGetCode(raw);
+            if (code is null) { _handled = false; return; }
             await Navigation.PopAsync();
             _onCode(code);
         });

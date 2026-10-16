@@ -36,8 +36,7 @@ More information: https://aka.ms/maui-privacy-manifest
                 <string>E174.1</string>
             </array>
         </dict>
-        <!--
-            The entry below is only needed when you're using the Preferences API in your app.
+        <!-- UserDefaults: the app uses the Preferences API (company, language, API address). CA92.1 = reading and writing the app's own settings. -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
@@ -45,7 +44,7 @@ More information: https://aka.ms/maui-privacy-manifest
             <array>
                 <string>CA92.1</string>
             </array>
-        </dict> -->
+        </dict>
     </array>
 </dict>
 </plist>

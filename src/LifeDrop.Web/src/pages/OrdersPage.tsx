@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, can, errorMessage, Permissions, type EffectivePrice, type Me, type Order, type Warehouse } from '../api/admin.ts'
+import { AdminApi, can, errorMessage, iraqToday, Permissions, type EffectivePrice, type Me, type Order, type Warehouse } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -192,7 +192,7 @@ function NewOrderForm({ admin, onPlaced }: { admin: AdminApi; onPlaced: (message
   const [note, setNote] = useState('')
   // One reference per order form: a retry of a lost answer returns the same order instead of making a second one.
   const [clientRef, setClientRef] = useState(() => crypto.randomUUID())
-  const prices = useLoad(useCallback(() => (customer ? admin.customerPrices(customer, new Date().toISOString().slice(0, 10)) : Promise.resolve(null)), [admin, customer]))
+  const prices = useLoad(useCallback(() => (customer ? admin.customerPrices(customer, iraqToday()) : Promise.resolve(null)), [admin, customer]))
   const action = useAction()
   const priceOf = (id: string): EffectivePrice | undefined => prices.data?.find((p) => p.productId === id)
   const approved = (customers.data ?? []).filter((c) => c.approvalStatus === 'approved')
