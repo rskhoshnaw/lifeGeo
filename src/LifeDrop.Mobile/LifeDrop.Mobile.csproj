@@ -3,6 +3,9 @@
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">$(TargetFrameworks);net10.0-ios</TargetFrameworks>
+		<!-- CI iOS build (-p:LifeDropIosOnly=true): only iOS, so the Android workload is not needed. A dedicated property, because a global TargetFrameworks would also reach
+		     the class libraries this app references (they use a single TargetFramework) and break their restore (NETSDK1005). -->
+		<TargetFrameworks Condition="'$(LifeDropIosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>LifeDrop.Mobile</RootNamespace>
