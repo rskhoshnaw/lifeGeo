@@ -122,7 +122,7 @@ public static class TrackingHost
 
     private static string OfflineFolder => Path.Combine(FileSystem.AppDataDirectory, "offline");
 
-    // Null when the app is not configured (no API address) or not on Android.
+    // Null when the app is not configured (no API address) or the platform is neither Android nor iOS.
     public static ShiftTracker? GetOrCreate()
     {
         lock (Gate)
@@ -130,8 +130,14 @@ public static class TrackingHost
             if (_tracker is not null) return _tracker;
             var url = Preferences.Get("ApiUrl", "");
             if (string.IsNullOrEmpty(url)) return null;
+#if ANDROID || IOS
 #if ANDROID
             var credentials = new AndroidSecureCredentialStore(Android.App.Application.Context);
+            var clock = new AndroidMonotonicClock();
+#else
+            var credentials = new IosSecureCredentialStore();
+            var clock = new IosMonotonicClock();
+#endif
             var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(20) };
             var session = new AuthSession(credentials, new AuthApiClient(http), TimeProvider.System);
             _store = new FileDurableStore(OfflineFolder);
@@ -146,7 +152,7 @@ public static class TrackingHost
             _visitDetails = new VisitDetailsApiClient(http, session);
             _customFields = new CustomFieldsApiClient(http, session);
             _pushSync = new PushTokenSync(new PushApiClient(http, session), _store);
-            _outbox = new Outbox(_visits, new AndroidMonotonicClock(), TimeProvider.System, _store);
+            _outbox = new Outbox(_visits, clock, TimeProvider.System, _store);
             _workQueue = new WorkQueue(TimeProvider.System, _store);
             _workExecutor = new WorkExecutor(_orders, _payments, _samples, _followUps, _visitDetails);
             _cache = new ReferenceCache(_store);
