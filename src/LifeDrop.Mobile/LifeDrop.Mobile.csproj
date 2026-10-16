@@ -43,7 +43,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\LifeDrop.Mobile.Auth\LifeDrop.Mobile.Auth.csproj" />
 		<ProjectReference Include="..\LifeDrop.Mobile.Visits\LifeDrop.Mobile.Visits.csproj" />
-		<ProjectReference Include="..\LifeDrop.Mobile.Auth.Android\LifeDrop.Mobile.Auth.Android.csproj" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
+		<ProjectReference Include="..\LifeDrop.Mobile.Auth.Android\LifeDrop.Mobile.Auth.Android.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

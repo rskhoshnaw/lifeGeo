@@ -78,8 +78,10 @@ public partial class MainPage : ContentPage
         {
 #if ANDROID
             var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
+#elif IOS
+            ISecureCredentialStore store = new IosSecureCredentialStore();
 #else
-            ISecureCredentialStore store = null!; // Stubs for other platforms not yet ready
+            ISecureCredentialStore store = null!;
 #endif
 
             if (store == null)
@@ -112,6 +114,8 @@ public partial class MainPage : ContentPage
     {
 #if ANDROID
         var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
+#elif IOS
+        ISecureCredentialStore store = new IosSecureCredentialStore();
 #else
         ISecureCredentialStore store = null!;
 #endif

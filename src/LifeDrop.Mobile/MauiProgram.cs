@@ -27,6 +27,8 @@ public static class MauiProgram
 #if ANDROID
 		builder.Services.AddSingleton<ISecureCredentialStore>(sp => 
 			new AndroidSecureCredentialStore(Android.App.Application.Context));
+#elif IOS
+		builder.Services.AddSingleton<ISecureCredentialStore>(sp => new IosSecureCredentialStore());
 #endif
 
 		builder.Services.AddTransient<DeviceRegistrationCoordinator>();

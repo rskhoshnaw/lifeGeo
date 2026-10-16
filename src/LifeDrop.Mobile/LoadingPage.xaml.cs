@@ -23,6 +23,8 @@ public partial class LoadingPage : ContentPage
         
 #if ANDROID
         var store = new AndroidSecureCredentialStore(Android.App.Application.Context);
+#elif IOS
+        ISecureCredentialStore store = new IosSecureCredentialStore();
 #else
         ISecureCredentialStore store = null!;
 #endif
