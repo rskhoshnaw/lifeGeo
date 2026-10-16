@@ -47,6 +47,10 @@
 	<string>GeoTrack uses the camera to scan your company QR code when you sign in.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>GeoTrack uses your location to check you in at a customer and to record your visit.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
 </dict>

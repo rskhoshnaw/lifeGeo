@@ -170,6 +170,8 @@ public partial class HomePage : ContentPage
     {
 #if ANDROID
         TrackingService.Start(Android.App.Application.Context);
+#elif IOS
+        IosTrackingService.Start();
 #endif
     }
 
@@ -177,6 +179,8 @@ public partial class HomePage : ContentPage
     {
 #if ANDROID
         TrackingService.Stop(Android.App.Application.Context);
+#elif IOS
+        IosTrackingService.Stop();
 #endif
     }
 
