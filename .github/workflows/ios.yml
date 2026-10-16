@@ -76,6 +76,38 @@ jobs:
     - name: Pick signing identity matching the profile
       run: python3 scripts/ci/ios/pick_identity.py
 
+    # Push messages need the app's Firebase file (docs/IOS.md). A build that is not uploaded may use a dummy file, only to prove the push code compiles; an upload needs the real one.
+    - name: Add Firebase config (push)
+      env:
+        PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
+      run: |
+        plist=src/LifeDrop.Mobile/GoogleService-Info.plist
+        if [ -z "$PLIST_B64" ]; then
+          if [ "$UPLOAD" = "true" ]; then
+            echo "::error::IOS_GOOGLE_SERVICE_INFO_BASE64 is not set; an uploaded build must have the real Firebase file (docs/IOS.md)."
+            exit 1
+          fi
+          echo "::warning::IOS_GOOGLE_SERVICE_INFO_BASE64 is not set: using a dummy Firebase file (compile check only, never uploaded)."
+          cat > "$plist" <<'PLIST'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+        <key>API_KEY</key><string>ci-dummy-key</string>
+        <key>GCM_SENDER_ID</key><string>000000000000</string>
+        <key>BUNDLE_ID</key><string>com.pixelo.geotrack</string>
+        <key>PROJECT_ID</key><string>lifedrop-ci</string>
+        <key>GOOGLE_APP_ID</key><string>1:000000000000:ios:0000000000000000</string>
+        </dict></plist>
+        PLIST
+        else
+          echo "$PLIST_B64" | base64 --decode > "$plist"
+        fi
+        bundle=$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' "$plist") || { echo "::error::IOS_GOOGLE_SERVICE_INFO_BASE64 is not a valid plist"; exit 1; }
+        if [ "$bundle" != "com.pixelo.geotrack" ]; then
+          echo "::error::GoogleService-Info.plist is for '$bundle', expected com.pixelo.geotrack"
+          exit 1
+        fi
+
     - name: Build, sign and package IPA
       run: |
         dotnet publish src/LifeDrop.Mobile/LifeDrop.Mobile.csproj \

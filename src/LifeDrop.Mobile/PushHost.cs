@@ -13,16 +13,22 @@ public static class PushHost
     {
         var sync = TrackingHost.PushSync;
         if (sync is null) return;
-#if ANDROID && FIREBASE
+#if (ANDROID || IOS) && FIREBASE
         try
         {
             if (!_asked)
             {
                 _asked = true;
+#if ANDROID
                 // Android 13 and later: showing a message needs the user's yes once.
                 await Permissions.RequestAsync<Permissions.PostNotifications>();
+#endif
             }
+#if ANDROID
             var token = await FirebaseTokenSource.GetTokenAsync();
+#else
+            var token = await IosPush.GetTokenAsync();
+#endif
             if (!string.IsNullOrEmpty(token)) sync.TokenReceived(token);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             await sync.EnsureRegisteredAsync(cts.Token);

@@ -514,3 +514,5 @@ appsettings.*.local.json
 src/LifeDrop.Mobile/google-services.json
 /opt/lifedrop/secrets/firebase-service-account.json
 
+
+src/LifeDrop.Mobile/GoogleService-Info.plist
