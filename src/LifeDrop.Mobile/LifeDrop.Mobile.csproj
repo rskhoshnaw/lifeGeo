@@ -46,6 +46,11 @@
 		<ProjectReference Include="..\LifeDrop.Mobile.Auth.Android\LifeDrop.Mobile.Auth.Android.csproj" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
 	</ItemGroup>
 
+	<!-- iOS shares the session logic of the Android store by compiling that one file (referencing its project would also restore its net10.0-android target, which needs the Android workload). -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<Compile Include="..\LifeDrop.Mobile.Auth.Android\AndroidSecureCredentialStore.cs" Link="Platforms\iOS\AndroidSecureCredentialStore.cs" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
