@@ -63,6 +63,10 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 		<!-- QR code scanning in the sign-in screen (plan step 4.7). NuGet resolves 0.5.0 (0.4.0.196 is not on the feed). -->
 		<PackageReference Include="ZXing.Net.MAUI.Controls" Version="0.5.0" />
+	</ItemGroup>
+
+	<!-- Android-only packages (see the note): on iOS they cannot be restored (NU1202), so they belong to the android target only (plan step 3.8). -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<!-- ZXing 0.5.0 brings Xamarin.AndroidX.Tracing.Tracing.Ktx 1.2.0.9, whose Java classes
 		     conflict with Xamarin.AndroidX.Tracing.Tracing 2.0.0 (required by Fragment.Ktx 1.9.0)
 		     → "Type TraceKt$traceAsync$1 is defined multiple times" in R8.
