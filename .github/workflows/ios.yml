@@ -1,0 +1,116 @@
+name: iOS
+
+# Manual / gated: the macOS runner is slow and costly, so it never runs on every push.
+#  - PR label `ios`           -> build + sign + verify the IPA
+#  - PR label `ios-testflight`-> same, then upload to TestFlight (internal testers only)
+#  - Actions > iOS > Run workflow (needs this file on the default branch), tick the box to upload.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: 'Upload the IPA to TestFlight'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'ios') ||
+      contains(github.event.pull_request.labels.*.name, 'ios-testflight')
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      UPLOAD: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_testflight) || contains(github.event.pull_request.labels.*.name, 'ios-testflight') }}
+    steps:
+    - uses: actions/checkout@v7
+      name: Checkout code
+
+    - name: Select Xcode 26.6
+      run: |
+        xcodebuild -version
+        if ! xcodebuild -version | grep -q 'Xcode 26\.6'; then
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          else
+            echo "::error::Xcode 26.6 not found on this runner image; the pinned iOS workload needs it."
+            ls /Applications | grep -i xcode || true
+            exit 1
+          fi
+        fi
+        xcodebuild -version
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    # Pinned workload set: newer sets carry iOS 27.0 which needs Xcode 27 (not on the image). Set 10.0.401 = iOS 26.5 + MAUI 10.0.20.
+    - name: Install MAUI iOS workload (pinned set)
+      run: |
+        dotnet workload install maui-ios --version 10.0.401
+        dotnet --version
+        dotnet workload list
+
+    - name: Import Apple Distribution certificate
+      uses: apple-actions/import-codesign-certs@v7
+      with:
+        p12-file-base64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+        p12-password: ${{ secrets.APPLE_CERT_PASSWORD }}
+
+    - name: Install and validate provisioning profile
+      id: profile
+      env:
+        APPLE_PROVISION_BASE64: ${{ secrets.APPLE_PROVISION_BASE64 }}
+      run: python3 scripts/ci/ios/install_profile.py
+
+    - name: Pick signing identity matching the profile
+      run: python3 scripts/ci/ios/pick_identity.py
+
+    - name: Build, sign and package IPA
+      run: |
+        dotnet publish src/LifeDrop.Mobile/LifeDrop.Mobile.csproj \
+          -f net10.0-ios \
+          -c Release \
+          -p:LifeDropIosOnly=true \
+          -p:LifeDropMauiVersion=10.0.20 \
+          -p:ApplicationVersion=${{ github.run_number }} \
+          -p:RuntimeIdentifier=ios-arm64 \
+          -p:CodesignKey="$CODESIGN_KEY" \
+          -p:CodesignProvision="${{ steps.profile.outputs.uuid }}"
+
+    - name: Verify IPA
+      id: ipa
+      run: bash scripts/ci/ios/verify_ipa.sh com.pixelo.geotrack "${{ steps.profile.outputs.uuid }}"
+
+    - name: Check App Store Connect secrets
+      if: env.UPLOAD == 'true'
+      env:
+        ISSUER: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+        KEYID: ${{ secrets.APPLE_ASC_KEY_ID }}
+        PRIVKEY: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
+      run: |
+        echo "$ISSUER" | grep -Eq '^[0-9a-fA-F-]{36}$' || { echo "::error::APPLE_ASC_ISSUER_ID must be a UUID"; exit 1; }
+        echo "$KEYID" | grep -Eq '^[A-Z0-9]{10}$' || { echo "::error::APPLE_ASC_KEY_ID must be 10 letters/digits"; exit 1; }
+        echo "$PRIVKEY" | grep -q 'BEGIN PRIVATE KEY' || { echo "::error::APPLE_ASC_PRIVATE_KEY must contain the full .p8 text"; exit 1; }
+
+    - name: Upload to TestFlight
+      if: env.UPLOAD == 'true'
+      uses: apple-actions/upload-testflight-build@v5
+      with:
+        app-path: ${{ steps.ipa.outputs.ipa }}
+        app-type: ios
+        issuer-id: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+        api-key-id: ${{ secrets.APPLE_ASC_KEY_ID }}
+        api-private-key: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
+        uses-non-exempt-encryption: 'false'
+        wait-for-processing: 'true'
