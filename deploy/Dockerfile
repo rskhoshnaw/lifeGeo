@@ -2,6 +2,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Directory.Packages.props ./
+# Infrastructure embeds i18n/strings.json (../../i18n/strings.json in its csproj); without it the image build fails with CS1566.
+COPY i18n/ i18n/
 COPY src/LifeDrop.Domain/ src/LifeDrop.Domain/
 COPY src/LifeDrop.Application/ src/LifeDrop.Application/
 COPY src/LifeDrop.Infrastructure/ src/LifeDrop.Infrastructure/
