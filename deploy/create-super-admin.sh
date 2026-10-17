@@ -19,7 +19,7 @@ print("pbkdf2-sha256$210000$" + base64.b64encode(salt).decode() + "$" + base64.b
 psql_db "$DB" <<SQL
 INSERT INTO users (id, tenant_id, email, password_hash)
 VALUES (gen_random_uuid(), '$PLATFORM_TENANT', lower('$email'), '$hash')
-ON CONFLICT (tenant_id, lower(email)) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_active = true;
+ON CONFLICT (tenant_id, lower(email)) WHERE email IS NOT NULL DO UPDATE SET password_hash = EXCLUDED.password_hash, is_active = true;
 INSERT INTO user_roles (tenant_id, user_id, role_id)
 SELECT u.tenant_id, u.id, r.id FROM users u JOIN roles r ON r.tenant_id = u.tenant_id AND r.name = 'SuperAdmin'
 WHERE u.tenant_id = '$PLATFORM_TENANT' AND lower(u.email) = lower('$email')
