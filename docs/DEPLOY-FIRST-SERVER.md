@@ -62,12 +62,15 @@ mkdir -p /var/backups/lifedrop
 ```
 بعد از اولین backup: `./restore-test.sh` (باید موفق شود). یک نسخه را هم روی کامپیوتر خودت نگه دار (`scp`) یا `BACKUP_REMOTE` را تنظیم کن.
 
-## ۸. پنل (Cloudflare Pages)
-Cloudflare ← **Workers & Pages** ← Create ← **Pages** ← Connect to Git ← مخزن `lifeGeo`:
-- Root directory: `src/LifeDrop.Web`؛ Build command: `npm ci && npm run build`؛ Output: `dist`
-- Environment variable: `VITE_API_BASE_URL` = `https://lifedrops.lifegeotracking.com`
-- بعد از اولین deploy: Custom domains ← `panel.lifegeotracking.com` (چون دامنه در Cloudflare است خودکار انجام می‌شود).
-(مخزن عمومی است؛ اگر خصوصی شد در Pages دسترسی GitHub بده.)
+## ۸. پنل (Cloudflare)
+Cloudflare دیگر Pages را جدا نشان نمی‌دهد؛ پنل مثل یک Worker با فایل‌های ثابت منتشر می‌شود (تنظیمات در `src/LifeDrop.Web/wrangler.jsonc`، شامل دامنهٔ `panel.lifegeotracking.com` و برگشت به `index.html`).
+Cloudflare ← **Workers & Pages** ← **Create application** ← **Import a repository** (Connect to Git) ← مخزن `lifeGeo`:
+- **Project name:** `lifedrop-panel` (باید دقیقاً همین باشد)؛ Production branch: `main`
+- **Advanced settings ← Root directory:** `src/LifeDrop.Web`
+- **Build command:** `npm ci && npm run build`؛ **Deploy command:** `npx wrangler deploy` (پیش‌فرض)
+- **Build variables:** `VITE_API_BASE_URL` = `https://lifedrops.lifegeotracking.com` و `NODE_VERSION` = `22`
+- «Protect with Cloudflare Access» را فعلاً روشن نکن.
+بعد از اولین deploy موفق، `https://panel.lifegeotracking.com` خودکار وصل می‌شود.
 
 ## ۹. اولین شرکت
 پنل را باز کن (`https://panel.lifegeotracking.com`) ← کد شرکت `platform`، ایمیل و رمز Super Admin ← **شرکت‌ها** ← شرکت جدید: کد `lifedrops`، نام `Life Drops`، ایمیل و رمز اولین مدیر.
