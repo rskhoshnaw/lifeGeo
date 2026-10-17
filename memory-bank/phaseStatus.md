@@ -107,3 +107,4 @@ Open decisions: D4 only (Backup delete permission); API host is now per company 
 - Panel hosting (2026-10-17): Cloudflare merged Pages into Workers; `src/LifeDrop.Web/wrangler.jsonc` (name `lifedrop-panel`, assets `./dist`, SPA fallback, custom domain `panel.lifegeotracking.com`); steps in `docs/DEPLOY-FIRST-SERVER.md` section 8.
 - Fix (2026-10-17): TestFlight rejected the iOS upload (build number 23 < 112 from the old job); `ios.yml` now builds with `ApplicationVersion = 1000 + run number x 10 + attempt`.
 - Fix (2026-10-17): the upload step failed after a VALID upload (409 "cannot update when the value is already set") because Info.plist already declares the encryption answer; `uses-non-exempt-encryption` removed from `ios.yml`.
+- Android release (2026-10-17): `.github/workflows/android-release.yml` (manual, signed .aab kept 1 day) and `docs/ANDROID.md`; needs the keystore and Firebase secrets from the owner. Untested until the secrets exist.
