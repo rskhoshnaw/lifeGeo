@@ -42,7 +42,8 @@ services:
       # Put the Firebase key in deploy/secrets/service-account.json to turn push on (docs/PUSH.md); without the file push stays off.
       - ./secrets:/run/fcm:ro
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/live HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
+      # bash, not the default sh (dash): /dev/tcp is a bash feature, so with CMD-SHELL the check always failed and the API showed "unhealthy".
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/live HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
       interval: 15s
       retries: 5
       start_period: 20s

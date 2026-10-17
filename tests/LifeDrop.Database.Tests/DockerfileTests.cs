@@ -32,4 +32,14 @@ public class DockerfileTests
             }
         }
     }
+
+    [Fact]
+    public void Api_healthcheck_that_uses_dev_tcp_runs_with_bash()
+    {
+        // /dev/tcp is a bash feature; the image's sh is dash, so "CMD-SHELL" made the API report "unhealthy" on the first server.
+        var compose = File.ReadAllText(Path.Combine(RepoRoot(), "deploy", "docker-compose.yml"));
+        Assert.Contains("/dev/tcp/", compose);
+        Assert.Contains("\"CMD\", \"bash\", \"-c\"", compose);
+        Assert.DoesNotContain("CMD-SHELL\", \"exec 3<>/dev/tcp", compose);
+    }
 }
