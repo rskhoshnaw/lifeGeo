@@ -138,6 +138,7 @@ jobs:
         echo "$KEYID" | grep -Eq '^[A-Z0-9]{10}$' || { echo "::error::APPLE_ASC_KEY_ID must be 10 letters/digits"; exit 1; }
         echo "$PRIVKEY" | grep -q 'BEGIN PRIVATE KEY' || { echo "::error::APPLE_ASC_PRIVATE_KEY must contain the full .p8 text"; exit 1; }
 
+    # Export compliance is declared in Info.plist (ITSAppUsesNonExemptEncryption = false), so Apple already has the answer; asking the action to set it again fails with 409.
     - name: Upload to TestFlight
       if: env.UPLOAD == 'true'
       uses: apple-actions/upload-testflight-build@v5
@@ -147,5 +148,4 @@ jobs:
         issuer-id: ${{ secrets.APPLE_ASC_ISSUER_ID }}
         api-key-id: ${{ secrets.APPLE_ASC_KEY_ID }}
         api-private-key: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
-        uses-non-exempt-encryption: 'false'
         wait-for-processing: 'true'
