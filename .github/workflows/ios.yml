@@ -115,6 +115,7 @@ jobs:
           -c Release \
           -p:LifeDropIosOnly=true \
           -p:LifeDropMauiVersion=10.0.20 \
+          -p:LifeDropBaseDomain=lifegeotracking.com \
           -p:ApplicationVersion=${{ github.run_number }} \
           -p:RuntimeIdentifier=ios-arm64 \
           -p:CodesignKey="$CODESIGN_KEY" \
