@@ -39,3 +39,13 @@ battery optimisation) rather than code. Thresholds can be changed only by the pr
    it"), in order, and the tracking points' "on the phone" count must fall to 0.
 5. On the server: the visit is `Completed`; `GET /offline-reviews` (manager) shows the step only if it needed review;
    no step or point is stored twice.
+
+## iPhone checklist (plan step 3.8)
+Install the build from TestFlight (see `docs/IOS.md`; the workflow uploads with Actions > iOS > Run workflow, upload box ticked). Allow location and notifications when asked. In Settings > GeoTrack set Location to "While Using" or "Always".
+1. Sign in, close the app from the app switcher, open it again: still signed in.
+2. Start a shift, lock the phone and carry it for 30-60 minutes (or drive). The blue location pill/bar shows tracking is on. Afterwards the shift report should show points about every 3 minutes while moving (iOS sends nothing when the phone stands still).
+3. Force-quit the app during the shift, open it again: the shift resumes from the Home page. iOS does not restart the app by itself, so points between the quit and the reopen are missing; this is expected.
+4. Open `lifedrop://join/<company code>` from Safari or Notes: the app opens with the company code filled in. Scan a company QR with the in-app camera button.
+5. Airplane mode test: same as the offline test above.
+6. Push (needs the API running with the Firebase service-account key, `docs/PUSH.md`): sign in as a user who should receive a message, change a customer in that user's area from the panel. The banner should appear with the app open, in the background and closed, in the phone's language.
+Send back what failed, with the time it happened.

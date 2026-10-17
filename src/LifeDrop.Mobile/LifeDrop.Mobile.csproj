@@ -22,7 +22,8 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>GeoTrack by Pixelo</ApplicationTitle>
+		<ApplicationTitle Condition="'$(LifeDropAppName)' == ''">GeoTrack by Pixelo</ApplicationTitle>
+		<ApplicationTitle Condition="'$(LifeDropAppName)' != ''">$(LifeDropAppName)</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.pixelo.geotrack</ApplicationId>
@@ -53,10 +54,10 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.png" Color="#FFFFFF" />
 
 		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Splash\splash.png" Color="#FFFFFF" />
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
