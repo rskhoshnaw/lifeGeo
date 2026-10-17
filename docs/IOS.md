@@ -14,3 +14,6 @@ Push messages (code written, needs the owner's Firebase file; see below): Fireba
 4. The server needs the same Firebase project's service-account key (`docs/PUSH.md` step 2-3).
 
 Real iPhone checks pending: background tracking with the screen locked, link opening, camera QR, push (app open, in background, closed).
+
+## Icon and name
+The logo in `src/LifeDrop.Mobile/Resources/AppIcon/appiconfg.png` (transparent, on a white background from `appicon.svg`) is the icon on Android and iOS; `Resources/Splash/splash.png` is the splash screen; the panel uses `src/LifeDrop.Web/public/favicon.*`, `apple-touch-icon.png` and `icon-*.png`. The name on the phone is `GeoTrack by Pixelo` unless the build passes `-p:LifeDropAppName="Other name"`. A phone app has one fixed name and icon per build, so another company with its own name and icon (for example a food distributor) needs its own build with its own icon files and name; the company name shown inside the app after sign-in comes from the server.
