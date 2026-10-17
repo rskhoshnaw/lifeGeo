@@ -108,6 +108,8 @@ jobs:
           exit 1
         fi
 
+    # TestFlight needs every upload to have a higher build number than all earlier ones. This workflow's run numbers restarted below the 112 used by the old job in build.yml, so the number is
+    # offset (1000 + run number x 10 + attempt); a re-run of the same run gets the next attempt number.
     - name: Build, sign and package IPA
       run: |
         dotnet publish src/LifeDrop.Mobile/LifeDrop.Mobile.csproj \
@@ -116,7 +118,7 @@ jobs:
           -p:LifeDropIosOnly=true \
           -p:LifeDropMauiVersion=10.0.20 \
           -p:LifeDropBaseDomain=lifegeotracking.com \
-          -p:ApplicationVersion=${{ github.run_number }} \
+          -p:ApplicationVersion=$((1000 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }})) \
           -p:RuntimeIdentifier=ios-arm64 \
           -p:CodesignKey="$CODESIGN_KEY" \
           -p:CodesignProvision="${{ steps.profile.outputs.uuid }}"
