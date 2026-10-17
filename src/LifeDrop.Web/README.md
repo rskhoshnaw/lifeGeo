@@ -16,7 +16,9 @@ Managers sign in with company code, email and password. Field roles bound to a p
 approved phone". The access token stays in memory; the refresh token is kept in `sessionStorage` (this tab only)
 and rotates on each refresh.
 
-## Cloudflare Pages (decision D13) — owner setup
+## Cloudflare (decision D13) — owner setup
+Cloudflare now builds this as a Worker with static assets: `wrangler.jsonc` here holds the project name (`lifedrop-panel`), the `dist` folder, the single-page fallback and the custom domain; the steps below keep the Pages wording but the settings are in `docs/DEPLOY-FIRST-SERVER.md` section 8 (deploy command `npx wrangler deploy`).
+
 1. Cloudflare dashboard → Workers & Pages → Create → Pages → connect the private GitHub repo.
 2. Build settings: root directory `src/LifeDrop.Web`, build command `npm ci && npm run build`, output `dist`.
    The build also reads `i18n/strings.json` at the repository root (texts shared with the app); Cloudflare clones the whole repo, so nothing extra is needed.

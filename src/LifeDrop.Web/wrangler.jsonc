@@ -1,0 +1,14 @@
+{
+  // The panel on Cloudflare (Workers with static assets; Pages is merged into Workers). The Cloudflare project must be named "lifedrop-panel".
+  // Build command in Cloudflare: npm ci && npm run build   (root directory: src/LifeDrop.Web, build variable VITE_API_BASE_URL). Deploy command: npx wrangler deploy
+  "name": "lifedrop-panel",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // The panel is a single-page app: every unknown path serves index.html and the router decides.
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [
+    { "pattern": "panel.lifegeotracking.com", "custom_domain": true }
+  ]
+}
