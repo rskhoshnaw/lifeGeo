@@ -571,6 +571,27 @@ describe('panel management screens', () => {
     expect(screen.queryByText('Follow-up overdue')).not.toBeInTheDocument()
   })
 
+  it('follow-ups: the creator edits subject and due day of an open one; a completed one has no Edit', async () => {
+    const rep1: Me = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], permissions: ['followups.create', 'customers.read'] }
+    const base = { customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', assigneeId: 'u1', assigneeEmail: 'rep@t1', createdBy: 'u1', createdByEmail: 'rep@t1', resultNote: null, cancelReason: null, createdAt: '2026-10-01T08:00:00Z', completedAt: null }
+    const { api, calls } = server(rep1, {
+      '/followups?limit=200': [{ ...base, id: 'f1', subject: 'Call back', dueDate: '2099-01-01', status: 'pending', isOverdue: false }, { ...base, id: 'f2', subject: 'Done thing', dueDate: '2026-10-02', status: 'completed', isOverdue: false, resultNote: 'ok' }],
+      '/customers?limit=100': [],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Follow-ups' }))
+    expect(await screen.findByText('Call back')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Done thing' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit Call back' }))
+    const subject = screen.getAllByLabelText('Subject', { selector: 'input' }).at(-1) as HTMLElement
+    await user.clear(subject)
+    await user.type(subject, 'Call back Monday')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'PUT', path: '/followups/f1', body: { subject: 'Call back Monday', dueDate: '2099-01-01' } })
+  })
+
   it('follow-ups: a manager sees overdue ones, makes one for a rep, reassigns and cancels with a reason', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' customer closed ')
     const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['followups.read', 'followups.create', 'followups.manage', 'customers.read', 'user.manageroles'] }

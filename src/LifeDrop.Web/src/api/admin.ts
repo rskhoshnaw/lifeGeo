@@ -892,6 +892,7 @@ export class AdminApi {
   followUps = (status: string, overdueOnly: boolean) =>
     this.get<FollowUp[]>(`/followups?limit=200${status ? `&status=${status}` : ''}${overdueOnly ? '&overdue=true' : ''}`)
   createFollowUp = (followUp: { customerId: string; subject: string; dueDate: string; assigneeId: string | null; clientRef: string }) => this.post('/followups', followUp)
+  editFollowUp = (id: string, subject: string, dueDate: string) => this.send('PUT', `/followups/${id}`, { subject, dueDate })
   cancelFollowUp = (id: string, reason: string) => this.post(`/followups/${id}/cancel`, { reason })
   reassignFollowUp = (id: string, assigneeId: string) => this.post(`/followups/${id}/reassign`, { assigneeId })
   // Alerts (step 2.9): operational and security alerts; new -> seen -> handled with a note. scan() looks for new ones now.
