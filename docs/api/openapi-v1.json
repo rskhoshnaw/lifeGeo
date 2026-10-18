@@ -14639,6 +14639,9 @@
         }
       },
       "ChangeUserEmailRequest": {
+        "required": [
+          "email"
+        ],
         "type": "object",
         "properties": {
           "email": {
@@ -19764,6 +19767,9 @@
         }
       },
       "SetUserPasswordRequest": {
+        "required": [
+          "password"
+        ],
         "type": "object",
         "properties": {
           "password": {
