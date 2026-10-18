@@ -70,6 +70,16 @@ public static class FollowUpEndpoints
             .WithName("CancelFollowUp").WithTags("FollowUps").Produces(204)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(400).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/followups/{followUpId:guid}", async (Guid followUpId, EditFollowUpRequest request, HttpContext context, FollowUpService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.EditAsync(tenantId, actorId, followUpId, request, cancellationToken);
+            return result == FollowUpResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("EditFollowUp").WithTags("FollowUps").Produces(204)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(400).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/followups/{followUpId:guid}/reassign", async (Guid followUpId, ReassignFollowUpRequest request, HttpContext context, FollowUpService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();

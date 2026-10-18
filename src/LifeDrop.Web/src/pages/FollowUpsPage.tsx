@@ -14,7 +14,11 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const manage = can(me, ...Permissions.manageFollowUps)
   const users = useLoad(useCallback(() => (manage ? admin.users().catch(() => []) : Promise.resolve([])), [admin, manage]))
   const [picked, setPicked] = useState<Record<string, string>>({})
-  const action = useAction(list.reload)
+  const [edit, setEdit] = useState<{ id: string; subject: string; due: string } | null>(null)
+  const action = useAction(() => {
+    setEdit(null)
+    list.reload()
+  })
 
   function cancel(f: FollowUp) {
     const reason = window.prompt(t('web.followups.reasonPrompt'))?.trim()
@@ -49,7 +53,7 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <th>{t('web.followups.due')}</th>
               <th>{t('web.followups.assignee')}</th>
               <th>{t('web.followups.status')}</th>
-              {manage && <th />}
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -57,13 +61,23 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
               const open = f.status === 'pending' || f.status === 'in_progress'
               return (
                 <tr key={f.id} className="border-b align-top">
-                  <td className="py-2">{f.subject}</td>
+                  <td className="py-2">
+                    {edit?.id === f.id ? (
+                      <input aria-label={t('web.followups.subject')} className="w-64 rounded border px-2 py-1" maxLength={200} value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} />
+                    ) : (
+                      f.subject
+                    )}
+                  </td>
                   <td>
                     {f.customerCode} · {f.customerName}
                   </td>
                   <td>
-                    {f.dueDate}
-                    {f.isOverdue && <strong className="text-red-700"> · {t('web.followups.overdue')}</strong>}
+                    {edit?.id === f.id ? (
+                      <input type="date" aria-label={t('web.followups.due')} className="rounded border px-2 py-1" min={f.dueDate < iraqToday() ? f.dueDate : iraqToday()} value={edit.due} onChange={(e) => e.target.value && setEdit({ ...edit, due: e.target.value })} />
+                    ) : (
+                      f.dueDate
+                    )}
+                    {edit?.id !== f.id && f.isOverdue && <strong className="text-red-700"> · {t('web.followups.overdue')}</strong>}
                   </td>
                   <td>{f.assigneeEmail ?? f.assigneeId}</td>
                   <td>
@@ -71,9 +85,23 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                     {f.resultNote ? ` · ${f.resultNote}` : ''}
                     {f.cancelReason ? ` · ${f.cancelReason}` : ''}
                   </td>
-                  {manage && (
-                    <td className="space-x-2 py-2 text-end">
-                      {open && (
+                  <td className="space-x-2 py-2 text-end">
+                    {open && (manage || f.createdBy === me.id) &&
+                      (edit?.id === f.id ? (
+                        <>
+                          <button className="rounded border px-2 py-1" disabled={action.busy || edit.subject.trim() === ''} onClick={() => void action.run(() => admin.editFollowUp(f.id, edit.subject.trim(), edit.due))}>
+                            {t('web.followups.saveEdit')}
+                          </button>
+                          <button className="rounded border px-2 py-1" onClick={() => setEdit(null)}>
+                            {t('web.followups.cancelEdit')}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="rounded border px-2 py-1" aria-label={t('web.followups.editAction', { subject: f.subject })} onClick={() => setEdit({ id: f.id, subject: f.subject, due: f.dueDate })}>
+                          {t('web.followups.edit')}
+                        </button>
+                      ))}
+                    {manage && open && (
                         <>
                           <select aria-label={t('web.followups.reassignAction', { subject: f.subject })} className="rounded border px-1 py-1" value={picked[f.id] ?? ''} onChange={(e) => setPicked({ ...picked, [f.id]: e.target.value })}>
                             <option value="">{t('web.followups.chooseAssignee')}</option>
@@ -90,9 +118,8 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                             {t('web.followups.cancel')}
                           </button>
                         </>
-                      )}
-                    </td>
-                  )}
+                    )}
+                  </td>
                 </tr>
               )
             })}

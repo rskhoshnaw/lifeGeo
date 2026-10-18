@@ -125,6 +125,13 @@ public sealed class PostgresFollowUpStore(NpgsqlDataSource dataSource) : IFollow
         ChangeAsync(tenantId, actorId, id, "followup.reassigned", "assignee_id = @assignee", "status IN ('pending', 'in_progress')", c => c.Parameters.AddWithValue("assignee", assigneeId),
             null, null, cancellationToken);
 
+    public Task<FollowUpResult> EditAsync(TenantId tenantId, UserId actorId, Guid id, string subject, DateOnly dueDate, CancellationToken cancellationToken) =>
+        ChangeAsync(tenantId, actorId, id, "followup.edited", "subject = @subject, due_date = @due", "status IN ('pending', 'in_progress')", c =>
+        {
+            c.Parameters.AddWithValue("subject", subject);
+            c.Parameters.Add(P("due", NpgsqlDbType.Date, dueDate));
+        }, null, null, cancellationToken);
+
     private async Task<FollowUpResult> ChangeAsync(TenantId tenantId, UserId actorId, Guid id, string action, string set, string whenStatus, Action<NpgsqlCommand> bind,
         string? alreadyDone, Action<NpgsqlCommand>? bindDone, CancellationToken cancellationToken)
     {

@@ -18,6 +18,7 @@ public sealed record CreateFollowUpRequest(Guid? CustomerId, string? Subject, Da
 public sealed record CompleteFollowUpRequest(string? ResultNote);
 public sealed record CancelFollowUpRequest(string? Reason);
 public sealed record ReassignFollowUpRequest(Guid? AssigneeId);
+public sealed record EditFollowUpRequest(string? Subject, DateOnly? DueDate);
 public sealed record CreatedFollowUpDto(Guid Id, bool Replayed);
 
 public enum FollowUpResult { Success, Forbidden, NotFound, InvalidData, Conflict }
@@ -38,6 +39,9 @@ public interface IFollowUpStore
     Task<FollowUpResult> CompleteAsync(TenantId tenantId, UserId actorId, Guid followUpId, string resultNote, CancellationToken cancellationToken);
     Task<FollowUpResult> CancelAsync(TenantId tenantId, UserId actorId, Guid followUpId, string reason, CancellationToken cancellationToken);
     Task<FollowUpResult> ReassignAsync(TenantId tenantId, UserId actorId, Guid followUpId, Guid assigneeId, CancellationToken cancellationToken);
+    // Subject and due day of an open follow-up (plan step 4.12); Conflict when it is completed or cancelled. Audit row followup.edited in the same transaction.
+    Task<FollowUpResult> EditAsync(TenantId tenantId, UserId actorId, Guid followUpId, string subject, DateOnly dueDate, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
 
 public sealed class FollowUpService(IFollowUpStore store, IPermissionStore permissions, ICustomerStore customers, TimeProvider clock)
@@ -105,6 +109,21 @@ public sealed class FollowUpService(IFollowUpStore store, IPermissionStore permi
         if (!manages && item.Value.Item.CreatedBy != actorId.Value) return FollowUpResult.Forbidden;
         var reason = request.Reason?.Trim();
         return string.IsNullOrEmpty(reason) || reason.Length > 500 ? FollowUpResult.InvalidData : await store.CancelAsync(tenantId, actorId, followUpId, reason, cancellationToken);
+    }
+
+    // Subject and due day, by the creator or a manager whose area covers the responsible user (the same people who may cancel). The due day may stay as it is
+    // (even when it has passed, for an overdue follow-up) or move to today or later.
+    public async Task<FollowUpResult> EditAsync(TenantId tenantId, UserId actorId, Guid followUpId, EditFollowUpRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var (item, manages, _) = await LoadAsync(tenantId, actorId, followUpId, cancellationToken);
+        if (item is null) return FollowUpResult.NotFound;
+        if (!manages && item.Value.Item.CreatedBy != actorId.Value) return FollowUpResult.Forbidden;
+        var subject = request.Subject?.Trim();
+        if (string.IsNullOrEmpty(subject) || subject.Length > 200 || request.DueDate is null ||
+            (request.DueDate < IraqCalendar.Today(clock) && request.DueDate != item.Value.Item.DueDate))
+            return FollowUpResult.InvalidData;
+        return await store.EditAsync(tenantId, actorId, followUpId, subject, request.DueDate.Value, cancellationToken);
     }
 
     public async Task<FollowUpResult> ReassignAsync(TenantId tenantId, UserId actorId, Guid followUpId, ReassignFollowUpRequest request, CancellationToken cancellationToken)
