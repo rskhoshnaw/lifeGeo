@@ -184,7 +184,7 @@ public partial class MainPage : ContentPage
                 EmailEntry.Text ?? "",
                 PasswordEntry.Text ?? "",
                 DeviceLabelEntry.Text ?? "",
-                "android",
+                DeviceInfo.Platform == DevicePlatform.iOS ? "ios" : "android",
                 installId,
                 "1.0.0");
 
