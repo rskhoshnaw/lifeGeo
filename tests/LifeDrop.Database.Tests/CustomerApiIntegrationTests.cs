@@ -4396,7 +4396,19 @@ public class CustomerApiIntegrationTests
         Assert.True(File.Exists(snapshotPath), $"Missing {snapshotPath}; run once with UPDATE_OPENAPI_SNAPSHOT=1.");
         var expected = (await File.ReadAllTextAsync(snapshotPath)).ReplaceLineEndings("\n");
         Assert.True(expected == actual,
-            "The API contract changed. If intended, regenerate docs/api/openapi-v1.json with UPDATE_OPENAPI_SNAPSHOT=1 and review the diff.");
+            "The API contract changed. If intended, regenerate docs/api/openapi-v1.json with UPDATE_OPENAPI_SNAPSHOT=1 and review the diff. " + FirstDifference(expected, actual));
+    }
+
+    // The first line where the committed contract and the generated one differ, so a failed run shows what changed without downloading anything.
+    private static string FirstDifference(string expected, string actual)
+    {
+        var a = expected.Split('\n');
+        var b = actual.Split('\n');
+        for (var i = 0; i < Math.Min(a.Length, b.Length); i++)
+            if (a[i] != b[i])
+                return $"First difference at line {i + 1}: committed '{a[i].Trim()}' but generated '{b[i].Trim()}'. Generated context: " +
+                       string.Join(" | ", b.Skip(Math.Max(0, i - 3)).Take(8).Select(l => l.Trim()));
+        return $"The files differ in length only (committed {a.Length} lines, generated {b.Length}).";
     }
 
     private static string NormalizeOpenApi(string json)
