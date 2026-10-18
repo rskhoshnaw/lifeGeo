@@ -6892,5 +6892,29 @@
   "ckb": "تۆمارکردنی نموونە",
   "ar": "تسجيل العيّنة",
   "fa": "ثبت نمونه"
+ },
+ "web.catalog.changePrice": {
+  "en": "Change price",
+  "ckb": "گۆڕینی نرخ",
+  "ar": "تغيير السعر",
+  "fa": "تغییر قیمت"
+ },
+ "web.catalog.pricePrompt": {
+  "en": "New base price for {code} ({currency}):",
+  "ckb": "نرخی بنەڕەتی نوێ بۆ {code} ({currency}):",
+  "ar": "السعر الأساسي الجديد لـ {code} ({currency}):",
+  "fa": "قیمت پایهٔ جدید برای {code} ({currency}):"
+ },
+ "web.catalog.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.catalog.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
  }
 }

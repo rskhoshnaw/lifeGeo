@@ -14,6 +14,18 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [editing, setEditing] = useState<Product | 'new' | null>(null)
   const [rulesFor, setRulesFor] = useState<Product | null>(null)
   const products = useLoad(useCallback(() => admin.products(canManage && inactive, search.trim()), [admin, canManage, inactive, search]))
+  const quick = useAction(products.reload)
+
+  // The list changes one thing at a time (status or base price); the server takes the whole product, so everything else is sent as it is.
+  const asInput = (p: Product, change: Partial<ProductInput>): ProductInput => ({
+    name: p.name, nameCkb: p.nameCkb, nameAr: p.nameAr, nameEn: p.nameEn, unit: p.unit, currency: p.currency, basePrice: p.basePrice, status: p.status, ...change,
+  })
+
+  function changePrice(p: Product) {
+    const text = window.prompt(t('web.catalog.pricePrompt', { code: p.code, currency: p.currency }), String(p.basePrice))?.trim()
+    const price = Number(text)
+    if (text && Number.isFinite(price) && price >= 0) void quick.run(() => admin.updateProduct(p.id, asInput(p, { basePrice: price })))
+  }
 
   return (
     <section className="space-y-6 p-6">
@@ -32,7 +44,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </>
         )}
       </div>
-      {products.error && <p role="alert" className="text-sm text-red-700">{products.error}</p>}
+      {(products.error ?? quick.error) && <p role="alert" className="text-sm text-red-700">{products.error ?? quick.error}</p>}
       {products.data && (
         <table className="w-full text-start text-sm">
           <thead>
@@ -57,9 +69,22 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 <td>{t(`web.catalog.${p.status}`)}</td>
                 <td className="space-x-2 text-end">
                   {canManage && (
-                    <button className="rounded border px-2 py-1" aria-label={t('web.catalog.editProduct', { code: p.code })} onClick={() => setEditing(p)}>
-                      {t('web.places.edit')}
-                    </button>
+                    <>
+                      <button className="rounded border px-2 py-1" aria-label={t('web.catalog.editProduct', { code: p.code })} onClick={() => setEditing(p)}>
+                        {t('web.places.edit')}
+                      </button>
+                      <button className="rounded border px-2 py-1" aria-label={`${t('web.catalog.changePrice')} ${p.code}`} disabled={quick.busy} onClick={() => changePrice(p)}>
+                        {t('web.catalog.changePrice')}
+                      </button>
+                      <button
+                        className="rounded border px-2 py-1"
+                        aria-label={`${p.status === 'active' ? t('web.catalog.deactivate') : t('web.catalog.activate')} ${p.code}`}
+                        disabled={quick.busy}
+                        onClick={() => void quick.run(() => admin.updateProduct(p.id, asInput(p, { status: p.status === 'active' ? 'inactive' : 'active' })))}
+                      >
+                        {p.status === 'active' ? t('web.catalog.deactivate') : t('web.catalog.activate')}
+                      </button>
+                    </>
                   )}
                   <button className="rounded border px-2 py-1" aria-label={t('web.catalog.cityPricesFor', { code: p.code })} onClick={() => setRulesFor(p)}>
                     {t('web.catalog.cityPrices')}

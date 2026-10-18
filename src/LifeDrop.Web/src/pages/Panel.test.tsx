@@ -324,6 +324,24 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('products: changes the base price and deactivates from the list, sending the rest of the product unchanged', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue(' 1750 ')
+    const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage'] }
+    const product = { id: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: 'Paracetamol', unit: 'box', currency: 'IQD', basePrice: 1500, status: 'active' }
+    const { api, calls } = server(seller, { '/products?': [product] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await user.click(await screen.findByRole('button', { name: 'Change price PAR-500' }))
+    await user.click(await screen.findByRole('button', { name: 'Deactivate PAR-500' }))
+    const body = { name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: 'Paracetamol', unit: 'box', currency: 'IQD', basePrice: 1500 }
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/products/pr1', body: { ...body, basePrice: 1750, status: 'active' } },
+      { method: 'PUT', path: '/products/pr1', body: { ...body, status: 'inactive' } },
+    ])
+  })
+
   it('manages products, city prices and discounts, and reads the price a customer pays', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' 2026-12-31 ')
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage', 'customers.read'] }
