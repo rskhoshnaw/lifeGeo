@@ -7224,7 +7224,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "one", "platform" }, (await Tenants()).Select(t => t.Code).ToArray());
         Assert.Empty(await PlatformAudit());   // nothing was done yet; the refused calls above changed nothing
 
-        // Creating a company: validated, seeded with roles and a first CompanyManager, audited; the code is unique
+        // Creating a company: validated, seeded with roles and a first account with the CompanyManager and SalesManager roles, audited; the code is unique
         foreach (var bad in new object[]
         {
             NewTenant("platform"), NewTenant("A"), NewTenant("has space"), NewTenant("UPPER_case"), NewTenant("acme", "short"),
@@ -7242,13 +7242,13 @@ public class CustomerApiIntegrationTests
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
-            await using var cmd = new NpgsqlCommand(@"SELECT (SELECT count(*) FROM roles WHERE tenant_id = @t), (SELECT string_agg(r.name, ',') FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id WHERE ur.tenant_id = @t AND ur.user_id = @u),
+            await using var cmd = new NpgsqlCommand(@"SELECT (SELECT count(*) FROM roles WHERE tenant_id = @t), (SELECT string_agg(r.name, ',' ORDER BY r.name) FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id WHERE ur.tenant_id = @t AND ur.user_id = @u),
                 (SELECT password_hash FROM users WHERE id = @u)", conn);
             cmd.Parameters.AddWithValue("t", acme.Id); cmd.Parameters.AddWithValue("u", acme.ManagerId);
             await using var reader = await cmd.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
             Assert.Equal(8L, reader.GetInt64(0));
-            Assert.Equal("CompanyManager", reader.GetString(1));
+            Assert.Equal("CompanyManager,SalesManager", reader.GetString(1));   // the first account can set the company up (live map, devices, users, roles)
             Assert.StartsWith("pbkdf2-sha256$", reader.GetString(2));   // the password is stored hashed
         }
 
