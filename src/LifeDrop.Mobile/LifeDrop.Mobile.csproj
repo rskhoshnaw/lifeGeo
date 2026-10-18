@@ -11,6 +11,9 @@
 		     builds with the runners' Xcode 26.6 (10.0.401, iOS 26.5) carries MAUI 10.0.20, and the build tools and XAML generator come from the workload, not from NuGet. -->
 		<LifeDropMauiVersion Condition="'$(LifeDropMauiVersion)' == ''">10.0.110</LifeDropMauiVersion>
 
+		<!-- Release builds trim the app; with trimming on, the SDK switches off reflection-based System.Text.Json, which every API client here uses. Keep it on. -->
+		<JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+
 		<OutputType>Exe</OutputType>
 		<RootNamespace>LifeDrop.Mobile</RootNamespace>
 		<UseMaui>true</UseMaui>
