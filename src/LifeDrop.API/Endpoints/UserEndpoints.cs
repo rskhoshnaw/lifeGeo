@@ -20,12 +20,12 @@ public static class UserEndpoints
             .WithName("GetCurrentUser").WithTags("Users").Produces<CurrentUserDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
-        app.MapGet("/users", async (HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
+        app.MapGet("/users", async (bool? includeInactive, HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await directory.ListUsersAsync(tenantId, actorId, cancellationToken);
+            var (result, items) = await directory.ListUsersAsync(tenantId, actorId, includeInactive == true, cancellationToken);
             return ToResult(result, items);
         }).RequireAuthorization()
             .WithName("ListUsers").WithTags("Users").Produces<List<UserSummaryDto>>(200)
@@ -49,6 +49,46 @@ public static class UserEndpoints
             .WithName("CreateUser").WithTags("Users").Produces<CreatedUserDto>(201)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/users/{id:guid}/email", async (Guid id, ChangeUserEmailRequest request, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.ChangeEmailAsync(tenantId, actorId, new UserId(id), request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("ChangeUserEmail").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/users/{id:guid}/password", async (Guid id, SetUserPasswordRequest request, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.SetPasswordAsync(tenantId, actorId, new UserId(id), request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SetUserPassword").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/users/{id:guid}/deactivate", async (Guid id, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.SetActiveAsync(tenantId, actorId, new UserId(id), false, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("DeactivateUser").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/users/{id:guid}/activate", async (Guid id, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.SetActiveAsync(tenantId, actorId, new UserId(id), true, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("ActivateUser").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/roles", async (HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
         {
@@ -71,6 +111,15 @@ public static class UserEndpoints
             .WithName("ListDevices").WithTags("Devices").Produces<List<DeviceSummaryDto>>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
     }
+
+    private static IResult ToResult(ManageUserResult result) => result switch
+    {
+        ManageUserResult.Done => Results.NoContent(),
+        ManageUserResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        ManageUserResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+        ManageUserResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
+        _ => Results.Forbid()
+    };
 
     private static IResult ToResult<T>(DirectoryResult result, IReadOnlyList<T> items) => result switch
     {

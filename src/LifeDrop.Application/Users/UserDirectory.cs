@@ -9,7 +9,7 @@ namespace LifeDrop.Application.Users;
 public sealed record CurrentUserDto(Guid Id, string? Email, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
 
 public sealed record UserSummaryDto(Guid Id, string? Email, IReadOnlyList<string> Roles, Guid? TeamId, string? TeamName,
-    Guid? RegionId, int ActiveSessions);
+    Guid? RegionId, int ActiveSessions, bool IsActive);
 
 public sealed record RoleDto(Guid Id, string Name, string DataScope);
 
@@ -22,8 +22,8 @@ public enum DirectoryResult { Success, Forbidden, InvalidData }
 public interface IUserDirectoryStore
 {
     Task<CurrentUserDto?> GetCurrentAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken);
-    // Active users; Region scope = members of teams in scope.RegionId, Own = only the actor.
-    Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, CancellationToken cancellationToken);
+    // Active users (also locked ones with includeInactive, for the panel's Users page); Region scope = members of teams in scope.RegionId, Own = only the actor.
+    Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, bool includeInactive, CancellationToken cancellationToken);
     Task<IReadOnlyList<RoleDto>> ListRolesAsync(TenantId tenantId, CancellationToken cancellationToken);
     Task<IReadOnlyList<DeviceSummaryDto>> ListDevicesAsync(TenantId tenantId, string? status, CancellationToken cancellationToken);
 }
@@ -40,7 +40,7 @@ public sealed class UserDirectory(IUserDirectoryStore store, IPermissionStore pe
     public Task<CurrentUserDto?> GetCurrentAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken) =>
         tenantId.IsEmpty || actorId.IsEmpty ? Task.FromResult<CurrentUserDto?>(null) : store.GetCurrentAsync(tenantId, actorId, cancellationToken);
 
-    public async Task<(DirectoryResult Result, IReadOnlyList<UserSummaryDto> Items)> ListUsersAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    public async Task<(DirectoryResult Result, IReadOnlyList<UserSummaryDto> Items)> ListUsersAsync(TenantId tenantId, UserId actorId, bool includeInactive, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return (DirectoryResult.Forbidden, []);
         AccessScope? widest = null;
@@ -50,7 +50,9 @@ public sealed class UserDirectory(IUserDirectoryStore store, IPermissionStore pe
             if (scope is not null && (widest is null || scope.Scope > widest.Scope)) widest = scope;
         }
         if (widest is null) return (DirectoryResult.Forbidden, []);
-        return (DirectoryResult.Success, await store.ListUsersAsync(tenantId, widest, cancellationToken));
+        // Deactivated accounts are shown only to those who may reactivate them.
+        var showInactive = includeInactive && await HasAnyAsync(tenantId, actorId, RolePermissions, cancellationToken);
+        return (DirectoryResult.Success, await store.ListUsersAsync(tenantId, widest, showInactive, cancellationToken));
     }
 
     public async Task<(DirectoryResult Result, IReadOnlyList<RoleDto> Items)> ListRolesAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)

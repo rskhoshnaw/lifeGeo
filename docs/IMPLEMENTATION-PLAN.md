@@ -203,6 +203,7 @@
 | 4.7 | لینک/QR اختصاصی شرکت برای ورود | 🟡 PR #59 | پنل: `?company=<code>`، دکمهٔ «دعوت» با لینک پنل/اپ، کپی و QR؛ اپ: چسباندن لینک در فیلد شرکت کد را برمی‌دارد. **مانده (نیازمند گوشی):** باز شدن مستقیم `lifedrop://` در اپ (intent-filter اندروید) و اسکن QR داخل اپ |
 | 4.8 | ضدتقلب بدون ردیابی متراکم | ✅ PR #55 (+ #56 اصلاح تست لوکال) | migration 0041: `impossible_travel`، `short_stay`، `low_coverage`؛ `docs/ANTIFRAUD.md`. مانده (اختیاری): درخواست اثبات موقعیت و QR در محل مشتری |
 | 4.9 | افزودن حساب کارکنان (مثلاً نماینده فروش) از پنل | 🟡 PR در جریان | تا اینجا فقط مدیر اول شرکت و Super Admin ساخته می‌شد؛ `POST /users` (`user.manageroles`/`system.admin`) و فرم «افزودن حساب» در صفحهٔ کاربران؛ نقش‌های میدانی همچنان به تأیید گوشی در «دستگاه‌ها» نیاز دارند؛ تست‌ها `CreateStaffUserTests`، `UserCreationStoreTests`، تست پنل |
+| 4.10 | مدیریت حساب‌ها در پنل: غیرفعال/فعال‌سازی، تغییر رمز، تغییر ایمیل | 🟡 PR در جریان | `PUT /users/{id}/email`، `PUT /users/{id}/password`، `POST /users/{id}/deactivate|activate` (`user.manageroles`/`system.admin`؛ تغییر رمز و غیرفعال‌سازی نشست‌های کاربر را می‌بندد؛ غیرفعال‌کردن خود ممنوع)؛ `GET /users?includeInactive=true`؛ دکمه‌ها در صفحهٔ کاربران؛ تست‌ها `ManageUsersTests`، `UserAccountStoreTests`، تست پنل |
 
 ---
 
