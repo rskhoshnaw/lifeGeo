@@ -79,6 +79,40 @@ public static class CustomerEndpoints
         }).RequireAuthorization()
             .WithName("DecideCustomerApproval").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        // Rename, recode and archive (plan step 4.11).
+        app.MapPut("/customers/{customerId:guid}", async (Guid customerId, EditCustomerRequest request, HttpContext context,
+            CustomerEditService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await service.EditAsync(tenantId, actorId, customerId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("EditCustomer").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/customers/{customerId:guid}/archive", async (Guid customerId, HttpContext context,
+            CustomerEditService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await service.SetArchivedAsync(tenantId, actorId, customerId, true, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("ArchiveCustomer").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/customers/{customerId:guid}/restore", async (Guid customerId, HttpContext context,
+            CustomerEditService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await service.SetArchivedAsync(tenantId, actorId, customerId, false, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("RestoreCustomer").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static IResult ToResult(CustomerApprovalResult result) => result switch
@@ -105,6 +139,7 @@ public static class CustomerEndpoints
         CustomerUpdateResult.Success => Results.NoContent(),
         CustomerUpdateResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         CustomerUpdateResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        CustomerUpdateResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
         _ => Results.Forbid()
     };
 }

@@ -110,6 +110,7 @@ public partial class Program
             builder.Configuration.GetValue("Channels:Enabled", false), builder.Configuration["Channels:Telegram:BotToken"], builder.Configuration["Channels:Telegram:BotUsername"]));
         builder.Services.AddHostedService<LifeDrop.API.ChannelService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerProfileService>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerEditService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerPriorityStore, LifeDrop.Infrastructure.Customers.PostgresCustomerPriorityStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
         builder.Services.AddScoped<KillUserSessions>();
@@ -617,6 +618,7 @@ public partial class Program
             int? limit,
             DateTimeOffset? cursorCreatedAt,
             Guid? cursorId,
+            bool? archived,
             HttpContext context, 
             LifeDrop.Application.Customers.ListCustomers listCustomers,
             LifeDrop.Application.Roles.IPermissionStore permissionStore,
@@ -635,7 +637,11 @@ public partial class Program
             var readScope = await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.read", cancellationToken);
             if (readScope is null) return Results.Forbid();
 
-            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, cancellationToken);
+            // The archive (plan step 4.11) is shown only to those who may restore from it.
+            if (archived == true && await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.approve", cancellationToken) is null)
+                return Results.Forbid();
+
+            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, archived == true, cancellationToken);
             return result.IsValid ? Results.Ok(result.Items) : Results.BadRequest();
         }).RequireAuthorization()
             .WithName("ListCustomers").WithTags("Customers").Produces<List<LifeDrop.Application.Customers.CustomerDto>>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);

@@ -86,7 +86,34 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         return CreateCustomerResult.Created;
     }
 
-    public async Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
+        ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken);
+
+    public Task<IReadOnlyList<CustomerDto>> ListArchivedAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
+        ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: true, cancellationToken);
+
+    public async Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string type, string code, string name, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.edited", "type = @type, code = @code, name = @name", command =>
+            {
+                command.Parameters.AddWithValue("type", type);
+                command.Parameters.AddWithValue("code", code);
+                command.Parameters.AddWithValue("name", name);
+            }, cancellationToken) ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            return CustomerUpdateResult.Conflict;
+        }
+    }
+
+    public async Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
+        await UpdateWithAuditAsync(tenantId, actorId, id, scope, archived ? "customer.archived" : "customer.restored",
+            archived ? "archived_at = COALESCE(archived_at, now())" : "archived_at = NULL", _ => { }, cancellationToken);
+
+    private async Task<IReadOnlyList<CustomerDto>> ListCoreAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -99,7 +126,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
         var sql = "SELECT " + SelectColumns + " FROM customers";
 
-        sql += "\nWHERE " + ScopeFilter(scope);
+        sql += "\nWHERE " + ScopeFilter(scope) + (archived ? " AND archived_at IS NOT NULL" : " AND archived_at IS NULL");
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             sql += "\nAND ((created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId))";
