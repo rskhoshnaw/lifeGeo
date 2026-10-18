@@ -25,6 +25,7 @@ public partial class HomePage : ContentPage
         StatusLabel.Text = Texts.Get("app.login.signedIn");
         PlanBtn.Text = Texts.Get("app.home.plan");
         NewCustomerBtn.Text = Texts.Get("app.home.newCustomer");
+        CustomersBtn.Text = Texts.Get("app.home.customers");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
@@ -42,6 +43,7 @@ public partial class HomePage : ContentPage
         LogoutBtn.IsEnabled = !isBusy;
         PlanBtn.IsEnabled = !isBusy;
         NewCustomerBtn.IsEnabled = !isBusy;
+        CustomersBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = !isBusy;
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
@@ -206,6 +208,8 @@ public partial class HomePage : ContentPage
     }
 
     private async void OnNewCustomerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new NewCustomerPage());
+
+    private async void OnCustomersClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new CustomersListPage());
 
     private async void OnLogoutClicked(object sender, EventArgs e)
     {

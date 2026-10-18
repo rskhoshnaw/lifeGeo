@@ -60,6 +60,7 @@
     <None Include="../../db/migrations/0042_channels.sql" Link="0042_channels.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0043_customer_archive.sql" Link="0043_customer_archive.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0044_manager_records_samples.sql" Link="0044_manager_records_samples.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0045_customer_contact.sql" Link="0045_customer_contact.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

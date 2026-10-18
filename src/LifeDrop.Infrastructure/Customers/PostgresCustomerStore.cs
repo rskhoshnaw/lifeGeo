@@ -109,11 +109,22 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         }
     }
 
+    public async Task<bool> SetContactAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken) =>
+        await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.contact_changed", "contact_name = @contactName, phone2 = @phone2, notes = @notes", command =>
+        {
+            command.Parameters.AddWithValue("contactName", (object?)contactName ?? DBNull.Value);
+            command.Parameters.AddWithValue("phone2", (object?)phone2 ?? DBNull.Value);
+            command.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
+        }, cancellationToken);
+
+    public Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
+        ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken, search);
+
     public async Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
         await UpdateWithAuditAsync(tenantId, actorId, id, scope, archived ? "customer.archived" : "customer.restored",
             archived ? "archived_at = COALESCE(archived_at, now())" : "archived_at = NULL", _ => { }, cancellationToken);
 
-    private async Task<IReadOnlyList<CustomerDto>> ListCoreAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<CustomerDto>> ListCoreAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken, string? search = null)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -127,6 +138,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         var sql = "SELECT " + SelectColumns + " FROM customers";
 
         sql += "\nWHERE " + ScopeFilter(scope) + (archived ? " AND archived_at IS NOT NULL" : " AND archived_at IS NULL");
+        if (search is not null)
+            sql += "\nAND (name ILIKE @search ESCAPE '\\' OR code ILIKE @search ESCAPE '\\' OR phone ILIKE @search ESCAPE '\\' OR phone2 ILIKE @search ESCAPE '\\')";
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             sql += "\nAND ((created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId))";
@@ -136,6 +149,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("limit", limit);
+        if (search is not null) command.Parameters.AddWithValue("search", "%" + search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%");
         AddScopeParameters(command, scope);
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
@@ -178,7 +192,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
                    UNION ALL
                    SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
                SELECT * FROM chain) a),
-        priority
+        priority, contact_name, phone2, notes
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -191,7 +205,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(11) ? CustomerDto.DefaultGeofenceRadiusMeters : reader.GetInt32(11),
         reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
         reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
-        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)), reader.GetString(18));
+        reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)), reader.GetString(18),
+        reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20), reader.IsDBNull(21) ? null : reader.GetString(21));
 
     private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

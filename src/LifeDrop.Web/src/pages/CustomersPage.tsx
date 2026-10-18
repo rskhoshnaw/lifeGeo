@@ -69,7 +69,9 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
 
 function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: AdminApi; canEdit: boolean; canArchive: boolean; canPrioritise: boolean }) {
   const [archived, setArchived] = useState(false)
-  const first = useLoad(useCallback(() => admin.customers(undefined, archived), [admin, archived]))
+  const [search, setSearch] = useState('')
+  const term = search.trim().length >= 2 ? search.trim() : ''
+  const first = useLoad(useCallback(() => admin.customers(undefined, archived, term), [admin, archived, term]))
   const action = useAction(() => reload())
   const [editFor, setEditFor] = useState<Customer | null>(null)
   const [more, setMore] = useState<Customer[]>([])
@@ -94,7 +96,7 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
 
   async function loadMore() {
     try {
-      const page = await admin.customers(items[items.length - 1], archived)
+      const page = await admin.customers(items[items.length - 1], archived, term)
       setMore([...more, ...page])
       if (page.length < 100) setDone(true)
     } catch (e) {
@@ -106,6 +108,17 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
     <div>
       <h2 className="mb-4 text-xl font-semibold">{t('web.customers.title')}</h2>
       {(error ?? first.error ?? action.error) && <p role="alert" className="mb-3 text-sm text-red-700">{error ?? first.error ?? action.error}</p>}
+      <input
+        aria-label={t('web.customers.search')}
+        placeholder={t('web.customers.search')}
+        className="mb-3 block rounded border px-2 py-1 text-sm"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setMore([])
+          setDone(false)
+        }}
+      />
       {canArchive && (
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input

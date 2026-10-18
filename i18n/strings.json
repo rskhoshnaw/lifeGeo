@@ -6916,5 +6916,83 @@
   "ckb": "چالاککردن",
   "ar": "تفعيل",
   "fa": "فعال کردن"
+ },
+ "web.customers.contactName": {
+  "en": "Contact person",
+  "ckb": "کەسی پەیوەندی",
+  "ar": "الشخص المسؤول",
+  "fa": "شخص تماس"
+ },
+ "web.customers.phone2": {
+  "en": "Second phone / WhatsApp",
+  "ckb": "تەلەفۆنی دووەم / واتساپ",
+  "ar": "هاتف ثانٍ / واتساب",
+  "fa": "تلفن دوم / واتساپ"
+ },
+ "web.customers.notes": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.customers.search": {
+  "en": "Search by name, code or phone",
+  "ckb": "گەڕان بە ناو، کۆد یان تەلەفۆن",
+  "ar": "بحث بالاسم أو الرمز أو الهاتف",
+  "fa": "جستجو با نام، کد یا تلفن"
+ },
+ "app.customer.contactName": {
+  "en": "Contact person",
+  "ckb": "کەسی پەیوەندی",
+  "ar": "الشخص المسؤول",
+  "fa": "شخص تماس"
+ },
+ "app.customer.phone2": {
+  "en": "Second phone / WhatsApp",
+  "ckb": "تەلەفۆنی دووەم / واتساپ",
+  "ar": "هاتف ثانٍ / واتساب",
+  "fa": "تلفن دوم / واتساپ"
+ },
+ "app.customer.notes": {
+  "en": "Note about the customer",
+  "ckb": "تێبینی دەربارەی کڕیار",
+  "ar": "ملاحظة عن الزبون",
+  "fa": "یادداشت دربارهٔ مشتری"
+ },
+ "app.customer.partialContact": {
+  "en": "Customer {code} was created, but the contact details were not saved. Open the customer and save them again.",
+  "ckb": "کڕیاری {code} دروست کرا، بەڵام زانیاریی پەیوەندی پاشەکەوت نەکرا. کڕیارەکە بکەرەوە و دووبارە پاشەکەوتی بکە.",
+  "ar": "تم إنشاء الزبون {code} لكن لم تُحفظ بيانات الاتصال. افتح الزبون واحفظها مرة أخرى.",
+  "fa": "مشتری {code} ساخته شد ولی اطلاعات تماس ذخیره نشد. مشتری را باز کنید و دوباره ذخیره کنید."
+ },
+ "app.home.customers": {
+  "en": "My customers",
+  "ckb": "کڕیارەکانم",
+  "ar": "زبائني",
+  "fa": "مشتریان من"
+ },
+ "app.customers.title": {
+  "en": "Customers",
+  "ckb": "کڕیارەکان",
+  "ar": "الزبائن",
+  "fa": "مشتریان"
+ },
+ "app.customers.search": {
+  "en": "Name, code or phone (2+ characters)",
+  "ckb": "ناو، کۆد یان تەلەفۆن (٢+ پیت)",
+  "ar": "الاسم أو الرمز أو الهاتف (حرفان أو أكثر)",
+  "fa": "نام، کد یا تلفن (حداقل ۲ نویسه)"
+ },
+ "app.customers.searchButton": {
+  "en": "Search",
+  "ckb": "گەڕان",
+  "ar": "بحث",
+  "fa": "جستجو"
+ },
+ "app.customers.none": {
+  "en": "No customer found.",
+  "ckb": "هیچ کڕیارێک نەدۆزرایەوە.",
+  "ar": "لم يوجد زبون.",
+  "fa": "مشتری‌ای پیدا نشد."
  }
 }

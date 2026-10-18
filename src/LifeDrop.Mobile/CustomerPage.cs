@@ -13,6 +13,9 @@ public sealed class CustomerPage : ContentPage
     private readonly Label _typeLabel = new();
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
+    private readonly Entry _contactName = new() { MaxLength = 100 };
+    private readonly Entry _phone2 = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
+    private readonly Editor _notes = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 500, HeightRequest = 80 };
     private readonly PlacePickerView _places = new();
     private readonly Button _save = new();
     private readonly Button _order = new();
@@ -31,6 +34,9 @@ public sealed class CustomerPage : ContentPage
         _titleLabel.Text = name ?? "";
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
+        _contactName.Placeholder = Texts.Get("app.customer.contactName");
+        _phone2.Placeholder = Texts.Get("app.customer.phone2");
+        _notes.Placeholder = Texts.Get("app.customer.notes");
         _save.Text = Texts.Get("app.customer.save");
         _save.Clicked += async (_, _) => await SaveAsync();
         _save.IsEnabled = false;
@@ -50,7 +56,7 @@ public sealed class CustomerPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    _titleLabel, _typeLabel, _phone, _address,
+                    _titleLabel, _typeLabel, _phone, _address, _contactName, _phone2, _notes,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
                 }
@@ -84,6 +90,9 @@ public sealed class CustomerPage : ContentPage
             _typeLabel.Text = DailyPlan.TypeLabel(customer.Type.ToLowerInvariant());
             _phone.Text = customer.Phone;
             _address.Text = customer.Address;
+            _contactName.Text = customer.ContactName;
+            _phone2.Text = customer.Phone2;
+            _notes.Text = customer.Notes;
             await _places.LoadAsync(api, customer.PlacePath, cts.Token);
             _save.IsEnabled = true;
         }
@@ -106,6 +115,8 @@ public sealed class CustomerPage : ContentPage
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var result = await api.SetProfileAsync(_customerId, _phone.Text, _address.Text, _places.PlaceId, cts.Token);
+            if (result == VisitActionResult.Success)
+                result = await api.SetContactAsync(_customerId, _contactName.Text, _phone2.Text, _notes.Text, cts.Token);
             Show(result == VisitActionResult.Success ? Texts.Get("app.customer.saved")
                 : result == VisitActionResult.NotFound ? Texts.Get("app.customer.notYours") : VisitLifecycle.Describe(result), result);
         }
@@ -130,7 +141,7 @@ public sealed class CustomerPage : ContentPage
     {
         _spinner.IsVisible = _spinner.IsRunning = busy;
         _save.IsEnabled = _loaded && !busy;
-        _phone.IsEnabled = _address.IsEnabled = !busy;
+        _phone.IsEnabled = _address.IsEnabled = _contactName.IsEnabled = _phone2.IsEnabled = _notes.IsEnabled = !busy;
         _places.SetEnabled(!busy);
         if (busy) _message.IsVisible = false;
     }

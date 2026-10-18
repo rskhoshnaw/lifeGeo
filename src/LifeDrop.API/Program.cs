@@ -619,6 +619,7 @@ public partial class Program
             DateTimeOffset? cursorCreatedAt,
             Guid? cursorId,
             bool? archived,
+            string? q,
             HttpContext context, 
             LifeDrop.Application.Customers.ListCustomers listCustomers,
             LifeDrop.Application.Roles.IPermissionStore permissionStore,
@@ -641,7 +642,9 @@ public partial class Program
             if (archived == true && await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.approve", cancellationToken) is null)
                 return Results.Forbid();
 
-            var result = await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, archived == true, cancellationToken);
+            var result = archived != true && !string.IsNullOrWhiteSpace(q)
+                ? await listCustomers.SearchAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, q, cancellationToken)
+                : await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, archived == true, cancellationToken);
             return result.IsValid ? Results.Ok(result.Items) : Results.BadRequest();
         }).RequireAuthorization()
             .WithName("ListCustomers").WithTags("Customers").Produces<List<LifeDrop.Application.Customers.CustomerDto>>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
