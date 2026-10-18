@@ -137,7 +137,7 @@ public partial class MainPage : ContentPage
                 CompanyLookupStatus.NotFound => Texts.Get("app.login.companyNotFound"),
                 CompanyLookupStatus.NotConfigured => Texts.Get("app.login.notConfigured"),
                 CompanyLookupStatus.InsecureAddress => Texts.Get("app.login.httpNotAllowed"),
-                _ => Texts.Get("app.login.companyUnavailable"),
+                _ => Texts.Get("app.login.companyUnavailable") + (string.IsNullOrEmpty(lookup.Detail) ? "" : "\n(" + lookup.Detail + ")"),
             };
             return (null, null);
         }

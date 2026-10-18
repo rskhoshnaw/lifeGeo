@@ -43,6 +43,18 @@ public class CompanyDirectoryTests
         Assert.Equal(expected, (await Resolve(StubHttpMessageHandler.FromResponse(status))).Status);
 
     [Fact]
+    public async Task Unavailable_answers_carry_a_short_reason()
+    {
+        var server = await Resolve(StubHttpMessageHandler.FromResponse(HttpStatusCode.InternalServerError));
+        Assert.Equal("HTTP 500", server.Detail);
+        var down = await Resolve(new StubHttpMessageHandler(_ => throw new HttpRequestException("offline")));
+        Assert.Contains("HttpRequestException: offline", down.Detail);
+        var broken = await Resolve(new StubHttpMessageHandler(_ => throw new InvalidOperationException("reflection disabled")));
+        Assert.Equal(CompanyLookupStatus.Unavailable, broken.Status);
+        Assert.Contains("reflection disabled", broken.Detail);
+    }
+
+    [Fact]
     public async Task Insecure_addresses_are_refused_unless_allowed()
     {
         var plain = StubHttpMessageHandler.FromResponse(HttpStatusCode.OK, """{"tenantCode":"acme","name":"Acme","apiBaseUrl":null}""");

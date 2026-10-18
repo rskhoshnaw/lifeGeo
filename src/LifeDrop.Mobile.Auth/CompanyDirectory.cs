@@ -10,7 +10,8 @@ public sealed record CompanyConfig(string TenantCode, string Name, string ApiBas
 
 public enum CompanyLookupStatus { Found, NotFound, InvalidCode, NotConfigured, InsecureAddress, Unavailable }
 
-public sealed record CompanyLookup(CompanyLookupStatus Status, CompanyConfig? Config = null);
+/// <summary>Detail is a short technical reason for an Unavailable answer (exception type and message, or the HTTP status); the sign-in screen shows it under the message so a failure can be told apart without a debugger.</summary>
+public sealed record CompanyLookup(CompanyLookupStatus Status, CompanyConfig? Config = null, string? Detail = null);
 
 /// <summary>
 /// Turns a company code into the company's API address by asking the bootstrap server, so no company address is built into the app.
@@ -50,13 +51,13 @@ public static partial class CompanyDirectory
             var address = new Uri(bootstrap, "/company-config/" + Uri.EscapeDataString(normalized));
             using var response = await http.GetAsync(address, cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound) return new CompanyLookup(CompanyLookupStatus.NotFound);
-            if (!response.IsSuccessStatusCode) return new CompanyLookup(CompanyLookupStatus.Unavailable);
+            if (!response.IsSuccessStatusCode) return new CompanyLookup(CompanyLookupStatus.Unavailable, null, "HTTP " + (int)response.StatusCode);
 
             var body = await response.Content.ReadFromJsonAsync<Body>(Json, cancellationToken);
             // The answer must be about the company that was asked for; anything else is not trusted.
             if (body is null || string.IsNullOrWhiteSpace(body.TenantCode) || string.IsNullOrWhiteSpace(body.Name) ||
                 !string.Equals(body.TenantCode, normalized, StringComparison.OrdinalIgnoreCase))
-                return new CompanyLookup(CompanyLookupStatus.Unavailable);
+                return new CompanyLookup(CompanyLookupStatus.Unavailable, null, "unexpected answer");
 
             var api = bootstrap;
             if (!string.IsNullOrWhiteSpace(body.ApiBaseUrl))
@@ -72,15 +73,22 @@ public static partial class CompanyDirectory
         {
             throw;
         }
-        catch (Exception e) when (e is HttpRequestException or JsonException or OperationCanceledException)
+        catch (Exception e) when (e is HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or OperationCanceledException)
         {
-            return new CompanyLookup(CompanyLookupStatus.Unavailable);
+            return new CompanyLookup(CompanyLookupStatus.Unavailable, null, Describe(e));
         }
     }
 
     /// <summary>True when the phone holds data of another company, so the saved data of the old company must be wiped before the new one signs in.</summary>
     public static bool IsCompanyChange(string? previousCode, string? newCode) =>
         !string.IsNullOrWhiteSpace(previousCode) && !string.Equals(previousCode.Trim(), newCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string Describe(Exception e)
+    {
+        var inner = e.InnerException is null ? "" : " <- " + e.InnerException.GetType().Name + ": " + e.InnerException.Message;
+        var text = e.GetType().Name + ": " + e.Message + inner;
+        return text.Length <= 220 ? text : text[..220];
+    }
 
     private static bool IsAllowed(Uri uri, bool allowInsecure) => uri.Scheme == Uri.UriSchemeHttps || (allowInsecure && uri.Scheme == Uri.UriSchemeHttp);
 
