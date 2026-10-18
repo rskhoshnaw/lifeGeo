@@ -79,6 +79,28 @@ describe('panel management screens', () => {
     expect(posts(calls).map((c) => c.path)).toEqual(['/users/u1/sessions/revoke', '/users/u1/roles/r2'])
   })
 
+  it('adds an account with a role and shows the hint', async () => {
+    const { api, calls } = server(manager, { '/users': [rep], '/roles': [{ id: 'r1', name: 'SalesRep', dataScope: 'own' }, { id: 'r2', name: 'Supervisor', dataScope: 'region' }] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Users' }))
+    await user.type(await screen.findByLabelText('Email'), ' new.rep@t1 ')
+    await user.type(screen.getByLabelText('Password (at least 12 characters)'), 'a-long-password-1')
+    await user.selectOptions(screen.getByLabelText('Role'), 'r1')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Account created')
+    expect(posts(calls)).toEqual([{ method: 'POST', path: '/users', body: { email: 'new.rep@t1', password: 'a-long-password-1', roleId: 'r1' } }])
+  })
+
+  it('shows no account form to someone who cannot give roles', async () => {
+    const { api } = server({ ...manager, permissions: ['sessions.kill'] }, { '/users': [rep] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Users' }))
+    expect(await screen.findByText('rep@t1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
+  })
+
   it('hides actions the user lacks', async () => {
     const { api, calls } = server({ ...manager, permissions: ['sessions.kill'] }, { '/users': [rep] })
     render(<App api={api} />)

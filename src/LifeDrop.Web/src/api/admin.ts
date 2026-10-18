@@ -824,6 +824,7 @@ export class AdminApi {
   blockDevice = (id: string) => this.post(`/devices/${id}/block`)
   killSessions = (userId: string) => this.post(`/users/${userId}/sessions/revoke`)
   assignRole = (userId: string, roleId: string) => this.post(`/users/${userId}/roles/${roleId}`)
+  createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
   customers = (after?: Customer) =>
     this.get<Customer[]>(
       after
