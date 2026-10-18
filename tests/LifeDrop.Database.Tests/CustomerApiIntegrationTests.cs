@@ -2023,7 +2023,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "99" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2)
+        Assert.Equal(new[] { "100" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
