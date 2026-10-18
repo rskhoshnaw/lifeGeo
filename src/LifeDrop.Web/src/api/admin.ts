@@ -57,6 +57,10 @@ export interface Customer {
   placePath: PlacePathItem[] | null
   // Priority a manager gave the customer (step 1.26).
   priority: VisitPriority
+  // Step 4.15: the person to talk to, a second phone and a note.
+  contactName?: string | null
+  phone2?: string | null
+  notes?: string | null
 }
 
 // A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
@@ -831,11 +835,12 @@ export class AdminApi {
   setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
   deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)
   activateUser = (userId: string) => this.post(`/users/${userId}/activate`)
-  customers = (after?: Customer, archived = false) =>
+  customers = (after?: Customer, archived = false, search = '') =>
     this.get<Customer[]>(
-      `/customers?limit=100${archived ? '&archived=true' : ''}` +
+      `/customers?limit=100${archived ? '&archived=true' : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}` +
         (after ? `&cursorCreatedAt=${encodeURIComponent(after.createdAt)}&cursorId=${after.id}` : ''),
     )
+  setCustomerContact = (id: string, contact: { contactName: string | null; phone2: string | null; notes: string | null }) => this.send('PUT', `/customers/${id}/contact`, contact)
   editCustomer = (id: string, details: { type: string; code: string; name: string }) => this.send('PUT', `/customers/${id}`, details)
   archiveCustomer = (id: string) => this.post(`/customers/${id}/archive`)
   restoreCustomer = (id: string) => this.post(`/customers/${id}/restore`)

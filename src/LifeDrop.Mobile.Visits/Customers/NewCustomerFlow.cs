@@ -1,12 +1,13 @@
 namespace LifeDrop.Mobile.Visits;
 
-public sealed record NewCustomerRequest(string Name, string Type, string? Phone, string? Address, Guid? PlaceId, DeviceFix? Location);
+public sealed record NewCustomerRequest(string Name, string Type, string? Phone, string? Address, Guid? PlaceId, DeviceFix? Location,
+    string? ContactName = null, string? Phone2 = null, string? Notes = null);
 
 // Create: the customer itself. Profile and Location: null when nothing was to be saved, otherwise the answer; a failure
 // there leaves the customer created (CustomerId is set) and the user finishes in the customer's details.
-public sealed record NewCustomerOutcome(VisitActionResult Create, Guid? CustomerId, string? Code, VisitActionResult? Profile, VisitActionResult? Location)
+public sealed record NewCustomerOutcome(VisitActionResult Create, Guid? CustomerId, string? Code, VisitActionResult? Profile, VisitActionResult? Location, VisitActionResult? Contact = null)
 {
-    public bool Complete => Create == VisitActionResult.Success && Profile is null or VisitActionResult.Success && Location is null or VisitActionResult.Success;
+    public bool Complete => Create == VisitActionResult.Success && Profile is null or VisitActionResult.Success && Location is null or VisitActionResult.Success && Contact is null or VisitActionResult.Success;
 }
 
 // Codes of customers a field user registers: N, the day, and four letters or digits without look-alikes (O/0, I/1/L), so
@@ -60,6 +61,12 @@ public sealed class NewCustomerFlow(ICustomersApiClient api, TimeProvider clock,
             profile = await api.SetProfileAsync(customerId, phone, address, request.PlaceId, cancellationToken);
         if (request.Location is { } fix)
             location = await api.SetLocationAsync(customerId, fix, cancellationToken);
-        return new NewCustomerOutcome(created, customerId, code, profile, location);
+        var contactName = string.IsNullOrWhiteSpace(request.ContactName) ? null : request.ContactName.Trim();
+        var phone2 = string.IsNullOrWhiteSpace(request.Phone2) ? null : request.Phone2.Trim();
+        var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        VisitActionResult? contact = null;
+        if (contactName is not null || phone2 is not null || notes is not null)
+            contact = await api.SetContactAsync(customerId, contactName, phone2, notes, cancellationToken);
+        return new NewCustomerOutcome(created, customerId, code, profile, location, contact);
     }
 }

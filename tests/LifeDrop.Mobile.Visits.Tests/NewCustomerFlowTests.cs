@@ -37,6 +37,31 @@ public class NewCustomerFlowTests
     }
 
     [Fact]
+    public async Task Create_SavesTheContactDetailsOnTheirOwnRouteAndOnlyWhenGiven()
+    {
+        var api = new FakeApi();
+        var flow = new NewCustomerFlow(api, new FixedClock(Now), _ => 0);
+        var outcome = await flow.CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, "  Dr. Ali ", " ", " Pays on Sunday "));
+        Assert.True(outcome.Complete);
+        Assert.Equal(new[] { "create", "contact" }, api.Calls.ToArray());
+        Assert.Equal(("Dr. Ali", (string?)null, "Pays on Sunday"), api.Contact!.Value);
+
+        var none = new FakeApi();
+        await new NewCustomerFlow(none, new FixedClock(Now), _ => 0).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, " ", null, ""));
+        Assert.Equal(new[] { "create" }, none.Calls.ToArray());
+    }
+
+    [Fact]
+    public async Task Create_ACustomerWhoseContactDetailsFailedIsCreatedButNotComplete()
+    {
+        var api = new FakeApi { ContactResult = VisitActionResult.NetworkError };
+        var outcome = await new NewCustomerFlow(api, new FixedClock(Now), _ => 0).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, "Dr. Ali"));
+        Assert.False(outcome.Complete);
+        Assert.Equal(api.CustomerId, outcome.CustomerId);
+        Assert.Equal(VisitActionResult.NetworkError, outcome.Contact);
+    }
+
+    [Fact]
     public async Task Create_WithOnlyANameSendsNothingElse()
     {
         var api = new FakeApi();
@@ -150,6 +175,16 @@ public class NewCustomerFlowTests
             Calls.Add("profile");
             Profile = (phone, address, placeId);
             return Task.FromResult(ProfileResult);
+        }
+
+        public VisitActionResult ContactResult { get; set; } = VisitActionResult.Success;
+        public (string? ContactName, string? Phone2, string? Notes)? Contact { get; private set; }
+
+        public Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("contact");
+            Contact = (contactName, phone2, notes);
+            return Task.FromResult(ContactResult);
         }
 
         public Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default)

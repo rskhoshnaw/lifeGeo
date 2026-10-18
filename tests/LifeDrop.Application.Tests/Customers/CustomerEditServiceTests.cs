@@ -22,6 +22,7 @@ public class CustomerEditServiceTests
         public List<string> Calls = [];
         public CustomerUpdateResult EditResult = CustomerUpdateResult.Success;
         public bool ArchiveResult = true;
+        public bool ContactResult = true;
 
         public Task<CustomerDto?> GetByIdAsync(TenantId tenantId, CustomerId id, AccessScope scope, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CreateCustomerResult> CreateAsync(TenantId tenantId, UserId actorId, CustomerId id, CreateCustomerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -31,6 +32,18 @@ public class CustomerEditServiceTests
         {
             Calls.Add($"edit:{type}|{code}|{name}");
             return Task.FromResult(EditResult);
+        }
+
+        public Task<bool> SetContactAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken)
+        {
+            Calls.Add($"contact:{contactName}|{phone2}|{notes}");
+            return Task.FromResult(ContactResult);
+        }
+
+        public Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken)
+        {
+            Calls.Add("search:" + search);
+            return Task.FromResult<IReadOnlyList<CustomerDto>>([]);
         }
 
         public Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken)
@@ -85,5 +98,48 @@ public class CustomerEditServiceTests
         Assert.Equal(new[] { "archived:True", "archived:False" }, store.Calls.ToArray());
         store.ArchiveResult = false;
         Assert.Equal(CustomerUpdateResult.NotFound, await manager.SetArchivedAsync(Tenant, Actor, Customer, true, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Contact_details_are_trimmed_and_empty_ones_clear_the_field()
+    {
+        var store = new Store();
+        var service = Service(store, PermissionKeys.CustomersWrite);
+        Assert.Equal(CustomerUpdateResult.Success, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest(" Dr. Ali ", "  ", "Pays on Sunday"), CancellationToken.None));
+        Assert.Equal(new[] { "contact:Dr. Ali||Pays on Sunday" }, store.Calls.ToArray());
+    }
+
+    [Fact]
+    public async Task Contact_details_need_customers_write_and_sensible_lengths()
+    {
+        var store = new Store();
+        Assert.Equal(CustomerUpdateResult.Forbidden, await Service(store, PermissionKeys.CustomersRead).SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest("a", null, null), CancellationToken.None));
+        var service = Service(store, PermissionKeys.CustomersWrite);
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest(new string('x', CustomerEditService.MaxContactNameLength + 1), null, null), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest(null, new string('1', CustomerEditService.MaxPhone2Length + 1), null), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest(null, null, new string('n', CustomerEditService.MaxNotesLength + 1)), CancellationToken.None));
+        Assert.Empty(store.Calls);
+        store.ContactResult = false;
+        Assert.Equal(CustomerUpdateResult.NotFound, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest("a", null, null), CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("a")]
+    [InlineData(" a ")]
+    public async Task A_search_needs_two_characters(string text)
+    {
+        var store = new Store();
+        var (valid, _) = await new ListCustomers(store).SearchAsync(Tenant, AccessScope.WholeTenant(Actor), null, null, null, text, CancellationToken.None);
+        Assert.False(valid);
+        Assert.Empty(store.Calls);
+    }
+
+    [Fact]
+    public async Task A_search_reaches_the_store_with_the_trimmed_text()
+    {
+        var store = new Store();
+        var (valid, _) = await new ListCustomers(store).SearchAsync(Tenant, AccessScope.WholeTenant(Actor), null, null, null, "  shifa ", CancellationToken.None);
+        Assert.True(valid);
+        Assert.Equal(new[] { "search:shifa" }, store.Calls.ToArray());
     }
 }

@@ -28,6 +28,12 @@ public interface ICustomerStore
     // One audit row (customer.edited) in the same transaction.
     Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string type, string code, string name, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+    // Contact person, second phone and note (plan step 4.15); null clears. false when the customer is not in the actor's scope. Audit customer.contact_changed.
+    Task<bool> SetContactAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    // Active customers whose name, code or phone matches the text (plan step 4.15).
+    Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     // Archive or restore (audit customer.archived / customer.restored); false when the customer is not in the actor's scope.
     Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -149,6 +155,19 @@ public sealed class ListCustomers(ICustomerStore store)
 {
     public Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
         ExecuteAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken);
+
+    public const int MaxSearchLength = 100;
+
+    // With a search text (plan step 4.15, at least two characters) the list holds only matching active customers.
+    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> SearchAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string? search, CancellationToken cancellationToken)
+    {
+        var text = search?.Trim();
+        if (string.IsNullOrEmpty(text)) return await ExecuteAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, cancellationToken);
+        var actualLimit = limit ?? 20;
+        if (tenantId.IsEmpty || text.Length < 2 || text.Length > MaxSearchLength || actualLimit is <= 0 or > 100 || cursorCreatedAt.HasValue != cursorId.HasValue)
+            return (false, Array.Empty<CustomerDto>());
+        return (true, await store.SearchAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, text, cancellationToken));
+    }
 
     public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken)
     {
@@ -302,6 +321,7 @@ public sealed class CustomerProfileService(ICustomerStore store, IPermissionStor
 }
 
 public sealed record EditCustomerRequest(string? Type, string? Code, string? Name);
+public sealed record CustomerContactRequest(string? ContactName, string? Phone2, string? Notes);
 
 // Renaming, recoding and archiving customers from the panel (plan step 4.11). Editing needs customers.write, archiving and restoring customers.approve
 // (a manager or supervisor), each within the actor's data scope. A customer is never deleted: visits, orders, payments and reports keep referring to it.
@@ -310,6 +330,9 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
     public const int MaxTypeLength = 40;
     public const int MaxCodeLength = 50;
     public const int MaxNameLength = 200;
+    public const int MaxContactNameLength = 100;
+    public const int MaxPhone2Length = 40;
+    public const int MaxNotesLength = 500;
 
     public async Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, Guid customerId, EditCustomerRequest request, CancellationToken cancellationToken)
     {
@@ -324,6 +347,22 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
             return CustomerUpdateResult.InvalidData;
         return await store.EditAsync(tenantId, actorId, new CustomerId(customerId), scope, type, code, name, cancellationToken);
     }
+
+    // Contact person, second phone and note, by whoever may edit the customer (customers.write within the data scope). Empty text clears a field.
+    public async Task<CustomerUpdateResult> SetContactAsync(TenantId tenantId, UserId actorId, Guid customerId, CustomerContactRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return CustomerUpdateResult.Forbidden;
+        var contact = Clean(request.ContactName);
+        var phone2 = Clean(request.Phone2);
+        var notes = Clean(request.Notes);
+        if (customerId == Guid.Empty || contact?.Length > MaxContactNameLength || phone2?.Length > MaxPhone2Length || notes?.Length > MaxNotesLength) return CustomerUpdateResult.InvalidData;
+        return await store.SetContactAsync(tenantId, actorId, new CustomerId(customerId), scope, contact, phone2, notes, cancellationToken)
+            ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
+    }
+
+    private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
     public async Task<CustomerUpdateResult> SetArchivedAsync(TenantId tenantId, UserId actorId, Guid customerId, bool archived, CancellationToken cancellationToken)
     {

@@ -22,7 +22,10 @@ public sealed record PlacePathItem(Guid Id, string Kind, string Name);
 
 // A customer as returned by GET /customers/{id}: contact details and the most precise place with the ones above it.
 public sealed record CustomerProfile(Guid Id, string Code, string Name, string Type, string? Phone, string? Address, Guid? PlaceId,
-    IReadOnlyList<PlacePathItem>? PlacePath);
+    IReadOnlyList<PlacePathItem>? PlacePath, string? ContactName = null, string? Phone2 = null, string? Notes = null);
+
+// One row of the customer search (plan step 4.15).
+public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone);
 
 // Customers and places for the field user (plan step 1.23-b): edit a customer's profile, register a new customer, pick or add
 // a neighbourhood, street or alley. Answers use VisitActionResult: Conflict = the name or code already exists,
@@ -36,6 +39,12 @@ public interface ICustomersApiClient
     Task<(VisitActionResult Result, Guid? Id)> CreatePlaceAsync(Guid parentId, string kind, string name, CancellationToken cancellationToken = default);
     Task<(VisitActionResult Result, Guid? Id)> CreateCustomerAsync(string type, string code, string name, CancellationToken cancellationToken = default);
     Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default);
+    // Contact person, second phone and note (plan step 4.15); null or empty clears. Own route, so a client that does not send them never clears them.
+    Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // Customers in the user's area whose name, code or phone matches the text (two characters or more), at most 50.
+    Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> SearchCustomersAsync(string search, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }
 
 public sealed class CustomersApiClient : ICustomersApiClient
@@ -57,7 +66,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
         if (result != VisitActionResult.Success) return (result, null);
         return dto is null || dto.Id == Guid.Empty || string.IsNullOrWhiteSpace(dto.Code)
             ? (VisitActionResult.ServerError, null)
-            : (result, new CustomerProfile(dto.Id, dto.Code, dto.Name ?? "", dto.Type ?? "", dto.Phone, dto.Address, dto.PlaceId, dto.PlacePath));
+            : (result, new CustomerProfile(dto.Id, dto.Code, dto.Name ?? "", dto.Type ?? "", dto.Phone, dto.Address, dto.PlaceId, dto.PlacePath, dto.ContactName, dto.Phone2, dto.Notes));
     }
 
     public async Task<VisitActionResult> SetProfileAsync(Guid customerId, string? phone, string? address, Guid? placeId, CancellationToken cancellationToken = default) =>
@@ -84,6 +93,17 @@ public sealed class CustomersApiClient : ICustomersApiClient
         // The server answers 201 with the new id as a bare JSON string.
         var (result, id) = await CallAsync<Guid>(HttpMethod.Post, "/customers", new { type, code, name }, cancellationToken);
         return result == VisitActionResult.Success && id != Guid.Empty ? (result, id) : (result == VisitActionResult.Success ? VisitActionResult.ServerError : result, null);
+    }
+
+    public async Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
+        (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/contact", new { contactName, phone2, notes }, cancellationToken)).Result;
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> SearchCustomersAsync(string search, CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await CallAsync<List<CustomerDto>>(HttpMethod.Get, $"/customers?limit=50&q={Uri.EscapeDataString(search.Trim())}", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<CustomerListItem>());
+        if (items is null || items.Any(c => c is null || c.Id == Guid.Empty || string.IsNullOrWhiteSpace(c.Code))) return (VisitActionResult.ServerError, Array.Empty<CustomerListItem>());
+        return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone)).ToList());
     }
 
     public async Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default) =>
@@ -136,7 +156,8 @@ public sealed class CustomersApiClient : ICustomersApiClient
         }
     }
 
-    private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath);
+    private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath,
+        string? ContactName = null, string? Phone2 = null, string? Notes = null);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
     private sealed record CreatedDto(Guid Id);
 }

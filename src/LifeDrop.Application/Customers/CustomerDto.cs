@@ -28,7 +28,11 @@ public sealed record CustomerDto(
     Guid? PlaceId = null,
     IReadOnlyList<PlacePathItem>? PlacePath = null,
     // Priority set by a manager (plan step 1.26): high | normal | low.
-    string Priority = "normal"
+    string Priority = "normal",
+    // Plan step 4.15: the person to talk to, a second phone and a note.
+    string? ContactName = null,
+    string? Phone2 = null,
+    string? Notes = null
 )
 {
     // PRD §6.1: default check-in radius when the customer has no own radius.

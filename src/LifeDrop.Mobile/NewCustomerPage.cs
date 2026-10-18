@@ -12,6 +12,9 @@ public sealed class NewCustomerPage : ContentPage
     private readonly Picker _type = new() { ItemsSource = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
+    private readonly Entry _contactName = new() { MaxLength = 100 };
+    private readonly Entry _phone2 = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
+    private readonly Editor _notes = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 500, HeightRequest = 80 };
     private readonly PlacePickerView _places = new();
     private readonly Button _locationButton = new();
     private readonly Label _locationLabel = new() { IsVisible = false };
@@ -28,6 +31,9 @@ public sealed class NewCustomerPage : ContentPage
         _name.Placeholder = Texts.Get("app.customer.name");
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
+        _contactName.Placeholder = Texts.Get("app.customer.contactName");
+        _phone2.Placeholder = Texts.Get("app.customer.phone2");
+        _notes.Placeholder = Texts.Get("app.customer.notes");
         _locationButton.Text = Texts.Get("app.customer.useLocation");
         _locationButton.Clicked += async (_, _) => await CaptureLocationAsync();
         _create.Text = Texts.Get("app.customer.create");
@@ -40,7 +46,7 @@ public sealed class NewCustomerPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    _name, _type, _phone, _address,
+                    _name, _type, _phone, _address, _contactName, _phone2, _notes,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _locationButton, _locationLabel, _create, _spinner, _message
                 }
@@ -92,7 +98,7 @@ public sealed class NewCustomerPage : ContentPage
     {
         var api = TrackingHost.CustomersApi;
         if (api is null) return;
-        var request = new NewCustomerRequest(_name.Text ?? "", NewCustomerFlow.Types[Math.Max(0, _type.SelectedIndex)], _phone.Text, _address.Text, _places.PlaceId, _fix);
+        var request = new NewCustomerRequest(_name.Text ?? "", NewCustomerFlow.Types[Math.Max(0, _type.SelectedIndex)], _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, _phone2.Text, _notes.Text);
         if (!NewCustomerFlow.IsValid(request))
         {
             Show(Texts.Get("app.customer.nameRequired"));
@@ -137,6 +143,7 @@ public sealed class NewCustomerPage : ContentPage
         var notes = new List<string>();
         if (outcome.Profile is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialProfile", ("code", outcome.Code ?? "")));
         if (outcome.Location is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialLocation", ("code", outcome.Code ?? "")));
+        if (outcome.Contact is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialContact", ("code", outcome.Code ?? "")));
         await DisplayAlertAsync(Texts.Get("app.customer.new"), string.Join("\n\n", notes), Texts.Get("app.ok"));
         Navigation.InsertPageBefore(new CustomerPage(customerId, _name.Text?.Trim()), this);
         await Navigation.PopAsync();

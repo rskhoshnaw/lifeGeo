@@ -1083,6 +1083,31 @@ describe('panel management screens', () => {
     expect(posts(calls)).toEqual([{ method: 'PUT', path: '/customers/c1/profile', body: { phone: null, address: null, placeId: 'du' } }])
   })
 
+  it('saves the contact person, second phone and note on their own route, only when they changed', async () => {
+    const editor: Me = { id: 'm', email: 'rep@t1', roles: ['SalesRep'], permissions: ['customers.read', 'customers.write'] }
+    const known = { ...customer, approvalStatus: 'approved', contactName: null, phone2: null, notes: 'Old' }
+    const { api, calls } = server(editor, { '/customers?limit=100': [known], '/places?limit=2000&kind=city': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Contact person' }), ' Dr. Ali ')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toEqual({ method: 'PUT', path: '/customers/c1/contact', body: { contactName: 'Dr. Ali', phone2: null, notes: 'Old' } })
+  })
+
+  it('searches customers by name, code or phone from two characters on', async () => {
+    const { api, calls } = server(manager, { '/customer-approvals': [], '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }], '/customers?limit=100&q=sh': [{ ...customer, id: 'c7', code: 'S-7', approvalStatus: 'approved' }] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Search by name, code or phone' }), 's')
+    expect(calls.some((c) => c.path.includes('q='))).toBe(false)
+    await user.type(screen.getByRole('textbox', { name: 'Search by name, code or phone' }), 'h')
+    expect(await screen.findByText('S-7')).toBeInTheDocument()
+  })
+
   it('shows the customer profile read-only without customers.write', async () => {
     const reader: Me = { id: 'f', email: 'finance@t1', roles: ['FinanceManager'], permissions: ['customers.read'] }
     const { api } = server(reader, {
