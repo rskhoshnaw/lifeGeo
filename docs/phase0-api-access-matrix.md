@@ -488,6 +488,7 @@ Permissions: `samples.record` (ScientificRep, SalesRep), `samples.read` (Company
 | Route | Who | Rules | Audit |
 |---|---|---|---|
 | `POST /samples` | `samples.record` | `{customerId, visitId?, productId, quantity, recipientName?, batchNumber?, expiryDate?, note?, clientRef, location?}`. Customer inside the caller's area (404), product active (404 missing, 400 inactive), quantity above 0 with at most 3 decimals, `expiryDate` not before today (Iraq), the visit is the caller's own visit of this customer and not cancelled/failed. A fake position (`isMocked`) is 422 `GPS_MOCKED`; a position is otherwise only stored. 201 `{id, number, replayed}`; 200 for a retry of the same `clientRef` (same user and customer, else 409) | `sample.recorded` |
+| `POST /samples` (panel, plan step 4.13) | Same route; migration 0044 also grants `samples.record` to SalesManager so a manager can record one from the panel (no position, no visit). | — | — | Panel tests. |
 | `GET /samples?customerId=&productId=&limit=&before=&beforeId=` | `samples.read` or `samples.record` | Newest first, visibility as above | — |
 | `GET /samples/{id}` | same | 404 outside the visibility | — |
 | `POST /samples/{id}/void` | `samples.manage` | `{reason}` (1-500); `given` → `voided`; 409 when already voided | `sample.voided` |
