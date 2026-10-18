@@ -27,6 +27,8 @@ public sealed class PostgresPlatformStore(NpgsqlDataSource dataSource) : IPlatfo
     public async Task<CreatedTenantDto?> CreateTenantAsync(UserId actor, string code, string name, string managerEmail, string managerPassword, CancellationToken cancellationToken)
     {
         var tenantId = Guid.NewGuid();
+        // The first account of a company holds both management roles: CompanyManager (oversight: reports, audit, customers) and SalesManager (the day-to-day tools: live map, devices,
+        // users and roles, visit planning). With CompanyManager alone the owner could see nothing to set up the company with and could not give roles to anybody.
         var managerId = Guid.NewGuid();
         var hash = PasswordHash.Create(managerPassword);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -47,7 +49,7 @@ public sealed class PostgresPlatformStore(NpgsqlDataSource dataSource) : IPlatfo
             }
             await using (var manager = new NpgsqlCommand("""
                 INSERT INTO users (id, tenant_id, email, password_hash) VALUES (@user, @id, @email, @hash);
-                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @id, @user, r.id FROM roles r WHERE r.tenant_id = @id AND r.name = 'CompanyManager'
+                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @id, @user, r.id FROM roles r WHERE r.tenant_id = @id AND r.name IN ('CompanyManager', 'SalesManager')
                 """, connection, transaction))
             {
                 manager.Parameters.AddWithValue("user", managerId);
