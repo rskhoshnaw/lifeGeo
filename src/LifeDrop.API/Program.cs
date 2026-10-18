@@ -152,6 +152,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Audit.SearchAuditLogs>();
         builder.Services.AddScoped<LifeDrop.Application.Users.IUserDirectoryStore, LifeDrop.Infrastructure.Users.PostgresUserDirectoryStore>();
         builder.Services.AddScoped<LifeDrop.Application.Users.UserDirectory>();
+        builder.Services.AddScoped<LifeDrop.Application.Users.IUserCreationStore, LifeDrop.Infrastructure.Users.PostgresUserCreationStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Users.CreateStaffUser>();
 
         // Web panel (plan step 1.16): browsers may call the API only from the origins listed in Cors:AllowedOrigins
         // (none by default). Tokens travel in the Authorization header, so no cookies or credentials are allowed.

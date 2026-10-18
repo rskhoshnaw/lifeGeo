@@ -4,7 +4,7 @@ using LifeDrop.Domain.Common;
 
 namespace LifeDrop.API.Endpoints;
 
-// Read routes for the web panel's user, device and role screens (plan step 1.17).
+// Routes for the web panel's user, device and role screens (plan step 1.17; adding an account, step 4.9).
 public static class UserEndpoints
 {
     public static void MapUserEndpoints(this WebApplication app)
@@ -30,6 +30,24 @@ public static class UserEndpoints
         }).RequireAuthorization()
             .WithName("ListUsers").WithTags("Users").Produces<List<UserSummaryDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPost("/users", async (CreateUserRequest request, HttpContext context, CreateStaffUser create, DatabaseSecurityState securityState,
+            CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, created) = await create.ExecuteAsync(tenantId, actorId, request, cancellationToken);
+            return result switch
+            {
+                CreateUserResult.Created => Results.Created($"/users/{created!.Id}", created),
+                CreateUserResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                CreateUserResult.EmailTaken => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
+                CreateUserResult.RoleNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("CreateUser").WithTags("Users").Produces<CreatedUserDto>(201)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/roles", async (HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
