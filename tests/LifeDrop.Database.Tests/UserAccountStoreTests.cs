@@ -83,7 +83,7 @@ public class UserAccountStoreTests
             Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM users WHERE id = @id AND is_active", otherActor));
 
             // One audit row per success and none for refusals.
-            Assert.Equal(["user.activated", "user.deactivated", "user.email_changed", "user.password_changed"], await Actions(connection, rep));
+            Assert.Equal(new[] { "user.activated", "user.deactivated", "user.email_changed", "user.password_changed" }, await Actions(connection, rep));
             Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM audit_logs WHERE entity_id = @id::text", otherActor));
         }
         finally

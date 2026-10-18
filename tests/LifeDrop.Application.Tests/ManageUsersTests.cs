@@ -36,7 +36,7 @@ public class ManageUsersTests
         var store = new Store();
         Assert.Equal(ManageUserResult.Done, await Service(store, PermissionKeys.UserManageRoles).ChangeEmailAsync(Tenant, Actor, Target, new ChangeUserEmailRequest("  New@Example.Test "), CancellationToken.None));
         Assert.Equal(ManageUserResult.Done, await Service(store, PermissionKeys.SystemAdmin).SetActiveAsync(Tenant, Actor, Target, false, CancellationToken.None));
-        Assert.Equal(["email:new@example.test", "active:False"], store.Calls);
+        Assert.Equal(new[] { "email:new@example.test", "active:False" }, store.Calls.ToArray());
     }
 
     [Fact]

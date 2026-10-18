@@ -741,7 +741,7 @@ describe('panel management screens', () => {
 
   it('assigns warehouse workers to a warehouse (only workers can be chosen)', async () => {
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'warehouses.manage', 'customers.read', 'user.manageroles'] }
-    const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0 })
+    const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0, isActive: true })
     const { api, calls } = server(seller, {
       '/orders?limit=50': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [],
       '/warehouses/w1/staff': [{ userId: 'u9', email: 'old@t1' }],
