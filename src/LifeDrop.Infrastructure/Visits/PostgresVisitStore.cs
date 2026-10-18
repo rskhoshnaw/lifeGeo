@@ -19,7 +19,7 @@ public sealed class PostgresVisitStore(NpgsqlDataSource dataSource) : IVisitStor
                 SELECT id FROM users WHERE id = @userId AND tenant_id = @tenantId
             ),
             c AS (
-                SELECT id FROM customers WHERE id = @customerId AND tenant_id = @tenantId
+                SELECT id FROM customers WHERE id = @customerId AND tenant_id = @tenantId AND archived_at IS NULL
             )
             INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at,
                 visit_type, priority, planned_time, is_unplanned, unplanned_reason)

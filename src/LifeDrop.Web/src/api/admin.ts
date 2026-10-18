@@ -830,12 +830,14 @@ export class AdminApi {
   setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
   deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)
   activateUser = (userId: string) => this.post(`/users/${userId}/activate`)
-  customers = (after?: Customer) =>
+  customers = (after?: Customer, archived = false) =>
     this.get<Customer[]>(
-      after
-        ? `/customers?limit=100&cursorCreatedAt=${encodeURIComponent(after.createdAt)}&cursorId=${after.id}`
-        : '/customers?limit=100',
+      `/customers?limit=100${archived ? '&archived=true' : ''}` +
+        (after ? `&cursorCreatedAt=${encodeURIComponent(after.createdAt)}&cursorId=${after.id}` : ''),
     )
+  editCustomer = (id: string, details: { type: string; code: string; name: string }) => this.send('PUT', `/customers/${id}`, details)
+  archiveCustomer = (id: string) => this.post(`/customers/${id}/archive`)
+  restoreCustomer = (id: string) => this.post(`/customers/${id}/restore`)
   customerApprovals = () => this.get<Customer[]>('/customer-approvals')
   decideCustomer = (id: string, decision: 'approve' | 'reject', note: string) =>
     this.post(`/customers/${id}/approval`, { decision, note: note || null })

@@ -8,13 +8,14 @@ const approvalText = (status: string) =>
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
+import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   return (
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
-      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
+      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
     </section>
   )
 }
@@ -66,8 +67,11 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   )
 }
 
-function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canEdit: boolean; canPrioritise: boolean }) {
-  const first = useLoad(useCallback(() => admin.customers(), [admin]))
+function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: AdminApi; canEdit: boolean; canArchive: boolean; canPrioritise: boolean }) {
+  const [archived, setArchived] = useState(false)
+  const first = useLoad(useCallback(() => admin.customers(undefined, archived), [admin, archived]))
+  const action = useAction(() => reload())
+  const [editFor, setEditFor] = useState<Customer | null>(null)
   const [more, setMore] = useState<Customer[]>([])
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,9 +80,21 @@ function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canE
   const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
 
+  function reload() {
+    setEditFor(null)
+    setMore([])
+    setDone(false)
+    first.reload()
+  }
+
+  function archive(customer: Customer) {
+    if (!window.confirm(t('web.customers.confirmArchive', { customer: `${customer.code} · ${customer.name}` }))) return
+    void action.run(() => admin.archiveCustomer(customer.id))
+  }
+
   async function loadMore() {
     try {
-      const page = await admin.customers(items[items.length - 1])
+      const page = await admin.customers(items[items.length - 1], archived)
       setMore([...more, ...page])
       if (page.length < 100) setDone(true)
     } catch (e) {
@@ -89,7 +105,21 @@ function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canE
   return (
     <div>
       <h2 className="mb-4 text-xl font-semibold">{t('web.customers.title')}</h2>
-      {(error ?? first.error) && <p role="alert" className="mb-3 text-sm text-red-700">{error ?? first.error}</p>}
+      {(error ?? first.error ?? action.error) && <p role="alert" className="mb-3 text-sm text-red-700">{error ?? first.error ?? action.error}</p>}
+      {canArchive && (
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={archived}
+            onChange={(e) => {
+              setArchived(e.target.checked)
+              setMore([])
+              setDone(false)
+            }}
+          />
+          {t('web.customers.showArchived')}
+        </label>
+      )}
       {canPrioritise && (
         <CustomerPriorityBar
           admin={admin}
@@ -134,6 +164,21 @@ function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canE
                 <td><Badge tone={({ approved: 'good', pending: 'warn', rejected: 'bad' } as Record<string, Tone>)[customer.approvalStatus] ?? 'neutral'}>{approvalText(customer.approvalStatus)}</Badge></td>
                 <td>{t(`web.priority.${customer.priority}`)}</td>
                 <td className="space-x-2 text-end">
+                  {canEdit && !archived && (
+                    <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.edit')} ${customer.code}`} onClick={() => setEditFor(customer)}>
+                      {t('web.customers.edit')}
+                    </button>
+                  )}
+                  {canArchive && (
+                    <button
+                      className="rounded border px-2 py-1"
+                      aria-label={`${archived ? t('web.customers.restore') : t('web.customers.archive')} ${customer.code}`}
+                      disabled={action.busy}
+                      onClick={() => (archived ? void action.run(() => admin.restoreCustomer(customer.id)) : archive(customer))}
+                    >
+                      {archived ? t('web.customers.restore') : t('web.customers.archive')}
+                    </button>
+                  )}
                   <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.profile')} ${customer.code}`} onClick={() => setProfileFor(customer)}>
                     {t('web.customers.profile')}
                   </button>
@@ -146,6 +191,7 @@ function CustomerList({ admin, canEdit, canPrioritise }: { admin: AdminApi; canE
           </tbody>
         </table>
       )}
+      {editFor && <CustomerDetailsEditor key={editFor.id} admin={admin} customer={editFor} onClose={() => setEditFor(null)} onSaved={reload} />}
       {profileFor && <CustomerProfileEditor key={profileFor.id} admin={admin} customer={profileFor} canEdit={canEdit} onClose={() => setProfileFor(null)} />}
       {hoursFor && <VisitWindowsEditor key={hoursFor.id} admin={admin} customer={hoursFor} canEdit={canEdit} onClose={() => setHoursFor(null)} />}
       {first.data && first.data.length === 100 && !done && (

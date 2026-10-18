@@ -6796,5 +6796,41 @@
   "ckb": "پاشەکەوت کرا.",
   "ar": "تم الحفظ.",
   "fa": "ذخیره شد."
+ },
+ "web.customers.edit": {
+  "en": "Edit",
+  "ckb": "دەستکاری",
+  "ar": "تعديل",
+  "fa": "ویرایش"
+ },
+ "web.customers.editTitle": {
+  "en": "Edit {customer}",
+  "ckb": "دەستکاریکردنی {customer}",
+  "ar": "تعديل {customer}",
+  "fa": "ویرایش {customer}"
+ },
+ "web.customers.archive": {
+  "en": "Archive",
+  "ckb": "ئەرشیفکردن",
+  "ar": "أرشفة",
+  "fa": "بایگانی"
+ },
+ "web.customers.restore": {
+  "en": "Restore",
+  "ckb": "گەڕاندنەوە",
+  "ar": "استعادة",
+  "fa": "بازگردانی"
+ },
+ "web.customers.showArchived": {
+  "en": "Show archived customers",
+  "ckb": "پیشاندانی کڕیارە ئەرشیفکراوەکان",
+  "ar": "إظهار الزبائن المؤرشفين",
+  "fa": "نمایش مشتریان بایگانی‌شده"
+ },
+ "web.customers.confirmArchive": {
+  "en": "Archive {customer}? It disappears from the lists, the map and new visits. Its history stays and you can restore it.",
+  "ckb": "{customer} ئەرشیف بکرێت؟ لە لیستەکان، نەخشە و سەردانی نوێ دەرناکەوێت. مێژووەکەی دەمێنێتەوە و دەتوانیت بیگەڕێنیتەوە.",
+  "ar": "أرشفة {customer}؟ سيختفي من القوائم والخريطة والزيارات الجديدة. يبقى سجله ويمكن استعادته.",
+  "fa": "{customer} بایگانی شود؟ از فهرست‌ها، نقشه و بازدیدهای جدید حذف می‌شود. سابقه‌اش می‌ماند و می‌توانید بازگردانید."
  }
 }

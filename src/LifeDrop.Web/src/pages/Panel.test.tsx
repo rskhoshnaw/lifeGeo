@@ -144,6 +144,29 @@ describe('panel management screens', () => {
     expect(posts(calls)).toEqual([{ method: 'POST', path: '/customers/c1/approval', body: { decision: 'approve', note: 'Checked' } }])
   })
 
+  it('edits a customer, archives it after confirmation and restores it from the archive', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    const staff: Me = { ...manager, permissions: [...manager.permissions, 'customers.write'] }
+    const approved = { ...customer, approvalStatus: 'approved' }
+    const { api, calls } = server(staff, { '/customer-approvals': [], '/customers?limit=100': [approved], '/customers?limit=100&archived=true': [{ ...approved, id: 'c9', code: 'Z-9' }] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit P-1' }))
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Shifa 2')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(await screen.findByRole('button', { name: 'Archive P-1' }))
+    await user.click(screen.getByRole('button', { name: 'Archive P-1' }))
+    await user.click(screen.getByLabelText('Show archived customers'))
+    await user.click(await screen.findByRole('button', { name: 'Restore Z-9' }))
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/customers/c1', body: { type: 'pharmacy', code: 'P-1', name: 'Shifa 2' } },
+      { method: 'POST', path: '/customers/c1/archive' },
+      { method: 'POST', path: '/customers/c9/restore' },
+    ])
+  })
+
   it('creates, reassigns and cancels visits of the chosen day', async () => {
     vi.spyOn(window, 'prompt').mockReturnValue(' Shop closed ')
     const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['customers.read', 'visits.cancel', 'visits.write'] }

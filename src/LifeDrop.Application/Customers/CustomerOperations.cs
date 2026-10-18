@@ -20,6 +20,17 @@ public interface ICustomerStore
         string approvalStatus, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
     Task<IReadOnlyList<CustomerDto>> ListAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken);
+    // Archived customers (plan step 4.11) are left out of ListAsync (and so out of the map); this lists only them.
+    Task<IReadOnlyList<CustomerDto>> ListArchivedAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    // Type, code and name (plan step 4.11); NotFound when the customer is not in the actor's scope, Conflict when the code belongs to another customer.
+    // One audit row (customer.edited) in the same transaction.
+    Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string type, string code, string name, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    // Archive or restore (audit customer.archived / customer.restored); false when the customer is not in the actor's scope.
+    Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 
     // Location and geofence updates (plan step 1.5); false when the customer is not in the actor's scope.
     // Each writes its audit row in the same transaction.
@@ -136,7 +147,10 @@ public sealed class GetCustomer(ICustomerStore store)
 
 public sealed class ListCustomers(ICustomerStore store)
 {
-    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken)
+    public Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
+        ExecuteAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken);
+
+    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty) return (false, Array.Empty<CustomerDto>());
         
@@ -144,7 +158,9 @@ public sealed class ListCustomers(ICustomerStore store)
         if (actualLimit <= 0 || actualLimit > 100) return (false, Array.Empty<CustomerDto>());
         if (cursorCreatedAt.HasValue != cursorId.HasValue) return (false, Array.Empty<CustomerDto>());
 
-        var items = await store.ListAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, cancellationToken);
+        var items = archived
+            ? await store.ListArchivedAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, cancellationToken)
+            : await store.ListAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, cancellationToken);
         return (true, items);
     }
 }
@@ -154,7 +170,7 @@ public sealed record SetCustomerLocationRequest(double Latitude, double Longitud
 // RadiusMeters 5-1000; null restores the default of 20 m.
 public sealed record SetGeofenceRadiusRequest(int? RadiusMeters);
 
-public enum CustomerUpdateResult { Success, Forbidden, NotFound, InvalidData }
+public enum CustomerUpdateResult { Success, Forbidden, NotFound, InvalidData, Conflict }
 
 // Customer location and geofence radius (plan step 1.5, PRD §6.1, §8). The customer must be within the actor's
 // data scope for the permission; changes are audited.
@@ -282,5 +298,39 @@ public sealed class CustomerProfileService(ICustomerStore store, IPermissionStor
             CustomerProfileResult.NotFound => (CustomerUpdateResult.NotFound, result),
             _ => (CustomerUpdateResult.InvalidData, result)
         };
+    }
+}
+
+public sealed record EditCustomerRequest(string? Type, string? Code, string? Name);
+
+// Renaming, recoding and archiving customers from the panel (plan step 4.11). Editing needs customers.write, archiving and restoring customers.approve
+// (a manager or supervisor), each within the actor's data scope. A customer is never deleted: visits, orders, payments and reports keep referring to it.
+public sealed class CustomerEditService(ICustomerStore store, IPermissionStore permissions)
+{
+    public const int MaxTypeLength = 40;
+    public const int MaxCodeLength = 50;
+    public const int MaxNameLength = 200;
+
+    public async Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, Guid customerId, EditCustomerRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return CustomerUpdateResult.Forbidden;
+        var type = request.Type?.Trim();
+        var code = request.Code?.Trim();
+        var name = request.Name?.Trim();
+        if (customerId == Guid.Empty || string.IsNullOrEmpty(type) || string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name) ||
+            type.Length > MaxTypeLength || code.Length > MaxCodeLength || name.Length > MaxNameLength)
+            return CustomerUpdateResult.InvalidData;
+        return await store.EditAsync(tenantId, actorId, new CustomerId(customerId), scope, type, code, name, cancellationToken);
+    }
+
+    public async Task<CustomerUpdateResult> SetArchivedAsync(TenantId tenantId, UserId actorId, Guid customerId, bool archived, CancellationToken cancellationToken)
+    {
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersApprove, cancellationToken);
+        if (scope is null) return CustomerUpdateResult.Forbidden;
+        if (customerId == Guid.Empty) return CustomerUpdateResult.InvalidData;
+        return await store.SetArchivedAsync(tenantId, actorId, new CustomerId(customerId), scope, archived, cancellationToken)
+            ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
     }
 }

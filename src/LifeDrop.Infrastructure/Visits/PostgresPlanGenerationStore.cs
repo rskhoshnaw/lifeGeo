@@ -49,7 +49,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
                     ELSE 'outside' END AS window_status,
                 c.priority
             FROM customers c
-            WHERE c.tenant_id = @tenant AND c.approval_status = 'approved' AND {scopeFilter}
+            WHERE c.tenant_id = @tenant AND c.approval_status = 'approved' AND c.archived_at IS NULL AND {scopeFilter}
               AND (@place::uuid IS NULL OR c.place_id IN (SELECT id FROM sub))
               AND (@lons::float8[] IS NULL OR (c.geom IS NOT NULL AND ST_Covers(
                     ST_SetSRID(ST_MakePolygon(ST_MakeLine(ARRAY(SELECT ST_MakePoint(t.lon, t.lat) FROM unnest(@lons::float8[], @lats::float8[]) WITH ORDINALITY AS t(lon, lat, n) ORDER BY t.n))), 4326),
@@ -134,7 +134,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
             await using var insert = new NpgsqlCommand("""
                 INSERT INTO visits (id, tenant_id, user_id, customer_id, status, schedule_date, created_at, visit_type, priority, is_unplanned, sort_order)
                 SELECT @id, @tenant, @assignee, c.id, 'Planned', @day, now(), @type, @priority, false, @position
-                FROM customers c WHERE c.tenant_id = @tenant AND c.id = @customer AND c.approval_status = 'approved'
+                FROM customers c WHERE c.tenant_id = @tenant AND c.id = @customer AND c.approval_status = 'approved' AND c.archived_at IS NULL
                 """, connection, transaction);
             insert.Parameters.AddWithValue("id", id);
             insert.Parameters.AddWithValue("tenant", tenantId.Value);
