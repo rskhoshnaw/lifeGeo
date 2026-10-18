@@ -754,6 +754,7 @@ export const Permissions = {
   createFollowUps: ['followups.create'],
   manageFollowUps: ['followups.manage'],
   manageSamples: ['samples.manage'],
+  recordSamples: ['samples.record'],
   managePayments: ['payments.manage'],
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
@@ -904,6 +905,8 @@ export class AdminApi {
   // Pharma samples (step 2.6): reps record them in the app; managers read and void with a reason.
   samples = (before?: Sample) =>
     this.get<Sample[]>(before ? `/samples?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/samples?limit=50')
+  recordSample = (sample: { customerId: string; productId: string; quantity: number; recipientName: string | null; batchNumber: string | null; expiryDate: string | null; note: string | null; clientRef: string }) =>
+    this.post('/samples', sample)
   voidSample = (id: string, reason: string) => this.post(`/samples/${id}/void`, { reason })
   // Warehouse staff and warehouse work (step 2.3).
   warehouseStaff = (warehouseId: string) => this.get<StaffMember[]>(`/warehouses/${warehouseId}/staff`)

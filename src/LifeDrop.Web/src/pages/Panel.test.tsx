@@ -571,6 +571,34 @@ describe('panel management screens', () => {
     expect(screen.queryByText('Follow-up overdue')).not.toBeInTheDocument()
   })
 
+  it('samples: a manager with samples.record records one from the panel; a reader without it sees no form', async () => {
+    const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['samples.read', 'samples.record', 'customers.read', 'catalog.read'] }
+    const product = { id: 'p1', code: 'MED-1', name: 'Painkiller', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'IQD', basePrice: 1000, status: 'active' }
+    const { api, calls } = server(sm, { '/samples?limit=50': [], '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }], '/products?': [product] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Samples' }))
+    await user.selectOptions(await screen.findByLabelText('Customer', { selector: 'select' }), 'c1')
+    await user.selectOptions(await screen.findByLabelText('Product', { selector: 'select' }), 'p1')
+    await user.type(screen.getByLabelText('Quantity'), '2')
+    await user.type(screen.getByLabelText('Recipient'), ' Dr. Ali ')
+    await user.click(screen.getByRole('button', { name: 'Record sample' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Sample recorded.')
+    const sent = posts(calls)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ method: 'POST', path: '/samples', body: { customerId: 'c1', productId: 'p1', quantity: 2, recipientName: 'Dr. Ali', batchNumber: null, expiryDate: null, note: null } })
+  })
+
+  it('samples: no form without samples.record', async () => {
+    const reader: Me = { id: 'r', email: 'r@t1', roles: ['CompanyManager'], permissions: ['samples.read'] }
+    const { api } = server(reader, { '/samples?limit=50': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Samples' }))
+    expect(await screen.findByText('No samples.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record sample' })).not.toBeInTheDocument()
+  })
+
   it('follow-ups: the creator edits subject and due day of an open one; a completed one has no Edit', async () => {
     const rep1: Me = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], permissions: ['followups.create', 'customers.read'] }
     const base = { customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', assigneeId: 'u1', assigneeEmail: 'rep@t1', createdBy: 'u1', createdByEmail: 'rep@t1', resultNote: null, cancelReason: null, createdAt: '2026-10-01T08:00:00Z', completedAt: null }

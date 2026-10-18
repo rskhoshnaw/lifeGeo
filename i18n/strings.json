@@ -6856,5 +6856,41 @@
   "ckb": "پاشەکەوتکردن",
   "ar": "حفظ",
   "fa": "ذخیره"
+ },
+ "web.samples.new": {
+  "en": "Record a sample",
+  "ckb": "تۆمارکردنی نموونە",
+  "ar": "تسجيل عيّنة",
+  "fa": "ثبت نمونه"
+ },
+ "web.samples.recorded": {
+  "en": "Sample recorded.",
+  "ckb": "نموونە تۆمار کرا.",
+  "ar": "تم تسجيل العيّنة.",
+  "fa": "نمونه ثبت شد."
+ },
+ "web.samples.chooseCustomer": {
+  "en": "Choose a customer…",
+  "ckb": "کڕیارێک هەڵبژێرە…",
+  "ar": "اختر زبوناً…",
+  "fa": "یک مشتری انتخاب کنید…"
+ },
+ "web.samples.chooseProduct": {
+  "en": "Choose a product…",
+  "ckb": "بەرهەمێک هەڵبژێرە…",
+  "ar": "اختر منتجاً…",
+  "fa": "یک محصول انتخاب کنید…"
+ },
+ "web.samples.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.samples.record": {
+  "en": "Record sample",
+  "ckb": "تۆمارکردنی نموونە",
+  "ar": "تسجيل العيّنة",
+  "fa": "ثبت نمونه"
  }
 }
