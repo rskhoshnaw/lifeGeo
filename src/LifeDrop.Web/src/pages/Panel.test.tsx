@@ -26,7 +26,7 @@ function server(me: Me, data: Record<string, unknown>, posts: Record<string, Res
 }
 
 const manager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['customers.approve', 'customers.read', 'device.approve', 'sessions.kill', 'user.manageroles'] }
-const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamId: 't', teamName: 'Team A', regionId: 'r', activeSessions: 2 }
+const rep: UserSummary = { id: 'u1', email: 'rep@t1', roles: ['SalesRep'], teamId: 't', teamName: 'Team A', regionId: 'r', activeSessions: 2, isActive: true }
 const device = (id: string, status: Device['status']): Device => ({ id, userId: 'u1', userEmail: 'rep@t1', label: `Phone ${id}`, platform: 'android', appVersion: '1.0', status, registeredAt: '2026-10-04T08:00:00Z' })
 const customer: Customer = { id: 'c1', type: 'pharmacy', code: 'P-1', name: 'Shifa', status: 'located', createdAt: '2026-10-04T08:00:00Z', regionId: 'r', approvalStatus: 'pending', phone: null, address: null, placeId: null, placePath: null, priority: 'normal' }
 
@@ -90,6 +90,26 @@ describe('panel management screens', () => {
     await user.click(screen.getByRole('button', { name: 'Create account' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Account created')
     expect(posts(calls)).toEqual([{ method: 'POST', path: '/users', body: { email: 'new.rep@t1', password: 'a-long-password-1', roleId: 'r1' } }])
+  })
+
+  it('changes e-mail and password, deactivates after confirmation and never offers it for oneself', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    vi.spyOn(window, 'prompt').mockReturnValueOnce(' new@t1 ').mockReturnValueOnce('a-long-password-2')
+    const { api, calls } = server(manager, { '/users': [rep, { ...rep, id: manager.id, email: manager.email }], '/roles': [] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Users' }))
+    const row = (await screen.findByText('rep@t1')).closest('tr') as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'Change e-mail' }))
+    await user.click(within(row).getByRole('button', { name: 'Set password' }))
+    await user.click(within(row).getByRole('button', { name: 'Deactivate' }))
+    await user.click(within(row).getByRole('button', { name: 'Deactivate' }))
+    expect(await screen.findAllByRole('button', { name: 'Deactivate' })).toHaveLength(1)
+    expect(posts(calls)).toEqual([
+      { method: 'PUT', path: '/users/u1/email', body: { email: 'new@t1' } },
+      { method: 'PUT', path: '/users/u1/password', body: { password: 'a-long-password-2' } },
+      { method: 'POST', path: '/users/u1/deactivate' },
+    ])
   })
 
   it('shows no account form to someone who cannot give roles', async () => {

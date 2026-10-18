@@ -19,6 +19,7 @@ export interface UserSummary {
   teamName: string | null
   regionId: string | null
   activeSessions: number
+  isActive: boolean
 }
 
 export interface Role {
@@ -817,7 +818,7 @@ export class AdminApi {
   }
 
   me = () => this.get<Me>('/me')
-  users = () => this.get<UserSummary[]>('/users')
+  users = (includeInactive = false) => this.get<UserSummary[]>(includeInactive ? '/users?includeInactive=true' : '/users')
   roles = () => this.get<Role[]>('/roles')
   devices = (status?: DeviceStatus) => this.get<Device[]>(status ? `/devices?status=${status}` : '/devices')
   approveDevice = (id: string) => this.post(`/devices/${id}/approve`)
@@ -825,6 +826,10 @@ export class AdminApi {
   killSessions = (userId: string) => this.post(`/users/${userId}/sessions/revoke`)
   assignRole = (userId: string, roleId: string) => this.post(`/users/${userId}/roles/${roleId}`)
   createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
+  changeUserEmail = (userId: string, email: string) => this.send('PUT', `/users/${userId}/email`, { email })
+  setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
+  deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)
+  activateUser = (userId: string) => this.post(`/users/${userId}/activate`)
   customers = (after?: Customer) =>
     this.get<Customer[]>(
       after

@@ -30,7 +30,7 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
             reader.GetFieldValue<string[]>(1), reader.GetFieldValue<string[]>(2));
     }
 
-    public async Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, bool includeInactive, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
@@ -40,16 +40,18 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
                              WHERE ur.tenant_id = u.tenant_id AND ur.user_id = u.id), '{}'),
                    t.id, t.name, t.region_id,
                    (SELECT count(DISTINCT rt.family_id)::int FROM refresh_tokens rt
-                    WHERE rt.tenant_id = u.tenant_id AND rt.user_id = u.id AND rt.revoked_at IS NULL AND rt.expires_at > now())
+                    WHERE rt.tenant_id = u.tenant_id AND rt.user_id = u.id AND rt.revoked_at IS NULL AND rt.expires_at > now()),
+                   u.is_active
             FROM users u
             LEFT JOIN team_members m ON m.user_id = u.id
             LEFT JOIN teams t ON t.id = m.team_id
-            WHERE u.tenant_id = @tenant AND u.is_active
+            WHERE u.tenant_id = @tenant AND (u.is_active OR @all)
               AND (@scope = 2 OR u.id = @actor OR (@scope = 1 AND @region::uuid IS NOT NULL AND t.region_id = @region))
             ORDER BY u.email COLLATE "C" NULLS LAST, u.id
             LIMIT 500
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("all", includeInactive);
         command.Parameters.AddWithValue("scope", (int)scope.Scope);
         command.Parameters.AddWithValue("actor", scope.ActorId.Value);
         command.Parameters.AddWithValue("region", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)scope.RegionId ?? DBNull.Value);
@@ -58,7 +60,7 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new UserSummaryDto(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetFieldValue<string[]>(2),
                 reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.GetInt32(6)));
+                reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.GetInt32(6), reader.GetBoolean(7)));
         return items;
     }
 

@@ -6724,5 +6724,77 @@
   "ckb": "پەیامەکان ناو و کۆدی کڕیار هەڵدەگرن و بە تێلێگرامدا تێدەپەڕن. تەنها چاتی تایبەتی خۆت ببەستەرەوە.",
   "ar": "تحتوي الرسائل أسماء ورموز العملاء وتمر عبر تيليجرام. اربط محادثتك الخاصة فقط.",
   "fa": "پیام‌ها نام و کد مشتری دارند و از تلگرام عبور می‌کنند. فقط چت خصوصی خودتان را متصل کنید."
+ },
+ "web.users.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.users.inactive": {
+  "en": "Deactivated",
+  "ckb": "ناچالاک",
+  "ar": "معطّل",
+  "fa": "غیرفعال"
+ },
+ "web.users.active": {
+  "en": "Active",
+  "ckb": "چالاک",
+  "ar": "نشط",
+  "fa": "فعال"
+ },
+ "web.users.showInactive": {
+  "en": "Show deactivated accounts",
+  "ckb": "پیشاندانی هەژماری ناچالاک",
+  "ar": "إظهار الحسابات المعطّلة",
+  "fa": "نمایش حساب‌های غیرفعال"
+ },
+ "web.users.deactivate": {
+  "en": "Deactivate",
+  "ckb": "ناچالاککردن",
+  "ar": "تعطيل",
+  "fa": "غیرفعال کردن"
+ },
+ "web.users.activate": {
+  "en": "Activate",
+  "ckb": "چالاککردن",
+  "ar": "تفعيل",
+  "fa": "فعال کردن"
+ },
+ "web.users.confirmDeactivate": {
+  "en": "Deactivate {user}? They are signed out now and cannot log in until you activate the account again.",
+  "ckb": "{user} ناچالاک بکرێت؟ ئێستا دەردەچێت و ناتوانێت بچێتەوە ژوورەوە تا هەژمارەکە چالاک بکەیتەوە.",
+  "ar": "تعطيل {user}؟ سيتم تسجيل خروجه الآن ولن يستطيع الدخول حتى تعيد تفعيل الحساب.",
+  "fa": "{user} غیرفعال شود؟ همین حالا خارج می‌شود و تا فعال‌سازی دوباره نمی‌تواند وارد شود."
+ },
+ "web.users.changeEmail": {
+  "en": "Change e-mail",
+  "ckb": "گۆڕینی ئیمەیڵ",
+  "ar": "تغيير البريد",
+  "fa": "تغییر ایمیل"
+ },
+ "web.users.newEmail": {
+  "en": "New e-mail for {user}:",
+  "ckb": "ئیمەیڵی نوێ بۆ {user}:",
+  "ar": "البريد الجديد لـ {user}:",
+  "fa": "ایمیل جدید برای {user}:"
+ },
+ "web.users.setPassword": {
+  "en": "Set password",
+  "ckb": "دانانی وشەی نهێنی",
+  "ar": "تعيين كلمة السر",
+  "fa": "تعیین رمز"
+ },
+ "web.users.passwordPrompt": {
+  "en": "New password for {user} (at least 12 characters). They are signed out everywhere.",
+  "ckb": "وشەی نهێنی نوێ بۆ {user} (لانیکەم ١٢ پیت). لە هەموو شوێنێک دەردەچێت.",
+  "ar": "كلمة سر جديدة لـ {user} (12 حرفاً على الأقل). سيتم تسجيل خروجه من كل مكان.",
+  "fa": "رمز جدید برای {user} (حداقل ۱۲ نویسه). از همه‌جا خارج می‌شود."
+ },
+ "web.users.updated": {
+  "en": "Saved.",
+  "ckb": "پاشەکەوت کرا.",
+  "ar": "تم الحفظ.",
+  "fa": "ذخیره شد."
  }
 }

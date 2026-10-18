@@ -4,7 +4,8 @@ import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
-  const users = useLoad(useCallback(() => admin.users(), [admin]))
+  const [showInactive, setShowInactive] = useState(false)
+  const users = useLoad(useCallback(() => admin.users(showInactive), [admin, showInactive]))
   const canKill = can(me, ...Permissions.killSessions)
   const canAssign = can(me, ...Permissions.assignRoles)
   const roles = useLoad(useCallback(() => (canAssign ? admin.roles() : Promise.resolve<Role[]>([])), [admin, canAssign]))
@@ -26,6 +27,21 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   function kill(user: UserSummary) {
     if (!window.confirm(t('web.users.confirmEnd', { user: user.email ?? user.id }))) return
     void action.run(() => admin.killSessions(user.id))
+  }
+
+  function changeEmail(user: UserSummary) {
+    const email = window.prompt(t('web.users.newEmail', { user: user.email ?? user.id }), user.email ?? '')?.trim()
+    if (email) void action.run(() => admin.changeUserEmail(user.id, email))
+  }
+
+  function setPassword(user: UserSummary) {
+    const password = window.prompt(t('web.users.passwordPrompt', { user: user.email ?? user.id }))
+    if (password) void action.run(() => admin.setUserPassword(user.id, password))
+  }
+
+  function deactivate(user: UserSummary) {
+    if (!window.confirm(t('web.users.confirmDeactivate', { user: user.email ?? user.id }))) return
+    void action.run(() => admin.deactivateUser(user.id))
   }
 
   return (
@@ -62,6 +78,12 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
           {created && <p role="status" className="col-span-2 text-sm text-green-700">{t('web.users.created')}</p>}
         </form>
       )}
+      {canAssign && (
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+          {t('web.users.showInactive')}
+        </label>
+      )}
       {users.data?.length === 0 && <p className="text-slate-600">{t('web.users.none')}</p>}
       {users.data && users.data.length > 0 && (
         <table className="w-full text-start text-sm">
@@ -71,6 +93,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <th>{t('web.users.roles')}</th>
               <th>{t('web.users.team')}</th>
               <th>{t('web.users.sessions')}</th>
+              {showInactive && <th>{t('web.users.status')}</th>}
               <th />
             </tr>
           </thead>
@@ -81,8 +104,24 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 <td>{user.roles.join(', ') || '—'}</td>
                 <td>{user.teamName ?? '—'}</td>
                 <td>{user.activeSessions}</td>
+                {showInactive && <td>{user.isActive ? t('web.users.active') : t('web.users.inactive')}</td>}
                 <td className="space-x-2 py-2 text-end">
-                  {canAssign && roles.data && (
+                  {canAssign && user.isActive && (
+                    <>
+                      <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => changeEmail(user)}>
+                        {t('web.users.changeEmail')}
+                      </button>
+                      <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => setPassword(user)}>
+                        {t('web.users.setPassword')}
+                      </button>
+                    </>
+                  )}
+                  {canAssign && user.id !== me.id && (
+                    <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => (user.isActive ? deactivate(user) : void action.run(() => admin.activateUser(user.id)))}>
+                      {user.isActive ? t('web.users.deactivate') : t('web.users.activate')}
+                    </button>
+                  )}
+                  {canAssign && user.isActive && roles.data && (
                     <AssignRole user={user} roles={roles.data} busy={action.busy} onAssign={(roleId) => void action.run(() => admin.assignRole(user.id, roleId))} />
                   )}
                   {canKill && user.activeSessions > 0 && user.id !== me.id && (
