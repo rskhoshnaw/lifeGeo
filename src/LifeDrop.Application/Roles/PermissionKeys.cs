@@ -53,6 +53,7 @@ public static class PermissionKeys
     public const string PaymentsManage = "payments.manage";
     public const string PaymentsRead = "payments.read";
     public const string SamplesRecord = "samples.record";
+    public const string NotificationsSend = "notifications.send";
     public const string SamplesManage = "samples.manage";
     public const string SamplesRead = "samples.read";
     public const string FollowUpsCreate = "followups.create";

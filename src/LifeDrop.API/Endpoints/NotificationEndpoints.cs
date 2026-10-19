@@ -52,6 +52,23 @@ public static class NotificationEndpoints
         }).RequireAuthorization()
             .WithName("MarkAllNotificationsRead").WithTags("Notifications").Produces(204)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        // A manager's message to staff (plan step 4.16); delivered by the push and Telegram layers that read the same table.
+        app.MapPost("/notifications/send", async (SendMessageRequest request, HttpContext context, BroadcastService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, sent) = await service.SendAsync(tenantId, actorId, request, cancellationToken);
+            return result switch
+            {
+                SendMessageOutcome.Success => Results.Ok(sent),
+                SendMessageOutcome.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("SendMessage").WithTags("Notifications").Produces<SendMessageResultDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

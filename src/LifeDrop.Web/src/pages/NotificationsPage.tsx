@@ -1,14 +1,15 @@
 import { useCallback } from 'react'
-import { AdminApi, type Notification } from '../api/admin.ts'
+import { AdminApi, can, Permissions, type Me, type Notification } from '../api/admin.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { TelegramCard } from '../components/TelegramCard.tsx'
+import { BroadcastForm } from '../components/BroadcastForm.tsx'
 import { t } from '../i18n.ts'
 
 const when = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', dateStyle: 'short', timeStyle: 'short' })
 
 // The signed-in user's messages (plan step 1.23-c): who changed which customer of the user's area. Everybody sees only
 // their own. Reading a message does not change the customer; it only clears the unread count.
-export function NotificationsPage({ admin, onChanged }: { admin: AdminApi; onChanged: () => void }) {
+export function NotificationsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; onChanged: () => void }) {
   const list = useLoad(useCallback(() => admin.notifications(), [admin]))
   const action = useAction(() => {
     list.reload()
@@ -17,7 +18,9 @@ export function NotificationsPage({ admin, onChanged }: { admin: AdminApi; onCha
   const items = list.data ?? []
   const unread = items.filter((n) => n.readAt === null).length
   const text = (n: Notification) =>
-    t(n.kind === 'customer.location_changed' ? 'web.notifications.locationChanged' : 'web.notifications.profileChanged', {
+    n.kind === 'manager.message'
+      ? t('web.notifications.fromManager', { actor: n.actorEmail ?? t('web.notifications.someone'), text: n.entityId })
+      : t(n.kind === 'customer.location_changed' ? 'web.notifications.locationChanged' : 'web.notifications.profileChanged', {
       actor: n.actorEmail ?? t('web.notifications.someone'),
       customer: n.customerCode ? `${n.customerCode}${n.customerName ? ` · ${n.customerName}` : ''}` : t('web.notifications.aCustomer'),
     })
@@ -35,6 +38,7 @@ export function NotificationsPage({ admin, onChanged }: { admin: AdminApi; onCha
           </>
         )}
       </div>
+      {can(me, ...Permissions.sendMessages) && <BroadcastForm admin={admin} />}
       <TelegramCard admin={admin} />
       {(action.error ?? list.error) && <p role="alert" className="text-red-700">{action.error ?? list.error}</p>}
       {list.data && items.length === 0 && <p className="text-slate-600">{t('web.notifications.none')}</p>}

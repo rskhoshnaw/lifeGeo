@@ -1108,6 +1108,47 @@ describe('panel management screens', () => {
     expect(await screen.findByText('S-7')).toBeInTheDocument()
   })
 
+  it('sends a manager message to a group or to chosen people and shows how many people it reached; others see no form', async () => {
+    const sm: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['notifications.send', 'user.manageroles', 'customers.read'] }
+    const quiet = { '/notifications/unread-count': { count: 0 }, '/notifications?limit=200': [], '/channels': { enabled: false, botUsername: null, telegramLinked: false } }
+    const { api, calls } = server(sm, { ...quiet, '/roles': [{ id: 'r1', name: 'SalesRep', dataScope: 'region' }], '/regions': [{ id: 'g1', name: 'Erbil' }], '/teams': [{ id: 't1', name: 'Team A', regionId: 'g1' }], '/users': [rep] },
+      { '/notifications/send': json({ recipients: 4 }) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Message' }), ' Meeting at 9 ')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Sent to 4 people')
+    await user.selectOptions(screen.getByLabelText('Send to'), 'filters')
+    await user.selectOptions(await screen.findByLabelText('Role'), 'SalesRep')
+    await user.selectOptions(screen.getByLabelText('Region'), 'g1')
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Hi team')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    await user.clear(screen.getByRole('textbox', { name: 'Message' }))   // the canned answer can be read once only, so the form is not cleared after the second send
+    await user.selectOptions(screen.getByLabelText('Send to'), 'people')
+    await user.click(await screen.findByRole('checkbox', { name: 'rep@t1' }))
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Call me')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    expect(posts(calls).map((c) => c.body)).toEqual([
+      { message: 'Meeting at 9', everyone: true },
+      { message: 'Hi team', role: 'SalesRep', regionId: 'g1' },
+      { message: 'Call me', userIds: ['u1'] },
+    ])
+  })
+
+  it('shows a manager message in the list as who wrote what, and gives no send form without the permission', async () => {
+    const reader: Me = { id: 'r', email: 'r@t1', roles: ['SalesRep'], permissions: ['customers.read'] }
+    const message = { id: 'n1', kind: 'manager.message', entityId: 'Meeting at 9', actorId: 'm', actorEmail: 'boss@t1', customerCode: null, customerName: null, createdAt: '2026-10-18T08:00:00Z', readAt: null }
+    const { api } = server(reader, { '/notifications/unread-count': { count: 1 }, '/notifications?limit=200': [message], '/channels': { enabled: false, botUsername: null, telegramLinked: false } })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    expect(await screen.findByText('boss@t1: Meeting at 9')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
+  })
+
   it('shows the customer profile read-only without customers.write', async () => {
     const reader: Me = { id: 'f', email: 'finance@t1', roles: ['FinanceManager'], permissions: ['customers.read'] }
     const { api } = server(reader, {

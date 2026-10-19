@@ -66,7 +66,8 @@ export interface Customer {
 // A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
 export interface Notification {
   id: string
-  kind: 'customer.profile_changed' | 'customer.location_changed'
+  // manager.message (step 4.16): entityId is the text the manager wrote.
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message'
   entityId: string
   actorId: string
   actorEmail: string | null
@@ -759,6 +760,7 @@ export const Permissions = {
   manageFollowUps: ['followups.manage'],
   manageSamples: ['samples.manage'],
   recordSamples: ['samples.record'],
+  sendMessages: ['notifications.send'],
   managePayments: ['payments.manage'],
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
@@ -956,6 +958,9 @@ export class AdminApi {
   }
   setCustomerProfile = (customerId: string, profile: CustomerProfile) => this.send('PUT', `/customers/${customerId}/profile`, profile)
   notifications = (unreadOnly = false) => this.get<Notification[]>(`/notifications?limit=200${unreadOnly ? '&unread=true' : ''}`)
+  // A manager's message to staff (step 4.16): the app push and Telegram deliver it. Returns how many people it reached.
+  sendMessage = (message: { message: string; userIds?: string[]; role?: string; regionId?: string; teamId?: string; everyone?: boolean }) =>
+    this.postJson<{ recipients: number }>('/notifications/send', message)
   channels = () => this.get<ChannelStatus>('/channels')
   startTelegramLink = () => this.postJson<TelegramLink>('/channels/telegram/link', {})
   unlinkTelegram = () => this.post('/channels/telegram/unlink')

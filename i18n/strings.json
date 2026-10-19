@@ -6994,5 +6994,107 @@
   "ckb": "هیچ کڕیارێک نەدۆزرایەوە.",
   "ar": "لم يوجد زبون.",
   "fa": "مشتری‌ای پیدا نشد."
+ },
+ "web.notifications.fromManager": {
+  "en": "{actor}: {text}",
+  "ckb": "{actor}: {text}",
+  "ar": "{actor}: {text}",
+  "fa": "{actor}: {text}"
+ },
+ "web.broadcast.title": {
+  "en": "Send a message to staff",
+  "ckb": "نامە بنێرە بۆ کارمەندان",
+  "ar": "إرسال رسالة إلى الموظفين",
+  "fa": "ارسال پیام به کارمندان"
+ },
+ "web.broadcast.to": {
+  "en": "Send to",
+  "ckb": "ناردن بۆ",
+  "ar": "إرسال إلى",
+  "fa": "ارسال به"
+ },
+ "web.broadcast.everyone": {
+  "en": "Everybody",
+  "ckb": "هەمووان",
+  "ar": "الجميع",
+  "fa": "همه"
+ },
+ "web.broadcast.byGroup": {
+  "en": "A group (role, region, team)",
+  "ckb": "گروپێک (ڕۆڵ، ناوچە، تیم)",
+  "ar": "مجموعة (دور، منطقة، فريق)",
+  "fa": "یک گروه (نقش، ناحیه، تیم)"
+ },
+ "web.broadcast.people": {
+  "en": "Chosen people",
+  "ckb": "کەسانی هەڵبژێردراو",
+  "ar": "أشخاص محددون",
+  "fa": "افراد انتخاب‌شده"
+ },
+ "web.broadcast.role": {
+  "en": "Role",
+  "ckb": "ڕۆڵ",
+  "ar": "الدور",
+  "fa": "نقش"
+ },
+ "web.broadcast.region": {
+  "en": "Region",
+  "ckb": "ناوچە",
+  "ar": "المنطقة",
+  "fa": "ناحیه"
+ },
+ "web.broadcast.team": {
+  "en": "Team",
+  "ckb": "تیم",
+  "ar": "الفريق",
+  "fa": "تیم"
+ },
+ "web.broadcast.anyRole": {
+  "en": "Any role",
+  "ckb": "هەر ڕۆڵێک",
+  "ar": "أي دور",
+  "fa": "هر نقش"
+ },
+ "web.broadcast.anyRegion": {
+  "en": "Any region",
+  "ckb": "هەر ناوچەیەک",
+  "ar": "أي منطقة",
+  "fa": "هر ناحیه"
+ },
+ "web.broadcast.anyTeam": {
+  "en": "Any team",
+  "ckb": "هەر تیمێک",
+  "ar": "أي فريق",
+  "fa": "هر تیم"
+ },
+ "web.broadcast.message": {
+  "en": "Message",
+  "ckb": "نامە",
+  "ar": "الرسالة",
+  "fa": "پیام"
+ },
+ "web.broadcast.send": {
+  "en": "Send message",
+  "ckb": "ناردنی نامە",
+  "ar": "إرسال الرسالة",
+  "fa": "ارسال پیام"
+ },
+ "web.broadcast.sent": {
+  "en": "Sent to {count} people (app notification and Telegram).",
+  "ckb": "بۆ {count} کەس نێردرا (ئاگادارکردنەوەی ئەپ و تێلێگرام).",
+  "ar": "تم الإرسال إلى {count} شخصاً (إشعار التطبيق وتيليجرام).",
+  "fa": "برای {count} نفر ارسال شد (اعلان اپ و تلگرام)."
+ },
+ "web.broadcast.nobody": {
+  "en": "Nobody matched, nothing was sent.",
+  "ckb": "هیچ کەسێک نەگونجا، هیچ نەنێردرا.",
+  "ar": "لم يطابق أحد، لم يُرسل شيء.",
+  "fa": "کسی مطابقت نداشت، چیزی ارسال نشد."
+ },
+ "msg.channel.managerMessage": {
+  "en": "📢 {message}",
+  "ckb": "📢 {message}",
+  "ar": "📢 {message}",
+  "fa": "📢 {message}"
  }
 }

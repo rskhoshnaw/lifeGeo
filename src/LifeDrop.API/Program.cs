@@ -87,6 +87,8 @@ public partial class Program
         builder.Services.AddHostedService<LifeDrop.API.AlertScanService>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.INotificationStore, LifeDrop.Infrastructure.Notifications.PostgresNotificationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Notifications.NotificationService>();
+        builder.Services.AddScoped<LifeDrop.Application.Notifications.IBroadcastStore, LifeDrop.Infrastructure.Notifications.PostgresBroadcastStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Notifications.BroadcastService>();
         builder.Services.AddScoped<LifeDrop.Application.Platform.IPlatformStore, LifeDrop.Infrastructure.Platform.PostgresPlatformStore>();
         builder.Services.AddScoped<LifeDrop.Application.Platform.PlatformService>();
         builder.Services.AddScoped<LifeDrop.Application.Push.IPushStore, LifeDrop.Infrastructure.Push.PostgresPushStore>();

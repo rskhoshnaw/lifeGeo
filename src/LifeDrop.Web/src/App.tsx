@@ -148,7 +148,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'tv' && <TvPage admin={admin} me={me} />}
       {me && tab === 'forms' && <FormsPage admin={admin} />}
       {me && tab === 'platform' && <PlatformPage admin={admin} />}
-      {me && tab === 'notifications' && <NotificationsPage admin={admin} onChanged={refreshUnread} />}
+      {me && tab === 'notifications' && <NotificationsPage admin={admin} me={me} onChanged={refreshUnread} />}
     </Shell>
   )
 }

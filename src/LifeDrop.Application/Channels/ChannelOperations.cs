@@ -128,12 +128,16 @@ public sealed class ChannelDispatcher(IChannelStore store, ITelegramBot bot, ICh
         var sentCount = 0;
         foreach (var message in await store.ListPendingAsync(tenantId, MaxAge, BatchSize, cancellationToken))
         {
-            if (!TextKeys.TryGetValue(message.Kind, out var key))
+            string text;
+            if (message.Kind == "manager.message")
+                text = texts.Get("msg.channel.managerMessage", ("message", message.EntityId));   // a manager's message (plan step 4.16): the text is in EntityId
+            else if (TextKeys.TryGetValue(message.Kind, out var key))
+                text = texts.Get(key, ("name", message.CustomerName ?? "-"), ("code", message.CustomerCode ?? "-"));
+            else
             {
                 await store.MarkSentAsync(tenantId, message.NotificationId, cancellationToken);
                 continue;
             }
-            var text = texts.Get(key, ("name", message.CustomerName ?? "-"), ("code", message.CustomerCode ?? "-"));
             switch (await bot.SendAsync(message.Address, text, cancellationToken))
             {
                 case ChannelOutcome.Sent:
