@@ -76,6 +76,10 @@ Cloudflare ← **Workers & Pages** ← **Create application** ← **Import a rep
 پنل را باز کن (`https://panel.lifegeotracking.com`) ← کد شرکت `platform`، ایمیل و رمز Super Admin ← **شرکت‌ها** ← شرکت جدید: کد `lifedrops`، نام `Life Drops`، ایمیل و رمز اولین مدیر.
 اپ: کد شرکت `lifedrops` را در صفحهٔ ورود بنویس (نسخهٔ ساخته‌شده با `LifeDropBaseDomain=lifegeotracking.com`).
 
+## ۹.۵. اعلان‌ها (اختیاری، رایگان)
+- **اعلان گوشی (Firebase):** Firebase console ← Project settings ← Service accounts ← Generate new private key ← فایل JSON. آن را روی سرور با نام `/opt/lifedrop/deploy/secrets/service-account.json` بگذار (`mkdir -p /opt/lifedrop/deploy/secrets`، سپس `nano` و paste کردن متن فایل)، بعد `docker compose up -d`. بدون این فایل اعلان گوشی خاموش می‌ماند.
+- **Telegram کارمندان:** با @BotFather ربات بساز (`/newbot`)، در `deploy/.env` بنویس: `CHANNELS_ENABLED=true`، `TELEGRAM_BOT_TOKEN=...`، `TELEGRAM_BOT_USERNAME=...` (بدون @)، `CHANNELS_LANGUAGE=ckb`، بعد `docker compose up -d`. هر کارمند در پنل ← Notifications ← «Connect Telegram» را می‌زند.
+
 ## ۱۰. پایش
 UptimeRobot (رایگان) روی `https://lifedrops.lifegeotracking.com/health/ready` با هشدار ایمیل.
 به‌روزرسانی بعدی: `cd /opt/lifedrop && git pull && cd deploy && ./backup.sh && ./setup-db.sh && docker compose up -d --build`

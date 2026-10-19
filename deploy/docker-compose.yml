@@ -38,6 +38,11 @@ services:
       Company__Industry: ${COMPANY_INDUSTRY:-pharma}
       Branding__SupportPhone: ${SUPPORT_PHONE:-+9647510686828}
       Push__Fcm__ServiceAccountFile: /run/fcm/service-account.json
+      # Telegram for staff (docs/CHANNELS.md): off unless CHANNELS_ENABLED=true and a bot token is set in deploy/.env.
+      Channels__Enabled: ${CHANNELS_ENABLED:-false}
+      Channels__Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      Channels__Telegram__BotUsername: ${TELEGRAM_BOT_USERNAME:-}
+      Channels__Language: ${CHANNELS_LANGUAGE:-ckb}
     volumes:
       # Put the Firebase key in deploy/secrets/service-account.json to turn push on (docs/PUSH.md); without the file push stays off.
       - ./secrets:/run/fcm:ro
