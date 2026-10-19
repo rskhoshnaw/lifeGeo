@@ -171,6 +171,19 @@ public class ChannelTests
     }
 
     [Fact]
+    public async Task A_managers_message_is_sent_as_it_was_written()
+    {
+        var store = new FakeStore();
+        var id = Guid.NewGuid();
+        store.Pending.Add(new PendingChannelMessage(id, "manager.message", "Meeting at 9", 0, "777", null, null));
+        var bot = new FakeBot();
+
+        Assert.Equal(1, await Dispatcher(store, bot).DispatchTenantAsync(Tenant, CancellationToken.None));
+        Assert.Equal(new[] { ("777", "msg.channel.managerMessage:message=Meeting at 9") }, bot.Sent);
+        Assert.Equal(new[] { id }, store.MarkedSent);
+    }
+
+    [Fact]
     public async Task A_message_is_sent_with_the_customer_and_marked_done()
     {
         var store = new FakeStore();

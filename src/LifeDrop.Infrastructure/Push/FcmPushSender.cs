@@ -72,8 +72,10 @@ public sealed class FcmPushSender : IPushSender
     public static string BuildBody(string token, PushMessage message)
     {
         var data = new Dictionary<string, string> { ["kind"] = message.Kind, ["entityId"] = message.EntityId, ["notificationId"] = message.NotificationId.ToString() };
-        var locKey = AlertKey(message.Kind);
-        if (locKey is null)
+        // A manager's message (plan step 4.16) carries its own text in EntityId: the iPhone alert shows it as it is, Android writes it from the data.
+        var alert = message.Kind == "manager.message" ? new Dictionary<string, string> { ["body"] = message.EntityId }
+            : AlertKey(message.Kind) is { } locKey ? new Dictionary<string, string> { ["loc-key"] = locKey } : null;
+        if (alert is null)
             return JsonSerializer.Serialize(new { message = new { token, data, android = new { priority = "HIGH" } } });
         var apns = new Dictionary<string, object>
         {
@@ -82,7 +84,7 @@ public sealed class FcmPushSender : IPushSender
             {
                 ["aps"] = new Dictionary<string, object>
                 {
-                    ["alert"] = new Dictionary<string, string> { ["loc-key"] = locKey },
+                    ["alert"] = alert,
                     ["sound"] = "default"
                 }
             }

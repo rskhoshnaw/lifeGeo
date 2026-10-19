@@ -36,9 +36,12 @@ public sealed class LifeDropMessagingService : FirebaseMessagingService
         base.OnMessageReceived(message);
         var data = message.Data;
         if (data is null || !data.TryGetValue("kind", out var kind)) return;
-        var key = PushMessages.TextKey(kind);
-        if (key is null) return;
         AppLanguage.Load();
+        // A manager's message (plan step 4.16) carries its own text; the other kinds are written here from the kind, in the language of the app.
+        string? text = null;
+        if (kind == "manager.message") data.TryGetValue("entityId", out text);
+        else if (PushMessages.TextKey(kind) is { } key) text = Texts.Get(key);
+        if (string.IsNullOrWhiteSpace(text)) return;
         var manager = (NotificationManager?)GetSystemService(NotificationService);
         if (manager is null) return;
         Notification.Builder builder;
@@ -57,7 +60,7 @@ public sealed class LifeDropMessagingService : FirebaseMessagingService
         var pending = PendingIntent.GetActivity(this, 0, open, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
         var notification = builder
             .SetContentTitle("LifeDrop")
-            .SetContentText(Texts.Get(key))
+            .SetContentText(text)
             .SetSmallIcon(Android.Resource.Drawable.IcDialogInfo)
             .SetContentIntent(pending)
             .SetAutoCancel(true)

@@ -145,7 +145,8 @@ public class CustomerApiIntegrationTests
                 var m43 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0043_customer_archive.sql"));
                 var m44 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0044_manager_records_samples.sql"));
                 var m45 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0045_customer_contact.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45;
+                var m46 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0046_manager_messages.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2024,7 +2025,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "100" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13)
+        Assert.Equal(new[] { "102" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");

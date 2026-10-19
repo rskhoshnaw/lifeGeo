@@ -2,8 +2,8 @@ using LifeDrop.Domain.Common;
 
 namespace LifeDrop.Application.Notifications;
 
-// Messages for one user (plan step 1.23-c). Kind: customer.profile_changed | customer.location_changed; EntityId is the id of the
-// customer; Actor* is who made the change. A user reads and marks only their own messages.
+// Messages for one user (plan step 1.23-c). Kind: customer.profile_changed | customer.location_changed (EntityId is the id of the
+// customer) | manager.message (plan step 4.16: EntityId is the text the manager wrote); Actor* is who made the change. A user reads and marks only their own messages.
 public sealed record NotificationDto(Guid Id, string Kind, string EntityId, Guid ActorId, string? ActorEmail, string? CustomerCode, string? CustomerName,
     DateTimeOffset CreatedAt, DateTimeOffset? ReadAt);
 
