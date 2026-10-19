@@ -56,7 +56,11 @@ public sealed class TrackingService : Service, ILocationListener
         try
         {
             _locations ??= (LocationManager?)GetSystemService(LocationService);
-            _locations?.RequestLocationUpdates(LocationManager.GpsProvider, IntervalMilliseconds, 0f, this);
+            // GPS alone gives no position indoors (office, home, a shop with a thick roof), so the first fix of a shift could take an hour. The network provider (Wi-Fi and
+            // mobile towers) answers within seconds with a rougher position; both feed the same queue and the server keeps every point (plan step 4.18).
+            foreach (var provider in new[] { LocationManager.GpsProvider, LocationManager.NetworkProvider })
+                if (_locations is not null && _locations.IsProviderEnabled(provider))
+                    _locations.RequestLocationUpdates(provider, IntervalMilliseconds, 0f, this);
         }
         catch (Java.Lang.SecurityException)
         {
