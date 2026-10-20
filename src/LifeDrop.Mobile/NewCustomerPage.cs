@@ -12,12 +12,7 @@ public sealed class NewCustomerPage : ContentPage
     private readonly Picker _type = new() { ItemsSource = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
     private IReadOnlyList<string> _types = NewCustomerFlow.Types;
     // Doctor details (plan step 4.27-b): shown only when the type is Doctor.
-    private readonly VerticalStackLayout _doctorBox = new() { Spacing = 12, IsVisible = false };
-    private readonly Entry _clinic = new() { MaxLength = 150 };
-    private readonly Picker _specialty = new();
-    private readonly Picker _cooperates = new();
-    private readonly Picker _dealer = new();
-    private readonly Picker _class = new();
+    private readonly DoctorFieldsView _doctorBox = new() { IsVisible = false };
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
     private readonly Entry _contactName = new() { MaxLength = 100 };
@@ -44,24 +39,6 @@ public sealed class NewCustomerPage : ContentPage
         _notes.Placeholder = Texts.Get("app.customer.notes");
         _locationButton.Text = Texts.Get("app.customer.useLocation");
         _locationButton.Clicked += async (_, _) => await CaptureLocationAsync();
-        _clinic.Placeholder = Texts.Get("app.customer.clinic");
-        _specialty.Title = Texts.Get("app.customer.specialty");
-        _specialty.ItemsSource = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Specialties.Select(k => Texts.Get("specialty." + k))).ToList();
-        _specialty.SelectedIndex = 0;
-        _class.Title = Texts.Get("app.customer.class");
-        _class.ItemsSource = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Classes).ToList();
-        _class.SelectedIndex = 0;
-        foreach (var (picker, title) in new[] { (_cooperates, Texts.Get("app.customer.cooperates")), (_dealer, Texts.Get("app.customer.dealer")) })
-        {
-            picker.Title = title;
-            picker.ItemsSource = new List<string> { Texts.Get("app.customer.notSet"), Texts.Get("app.customer.yes"), Texts.Get("app.customer.no") };
-            picker.SelectedIndex = 0;
-        }
-        _doctorBox.Children.Add(_clinic);
-        _doctorBox.Children.Add(_specialty);
-        _doctorBox.Children.Add(_cooperates);
-        _doctorBox.Children.Add(_dealer);
-        _doctorBox.Children.Add(_class);
         _type.SelectedIndexChanged += (_, _) => OnTypeChanged();
         _create.Text = Texts.Get("app.customer.create");
         _create.Clicked += async (_, _) => await CreateAsync();
@@ -121,11 +98,7 @@ public sealed class NewCustomerPage : ContentPage
         _name.Placeholder = Texts.Get(doctor ? "app.customer.doctorName" : "app.customer.name");
     }
 
-    private static bool? YesNo(Picker picker) => picker.SelectedIndex switch { 1 => true, 2 => false, _ => null };
-
-    private DoctorDetails? DoctorFromForm() => !NewCustomerFlow.IsDoctor(SelectedType) ? null : new DoctorDetails(_clinic.Text,
-        _specialty.SelectedIndex > 0 ? DoctorOptions.Specialties[_specialty.SelectedIndex - 1] : null, YesNo(_cooperates), YesNo(_dealer),
-        _class.SelectedIndex > 0 ? DoctorOptions.Classes[_class.SelectedIndex - 1] : null);
+    private DoctorDetails? DoctorFromForm() => NewCustomerFlow.IsDoctor(SelectedType) ? _doctorBox.Read() : null;
 
     private async Task CaptureLocationAsync()
     {

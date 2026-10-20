@@ -22,7 +22,9 @@ public sealed record PlacePathItem(Guid Id, string Kind, string Name);
 
 // A customer as returned by GET /customers/{id}: contact details and the most precise place with the ones above it.
 public sealed record CustomerProfile(Guid Id, string Code, string Name, string Type, string? Phone, string? Address, Guid? PlaceId,
-    IReadOnlyList<PlacePathItem>? PlacePath, string? ContactName = null, string? Phone2 = null, string? Notes = null);
+    IReadOnlyList<PlacePathItem>? PlacePath, string? ContactName = null, string? Phone2 = null, string? Notes = null,
+    // Doctor details (plan step 4.27-b); set for a customer of type Doctor.
+    DoctorDetails? Doctor = null);
 
 // One row of the customer search (plan step 4.15).
 public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone);
@@ -58,6 +60,9 @@ public interface ICustomersApiClient
     // Doctor details (plan step 4.27-b); null clears a field. Own route, like the contact.
     Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+    // Type, code and name of a customer (PUT /customers/{id}); the server refuses what the user may not change (a sales rep cannot make a doctor, a scientific rep only touches doctors).
+    Task<VisitActionResult> EditCustomerAsync(Guid customerId, string type, string code, string name, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
     // The permission keys of the signed-in user (GET /me): the form uses them to offer only the customer types the user may register.
     Task<(VisitActionResult Result, IReadOnlyList<string> Permissions)> GetMyPermissionsAsync(CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
@@ -85,7 +90,8 @@ public sealed class CustomersApiClient : ICustomersApiClient
         if (result != VisitActionResult.Success) return (result, null);
         return dto is null || dto.Id == Guid.Empty || string.IsNullOrWhiteSpace(dto.Code)
             ? (VisitActionResult.ServerError, null)
-            : (result, new CustomerProfile(dto.Id, dto.Code, dto.Name ?? "", dto.Type ?? "", dto.Phone, dto.Address, dto.PlaceId, dto.PlacePath, dto.ContactName, dto.Phone2, dto.Notes));
+            : (result, new CustomerProfile(dto.Id, dto.Code, dto.Name ?? "", dto.Type ?? "", dto.Phone, dto.Address, dto.PlaceId, dto.PlacePath, dto.ContactName, dto.Phone2, dto.Notes,
+                new DoctorDetails(dto.ClinicName, dto.Specialty, dto.Cooperates, dto.Dealer, dto.CustomerClass)));
     }
 
     public async Task<VisitActionResult> SetProfileAsync(Guid customerId, string? phone, string? address, Guid? placeId, CancellationToken cancellationToken = default) =>
@@ -116,6 +122,9 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     public async Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/contact", new { contactName, phone2, notes }, cancellationToken)).Result;
+
+    public async Task<VisitActionResult> EditCustomerAsync(Guid customerId, string type, string code, string name, CancellationToken cancellationToken = default) =>
+        (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}", new { type, code, name }, cancellationToken)).Result;
 
     public async Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/doctor",
@@ -188,7 +197,8 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     private sealed record MeDto(string[]? Permissions);
     private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath,
-        string? ContactName = null, string? Phone2 = null, string? Notes = null);
+        string? ContactName = null, string? Phone2 = null, string? Notes = null,
+        string? ClinicName = null, string? Specialty = null, bool? Cooperates = null, bool? Dealer = null, string? CustomerClass = null);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
     private sealed record CreatedDto(Guid Id);
 }

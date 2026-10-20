@@ -11,6 +11,10 @@ public sealed class CustomerPage : ContentPage
     private readonly Guid _customerId;
     private readonly Label _titleLabel = new() { FontAttributes = FontAttributes.Bold, FontSize = 20 };
     private readonly Label _typeLabel = new();
+    // A registered doctor (plan step 4.27-b follow-up): the name and the doctor fields can be changed here.
+    private readonly Entry _name = new() { MaxLength = NewCustomerFlow.MaxNameLength, IsVisible = false };
+    private readonly DoctorFieldsView _doctor = new() { IsVisible = false };
+    private CustomerProfile? _profile;
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
     private readonly Entry _contactName = new() { MaxLength = 100 };
@@ -32,6 +36,7 @@ public sealed class CustomerPage : ContentPage
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.customer.details");
         _titleLabel.Text = name ?? "";
+        _name.Placeholder = Texts.Get("app.customer.doctorName");
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
         _contactName.Placeholder = Texts.Get("app.customer.contactName");
@@ -62,7 +67,7 @@ public sealed class CustomerPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    _titleLabel, _typeLabel, _phone, _address, _contactName, _phone2, _notes,
+                    _titleLabel, _typeLabel, _name, _doctor, _phone, _address, _contactName, _phone2, _notes,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
                 }
@@ -94,6 +99,14 @@ public sealed class CustomerPage : ContentPage
             _loaded = true;
             _titleLabel.Text = $"{customer.Name} ({customer.Code})";
             _typeLabel.Text = DailyPlan.TypeLabel(customer.Type.ToLowerInvariant());
+            _profile = customer;
+            var isDoctor = NewCustomerFlow.IsDoctor(customer.Type);
+            _name.IsVisible = _doctor.IsVisible = isDoctor;
+            if (isDoctor)
+            {
+                _name.Text = customer.Name;
+                _doctor.Show(customer.Doctor);
+            }
             _phone.Text = customer.Phone;
             _address.Text = customer.Address;
             _contactName.Text = customer.ContactName;
@@ -123,6 +136,26 @@ public sealed class CustomerPage : ContentPage
             var result = await api.SetProfileAsync(_customerId, _phone.Text, _address.Text, _places.PlaceId, cts.Token);
             if (result == VisitActionResult.Success)
                 result = await api.SetContactAsync(_customerId, _contactName.Text, _phone2.Text, _notes.Text, cts.Token);
+            // A doctor: the name (only when it changed) and the doctor fields.
+            if (result == VisitActionResult.Success && _profile is { } profile && NewCustomerFlow.IsDoctor(profile.Type))
+            {
+                var name = (_name.Text ?? "").Trim();
+                if (name.Length == 0 || name.Length > NewCustomerFlow.MaxNameLength)
+                {
+                    Show(Texts.Get("app.customer.nameRequired"), VisitActionResult.InvalidData);
+                    return;
+                }
+                if (name != profile.Name)
+                {
+                    result = await api.EditCustomerAsync(_customerId, profile.Type, profile.Code, name, cts.Token);
+                    if (result == VisitActionResult.Success)
+                    {
+                        _profile = profile with { Name = name };
+                        _titleLabel.Text = $"{name} ({profile.Code})";
+                    }
+                }
+                if (result == VisitActionResult.Success) result = await api.SetDoctorAsync(_customerId, _doctor.Read(), cts.Token);
+            }
             Show(result == VisitActionResult.Success ? Texts.Get("app.customer.saved")
                 : result == VisitActionResult.NotFound ? Texts.Get("app.customer.notYours") : VisitLifecycle.Describe(result), result);
         }
