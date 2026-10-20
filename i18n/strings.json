@@ -7690,5 +7690,155 @@
   "ckb": "دیاری نەکراوە",
   "ar": "غير محدد",
   "fa": "تعیین نشده"
+ },
+ "app.home.account": {
+  "en": "My account",
+  "ckb": "هەژمارەکەم",
+  "ar": "حسابي",
+  "fa": "حساب من"
+ },
+ "app.account.title": {
+  "en": "My account",
+  "ckb": "هەژمارەکەم",
+  "ar": "حسابي",
+  "fa": "حساب من"
+ },
+ "app.account.company": {
+  "en": "Company: {code}",
+  "ckb": "کۆمپانیا: {code}",
+  "ar": "الشركة: {code}",
+  "fa": "شرکت: {code}"
+ },
+ "app.account.version": {
+  "en": "App version {version}",
+  "ckb": "وەشانی ئەپ {version}",
+  "ar": "إصدار التطبيق {version}",
+  "fa": "نسخهٔ اپ {version}"
+ },
+ "app.account.passwordTitle": {
+  "en": "Change my password",
+  "ckb": "گۆڕینی وشەی نهێنیم",
+  "ar": "تغيير كلمة المرور",
+  "fa": "تغییر رمز من"
+ },
+ "app.account.current": {
+  "en": "Current password",
+  "ckb": "وشەی نهێنی ئێستا",
+  "ar": "كلمة المرور الحالية",
+  "fa": "رمز فعلی"
+ },
+ "app.account.new": {
+  "en": "New password (at least {min} characters)",
+  "ckb": "وشەی نهێنی نوێ (لانیکەم {min} پیت)",
+  "ar": "كلمة المرور الجديدة ({min} أحرف على الأقل)",
+  "fa": "رمز جدید (دست‌کم {min} نویسه)"
+ },
+ "app.account.repeat": {
+  "en": "New password again",
+  "ckb": "وشەی نهێنی نوێ دووبارە",
+  "ar": "أعد كلمة المرور الجديدة",
+  "fa": "رمز جدید را دوباره بنویسید"
+ },
+ "app.account.change": {
+  "en": "Change password",
+  "ckb": "گۆڕینی وشەی نهێنی",
+  "ar": "تغيير كلمة المرور",
+  "fa": "تغییر رمز"
+ },
+ "app.account.mismatch": {
+  "en": "The two new passwords are not the same.",
+  "ckb": "دوو وشەی نهێنییە نوێیەکە وەک یەک نین.",
+  "ar": "كلمتا المرور الجديدتان غير متطابقتين.",
+  "fa": "دو رمز جدید یکسان نیستند."
+ },
+ "app.account.tooShort": {
+  "en": "The new password must have at least {min} characters and differ from the current one.",
+  "ckb": "وشەی نهێنی نوێ دەبێت لانیکەم {min} پیت بێت و جیاواز بێت لە ئێستا.",
+  "ar": "يجب أن تتكون كلمة المرور الجديدة من {min} أحرف على الأقل وأن تختلف عن الحالية.",
+  "fa": "رمز جدید باید دست‌کم {min} نویسه و متفاوت از رمز فعلی باشد."
+ },
+ "app.account.changed": {
+  "en": "Password changed. Your other sessions were ended.",
+  "ckb": "وشەی نهێنی گۆڕدرا. دانیشتنەکانی تری تۆ کۆتایی پێهات.",
+  "ar": "تم تغيير كلمة المرور وإنهاء جلساتك الأخرى.",
+  "fa": "رمز تغییر کرد. نشست‌های دیگر شما بسته شد."
+ },
+ "app.result.WrongPassword": {
+  "en": "The current password is not right.",
+  "ckb": "وشەی نهێنی ئێستا ڕاست نییە.",
+  "ar": "كلمة المرور الحالية غير صحيحة.",
+  "fa": "رمز فعلی درست نیست."
+ },
+ "web.tab.account": {
+  "en": "My account",
+  "ckb": "هەژمارەکەم",
+  "ar": "حسابي",
+  "fa": "حساب من"
+ },
+ "web.account.title": {
+  "en": "My account",
+  "ckb": "هەژمارەکەم",
+  "ar": "حسابي",
+  "fa": "حساب من"
+ },
+ "web.account.passwordTitle": {
+  "en": "Change my password",
+  "ckb": "گۆڕینی وشەی نهێنیم",
+  "ar": "تغيير كلمة المرور",
+  "fa": "تغییر رمز من"
+ },
+ "web.account.current": {
+  "en": "Current password",
+  "ckb": "وشەی نهێنی ئێستا",
+  "ar": "كلمة المرور الحالية",
+  "fa": "رمز فعلی"
+ },
+ "web.account.new": {
+  "en": "New password (at least {min} characters)",
+  "ckb": "وشەی نهێنی نوێ (لانیکەم {min} پیت)",
+  "ar": "كلمة المرور الجديدة ({min} أحرف على الأقل)",
+  "fa": "رمز جدید (دست‌کم {min} نویسه)"
+ },
+ "web.account.repeat": {
+  "en": "New password again",
+  "ckb": "وشەی نهێنی نوێ دووبارە",
+  "ar": "أعد كلمة المرور الجديدة",
+  "fa": "رمز جدید را دوباره بنویسید"
+ },
+ "web.account.change": {
+  "en": "Change password",
+  "ckb": "گۆڕینی وشەی نهێنی",
+  "ar": "تغيير كلمة المرور",
+  "fa": "تغییر رمز"
+ },
+ "web.account.mismatch": {
+  "en": "The two new passwords are not the same.",
+  "ckb": "دوو وشەی نهێنییە نوێیەکە وەک یەک نین.",
+  "ar": "كلمتا المرور الجديدتان غير متطابقتين.",
+  "fa": "دو رمز جدید یکسان نیستند."
+ },
+ "web.account.tooShort": {
+  "en": "The new password must have at least {min} characters and differ from the current one.",
+  "ckb": "وشەی نهێنی نوێ دەبێت لانیکەم {min} پیت بێت و جیاواز بێت لە ئێستا.",
+  "ar": "يجب أن تتكون كلمة المرور الجديدة من {min} أحرف على الأقل وأن تختلف عن الحالية.",
+  "fa": "رمز جدید باید دست‌کم {min} نویسه و متفاوت از رمز فعلی باشد."
+ },
+ "web.account.changed": {
+  "en": "Password changed. Your other sessions were ended.",
+  "ckb": "وشەی نهێنی گۆڕدرا. دانیشتنەکانی تری تۆ کۆتایی پێهات.",
+  "ar": "تم تغيير كلمة المرور وإنهاء جلساتك الأخرى.",
+  "fa": "رمز تغییر کرد. نشست‌های دیگر شما بسته شد."
+ },
+ "web.account.wrongPassword": {
+  "en": "The current password is not right.",
+  "ckb": "وشەی نهێنی ئێستا ڕاست نییە.",
+  "ar": "كلمة المرور الحالية غير صحيحة.",
+  "fa": "رمز فعلی درست نیست."
+ },
+ "web.login.remember": {
+  "en": "Remember my company code and e-mail on this device",
+  "ckb": "کۆدی کۆمپانیا و ئیمەیڵەکەم لەسەر ئەم ئامێرە بپارێزە",
+  "ar": "تذكّر رمز الشركة والبريد على هذا الجهاز",
+  "fa": "کد شرکت و ایمیل من را در این دستگاه به خاطر بسپار"
  }
 }

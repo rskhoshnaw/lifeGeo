@@ -9,7 +9,10 @@ public sealed record SetUserPasswordRequest(string? Password);
 
 public sealed record SetUserCityRequest(string? City);
 
-public enum ManageUserResult { Done, Forbidden, InvalidData, NotFound, Conflict }
+public sealed record ChangeOwnPasswordRequest(string? CurrentPassword, string? NewPassword);
+
+// WrongPassword (plan step 4.46): the current password given for a change of one's own password is not the right one.
+public enum ManageUserResult { Done, Forbidden, InvalidData, NotFound, Conflict, WrongPassword }
 
 public interface IUserAccountStore
 {
@@ -19,6 +22,9 @@ public interface IUserAccountStore
     Task<ManageUserResult> SetPasswordAsync(TenantId tenantId, UserId actorId, UserId targetId, string password, CancellationToken cancellationToken);
     Task<ManageUserResult> SetActiveAsync(TenantId tenantId, UserId actorId, UserId targetId, bool active, CancellationToken cancellationToken);
     // Plan step 4.37: the city (null clears; audit user.city_changed) and taking one role away (NotFound when the user does not have it; audit user.role_removed).
+    // Own password (plan step 4.46): checks the current one, sets the new one, and ends every session of the user except the one making the change (familyId). Audit user.password_changed_self.
+    Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid keepFamilyId, string currentPassword, string newPassword, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
@@ -54,6 +60,18 @@ public sealed class ManageUsers(IUserAccountStore store, IPermissionStore permis
     }
 
     public const int MaxCityLength = 80;
+
+    // Anybody may change their own password; the current one must be known. The new one follows the rules of a new account and must differ.
+    public async Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid sessionFamilyId, ChangeOwnPasswordRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (tenantId.IsEmpty || userId.IsEmpty) return ManageUserResult.Forbidden;
+        var current = request.CurrentPassword;
+        var next = request.NewPassword;
+        if (string.IsNullOrEmpty(current) || next is null || next.Length < CreateStaffUser.MinPasswordLength || next.Length > CreateStaffUser.MaxPasswordLength || next == current)
+            return ManageUserResult.InvalidData;
+        return await store.ChangeOwnPasswordAsync(tenantId, userId, sessionFamilyId, current, next, cancellationToken);
+    }
 
     public async Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, SetUserCityRequest request, CancellationToken cancellationToken)
     {

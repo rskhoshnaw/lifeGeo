@@ -4,6 +4,7 @@ import { AdminApi, can, errorMessage, Permissions, type Me } from './api/admin.t
 import { LoginPage } from './pages/LoginPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { UsersPage } from './pages/UsersPage.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
 import { DevicesPage } from './pages/DevicesPage.tsx'
 import { CustomersPage } from './pages/CustomersPage.tsx'
 import { VisitsPage } from './pages/VisitsPage.tsx'
@@ -28,7 +29,7 @@ import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -113,6 +114,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
     { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
     { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
+    { id: 'account', label: t('web.tab.account'), visible: true },
   ]
   const notificationsLabel = unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications')
 
@@ -128,6 +130,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     >
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
       {tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}
+      {me && tab === 'account' && <AccountPage admin={admin} me={me} />}
       {me && tab === 'users' && <UsersPage admin={admin} me={me} />}
       {me && tab === 'devices' && <DevicesPage admin={admin} />}
       {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}

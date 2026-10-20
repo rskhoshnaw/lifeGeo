@@ -852,6 +852,7 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return t('web.error.network')
   switch (error.status) {
     case 400:
+      if (error.code === 'WRONG_PASSWORD') return t('web.account.wrongPassword')
       return t('web.error.badData')
     case 403:
       return t('web.error.forbidden')
@@ -910,6 +911,7 @@ export class AdminApi {
   createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
   setUserCity = (userId: string, city: string | null) => this.send('PUT', `/users/${userId}/city`, { city })
   removeUserRole = (userId: string, roleId: string) => this.send('DELETE', `/users/${userId}/roles/${roleId}`)
+  changeOwnPassword = (currentPassword: string, newPassword: string) => this.send('PUT', '/me/password', { currentPassword, newPassword })
   changeUserEmail = (userId: string, email: string) => this.send('PUT', `/users/${userId}/email`, { email })
   setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
   deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)

@@ -101,8 +101,29 @@ public class UserAccountStoreTests
             Assert.Equal(ManageUserResult.NotFound, await store.RemoveRoleAsync(t, a, new UserId(rep), roleA, CancellationToken.None));
             Assert.Equal(ManageUserResult.NotFound, await store.RemoveRoleAsync(t, a, new UserId(otherActor), roleB, CancellationToken.None));
 
+            // Own password (plan step 4.46): needs the current one; ends the other sessions of the user and keeps the one that made the change; a wrong current password changes nothing.
+            var keep = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            await using (var tokens = new NpgsqlCommand("INSERT INTO refresh_tokens(id,family_id,tenant_id,user_id,token_hash,expires_at) VALUES (gen_random_uuid(),@keep,@tenant,@rep,'\\x11',now()+interval '1 day'),(gen_random_uuid(),@other,@tenant,@rep,'\\x12',now()+interval '1 day')", connection))
+            {
+                tokens.Parameters.AddWithValue("keep", keep);
+                tokens.Parameters.AddWithValue("other", second);
+                tokens.Parameters.AddWithValue("tenant", tenant);
+                tokens.Parameters.AddWithValue("rep", rep);
+                await tokens.ExecuteNonQueryAsync();
+            }
+            Assert.Equal(ManageUserResult.WrongPassword, await store.ChangeOwnPasswordAsync(t, new UserId(rep), keep, "not-the-password", "brand-new-password-2", CancellationToken.None));
+            Assert.True(PasswordHash.Verify("a-long-password-1", await Text(connection, "SELECT password_hash FROM users WHERE id = @id", rep)));
+            Assert.Equal(2L, await Count(connection, "SELECT count(*) FROM refresh_tokens WHERE user_id = @id AND revoked_at IS NULL", rep));
+            Assert.Equal(ManageUserResult.Done, await store.ChangeOwnPasswordAsync(t, new UserId(rep), keep, "a-long-password-1", "brand-new-password-2", CancellationToken.None));
+            Assert.True(PasswordHash.Verify("brand-new-password-2", await Text(connection, "SELECT password_hash FROM users WHERE id = @id", rep)));
+            Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM refresh_tokens WHERE user_id = @id AND revoked_at IS NULL", rep));
+            Assert.Equal(keep.ToString(), await Text(connection, "SELECT family_id::text FROM refresh_tokens WHERE user_id = @id AND revoked_at IS NULL", rep));
+            Assert.Equal(ManageUserResult.NotFound, await store.ChangeOwnPasswordAsync(t, new UserId(Guid.NewGuid()), keep, "x", "brand-new-password-3", CancellationToken.None));
+            Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM refresh_tokens WHERE user_id = @id AND revoked_at IS NULL", otherActor));   // another company's sessions untouched
+
             // One audit row per success and none for refusals.
-            Assert.Equal(new[] { "user.activated", "user.city_changed", "user.city_changed", "user.deactivated", "user.email_changed", "user.password_changed", "user.role_removed" }, await Actions(connection, rep));
+            Assert.Equal(new[] { "user.activated", "user.city_changed", "user.city_changed", "user.deactivated", "user.email_changed", "user.password_changed", "user.password_changed_self", "user.role_removed" }, await Actions(connection, rep));
             Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM audit_logs WHERE entity_id = @id::text", otherActor));
         }
         finally
