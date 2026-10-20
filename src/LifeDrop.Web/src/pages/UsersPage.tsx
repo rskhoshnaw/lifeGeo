@@ -11,6 +11,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const roles = useLoad(useCallback(() => (canAssign ? admin.roles() : Promise.resolve<Role[]>([])), [admin, canAssign]))
   const action = useAction(users.reload)
 
+  const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState({ email: '', password: '', roleId: '' })
   const [created, setCreated] = useState(false)
 
@@ -92,19 +93,31 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <th className="py-2">{t('web.users.email')}</th>
               <th>{t('web.users.roles')}</th>
               <th>{t('web.users.team')}</th>
+              <th>{t('web.users.city')}</th>
+              <th>{t('web.users.phone')}</th>
               <th>{t('web.users.sessions')}</th>
-              {showInactive && <th>{t('web.users.status')}</th>}
+              <th>{t('web.users.status')}</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {users.data.map((user) => (
               <tr key={user.id} className="border-b align-top">
-                <td className="py-2">{user.email ?? user.id}</td>
+                <td className="py-2">
+                  {canAssign ? (
+                    <button className="text-brand-700 underline" aria-label={t('web.users.edit', { user: user.email ?? user.id })} onClick={() => setEditing(editing === user.id ? null : user.id)}>
+                      {user.email ?? user.id}
+                    </button>
+                  ) : (
+                    (user.email ?? user.id)
+                  )}
+                </td>
                 <td>{user.roles.join(', ') || '—'}</td>
                 <td>{user.teamName ?? '—'}</td>
+                <td>{user.city ?? '—'}</td>
+                <td>{user.phoneType ? (user.phoneType === 'ios' ? 'iPhone' : user.phoneType === 'android' ? 'Android' : user.phoneType) : '—'}</td>
                 <td>{user.activeSessions}</td>
-                {showInactive && <td>{user.isActive ? t('web.users.active') : t('web.users.inactive')}</td>}
+                <td>{user.isActive ? t('web.users.active') : t('web.users.inactive')}</td>
                 <td className="space-x-2 py-2 text-end">
                   {canAssign && user.isActive && (
                     <>
@@ -135,7 +148,54 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </tbody>
         </table>
       )}
+      {canAssign && editing && users.data?.find((u) => u.id === editing) && roles.data && (
+        <UserEditor
+          key={editing}
+          user={users.data.find((u) => u.id === editing)!}
+          roles={roles.data}
+          self={editing === me.id}
+          admin={admin}
+          onClose={() => setEditing(null)}
+          onChanged={users.reload}
+        />
+      )}
     </section>
+  )
+}
+
+// One user in detail (plan step 4.37): city, and the roles with a button to take each away.
+export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { user: UserSummary; roles: Role[]; self: boolean; admin: AdminApi; onClose: () => void; onChanged: () => void }) {
+  const [city, setCity] = useState(user.city ?? '')
+  const action = useAction(onChanged)
+  const own = roles.filter((role) => user.roles.includes(role.name))
+  return (
+    <div className="mt-4 max-w-3xl space-y-2 rounded border p-4 text-sm">
+      <h3 className="font-semibold">{user.email ?? user.id}</h3>
+      {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input aria-label={t('web.users.city')} placeholder={t('web.users.city')} className="rounded border px-2 py-1" maxLength={80} value={city} onChange={(e) => setCity(e.target.value)} />
+        <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.setUserCity(user.id, city.trim() || null))}>
+          {t('web.places.save')}
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">{t('web.users.roles')}:</span>
+        {own.length === 0 && <span>—</span>}
+        {own.map((role) => (
+          <span key={role.id} className="inline-flex items-center gap-1 rounded border px-2 py-0.5">
+            {role.name}
+            {!self && (
+              <button className="text-red-700" aria-label={t('web.users.removeRole', { role: role.name })} disabled={action.busy} onClick={() => void action.run(() => admin.removeUserRole(user.id, role.id))}>
+                ✕
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+      <button className="rounded border px-2 py-1" onClick={onClose}>
+        {t('web.customers.closeHours')}
+      </button>
+    </div>
   )
 }
 

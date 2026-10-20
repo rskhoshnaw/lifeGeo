@@ -21,6 +21,14 @@ public sealed class PostgresUserAccountStore(NpgsqlDataSource dataSource) : IUse
         ChangeAsync(tenantId, actorId, targetId, active ? "user.activated" : "user.deactivated", "UPDATE users SET is_active = @active WHERE tenant_id = @tenant AND id = @target",
             command => command.Parameters.AddWithValue("active", active), endSessions: !active, cancellationToken);
 
+    public Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) =>
+        ChangeAsync(tenantId, actorId, targetId, "user.city_changed", "UPDATE users SET city = @city WHERE tenant_id = @tenant AND id = @target",
+            command => command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)city ?? DBNull.Value }), endSessions: false, cancellationToken);
+
+    public Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) =>
+        ChangeAsync(tenantId, actorId, targetId, "user.role_removed", "DELETE FROM user_roles WHERE tenant_id = @tenant AND user_id = @target AND role_id = @role",
+            command => command.Parameters.AddWithValue("role", roleId), endSessions: false, cancellationToken);
+
     private async Task<ManageUserResult> ChangeAsync(TenantId tenantId, UserId actorId, UserId targetId, string action, string updateSql,
         Action<NpgsqlCommand> addParameters, bool endSessions, CancellationToken cancellationToken)
     {

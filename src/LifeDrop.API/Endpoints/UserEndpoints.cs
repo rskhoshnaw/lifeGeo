@@ -69,6 +69,26 @@ public static class UserEndpoints
             .WithName("SetUserPassword").WithTags("Users").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/users/{id:guid}/city", async (Guid id, SetUserCityRequest request, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.SetCityAsync(tenantId, actorId, new UserId(id), request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SetUserCity").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapDelete("/users/{id:guid}/roles/{roleId:guid}", async (Guid id, Guid roleId, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.RemoveRoleAsync(tenantId, actorId, new UserId(id), roleId, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("RemoveUserRole").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/users/{id:guid}/deactivate", async (Guid id, HttpContext context, ManageUsers manage,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

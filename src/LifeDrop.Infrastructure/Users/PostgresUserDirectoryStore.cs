@@ -41,7 +41,8 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
                    t.id, t.name, t.region_id,
                    (SELECT count(DISTINCT rt.family_id)::int FROM refresh_tokens rt
                     WHERE rt.tenant_id = u.tenant_id AND rt.user_id = u.id AND rt.revoked_at IS NULL AND rt.expires_at > now()),
-                   u.is_active
+                   u.is_active, u.city,
+                   (SELECT d.platform FROM devices d WHERE d.tenant_id = u.tenant_id AND d.user_id = u.id ORDER BY d.registered_at DESC LIMIT 1)
             FROM users u
             LEFT JOIN team_members m ON m.user_id = u.id
             LEFT JOIN teams t ON t.id = m.team_id
@@ -60,7 +61,8 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new UserSummaryDto(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetFieldValue<string[]>(2),
                 reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.GetInt32(6), reader.GetBoolean(7)));
+                reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.GetInt32(6), reader.GetBoolean(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9)));
         return items;
     }
 
