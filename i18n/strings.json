@@ -7468,5 +7468,47 @@
   "ckb": "مۆبایلی تۆمارکراو پێویستە",
   "ar": "يتطلب هاتفاً مسجلاً",
   "fa": "گوشی ثبت‌شده لازم است"
+ },
+ "web.devices.platform": {
+  "en": "Phone type",
+  "ckb": "جۆری مۆبایل",
+  "ar": "نوع الهاتف",
+  "fa": "نوع گوشی"
+ },
+ "web.devices.allPlatforms": {
+  "en": "All phones",
+  "ckb": "هەموو مۆبایلەکان",
+  "ar": "كل الهواتف",
+  "fa": "همهٔ گوشی‌ها"
+ },
+ "web.devices.search": {
+  "en": "Search label, model or user",
+  "ckb": "گەڕان بە ناو، مۆدێل یان بەکارهێنەر",
+  "ar": "بحث بالاسم أو الطراز أو المستخدم",
+  "fa": "جست‌وجو در برچسب، مدل یا کاربر"
+ },
+ "web.devices.rename": {
+  "en": "Label",
+  "ckb": "ناونیشان",
+  "ar": "تسمية",
+  "fa": "برچسب"
+ },
+ "web.devices.labelPrompt": {
+  "en": "Label shown on the map for {device} (empty removes it)",
+  "ckb": "ناوی پیشاندان لە نەخشەدا بۆ {device} (بەتاڵ = لادان)",
+  "ar": "التسمية المعروضة على الخريطة لـ {device} (فارغ = إزالة)",
+  "fa": "برچسب نمایش روی نقشه برای {device} (خالی = حذف)"
+ },
+ "web.devices.delete": {
+  "en": "Delete",
+  "ckb": "سڕینەوە",
+  "ar": "حذف",
+  "fa": "حذف"
+ },
+ "web.devices.confirmDelete": {
+  "en": "Delete the device {device} of {user}? It is blocked and hidden for good; the phone can be registered again.",
+  "ckb": "ئامێری {device}ی {user} بسڕدرێتەوە؟ ئامێرەکە ئاستەنگ دەکرێت و دەشاردرێتەوە؛ مۆبایلەکە دەتوانرێت دووبارە تۆمار بکرێت.",
+  "ar": "حذف الجهاز {device} للمستخدم {user}؟ سيُحظر ويُخفى نهائياً، ويمكن تسجيل الهاتف مجدداً.",
+  "fa": "دستگاه {device} متعلق به {user} حذف شود؟ مسدود و برای همیشه پنهان می‌شود؛ گوشی می‌تواند دوباره ثبت شود."
  }
 }

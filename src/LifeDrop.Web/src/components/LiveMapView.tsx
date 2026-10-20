@@ -50,7 +50,7 @@ export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry
     markers.current = located.map((e) =>
       new lib.Marker({ color: e.isLive ? '#16a34a' : '#94a3b8' })
         .setLngLat([e.longitude!, e.latitude!])
-        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.isLive ? '' : t('web.map.notLive')}`))
+        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.deviceLabel ? ` · ${e.deviceLabel}` : ''}${e.isLive ? '' : t('web.map.notLive')}`))
         .addTo(map),
     )
     if (located.length > 0) {

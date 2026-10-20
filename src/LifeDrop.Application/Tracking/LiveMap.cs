@@ -8,11 +8,11 @@ namespace LifeDrop.Application.Tracking;
 // than LiveWindow is returned with IsLive = false so the panel never shows it as live.
 public sealed record LiveMapEntryDto(Guid UserId, string? Email, string? TeamName, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastUpdateAt, bool IsLive, bool Precise, double? Latitude, double? Longitude, double? AccuracyMeters,
-    bool? IsMocked, string? LastCustomerName, DateTimeOffset? LastVisitAt);
+    bool? IsMocked, string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null);
 
 public sealed record LiveMapRow(Guid UserId, string? Email, string? TeamName, Guid? RegionId, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastPointAt, double? Latitude, double? Longitude, double? AccuracyMeters, bool? IsMocked,
-    string? LastCustomerName, DateTimeOffset? LastVisitAt);
+    string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null);
 
 public interface ILiveMapStore
 {
@@ -45,6 +45,6 @@ public sealed class LiveMap(ILiveMapStore store, IPermissionStore permissions, T
         var hasPoint = precise && row.LastPointAt is not null;
         return new LiveMapEntryDto(row.UserId, row.Email, row.TeamName, row.ShiftStartedAt, row.LastPointAt, isLive, precise,
             hasPoint ? row.Latitude : null, hasPoint ? row.Longitude : null, hasPoint ? row.AccuracyMeters : null,
-            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt);
+            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt, row.DeviceLabel);
     }
 }

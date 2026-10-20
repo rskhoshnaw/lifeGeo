@@ -419,6 +419,38 @@ public partial class Program
         }).RequireAuthorization()
             .WithName("BlockDevice").WithTags("Devices").Produces(204).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429);
 
+        app.MapPut("/devices/{deviceId:guid}/label", async (Guid deviceId, LifeDrop.Application.Devices.SetDeviceLabelRequest request,
+            HttpContext context, IDeviceAccessStore devices, CancellationToken cancellationToken) =>
+        {
+            var identity = ReadSessionIdentity(context);
+            if (identity is null) return Results.Forbid();
+            var label = string.IsNullOrWhiteSpace(request.Label) ? null : request.Label.Trim();
+            if (label?.Length > 80) return ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData);
+            var result = await devices.SetLabelAsync(identity.TenantId, identity.UserId, deviceId, label, cancellationToken);
+            return result switch
+            {
+                DeviceChangeResult.Changed => Results.NoContent(),
+                DeviceChangeResult.Forbidden => Results.Forbid(),
+                _ => Results.NotFound()
+            };
+        }).RequireAuthorization()
+            .WithName("SetDeviceLabel").WithTags("Devices").Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429);
+
+        app.MapDelete("/devices/{deviceId:guid}", async (Guid deviceId,
+            HttpContext context, IDeviceAccessStore devices, CancellationToken cancellationToken) =>
+        {
+            var identity = ReadSessionIdentity(context);
+            if (identity is null) return Results.Forbid();
+            var result = await devices.DeleteAsync(identity.TenantId, identity.UserId, deviceId, cancellationToken);
+            return result switch
+            {
+                DeviceChangeResult.Changed => Results.NoContent(),
+                DeviceChangeResult.Forbidden => Results.Forbid(),
+                _ => Results.NotFound()
+            };
+        }).RequireAuthorization()
+            .WithName("DeleteDevice").WithTags("Devices").Produces(204).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429);
+
         app.MapPost("/users/{userId:guid}/roles/{roleId:guid}", async (
             Guid userId, Guid roleId, HttpContext context, AssignRole assignRole,
             CancellationToken cancellationToken) =>

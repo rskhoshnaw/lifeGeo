@@ -15,12 +15,23 @@ const statusText: Record<DeviceStatus, TextKey> = { pending: 'web.devices.pendin
 // Only shown to users with a device permission; the server checks approve/block again.
 export function DevicesPage({ admin }: { admin: AdminApi }) {
   const [filter, setFilter] = useState<DeviceStatus | 'all'>('pending')
-  const devices = useLoad(useCallback(() => admin.devices(filter === 'all' ? undefined : filter), [admin, filter]))
+  const [platform, setPlatform] = useState('')
+  const [search, setSearch] = useState('')
+  const devices = useLoad(useCallback(() => admin.devices(filter === 'all' ? undefined : filter, platform || undefined, search), [admin, filter, platform, search]))
   const action = useAction(devices.reload)
 
   function block(device: Device) {
     if (!window.confirm(t('web.devices.confirmBlock', { device: device.label, user: device.userEmail ?? device.userId }))) return
     void action.run(() => admin.blockDevice(device.id))
+  }
+
+  function rename(device: Device) {
+    const label = window.prompt(t('web.devices.labelPrompt', { device: device.label }), device.adminLabel ?? '')
+    if (label !== null) void action.run(() => admin.setDeviceLabel(device.id, label.trim() || null))
+  }
+
+  function remove(device: Device) {
+    if (window.confirm(t('web.devices.confirmDelete', { device: device.adminLabel ?? device.label, user: device.userEmail ?? device.userId }))) void action.run(() => admin.deleteDevice(device.id))
   }
 
   return (
@@ -36,6 +47,14 @@ export function DevicesPage({ admin }: { admin: AdminApi }) {
           ))}
         </select>
       </label>
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+        <select aria-label={t('web.devices.platform')} className="rounded border px-1 py-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+          <option value="">{t('web.devices.allPlatforms')}</option>
+          <option value="android">Android</option>
+          <option value="ios">iPhone</option>
+        </select>
+        <input aria-label={t('web.devices.search')} placeholder={t('web.devices.search')} className="rounded border px-2 py-1" maxLength={100} value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
       {(devices.error ?? action.error) && <p role="alert" className="mb-3 text-sm text-red-700">{action.error ?? devices.error}</p>}
       {devices.data?.length === 0 && <p className="text-slate-600">{t('web.devices.none')}</p>}
       {devices.data && devices.data.length > 0 && (
@@ -55,12 +74,22 @@ export function DevicesPage({ admin }: { admin: AdminApi }) {
               <tr key={device.id} className="border-b">
                 <td className="py-2">{device.userEmail ?? device.userId}</td>
                 <td>
-                  {device.label} ({device.platform})
+                  {device.adminLabel ? <strong>{device.adminLabel}</strong> : null} {device.label} ({device.platform === 'ios' ? 'iPhone' : 'Android'})
+                  {device.model ? ` · ${device.model}` : ''}
                 </td>
-                <td>{device.appVersion}</td>
+                <td>
+                  {device.appVersion}
+                  {device.osVersion ? ` · ${device.osVersion}` : ''}
+                </td>
                 <td>{new Date(device.registeredAt).toLocaleString('en-GB', { timeZone: 'Asia/Baghdad' })}</td>
                 <td><Badge tone={({ approved: 'good', pending: 'warn', blocked: 'bad' } as const)[device.status]}>{t(statusText[device.status])}</Badge></td>
                 <td className="space-x-2 py-2 text-end">
+                  <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => rename(device)}>
+                    {t('web.devices.rename')}
+                  </button>
+                  <button className="rounded border px-2 py-1 text-red-700" disabled={action.busy} onClick={() => remove(device)}>
+                    {t('web.devices.delete')}
+                  </button>
                   {device.status === 'pending' && (
                     <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.approveDevice(device.id))}>
                       {t('web.action.approve')}

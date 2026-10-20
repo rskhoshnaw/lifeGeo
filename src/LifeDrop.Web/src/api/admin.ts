@@ -57,6 +57,9 @@ export interface Device {
   appVersion: string
   status: DeviceStatus
   registeredAt: string
+  adminLabel?: string | null
+  model?: string | null
+  osVersion?: string | null
 }
 
 export interface Customer {
@@ -639,6 +642,7 @@ export interface LiveMapEntry {
   isMocked: boolean | null
   lastCustomerName: string | null
   lastVisitAt: string | null
+  deviceLabel?: string | null
 }
 
 export interface AuditEntry {
@@ -885,7 +889,16 @@ export class AdminApi {
   updateRole = (id: string, role: RoleInput) => this.send('PUT', `/roles/${id}`, role)
   deleteRole = (id: string) => this.send('DELETE', `/roles/${id}`)
   roles = () => this.get<Role[]>('/roles')
-  devices = (status?: DeviceStatus) => this.get<Device[]>(status ? `/devices?status=${status}` : '/devices')
+  devices = (status?: DeviceStatus, platform?: string, q?: string) => {
+    const query = new URLSearchParams()
+    if (status) query.set('status', status)
+    if (platform) query.set('platform', platform)
+    if (q?.trim()) query.set('q', q.trim())
+    const text = query.toString()
+    return this.get<Device[]>(text ? `/devices?${text}` : '/devices')
+  }
+  setDeviceLabel = (id: string, label: string | null) => this.send('PUT', `/devices/${id}/label`, { label })
+  deleteDevice = (id: string) => this.send('DELETE', `/devices/${id}`)
   approveDevice = (id: string) => this.post(`/devices/${id}/approve`)
   blockDevice = (id: string) => this.post(`/devices/${id}/block`)
   killSessions = (userId: string) => this.post(`/users/${userId}/sessions/revoke`)

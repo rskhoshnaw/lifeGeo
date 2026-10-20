@@ -258,6 +258,10 @@ Read-only routes for the web panel. The panel hides buttons by `/me` permissions
 | `GET /users` | `sessions.kill`, `user.manageroles`, `system.admin` or (step 1.18) `visits.write`; widest scope of these (tenant: all; region: users in teams of the actor's region + self; own: self) | Active users of the tenant (max 500; with `includeInactive=true` and `user.manageroles`/`system.admin` also deactivated ones): email, roles, team, region, number of active session families, `isActive` | — |
 | `GET /roles` | `user.manageroles` or `system.admin` | Roles of the tenant: id, name, data scope | — |
 | `GET /devices?status=pending\|approved\|blocked` | `device.approve`, `devices.manage` or `system.admin` (same as approve/block) | Devices of the tenant (max 500, newest first) with owner email; never the secret. Unknown status → 400 `INVALID_DATA` | — |
+| `GET /devices?platform=android\|ios&q=text` | same | Extra filters (step 4.39): phone type, and text in the phone's name, the manager's label, the model or the user's e-mail (`%`/`_` literal, ≤100); each row also has `adminLabel`, `model`, `osVersion`; deleted devices are never listed | — |
+| `PUT /devices/{id}/label` | `device.approve`, `devices.manage` or `system.admin` | Body `{label}` (empty/null clears, ≤80); shown on the live map instead of the phone's own name; 204, 400, 403, 404 (other company or deleted) | `device.label_changed` |
+| `DELETE /devices/{id}` | same | Blocks the device, ends its sessions, hides it for good and frees its install id so the phone can register again; history stays; 204, 403, 404 | `device.deleted` |
+| `POST /auth/devices/register` | (step 4.39) the body may also carry `model` and `osVersion` (optional, cut to 100/40 characters) | — | — |
 
 Test: `PanelDirectory_ListsUsersDevicesAndRolesWithinScope` (scope, foreign tenant, status filter, no secret). Panel tests: `src/LifeDrop.Web/src/pages/Panel.test.tsx`.
 
