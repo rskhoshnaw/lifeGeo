@@ -76,7 +76,15 @@ public sealed class PostgresSampleStore(NpgsqlDataSource dataSource) : ISampleSt
             insert.Parameters.Add(P("lng", NpgsqlDbType.Double, sample.Location?.Longitude));
             insert.Parameters.Add(P("acc", NpgsqlDbType.Double, sample.Location?.AccuracyMeters));
             insert.Parameters.AddWithValue("ref", sample.ClientRef);
-            await insert.ExecuteNonQueryAsync(cancellationToken);
+            try
+            {
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                // The same ClientRef arrived twice at the same moment (a double tap); nothing is written and the sender's retry gets the sample that won.
+                return (SampleResult.Conflict, null);
+            }
         }
         await AuditAsync(connection, transaction, tenantId, actorId, "sample.recorded", id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

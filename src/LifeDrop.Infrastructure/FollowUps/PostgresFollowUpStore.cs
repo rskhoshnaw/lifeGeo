@@ -39,7 +39,15 @@ public sealed class PostgresFollowUpStore(NpgsqlDataSource dataSource) : IFollow
             insert.Parameters.AddWithValue("assignee", f.AssigneeId);
             insert.Parameters.AddWithValue("actor", actorId.Value);
             insert.Parameters.AddWithValue("ref", f.ClientRef);
-            await insert.ExecuteNonQueryAsync(cancellationToken);
+            try
+            {
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                // The same ClientRef arrived twice at the same moment (a double tap); nothing is written and the sender's retry gets the follow-up that won.
+                return (FollowUpResult.Conflict, null);
+            }
         }
         await AuditAsync(connection, transaction, tenantId, actorId, "followup.created", id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

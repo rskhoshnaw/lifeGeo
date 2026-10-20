@@ -42,7 +42,16 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
             detached = true;
         }
 
-        var created = await InsertAsync(connection, transaction, tenantId, actorId, payment, status, null, cancellationToken);
+        CreatedPaymentDto created;
+        try
+        {
+            created = await InsertAsync(connection, transaction, tenantId, actorId, payment, status, null, cancellationToken);
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            // The same ClientRef arrived twice at the same moment (a double tap); nothing is written and the sender's retry gets the payment that won.
+            return (PaymentResult.Conflict, null);
+        }
         created = created with { Detached = detached };
         await AuditAsync(connection, transaction, tenantId, actorId, detached ? "payment.recorded_detached" : status == "confirmed" ? "payment.recorded_confirmed" : "payment.recorded", created.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
