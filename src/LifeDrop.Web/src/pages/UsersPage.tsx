@@ -2,6 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, Permissions, type Me, type Role, type UserSummary } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { RolesPanel } from '../components/RolesPanel.tsx'
 
 export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [showInactive, setShowInactive] = useState(false)
@@ -148,6 +149,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </tbody>
         </table>
       )}
+      {canAssign && <RolesPanel admin={admin} />}
       {canAssign && editing && users.data?.find((u) => u.id === editing) && roles.data && (
         <UserEditor
           key={editing}

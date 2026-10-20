@@ -28,3 +28,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON user_channels, channel_link_codes TO lif
 GRANT SELECT, INSERT, UPDATE ON shift_alert_settings TO lifedrop_app;
 -- Step 4.37: a manager removes a role from a user (DELETE /users/{id}/roles/{roleId}).
 GRANT DELETE ON user_roles TO lifedrop_app;
+-- Step 4.38: roles built in the panel (create, change permissions, delete).
+GRANT UPDATE ON roles TO lifedrop_app;
+GRANT DELETE ON roles, role_permissions TO lifedrop_app;

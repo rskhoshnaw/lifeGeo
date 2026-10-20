@@ -13,7 +13,8 @@ public sealed record UserSummaryDto(Guid Id, string? Email, IReadOnlyList<string
     // Plan step 4.37: city and the platform (android | ios) of the newest phone the user registered.
     string? City = null, string? PhoneType = null);
 
-public sealed record RoleDto(Guid Id, string Name, string DataScope);
+// Plan step 4.38: the permissions of the role, how many users have it, whether it is one of the default roles, and whether it needs a registered phone.
+public sealed record RoleDto(Guid Id, string Name, string DataScope, IReadOnlyList<string>? Permissions = null, int UserCount = 0, bool IsDefault = false, bool RequiresDeviceBinding = false);
 
 // Never includes the device secret.
 public sealed record DeviceSummaryDto(Guid Id, Guid UserId, string? UserEmail, string Label, string Platform, string AppVersion,

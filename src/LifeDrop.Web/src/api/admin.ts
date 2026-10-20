@@ -28,6 +28,22 @@ export interface Role {
   id: string
   name: string
   dataScope: string
+  permissions?: string[]
+  userCount?: number
+  isDefault?: boolean
+  requiresDeviceBinding?: boolean
+}
+
+export interface RoleInput {
+  name: string
+  dataScope: 'tenant' | 'region' | 'own'
+  requiresDeviceBinding: boolean
+  permissions: string[]
+}
+
+export interface PermissionInfo {
+  key: string
+  group: string
 }
 
 export type DeviceStatus = 'pending' | 'approved' | 'blocked'
@@ -864,6 +880,10 @@ export class AdminApi {
 
   me = () => this.get<Me>('/me')
   users = (includeInactive = false) => this.get<UserSummary[]>(includeInactive ? '/users?includeInactive=true' : '/users')
+  permissions = () => this.get<PermissionInfo[]>('/permissions')
+  createRole = (role: RoleInput) => this.post('/roles', role)
+  updateRole = (id: string, role: RoleInput) => this.send('PUT', `/roles/${id}`, role)
+  deleteRole = (id: string) => this.send('DELETE', `/roles/${id}`)
   roles = () => this.get<Role[]>('/roles')
   devices = (status?: DeviceStatus) => this.get<Device[]>(status ? `/devices?status=${status}` : '/devices')
   approveDevice = (id: string) => this.post(`/devices/${id}/approve`)
