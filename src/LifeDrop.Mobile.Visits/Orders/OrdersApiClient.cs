@@ -12,7 +12,9 @@ public sealed record OrderWarehouse(Guid Id, string Code, string Name);
 // A product with the price this customer pays today, as the server works it out (general or city price, then the customer's discounts).
 // The app only shows it; the order carries no price, the server sets it again when the order is placed.
 public sealed record PricedProduct(Guid ProductId, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit, string Currency,
-    decimal ListPrice, decimal Price)
+    decimal ListPrice, decimal Price,
+    // Plan step 4.43: the server hid the prices from this user (the amounts are 0 and must not be shown).
+    bool PricesHidden = false)
 {
     public string DisplayName(string language)
     {
@@ -22,7 +24,7 @@ public sealed record PricedProduct(Guid ProductId, string Code, string Name, str
 }
 
 // Replayed: the server had this order already (a retry of a lost answer).
-public sealed record PlacedOrder(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
+public sealed record PlacedOrder(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool PricesHidden = false);
 
 public sealed record OrderLineInput(Guid ProductId, decimal Quantity);
 
@@ -60,7 +62,7 @@ public sealed class OrdersApiClient : IOrdersApiClient
         if (result != VisitActionResult.Success) return (result, Array.Empty<PricedProduct>());
         if (items is null || items.Any(p => p is null || p.ProductId == Guid.Empty || string.IsNullOrWhiteSpace(p.Code) || string.IsNullOrWhiteSpace(p.Currency)))
             return (VisitActionResult.ServerError, Array.Empty<PricedProduct>());
-        return (result, items.Select(p => new PricedProduct(p.ProductId, p.Code!, p.Name ?? "", p.NameCkb, p.NameAr, p.NameEn, p.Unit ?? "", p.Currency!, p.ListPrice, p.Price)).ToList());
+        return (result, items.Select(p => new PricedProduct(p.ProductId, p.Code!, p.Name ?? "", p.NameCkb, p.NameAr, p.NameEn, p.Unit ?? "", p.Currency!, p.ListPrice, p.Price, p.PricesHidden)).ToList());
     }
 
     public async Task<(VisitActionResult Result, PlacedOrder? Order)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
@@ -72,13 +74,13 @@ public sealed class OrdersApiClient : IOrdersApiClient
         if (result != VisitActionResult.Success) return (result, null);
         return dto is null || dto.Id == Guid.Empty || string.IsNullOrWhiteSpace(dto.Number)
             ? (VisitActionResult.ServerError, null)
-            : (result, new PlacedOrder(dto.Id, dto.Number, dto.Currency ?? "", dto.Total, dto.Replayed));
+            : (result, new PlacedOrder(dto.Id, dto.Number, dto.Currency ?? "", dto.Total, dto.Replayed, dto.PricesHidden));
     }
 
     private Task<(VisitActionResult Result, T? Data)> CallAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
         _http.CallAsync<T>(method, path, body, cancellationToken);
 
     private sealed record WarehouseDto(Guid Id, string? Code, string? Name);
-    private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price);
-    private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed);
+    private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price, bool PricesHidden);
+    private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed, bool PricesHidden);
 }

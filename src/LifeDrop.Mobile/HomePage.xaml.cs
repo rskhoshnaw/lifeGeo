@@ -27,6 +27,7 @@ public partial class HomePage : ContentPage
         NewCustomerBtn.Text = Texts.Get("app.home.newCustomer");
         CustomersBtn.Text = Texts.Get("app.home.customers");
         TelegramBtn.Text = Texts.Get("app.home.telegram");
+        ProductsBtn.Text = Texts.Get("app.home.products");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
@@ -46,6 +47,7 @@ public partial class HomePage : ContentPage
         NewCustomerBtn.IsEnabled = !isBusy;
         CustomersBtn.IsEnabled = !isBusy;
         TelegramBtn.IsEnabled = !isBusy;
+        ProductsBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = !isBusy;
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
@@ -212,6 +214,8 @@ public partial class HomePage : ContentPage
     private async void OnNewCustomerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new NewCustomerPage());
 
     private async void OnCustomersClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new CustomersListPage());
+
+    private async void OnProductsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new ProductsPage());
 
     private async void OnTelegramClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new TelegramPage());
 

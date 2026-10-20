@@ -25,6 +25,7 @@ public static class TrackingHost
     private static ICustomersApiClient? _customers;
     private static IChannelsApiClient? _channels;
     private static IOrdersApiClient? _orders;
+    private static IProductsApiClient? _products;
     private static IWarehouseApiClient? _warehouse;
     private static IDeliveryApiClient? _delivery;
     private static IPaymentsApiClient? _payments;
@@ -123,6 +124,11 @@ public static class TrackingHost
         get { lock (Gate) return _warehouse; }
     }
 
+    public static IProductsApiClient? ProductsApi
+    {
+        get { lock (Gate) return _products; }
+    }
+
     public static IOrdersApiClient? OrdersApi
     {
         get { lock (Gate) return _orders; }
@@ -158,6 +164,7 @@ public static class TrackingHost
             _customers = new CustomersApiClient(http, session);
             _channels = new ChannelsApiClient(http, session);
             _orders = new OrdersApiClient(http, session);
+            _products = new ProductsApiClient(http, session);
             _warehouse = new WarehouseApiClient(http, session);
             _delivery = new DeliveryApiClient(http, session);
             _payments = new PaymentsApiClient(http, session);

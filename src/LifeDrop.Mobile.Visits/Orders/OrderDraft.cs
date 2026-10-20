@@ -67,6 +67,9 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     public IReadOnlyList<(PricedProduct Product, decimal Quantity, decimal LineTotal)> Lines =>
         Products.Where(p => _quantities.ContainsKey(p.ProductId)).Select(p => (p, _quantities[p.ProductId], Math.Round(p.Price * _quantities[p.ProductId], 3))).ToList();
 
+    // Plan step 4.43: the server hid the prices from this user; no price or total is shown.
+    public bool PricesHidden => Products.Any(p => p.PricesHidden);
+
     public bool MixedCurrency => Lines.Select(l => l.Product.Currency).Distinct().Count() > 1;
     public string Currency => Lines.Count == 0 ? "" : Lines[0].Product.Currency;
     public decimal Total => Lines.Sum(l => l.LineTotal);

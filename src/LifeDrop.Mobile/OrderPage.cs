@@ -169,8 +169,8 @@ public sealed class OrderPage : ContentPage
         {
             if (!_byProduct.TryGetValue(p.ProductId, out var row))
             {
-                var discount = !_draft.PricesKnown ? "" : p.Price < p.ListPrice ? $" ({Format(p.ListPrice)} → {Format(p.Price)})" : $" {Format(p.Price)}";
-                row = new OrderRow(p, $"{p.Code} · {p.DisplayName(language)}", $"{p.Unit}{discount} {p.Currency}");
+                var discount = !_draft.PricesKnown || _draft.PricesHidden ? "" : p.Price < p.ListPrice ? $" ({Format(p.ListPrice)} → {Format(p.Price)})" : $" {Format(p.Price)}";
+                row = new OrderRow(p, $"{p.Code} · {p.DisplayName(language)}", _draft.PricesHidden ? p.Unit : $"{p.Unit}{discount} {p.Currency}");
                 if (_draft.QuantityOf(p.ProductId) > 0) row.Quantity = _draft.QuantityOf(p.ProductId).ToString(CultureInfo.InvariantCulture);
                 _byProduct[p.ProductId] = row;
             }
@@ -193,7 +193,7 @@ public sealed class OrderPage : ContentPage
 
     private void Refresh()
     {
-        _total.Text = _draft.Lines.Count == 0 ? "" : !_draft.PricesKnown ? Texts.Get("app.order.priceLater") : Texts.Get("app.order.total", ("total", Format(_draft.Total)), ("currency", _draft.Currency));
+        _total.Text = _draft.Lines.Count == 0 || _draft.PricesHidden ? "" : !_draft.PricesKnown ? Texts.Get("app.order.priceLater") : Texts.Get("app.order.total", ("total", Format(_draft.Total)), ("currency", _draft.Currency));
         _place.IsEnabled = _draft.CanPlace;
         if (_draft.MixedCurrency) Show(VisitLifecycle.Describe(VisitActionResult.CurrencyMismatch));
         else if (_message.Text == VisitLifecycle.Describe(VisitActionResult.CurrencyMismatch)) Show(null);
@@ -231,7 +231,7 @@ public sealed class OrderPage : ContentPage
             return;
         }
         var order = _draft.Placed!;
-        await DisplayAlertAsync(Texts.Get("app.order.title"), Texts.Get("app.order.placed", ("number", order.Number), ("total", Format(order.Total)), ("currency", order.Currency)), Texts.Get("app.ok"));
+        await DisplayAlertAsync(Texts.Get("app.order.title"), order.PricesHidden ? Texts.Get("app.order.placedNoPrice", ("number", order.Number)) : Texts.Get("app.order.placed", ("number", order.Number), ("total", Format(order.Total)), ("currency", order.Currency)), Texts.Get("app.ok"));
         await Navigation.PopAsync();
     }
 
