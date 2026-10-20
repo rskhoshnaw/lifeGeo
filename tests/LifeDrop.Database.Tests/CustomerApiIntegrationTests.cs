@@ -155,7 +155,8 @@ public class CustomerApiIntegrationTests
                 var m53 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0053_device_details.sql"));
                 var m54 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0054_product_photos.sql"));
                 var m55 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0055_hide_prices.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55;
+                var m56 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0056_place_name_norm.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -3359,6 +3360,14 @@ public class CustomerApiIntegrationTests
         var nishtiman = await api.Add("neighbourhood", "Nishtiman", erbil);
         Assert.All(await api.Places($"?q=nishtiman"), p => Assert.Equal("active", p.Status));
         await AssertProblemAsync(await api.Post(new { ParentId = ankawa, Kind = "street", Name = "  hospital STREET " }), HttpStatusCode.Conflict, "DUPLICATE_NAME");
+        // The same name typed with the letters, digits or spaces of another keyboard is the same place (plan step 4.45)
+        await api.Add("street", "شارع كركوك ١٢", ankawa);   // Arabic kaf, Arabic-Indic digits
+        await AssertProblemAsync(await api.Post(new { ParentId = ankawa, Kind = "street", Name = "شارع  کرکوک 12 " }), HttpStatusCode.Conflict, "DUPLICATE_NAME");   // Persian kaf, ASCII digits, two spaces
+        await AssertProblemAsync(await api.Post(new { ParentId = ankawa, Kind = "street", Name = "شارع كركوك ۱۲" }), HttpStatusCode.Conflict, "DUPLICATE_NAME");   // Persian digits
+        await api.Add("street", "شەقامی نوێ", ankawa);
+        await AssertProblemAsync(await api.Post(new { ParentId = ankawa, Kind = "street", Name = "شەقامی  نوێ" }), HttpStatusCode.Conflict, "DUPLICATE_NAME");
+        Assert.Equal(HttpStatusCode.Created, (await api.Post(new { ParentId = ankawa, Kind = "street", Name = "شارع كركوك ١٣" })).StatusCode);   // a different number is a different street
+        Assert.Equal(HttpStatusCode.Created, (await api.Post(new { ParentId = nishtiman, Kind = "alley", Name = "شارع كركوك ١٢" })).StatusCode);   // another kind / parent is fine
         await AssertProblemAsync(await api.Post(new { ParentId = erbil, Kind = "street", Name = "Skips a level" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await api.Post(new { ParentId = ankawa, Kind = "neighbourhood", Name = "Inside" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await api.Post(new { ParentId = erbil, Kind = "alley", Name = "Alley under city" }), HttpStatusCode.BadRequest, "INVALID_DATA");
@@ -3426,7 +3435,7 @@ public class CustomerApiIntegrationTests
             await using var reader = await audit.ExecuteReaderAsync();
             var auditRows = new List<string>();
             while (await reader.ReadAsync()) auditRows.Add(reader.GetString(0));
-            Assert.Equal(new[] { "customer.profile_changed:2", "place.created:3", "place.updated:3", "places.imported:2" }, auditRows.ToArray());
+            Assert.Equal(new[] { "customer.profile_changed:2", "place.created:7", "place.updated:3", "places.imported:2" }, auditRows.ToArray());
         }
     }
 

@@ -63,6 +63,9 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
             if (reader.GetString(0) != "active" || reader.GetBoolean(1)) return PlaceResult.InvalidData;
         }
 
+        // A name that only differs in letters of another keyboard, digits or spaces is the same place (plan step 4.45).
+        if (await SimilarExistsAsync(connection, transaction, request.ParentId, request.Kind, request.Name, null, cancellationToken)) return PlaceResult.Duplicate;
+
         await using var insert = new NpgsqlCommand("""
             INSERT INTO places (id, tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en, created_by)
             VALUES (@id, @tenant, @parent, @kind, @name, @ckb, @ar, @en, @actor)
@@ -101,6 +104,18 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
             if (!await reader.ReadAsync(cancellationToken)) return PlaceResult.NotFound;
             if (reader.GetString(0) != "active" || reader.GetBoolean(1)) return PlaceResult.InvalidData;
         }
+
+        string? currentKind;
+        Guid? currentParent;
+        await using (var current = new NpgsqlCommand("SELECT kind, parent_id FROM places WHERE id = @id AND merged_into IS NULL", connection, transaction))
+        {
+            current.Parameters.AddWithValue("id", id);
+            await using var currentReader = await current.ExecuteReaderAsync(cancellationToken);
+            if (!await currentReader.ReadAsync(cancellationToken)) return PlaceResult.NotFound;
+            currentKind = currentReader.GetString(0);
+            currentParent = currentReader.IsDBNull(1) ? null : currentReader.GetGuid(1);
+        }
+        if (await SimilarExistsAsync(connection, transaction, request.ParentId ?? currentParent, currentKind, request.Name, id, cancellationToken)) return PlaceResult.Duplicate;
 
         await using var update = new NpgsqlCommand("""
             UPDATE places SET name = @name, name_ckb = @ckb, name_ar = @ar, name_en = @en, status = @status,
@@ -189,6 +204,22 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
             var key = $"{parentId}|{kind}|{name.ToLowerInvariant()}";
             if (known.TryGetValue(key, out var cached)) return (cached, false);
 
+            // The place that exists under another spelling is the one to use (plan step 4.45).
+            await using (var similar = new NpgsqlCommand("""
+                SELECT id FROM places WHERE parent_key = COALESCE(@parent, '00000000-0000-0000-0000-000000000000'::uuid)
+                  AND kind = @kind AND merged_into IS NULL AND place_name_norm(name) = place_name_norm(@name) ORDER BY created_at, id LIMIT 1
+                """, connection, transaction))
+            {
+                similar.Parameters.Add(new NpgsqlParameter("parent", NpgsqlDbType.Uuid) { Value = (object?)parentId ?? DBNull.Value });
+                similar.Parameters.AddWithValue("kind", kind);
+                similar.Parameters.AddWithValue("name", name);
+                if (await similar.ExecuteScalarAsync(cancellationToken) is Guid same)
+                {
+                    known[key] = same;
+                    return (same, false);
+                }
+            }
+
             await using var insert = new NpgsqlCommand("""
                 INSERT INTO places (tenant_id, parent_id, kind, name, name_ckb, name_ar, name_en, status, created_by)
                 VALUES (@tenant, @parent, @kind, @name, @ckb, @ar, @en, @status, @actor)
@@ -268,6 +299,20 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
             items.Add(new PlaceDto(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
                 Text(reader, 4), Text(reader, 5), Text(reader, 6), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetInt32(9), reader.GetBoolean(10)));
         return items;
+    }
+
+    // Is there another active place of this kind under this parent whose name is the same once the letters of other keyboards, digits and spaces are normalised.
+    private static async Task<bool> SimilarExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid? parentId, string kind, string name, Guid? excludeId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT 1 FROM places WHERE parent_key = COALESCE(@parent, '00000000-0000-0000-0000-000000000000'::uuid) AND kind = @kind AND merged_into IS NULL
+                           AND (@exclude::uuid IS NULL OR id <> @exclude) AND place_name_norm(name) = place_name_norm(@name))
+            """, connection, transaction);
+        command.Parameters.Add(new NpgsqlParameter("parent", NpgsqlDbType.Uuid) { Value = (object?)parentId ?? DBNull.Value });
+        command.Parameters.AddWithValue("kind", kind);
+        command.Parameters.AddWithValue("name", name);
+        command.Parameters.Add(new NpgsqlParameter("exclude", NpgsqlDbType.Uuid) { Value = (object?)excludeId ?? DBNull.Value });
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     // name, ckb, ar, en parameters shared by the insert and update statements.
