@@ -7096,5 +7096,77 @@
   "ckb": "📢 {message}",
   "ar": "📢 {message}",
   "fa": "📢 {message}"
+ },
+ "app.home.telegram": {
+  "en": "Telegram messages",
+  "ckb": "نامەکانی تێلێگرام",
+  "ar": "رسائل تيليجرام",
+  "fa": "پیام‌های تلگرام"
+ },
+ "app.telegram.title": {
+  "en": "Telegram",
+  "ckb": "تێلێگرام",
+  "ar": "تيليجرام",
+  "fa": "تلگرام"
+ },
+ "app.telegram.hint": {
+  "en": "Connect your own Telegram so your company's messages also reach you there. Press Connect, then Start in Telegram.",
+  "ckb": "تێلێگرامی خۆت بەستەوە بۆ ئەوەی نامەکانی کۆمپانیاش لەوێ بگەنە دەستت. Connect دابگرە، پاشان لە تێلێگرام Start.",
+  "ar": "اربط تيليجرامك الخاص لتصلك رسائل شركتك هناك أيضاً. اضغط اتصال ثم Start في تيليجرام.",
+  "fa": "تلگرام خودتان را وصل کنید تا پیام‌های شرکت آنجا هم برسد. «اتصال» را بزنید، سپس در تلگرام Start."
+ },
+ "app.telegram.connect": {
+  "en": "Connect Telegram",
+  "ckb": "بەستنەوەی تێلێگرام",
+  "ar": "ربط تيليجرام",
+  "fa": "اتصال تلگرام"
+ },
+ "app.telegram.disconnect": {
+  "en": "Disconnect Telegram",
+  "ckb": "پچڕاندنی تێلێگرام",
+  "ar": "فصل تيليجرام",
+  "fa": "قطع تلگرام"
+ },
+ "app.telegram.disconnectQuestion": {
+  "en": "Stop receiving company messages in Telegram?",
+  "ckb": "وەرگرتنی نامەی کۆمپانیا لە تێلێگرام بوەستێنرێت؟",
+  "ar": "إيقاف استلام رسائل الشركة على تيليجرام؟",
+  "fa": "دریافت پیام‌های شرکت در تلگرام قطع شود؟"
+ },
+ "app.telegram.refresh": {
+  "en": "Refresh status",
+  "ckb": "نوێکردنەوەی دۆخ",
+  "ar": "تحديث الحالة",
+  "fa": "به‌روزرسانی وضعیت"
+ },
+ "app.telegram.off": {
+  "en": "Telegram messages are not turned on for this company.",
+  "ckb": "نامەکانی تێلێگرام بۆ ئەم کۆمپانیایە چالاک نەکراون.",
+  "ar": "رسائل تيليجرام غير مفعّلة لهذه الشركة.",
+  "fa": "پیام‌های تلگرام برای این شرکت روشن نشده است."
+ },
+ "app.telegram.linked": {
+  "en": "Telegram is connected.",
+  "ckb": "تێلێگرام بەستراوە.",
+  "ar": "تيليجرام مربوط.",
+  "fa": "تلگرام وصل است."
+ },
+ "app.telegram.notLinked": {
+  "en": "Telegram is not connected yet.",
+  "ckb": "تێلێگرام هێشتا نەبەستراوە.",
+  "ar": "تيليجرام غير مربوط بعد.",
+  "fa": "تلگرام هنوز وصل نشده است."
+ },
+ "app.telegram.opened": {
+  "en": "Telegram was opened. Press Start there, then come back and press Refresh status.",
+  "ckb": "تێلێگرام کرایەوە. لەوێ Start دابگرە، پاشان بگەڕێوە و نوێکردنەوەی دۆخ دابگرە.",
+  "ar": "تم فتح تيليجرام. اضغط Start هناك ثم ارجع واضغط تحديث الحالة.",
+  "fa": "تلگرام باز شد. آنجا Start را بزنید، بعد برگردید و «به‌روزرسانی وضعیت» را بزنید."
+ },
+ "app.telegram.unavailable": {
+  "en": "Telegram could not be connected now. Try again later.",
+  "ckb": "ئێستا نەتوانرا تێلێگرام ببەسترێتەوە. دواتر هەوڵ بدەرەوە.",
+  "ar": "تعذّر ربط تيليجرام الآن. حاول لاحقاً.",
+  "fa": "اکنون اتصال تلگرام ممکن نشد. بعداً دوباره امتحان کنید."
  }
 }

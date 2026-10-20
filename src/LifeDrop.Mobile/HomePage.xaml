@@ -40,7 +40,7 @@
             </Border>
 
             <!-- Module Cards Grid -->
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                   ColumnSpacing="12" RowSpacing="12" Padding="16,20,16,8">
 
                 <Border Grid.Row="0" Grid.Column="0" StrokeThickness="1"
@@ -110,6 +110,15 @@
                         BackgroundColor="{StaticResource White}"
                         StrokeShape="RoundRectangle 14">
                     <Button x:Name="CustomersBtn" Clicked="OnCustomersClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
+                <Border Grid.Row="4" Grid.Column="0" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
+                    <Button x:Name="TelegramBtn" Clicked="OnTelegramClicked"
                             BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
                             HeightRequest="80" FontSize="13" FontAttributes="Bold"
                             LineBreakMode="WordWrap" />
