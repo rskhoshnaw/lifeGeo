@@ -29,6 +29,26 @@ public static class AlertEndpoints
             .WithName("CountNewAlerts").WithTags("Alerts").Produces<AlertCountDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapGet("/settings/shift-alerts", async (HttpContext context, AlertService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, settings) = await service.GetShiftSettingsAsync(tenantId, actorId, cancellationToken);
+            return result == AlertResult.Success ? Results.Ok(settings) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("GetShiftAlertSettings").WithTags("Alerts").Produces<ShiftAlertSettingsDto>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/settings/shift-alerts", async (ShiftAlertSettingsDto request, HttpContext context, AlertService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetShiftSettingsAsync(tenantId, actorId, request, cancellationToken);
+            return result == AlertResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetShiftAlertSettings").WithTags("Alerts").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/alerts/{alertId:guid}", async (Guid alertId, HttpContext context, AlertService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();

@@ -24,3 +24,5 @@ GRANT DELETE ON push_tokens TO lifedrop_app;
 GRANT DELETE ON team_members, customer_visit_windows, warehouse_staff, tracking_points TO lifedrop_app;
 -- Step 3.4: message channels (the user links and unlinks only their own channel; the code row is replaced and removed).
 GRANT SELECT, INSERT, UPDATE, DELETE ON user_channels, channel_link_codes TO lifedrop_app;
+-- Step 4.33: the shift alert settings of a company (read by the scan, changed by the sales manager).
+GRANT SELECT, INSERT, UPDATE ON shift_alert_settings TO lifedrop_app;

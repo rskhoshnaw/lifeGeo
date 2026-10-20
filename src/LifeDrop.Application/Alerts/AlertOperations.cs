@@ -20,6 +20,10 @@ public sealed record HandleAlertRequest(string? Note, string? Outcome = null);
 public sealed record AlertCountDto(int New);
 public sealed record ScanResultDto(int Created);
 
+// Plan step 4.33: the first ShiftWindowHours hours of a shift are watched; staying in one place for more than StationaryMinutes there, or ending the shift
+// before the window is over, makes an alert for the sales manager and the rep's supervisor.
+public sealed record ShiftAlertSettingsDto(int ShiftWindowHours, int StationaryMinutes);
+
 public enum AlertResult { Success, Forbidden, NotFound, InvalidData, Conflict }
 
 // Which alerts a user may see in one category: everything, or the alerts about users of one region.
@@ -43,6 +47,11 @@ public static class AlertRules
     public static readonly TimeSpan ScanWindow = TimeSpan.FromHours(48);
     // Anti-fraud from visit events and shift summaries (plan step 4.8).
     public static readonly TimeSpan MinStay = TimeSpan.FromMinutes(2);
+    // Shift alerts (plan step 4.33): defaults, limits and the radius that counts as "in one place" (phone positions indoors drift by tens of metres).
+    public const int DefaultShiftWindowHours = 3;
+    public const int DefaultStationaryMinutes = 20;
+    public const double StationaryRadiusMeters = 50;
+    public const double NearCustomerMeters = 100;
     public static readonly TimeSpan CoverageMinShift = TimeSpan.FromHours(1);
     public const double LowCoveragePercent = 50;
     // A manager who handles one of these must say what the review found.
@@ -60,6 +69,9 @@ public interface IAlertStore
     Task<AlertResult> HandleAsync(TenantId tenantId, UserId actorId, Guid alertId, string note, string? outcome, DateTimeOffset now, CancellationToken cancellationToken);
     // Looks at the data of one company and makes the alerts that are missing; returns how many were made.
     Task<int> ScanAsync(TenantId tenantId, DateTimeOffset now, DateOnly today, TimeOnly localTime, CancellationToken cancellationToken);
+    // The shift alert settings of a company (the defaults when never saved) and saving them (audit shift_alert_settings.changed).
+    Task<ShiftAlertSettingsDto> GetShiftSettingsAsync(TenantId tenantId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    Task SetShiftSettingsAsync(TenantId tenantId, UserId actorId, ShiftAlertSettingsDto settings, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<IReadOnlyList<TenantId>> ListActiveTenantsAsync(CancellationToken cancellationToken);
 }
 
@@ -114,6 +126,23 @@ public sealed class AlertService(IAlertStore store, IPermissionStore permissions
     {
         if (await ScopeAsync(tenantId, actorId, PermissionKeys.AlertsHandle, cancellationToken) is null) return (AlertResult.Forbidden, null);
         return (AlertResult.Success, new ScanResultDto(await ScanTenantAsync(tenantId, cancellationToken)));
+    }
+
+    // Seen by whoever reads alerts; changed only by a manager with tenant-wide alert rights (the sales manager). Hours 1-12, minutes 5-120.
+    public async Task<(AlertResult Result, ShiftAlertSettingsDto? Settings)> GetShiftSettingsAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        var (audiences, _) = await AudiencesAsync(tenantId, actorId, cancellationToken);
+        return audiences.Count == 0 ? (AlertResult.Forbidden, null) : (AlertResult.Success, await store.GetShiftSettingsAsync(tenantId, cancellationToken));
+    }
+
+    public async Task<AlertResult> SetShiftSettingsAsync(TenantId tenantId, UserId actorId, ShiftAlertSettingsDto settings, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.AlertsHandle, cancellationToken);
+        if (scope is null || scope.Scope != DataScope.Tenant) return AlertResult.Forbidden;
+        if (settings.ShiftWindowHours is < 1 or > 12 || settings.StationaryMinutes is < 5 or > 120) return AlertResult.InvalidData;
+        await store.SetShiftSettingsAsync(tenantId, actorId, settings, cancellationToken);
+        return AlertResult.Success;
     }
 
     // Used by the background scan and by the manual scan.

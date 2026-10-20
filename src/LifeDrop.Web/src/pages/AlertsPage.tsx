@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { AdminApi, can, Permissions, reviewedAlertKinds, type Alert, type Me } from '../api/admin.ts'
+import { AdminApi, can, Permissions, reviewedAlertKinds, type Alert, type Me, type ShiftAlertSettings } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -15,6 +15,7 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
     onChanged()
   })
   const canHandle = can(me, ...Permissions.handleAlerts)
+  const settings = useLoad(useCallback(() => admin.shiftAlertSettings(), [admin]))
   const [outcome, setOutcome] = useState<Record<string, string>>({})
 
   function handle(alert: Alert) {
@@ -67,6 +68,7 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
         )}
         {scanned && <span role="status" className="text-sm text-slate-600">{scanned}</span>}
       </div>
+      {settings.data && canHandle && <ShiftSettingsForm key={`${settings.data.shiftWindowHours}-${settings.data.stationaryMinutes}`} admin={admin} current={settings.data} onSaved={settings.reload} />}
       {(list.error || action.error) && <p role="alert" className="text-sm text-red-700">{list.error ?? action.error}</p>}
       {list.data?.length === 0 && <p className="text-slate-600">{t('web.alerts.none')}</p>}
       {list.data && list.data.length > 0 && (
@@ -138,5 +140,35 @@ export function AlertsPage({ admin, me, onChanged }: { admin: AdminApi; me: Me; 
         </table>
       )}
     </section>
+  )
+}
+
+// The sales manager sets how long the first part of a shift is and how many minutes in one place make an alert (plan step 4.33).
+function ShiftSettingsForm({ admin, current, onSaved }: { admin: AdminApi; current: ShiftAlertSettings; onSaved: () => void }) {
+  const [hours, setHours] = useState(String(current.shiftWindowHours))
+  const [minutes, setMinutes] = useState(String(current.stationaryMinutes))
+  const action = useAction(onSaved)
+  return (
+    <form
+      className="flex flex-wrap items-center gap-3 rounded border p-3 text-sm"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void action.run(() => admin.setShiftAlertSettings({ shiftWindowHours: Number(hours), stationaryMinutes: Number(minutes) }))
+      }}
+    >
+      <span className="font-semibold">{t('web.alerts.shiftSettings')}</span>
+      <label className="flex items-center gap-1">
+        {t('web.alerts.shiftHours')}
+        <input type="number" min={1} max={12} className="w-20 rounded border px-2 py-1" value={hours} onChange={(e) => setHours(e.target.value)} />
+      </label>
+      <label className="flex items-center gap-1">
+        {t('web.alerts.stationaryMinutes')}
+        <input type="number" min={5} max={120} className="w-20 rounded border px-2 py-1" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+      </label>
+      <button type="submit" className="rounded border px-3 py-1" disabled={action.busy}>
+        {t('web.catalog.save')}
+      </button>
+      {action.error && <span role="alert" className="text-red-700">{action.error}</span>}
+    </form>
   )
 }

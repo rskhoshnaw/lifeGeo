@@ -130,6 +130,11 @@ export interface ImportSummary {
   skipped: number
 }
 
+export interface ShiftAlertSettings {
+  shiftWindowHours: number
+  stationaryMinutes: number
+}
+
 export interface CustomerDoctor {
   clinicName: string | null
   specialty: string | null
@@ -426,7 +431,7 @@ export interface FollowUp {
 }
 export interface Alert {
   id: string
-  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch' | 'impossible_travel' | 'short_stay' | 'low_coverage'
+  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch' | 'impossible_travel' | 'short_stay' | 'low_coverage' | 'stationary' | 'short_shift'
   category: 'operational' | 'security'
   severity: 'info' | 'warning' | 'critical'
   subjectEmail: string | null
@@ -938,6 +943,8 @@ export class AdminApi {
   reassignFollowUp = (id: string, assigneeId: string) => this.post(`/followups/${id}/reassign`, { assigneeId })
   // Alerts (step 2.9): operational and security alerts; new -> seen -> handled with a note. scan() looks for new ones now.
   alerts = (category: string, status: string) => this.get<Alert[]>(`/alerts?limit=200${category ? `&category=${category}` : ''}${status ? `&status=${status}` : ''}`)
+  shiftAlertSettings = () => this.get<ShiftAlertSettings>('/settings/shift-alerts')
+  setShiftAlertSettings = (settings: ShiftAlertSettings) => this.send('PUT', '/settings/shift-alerts', settings)
   alertCount = async () => (await this.get<{ new: number }>('/alerts/count')).new
   seeAlert = (id: string) => this.post(`/alerts/${id}/seen`)
   handleAlert = (id: string, note: string, outcome: string | null = null) => this.post(`/alerts/${id}/handle`, { note, outcome })

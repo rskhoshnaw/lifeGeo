@@ -18,6 +18,8 @@ The scan runs every 5 minutes (and on demand) and looks only at the tracking poi
 | Stay too short (`short_stay`, 4.8) | Accepted check-out less than 2 minutes after the accepted check-in of the same visit | 2 minutes | check-in and check-out time, seconds |
 | Low shift coverage (`low_coverage`, 4.8, operational, no review result needed) | A finished shift of at least 1 hour has fewer than 50 % of the expected tracking points (one per 3 minutes, same rule as the shift summary) | 1 hour, 50 % | points, expected points, coverage, shift times |
 | Tracking gap (`tracking_gap`, 2.9) | An open shift with no point for 15 minutes | 15 minutes | shift |
+| Staying in one place (`stationary`, 4.33, operational) | In the first N hours of a shift (default 3) the rep stays within 50 m of one point for more than M minutes (default 20); evidence says whether a customer is within 100 m | N and M set per company in the panel (sales manager) | point, from/to time, minutes, place, at-customer flag |
+| Shift ended early (`short_shift`, 4.33, operational) | A shift ended before N hours (default 3) | N | start/end time, minutes |
 | New device (`new_device`, 2.9) | A phone waits for approval | — | device label |
 
 The thresholds are fixed in code (`AlertRules`); a panel setting may come later. Detection on a tampered phone is never absolute: a signal is a reason to look, not a verdict.

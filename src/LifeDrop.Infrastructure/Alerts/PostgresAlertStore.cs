@@ -148,11 +148,56 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
     // The region of the user an alert is about: the region of the user's team.
     private const string RegionOf = "(SELECT t.region_id FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = {0} LIMIT 1)";
 
+    public async Task<ShiftAlertSettingsDto> GetShiftSettingsAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        return await ReadShiftSettingsAsync(connection, transaction, tenantId, cancellationToken);
+    }
+
+    private static async Task<ShiftAlertSettingsDto> ReadShiftSettingsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("SELECT shift_window_hours, stationary_minutes FROM shift_alert_settings WHERE tenant_id = @tenant", connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? new ShiftAlertSettingsDto(reader.GetInt32(0), reader.GetInt32(1))
+            : new ShiftAlertSettingsDto(AlertRules.DefaultShiftWindowHours, AlertRules.DefaultStationaryMinutes);
+    }
+
+    public async Task SetShiftSettingsAsync(TenantId tenantId, UserId actorId, ShiftAlertSettingsDto settings, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        await using (var upsert = new NpgsqlCommand("""
+            INSERT INTO shift_alert_settings (tenant_id, shift_window_hours, stationary_minutes, updated_by, updated_at)
+            VALUES (@tenant, @hours, @minutes, @actor, now())
+            ON CONFLICT (tenant_id) DO UPDATE SET shift_window_hours = @hours, stationary_minutes = @minutes, updated_by = @actor, updated_at = now()
+            """, connection, transaction))
+        {
+            upsert.Parameters.AddWithValue("tenant", tenantId.Value);
+            upsert.Parameters.AddWithValue("hours", settings.ShiftWindowHours);
+            upsert.Parameters.AddWithValue("minutes", settings.StationaryMinutes);
+            upsert.Parameters.AddWithValue("actor", actorId.Value);
+            await upsert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var audit = new NpgsqlCommand("""
+            INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+            VALUES (gen_random_uuid(), @tenant, @actor, 'shift_alert_settings.changed', @tenant::text, now())
+            """, connection, transaction))
+        {
+            audit.Parameters.AddWithValue("tenant", tenantId.Value);
+            audit.Parameters.AddWithValue("actor", actorId.Value);
+            await audit.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task<int> ScanAsync(TenantId tenantId, DateTimeOffset now, DateOnly today, TimeOnly localTime, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         var created = 0;
+        var shiftSettings = await ReadShiftSettingsAsync(connection, transaction, tenantId, cancellationToken);
 
         async Task RunAsync(string sql)
         {
@@ -175,6 +220,10 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             command.Parameters.Add(P("coverageMinShift", NpgsqlDbType.Interval, AlertRules.CoverageMinShift));
             command.Parameters.AddWithValue("coveragePercent", AlertRules.LowCoveragePercent);
             command.Parameters.AddWithValue("expectedSeconds", ShiftTracking.ExpectedInterval.TotalSeconds);
+            command.Parameters.Add(P("shiftWindow", NpgsqlDbType.Interval, TimeSpan.FromHours(shiftSettings.ShiftWindowHours)));
+            command.Parameters.Add(P("stillTime", NpgsqlDbType.Interval, TimeSpan.FromMinutes(shiftSettings.StationaryMinutes)));
+            command.Parameters.AddWithValue("stillMeters", AlertRules.StationaryRadiusMeters);
+            command.Parameters.AddWithValue("nearMeters", AlertRules.NearCustomerMeters);
             created += await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -375,6 +424,43 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
                 WHERE sh.tenant_id = @tenant AND sh.ended_at IS NOT NULL AND sh.started_at > @now - @window AND sh.ended_at - sh.started_at >= @coverageMinShift
             ) x
             WHERE x.coverage < @coveragePercent
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        // Plan step 4.33: a rep who stays in one place for more than the set minutes inside the first hours of a shift. The anchor is a point; the stay lasts until the first
+        // later point farther than the radius (or the last point inside the window). Shifts are looked at while the window is open and for two hours after it. The evidence says
+        // whether the place is next to a customer.
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT x.tenant_id, 'stationary', 'operational', 'warning', x.user_id, {string.Format(RegionOf, "x.user_id")}, x.shift_id::text, round(extract(epoch FROM x.leave_at - x.start_at) / 60)::text || ' min',
+                   jsonb_build_object('pointId', x.id, 'fromAt', x.start_at, 'toAt', x.leave_at, 'minutes', round(extract(epoch FROM x.leave_at - x.start_at) / 60),
+                                      'lat', ST_Y(x.geom::geometry), 'lng', ST_X(x.geom::geometry), 'radiusM', @stillMeters,
+                                      'atCustomer', EXISTS (SELECT 1 FROM customers c WHERE c.tenant_id = x.tenant_id AND c.geom IS NOT NULL AND ST_DWithin(c.geom, x.geom, @nearMeters))),
+                   'stationary:' || x.shift_id, x.leave_at
+            FROM (
+                SELECT DISTINCT ON (p.shift_id) p.tenant_id, p.shift_id, p.user_id, p.id, p.geom, p.captured_at AS start_at, l.leave_at
+                FROM tracking_points p
+                JOIN shifts sh ON sh.tenant_id = p.tenant_id AND sh.id = p.shift_id
+                CROSS JOIN LATERAL (
+                    SELECT coalesce(min(q.captured_at) FILTER (WHERE ST_Distance(q.geom, p.geom) > @stillMeters), max(q.captured_at)) AS leave_at
+                    FROM tracking_points q
+                    WHERE q.shift_id = p.shift_id AND q.captured_at > p.captured_at AND q.captured_at <= sh.started_at + @shiftWindow) l
+                WHERE p.tenant_id = @tenant AND sh.started_at + @shiftWindow + interval '2 hours' > @now
+                  AND p.captured_at <= sh.started_at + @shiftWindow AND l.leave_at - p.captured_at > @stillTime
+                  AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.tenant_id = p.tenant_id AND a.dedupe_key = 'stationary:' || p.shift_id)
+                ORDER BY p.shift_id, p.captured_at
+            ) x
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """);
+        // Plan step 4.33: a shift that ended before the first hours were over.
+        await RunAsync($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, evidence, dedupe_key, occurred_at)
+            SELECT sh.tenant_id, 'short_shift', 'operational', 'warning', sh.user_id, {string.Format(RegionOf, "sh.user_id")}, sh.id::text,
+                   round(extract(epoch FROM sh.ended_at - sh.started_at) / 60)::text || ' min',
+                   jsonb_build_object('startedAt', sh.started_at, 'endedAt', sh.ended_at, 'minutes', round(extract(epoch FROM sh.ended_at - sh.started_at) / 60),
+                                      'requiredHours', extract(epoch FROM @shiftWindow) / 3600),
+                   'short_shift:' || sh.id, sh.ended_at
+            FROM shifts sh
+            WHERE sh.tenant_id = @tenant AND sh.ended_at IS NOT NULL AND sh.ended_at > @now - @window AND sh.ended_at - sh.started_at < @shiftWindow
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
         await transaction.CommitAsync(cancellationToken);

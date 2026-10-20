@@ -148,7 +148,8 @@ public class CustomerApiIntegrationTests
                 var m46 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0046_manager_messages.sql"));
                 var m47 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0047_customer_doctor_fields.sql"));
                 var m48 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0048_product_details.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48;
+                var m49 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0049_shift_alert_settings.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5867,7 +5868,7 @@ public class CustomerApiIntegrationTests
         async Task<List<LifeDrop.Application.Alerts.AlertDto>> List(string query = "") => (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts" + query))!;
 
         As(manager);
-        Assert.Equal(8, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+        Assert.Equal(11, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
         Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);   // one alert per event
         var all = await List("?category=security");   // the two finished sparse shifts also make low_coverage (operational, step 4.8), checked in its own test
         Assert.All(all, a => Assert.Equal(("security", "new"), (a.Category, a.Status)));
@@ -5973,10 +5974,10 @@ public class CustomerApiIntegrationTests
         Task<HttpResponseMessage> Post(string path, object? body = null) => client.PostAsJsonAsync(path, body ?? new { });
 
         As(manager);
-        Assert.Equal(3, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
+        Assert.Equal(4, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);
         Assert.Equal(0, (await (await Post("/alerts/scan")).Content.ReadFromJsonAsync<LifeDrop.Application.Alerts.ScanResultDto>())!.Created);   // one alert per event
         var all = (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts"))!;
-        Assert.Equal(new[] { "impossible_travel=1", "low_coverage=1", "short_stay=1" },
+        Assert.Equal(new[] { "impossible_travel=1", "low_coverage=1", "short_stay=1", "stationary=1" },
             all.GroupBy(a => a.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key}={g.Count()}").ToArray());
         Assert.All(all, a => Assert.Equal(rep, a.SubjectUserId));
 
@@ -6169,6 +6170,100 @@ public class CustomerApiIntegrationTests
         Assert.Equal("channel.telegram_linked=2,channel.telegram_unlinked=1", await Sql<string>(@"
             SELECT string_agg(action || '=' || n, ',' ORDER BY action COLLATE ""C"")
             FROM (SELECT action, count(*) AS n FROM audit_logs WHERE tenant_id = @t1 AND action LIKE 'channel.%' GROUP BY action) a"));
+    }
+
+    [SkippableFact]
+    public async Task ShiftAlerts_StationaryAndShortShiftAreForTheManagerAndTheRegionSupervisorAndTheLimitsAreSetByTheSalesManager()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid();
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid(), d1 = Guid.NewGuid(), d2 = Guid.NewGuid(), s1 = Guid.NewGuid(), s2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sup, @t1), (@m, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil'), (@r2, @t1, 'Baghdad');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A'), (@tb, @t1, @r2, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @ta), (@t1, @sup, @ta), (@t1, @rep2, @tb);
+                INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
+                    (@d1, @t1, @rep, 'Rep phone', 'android', 'i1', '1.0', '\x00', 'approved'), (@d2, @t1, @rep2, 'Rep2 phone', 'android', 'i2', '1.0', '\x00', 'approved');
+                -- rep: shift open since 05:00 (the test clock says 06:00 UTC); six points 5 minutes apart in the same place = 25 minutes without moving.
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES (@s1, @t1, @rep, @d1, '2026-10-05 05:00:00+00');
+                INSERT INTO tracking_points (tenant_id, shift_id, user_id, device_id, client_point_id, geom, accuracy_m, captured_at, received_at)
+                SELECT @t1, @s1, @rep, @d1, gen_random_uuid(), ST_SetSRID(ST_MakePoint(44.0092, 36.1911), 4326)::geography, 10, '2026-10-05 05:00:00+00'::timestamptz + n * interval '5 minutes', '2026-10-05 05:00:00+00'::timestamptz + n * interval '5 minutes'
+                FROM generate_series(0, 5) n;
+                -- rep2: a shift of one and a half hours, finished (before the 3 hours are over).
+                INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at, ended_at) VALUES (@s2, @t1, @rep2, @d2, '2026-10-05 04:00:00+00', '2026-10-05 05:30:00+00');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sup", sup), ("m", manager), ("r1", r1), ("r2", r2), ("ta", teamA), ("tb", teamB), ("d1", d1), ("d2", d2), ("s1", s1), ("s2", s2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<List<LifeDrop.Application.Alerts.AlertDto>> Shift() =>
+            (await client.GetFromJsonAsync<List<LifeDrop.Application.Alerts.AlertDto>>("/alerts?limit=200"))!.Where(a => a.Kind is "stationary" or "short_shift").OrderBy(a => a.Kind, StringComparer.Ordinal).ToList();
+        Task<HttpResponseMessage> Put(object body) => client.PutAsJsonAsync("/settings/shift-alerts", body);
+
+        // The defaults are 3 hours and 20 minutes; reps cannot look; only the sales manager (all regions) changes them, within limits
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync("/settings/shift-alerts"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(sup);
+        Assert.Equal(new LifeDrop.Application.Alerts.ShiftAlertSettingsDto(3, 20), await client.GetFromJsonAsync<LifeDrop.Application.Alerts.ShiftAlertSettingsDto>("/settings/shift-alerts"));
+        await AssertProblemAsync(await Put(new { ShiftWindowHours = 3, StationaryMinutes = 10 }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        foreach (var bad in new object[] { new { ShiftWindowHours = 0, StationaryMinutes = 20 }, new { ShiftWindowHours = 13, StationaryMinutes = 20 }, new { ShiftWindowHours = 3, StationaryMinutes = 4 }, new { ShiftWindowHours = 3, StationaryMinutes = 121 } })
+            await AssertProblemAsync(await Put(bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+
+        // 25 minutes in one place is fine when the limit is 40 minutes; the finished 1.5 hour shift is short either way
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(new { ShiftWindowHours = 3, StationaryMinutes = 40 })).StatusCode);
+        await client.PostAsJsonAsync("/alerts/scan", new { });
+        Assert.Equal(new[] { "short_shift" }, (await Shift()).Select(a => a.Kind).ToArray());
+
+        // With 20 minutes the same shift is reported once; a new scan makes no second alert
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(new { ShiftWindowHours = 3, StationaryMinutes = 20 })).StatusCode);
+        await client.PostAsJsonAsync("/alerts/scan", new { });
+        await client.PostAsJsonAsync("/alerts/scan", new { });
+        var alerts = await Shift();
+        Assert.Equal(new[] { "short_shift", "stationary" }, alerts.Select(a => a.Kind).ToArray());
+        var still = alerts.Single(a => a.Kind == "stationary");
+        Assert.Equal((rep, s1.ToString(), "operational"), (still.SubjectUserId, still.EntityId, still.Category));
+        Assert.Equal("25 min", still.Detail);
+        Assert.Contains("\"atCustomer\": false", still.Evidence);
+        var shortShift = alerts.Single(a => a.Kind == "short_shift");
+        Assert.Equal((rep2, s2.ToString(), "90 min"), (shortShift.SubjectUserId, shortShift.EntityId, shortShift.Detail));
+
+        // The supervisor of Erbil sees the stationary rep of Erbil but not the short shift in Baghdad
+        As(sup);
+        Assert.Equal(new[] { "stationary" }, (await Shift()).Select(a => a.Kind).ToArray());
+
+        // Each change of the limits is audited
+        await using var check = new NpgsqlConnection(schemaBlock.ConnectionString);
+        await check.OpenAsync();
+        await using var count = new NpgsqlCommand("SELECT set_config('app.current_tenant', @t1::text, false); SELECT count(*) FROM audit_logs WHERE action = 'shift_alert_settings.changed'", check);
+        count.Parameters.AddWithValue("t1", t1);
+        await using var reader = await count.ExecuteReaderAsync();
+        await reader.NextResultAsync();
+        await reader.ReadAsync();
+        Assert.Equal(2L, reader.GetInt64(0));
     }
 
     [SkippableFact]

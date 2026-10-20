@@ -529,6 +529,8 @@ Permissions: `alerts.read` (SalesManager, CompanyManager: all; Supervisor: the r
 |---|---|---|---|
 | `GET /alerts?category=&status=&kind=&limit=` | `alerts.read` and/or `alerts.security.read` | Only the categories/areas the caller may see; unhandled first, newest first; limit 1-200 | — |
 | `GET /alerts/count` | same | `{new}` = new alerts the caller may see | — |
+| `GET /settings/shift-alerts` | Any alert reader (`alerts.read` or `alerts.security.read`) | `{shiftWindowHours, stationaryMinutes}` of the company (defaults 3 and 20) | — |
+| `PUT /settings/shift-alerts` | `alerts.handle` with tenant-wide scope (the sales manager); a supervisor gets 403 | Body `{shiftWindowHours 1-12, stationaryMinutes 5-120}`; 204, 400, 403 | `shift_alert_settings.changed` |
 | `GET /alerts/{id}` | same | 404 outside the caller's categories/area | — |
 | `POST /alerts/{id}/seen` | `alerts.handle` | `new` → `seen`; 409 otherwise; 404 outside the area | `alert.seen` |
 | `POST /alerts/{id}/handle` | `alerts.handle` | `{note}` (1-500); `new`/`seen` → `handled`; 409 when handled | `alert.handled` |
