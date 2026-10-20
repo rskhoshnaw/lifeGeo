@@ -42,6 +42,17 @@ public static class CatalogEndpoints
             .WithName("UpdateProduct").WithTags("Catalog").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/products/{productId:guid}/details", async (Guid productId, ProductDetailsRequest request, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetDetailsAsync(tenantId, actorId, productId, request, cancellationToken);
+            return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetProductDetails").WithTags("Catalog").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/products/{productId:guid}/city-prices", async (Guid productId, HttpContext context, CatalogService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

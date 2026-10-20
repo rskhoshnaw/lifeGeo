@@ -7276,5 +7276,53 @@
   "ckb": "هی تر",
   "ar": "أخرى",
   "fa": "سایر"
+ },
+ "web.catalog.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "الاختصاص",
+  "fa": "تخصص"
+ },
+ "web.catalog.manufacturer": {
+  "en": "Manufacturer",
+  "ckb": "کۆمپانیای بەرهەمهێنەر",
+  "ar": "الشركة المصنعة",
+  "fa": "شرکت سازنده"
+ },
+ "web.catalog.expiry": {
+  "en": "Expiry date",
+  "ckb": "بەرواری بەسەرچوون",
+  "ar": "تاريخ الانتهاء",
+  "fa": "تاریخ انقضا"
+ },
+ "web.catalog.stock": {
+  "en": "Stock",
+  "ckb": "بڕی ماوە",
+  "ar": "المخزون",
+  "fa": "موجودی"
+ },
+ "web.catalog.stockHint": {
+  "en": "Stock (empty = not tracked)",
+  "ckb": "بڕی ماوە (بەتاڵ = بەدواداچوون نییە)",
+  "ar": "المخزون (فارغ = غير متتبع)",
+  "fa": "موجودی (خالی = کنترل نمی‌شود)"
+ },
+ "web.catalog.notes": {
+  "en": "Notes",
+  "ckb": "تێبینی",
+  "ar": "ملاحظات",
+  "fa": "توضیحات"
+ },
+ "web.catalog.inStock": {
+  "en": "In stock",
+  "ckb": "بەردەستە",
+  "ar": "متوفر",
+  "fa": "موجود"
+ },
+ "web.catalog.outOfStock": {
+  "en": "Out of stock",
+  "ckb": "نەماوە",
+  "ar": "غير متوفر",
+  "fa": "ناموجود"
  }
 }

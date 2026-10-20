@@ -147,7 +147,8 @@ public class CustomerApiIntegrationTests
                 var m45 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0045_customer_contact.sql"));
                 var m46 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0046_manager_messages.sql"));
                 var m47 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0047_customer_doctor_fields.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47;
+                var m48 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0048_product_details.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2900,6 +2901,7 @@ public class CustomerApiIntegrationTests
             .WithWebHostBuilder(webBuilder =>
             {
                 webBuilder.UseSetting("ConnectionStrings:LifeDrop", schemaBlock.ConnectionString);
+                webBuilder.UseSetting("RateLimit:PerMinute", "1000");   // long scenario tests make more than 100 requests in a minute
                 TestHostSettings.UseTestJwt(webBuilder);
                 webBuilder.ConfigureTestServices(services =>
                 {
@@ -4912,6 +4914,21 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
         var all = await Products("?includeInactive=true");
         Assert.Equal(("AMX-250", "Amoxicillin 250 mg", 4m, "inactive"), (all[0].Code, all[0].Name, all[0].BasePrice, all[0].Status));
+        // Details (plan step 4.28): saved apart from the main fields, so editing the main fields afterwards keeps them; wrong values are refused; reps cannot change them
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { Specialty = "pediatrics", Manufacturer = " Pioneer ", ExpiryDate = "2027-03-31", StockQty = 12.5m, Notes = "Keep cool" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}", Product(price: 1500m))).StatusCode);
+        var withDetails = (await Products()).Single(p => p.Code == "PAR-500");
+        Assert.Equal(("pediatrics", "Pioneer", new DateOnly(2027, 3, 31), 12.5m, "Keep cool", true), (withDetails.Specialty, withDetails.Manufacturer, withDetails.ExpiryDate, withDetails.StockQty, withDetails.Notes, withDetails.InStock));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { StockQty = 0m })).StatusCode);
+        var cleared = (await Products()).Single(p => p.Code == "PAR-500");
+        Assert.Equal((null, null, 0m, false), (cleared.Specialty, cleared.Manufacturer, cleared.StockQty, cleared.InStock));
+        foreach (var bad in new object[] { new { Specialty = "dentist" }, new { StockQty = -1m }, new { StockQty = 1.2345m }, new { Manufacturer = new string('m', 101) }, new { Notes = new string('n', 501) } })
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}/details", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{Guid.NewGuid()}/details", new { }), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(repA);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}/details", new { }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+
         As(repA);
         Assert.Equal(2, (await Products("?includeInactive=true")).Count);   // only managers see inactive ones
 
@@ -5017,7 +5034,7 @@ public class CustomerApiIntegrationTests
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.updated=1", reader.GetString(0));
+            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.details_changed=2,product.updated=2", reader.GetString(0));
         }
     }
 

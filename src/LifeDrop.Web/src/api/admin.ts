@@ -244,6 +244,19 @@ export interface Product {
   currency: 'IQD' | 'USD'
   basePrice: number
   status: 'active' | 'inactive'
+  specialty?: string | null
+  manufacturer?: string | null
+  expiryDate?: string | null
+  stockQty?: number | null
+  notes?: string | null
+  inStock?: boolean
+}
+export interface ProductDetails {
+  specialty: string | null
+  manufacturer: string | null
+  expiryDate: string | null
+  stockQty: number | null
+  notes: string | null
 }
 export interface ProductInput {
   code?: string
@@ -884,6 +897,7 @@ export class AdminApi {
   products = (includeInactive: boolean, search = '') =>
     this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
   createProduct = (product: ProductInput) => this.post('/products', product)
+  setProductDetails = (id: string, details: ProductDetails) => this.send('PUT', `/products/${id}/details`, details)
   updateProduct = (id: string, product: ProductInput) => this.send('PUT', `/products/${id}`, product)
   cityPrices = (productId: string) => this.get<CityPrice[]>(`/products/${productId}/city-prices`)
   createCityPrice = (productId: string, rule: { cityId: string; price: number; validFrom: string | null; validTo: string | null }) =>

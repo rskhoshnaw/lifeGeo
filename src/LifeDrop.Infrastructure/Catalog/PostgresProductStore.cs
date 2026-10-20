@@ -10,7 +10,7 @@ namespace LifeDrop.Infrastructure.Catalog;
 
 public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProductStore
 {
-    private const string ProductColumns = "id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at";
+    private const string ProductColumns = "id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, stock_qty, notes";
 
     public async Task<IReadOnlyList<ProductDto>> ListAsync(TenantId tenantId, bool includeInactive, string? query, CancellationToken cancellationToken)
     {
@@ -27,7 +27,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         command.Parameters.Add(new NpgsqlParameter("q", NpgsqlTypes.NpgsqlDbType.Text) { Value = query is null ? DBNull.Value : "%" + query.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%" });
         var items = new List<ProductDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) items.Add(ReadProduct(reader));
+        while (await reader.ReadAsync(cancellationToken)) items.Add(ReadProduct(reader, 11));
         return items;
     }
 
@@ -70,6 +70,29 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
             if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
         }
         await AuditAsync(connection, transaction, tenantId, actorId, "product.updated", productId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> SetDetailsAsync(TenantId tenantId, UserId actorId, Guid productId, ProductDetailsRequest details, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        await using (var update = new NpgsqlCommand("""
+            UPDATE products SET specialty = @specialty, manufacturer = @manufacturer, expiry_date = @expiry, stock_qty = @stock, notes = @notes, updated_at = now()
+            WHERE tenant_id = @tenant AND id = @id
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("id", productId);
+            update.Parameters.AddWithValue("tenant", tenantId.Value);
+            update.Parameters.Add(new NpgsqlParameter("specialty", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Specialty ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("manufacturer", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Manufacturer ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("expiry", NpgsqlTypes.NpgsqlDbType.Date) { Value = (object?)details.ExpiryDate ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("stock", NpgsqlTypes.NpgsqlDbType.Numeric) { Value = (object?)details.StockQty ?? DBNull.Value });
+            update.Parameters.Add(new NpgsqlParameter("notes", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Notes ?? DBNull.Value });
+            if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, "product.details_changed", productId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
     }
@@ -244,7 +267,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
                 SELECT p.id, p.parent_id, p.kind FROM places p JOIN chain ON p.id = chain.parent_id WHERE p.tenant_id = @tenant
             ),
             city AS (SELECT id FROM chain WHERE kind = 'city' LIMIT 1)
-            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id
+            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id, p.specialty, p.manufacturer, p.expiry_date, p.stock_qty, p.notes
             FROM products p
             LEFT JOIN LATERAL (
                 SELECT r.id, r.price FROM city_prices r
@@ -260,7 +283,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
             command.Parameters.AddWithValue("day", day);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                products.Add(new ProductPriceRow(ReadProduct(reader), reader.IsDBNull(11) ? null : reader.GetDecimal(11), reader.IsDBNull(12) ? null : reader.GetGuid(12)));
+                products.Add(new ProductPriceRow(ReadProduct(reader, 13), reader.IsDBNull(11) ? null : reader.GetDecimal(11), reader.IsDBNull(12) ? null : reader.GetGuid(12)));
         }
         var discounts = new List<DiscountRow>();
         await using (var command = new NpgsqlCommand("""
@@ -286,9 +309,12 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
-    private static ProductDto ReadProduct(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
+    private static ProductDto ReadProduct(NpgsqlDataReader reader, int extra) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
         reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5),
-        reader.GetString(6), reader.GetString(7), reader.GetDecimal(8), reader.GetString(9), reader.GetFieldValue<DateTimeOffset>(10));
+        reader.GetString(6), reader.GetString(7), reader.GetDecimal(8), reader.GetString(9), reader.GetFieldValue<DateTimeOffset>(10),
+        reader.IsDBNull(extra) ? null : reader.GetString(extra), reader.IsDBNull(extra + 1) ? null : reader.GetString(extra + 1),
+        reader.IsDBNull(extra + 2) ? null : reader.GetFieldValue<DateOnly>(extra + 2), reader.IsDBNull(extra + 3) ? null : reader.GetDecimal(extra + 3),
+        reader.IsDBNull(extra + 4) ? null : reader.GetString(extra + 4));
 
     private static void AddFields(NpgsqlCommand command, SaveProductRequest product)
     {
