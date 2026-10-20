@@ -149,7 +149,8 @@ public class CustomerApiIntegrationTests
                 var m47 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0047_customer_doctor_fields.sql"));
                 var m48 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0048_product_details.sql"));
                 var m49 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0049_shift_alert_settings.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49;
+                var m50 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0050_doctors_not_for_sales_rep.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2028,7 +2029,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "102" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16)
+        Assert.Equal(new[] { "107" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -3676,10 +3677,10 @@ public class CustomerApiIntegrationTests
         Assert.Equal(("N261005-DDDD", "Shifa Pharmacy", "Pharmacy", "0751", alley), (created!.Code, created.Name, created.Type, created.Phone, created.PlaceId));
 
         // The same code again is taken: the app tries other codes, and gives up after five
-        var taken = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), _ => 3).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Second", "Doctor", null, null, null, null));
+        var taken = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), _ => 3).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Second", "Wholesaler", null, null, null, null));
         Assert.Equal(LifeDrop.Mobile.Visits.VisitActionResult.Conflict, taken.Create);
         var counter = 0;
-        var retried = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), n => counter++ < 4 ? 3 : 5 % n).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Third", "Doctor", null, null, null, null));
+        var retried = await new LifeDrop.Mobile.Visits.NewCustomerFlow(api, new FixedClock(now), n => counter++ < 4 ? 3 : 5 % n).CreateAsync(new LifeDrop.Mobile.Visits.NewCustomerRequest("Third", "Wholesaler", null, null, null, null));
         Assert.True(retried.Complete);
         Assert.Equal("N261005-FFFF", retried.Code);   // the first attempt reused the taken code, the next one was free
 
@@ -6264,6 +6265,75 @@ public class CustomerApiIntegrationTests
         await reader.NextResultAsync();
         await reader.ReadAsync();
         Assert.Equal(2L, reader.GetInt64(0));
+    }
+
+    [SkippableFact]
+    public async Task Doctors_AreHiddenFromTheSalesRepButEveryOtherCustomerOfTheRegionIsVisible()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sci = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), region = Guid.NewGuid(), team = Guid.NewGuid();
+        Guid pharmacy = Guid.NewGuid(), other = Guid.NewGuid(), doctor = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sci, @t1), (@sup, @t1), (@m, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @sci, id FROM roles WHERE tenant_id = @t1 AND name = 'ScientificRep'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm, @t1, @r, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @tm), (@t1, @rep2, @tm), (@t1, @sup, @tm), (@t1, @sci, @tm);
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id, geom, status) VALUES
+                    (@p, @t1, 'Pharmacy', 'P1', 'Shifa Pharmacy', @r, @rep2, ST_SetSRID(ST_MakePoint(44.01, 36.19), 4326)::geography, 'located'),
+                    (@o, @t1, 'Wholesaler', 'W1', 'Big Wholesaler', @r, NULL, ST_SetSRID(ST_MakePoint(44.02, 36.19), 4326)::geography, 'located'),
+                    (@d, @t1, 'Doctor', 'D1', 'Dr. Ali', @r, @sci, ST_SetSRID(ST_MakePoint(44.03, 36.19), 4326)::geography, 'located');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sci", sci), ("sup", sup), ("m", manager), ("r", region), ("tm", team), ("p", pharmacy), ("o", other), ("d", doctor) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<string> Codes(string path = "/customers") =>
+            string.Join(",", (await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>(path))!.Select(c => c.Code).OrderBy(c => c, StringComparer.Ordinal));
+
+        // The sales rep sees every other customer of the region (also those of colleagues) but no doctor, in the list, the search and the map; the doctor is "not found"
+        As(rep);
+        Assert.Equal("P1,W1", await Codes());
+        Assert.Equal("", await Codes("/customers?q=Dr.%20Ali"));
+        Assert.Equal("P1,W1", await Codes("/customers/map"));
+        await AssertProblemAsync(await client.GetAsync($"/customers/{doctor}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Pharmacy", Code = "D1", Name = "Renamed" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        // and cannot register one, or turn a customer into one
+        await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D2", Name = "Dr. Omar" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new { Type = " doctor ", Code = "D3", Name = "Dr. Omar" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Pharmacy", Code = "P2", Name = "New Pharmacy" })).StatusCode);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{pharmacy}", new { Type = "Doctor", Code = "P1", Name = "Shifa Pharmacy" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // The scientific rep, the supervisor and the sales manager still see the doctor
+        As(sci);
+        Assert.Equal("D1", await Codes());
+        As(sup);
+        Assert.Equal("D1,P1,P2,W1", await Codes());
+        As(manager);
+        Assert.Equal("D1,P1,P2,W1", await Codes());
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D4", Name = "Dr. Sara" })).StatusCode);
     }
 
     // Plan step 4.34: what every default role may open. One user per role calls the list endpoints of the panel; 200 = allowed, 403 = refused. The table is the

@@ -22,12 +22,12 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
             "code" => "c.code COLLATE \"C\" ASC",
             _ => "last_visit ASC NULLS FIRST, c.code COLLATE \"C\" ASC"
         };
-        var scopeFilter = scope.Scope switch
+        var scopeFilter = (scope.Scope switch
         {
             DataScope.Tenant => "TRUE",
             DataScope.Region when scope.RegionId is not null => "(c.owner_user_id = @actor OR c.region_id = @scopeRegion)",
             _ => "c.owner_user_id = @actor"
-        };
+        }) + scope.DoctorFilter("c.type");
         var sql = $"""
             WITH RECURSIVE sub AS (
                 SELECT p.id FROM places p WHERE p.tenant_id = @tenant AND p.id = @place AND p.merged_into IS NULL

@@ -15,12 +15,12 @@ public sealed class PostgresCustomerPriorityStore(NpgsqlDataSource dataSource) :
     public async Task<int> SetAsync(TenantId tenantId, UserId actorId, AccessScope scope, string priority, IReadOnlyList<Guid>? customerIds, Guid? placeId,
         CancellationToken cancellationToken)
     {
-        var scopeFilter = scope.Scope switch
+        var scopeFilter = (scope.Scope switch
         {
             DataScope.Tenant => "TRUE",
             DataScope.Region when scope.RegionId is not null => "(c.owner_user_id = @actor OR c.region_id = @scopeRegion)",
             _ => "c.owner_user_id = @actor"
-        };
+        }) + scope.DoctorFilter("c.type");
         var sql = $"""
             WITH RECURSIVE sub AS (
                 SELECT p.id FROM places p WHERE p.tenant_id = @tenant AND p.id = @place

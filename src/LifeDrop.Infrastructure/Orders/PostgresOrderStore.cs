@@ -172,12 +172,12 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
     }
 
     // Tenant: all; region: the customers of the region, the ones the user owns and the orders the user placed; own: the user's own orders and customers.
-    private static string ScopeFilter(AccessScope scope) => scope.Scope switch
+    private static string ScopeFilter(AccessScope scope) => (scope.Scope switch
     {
         DataScope.Tenant => "TRUE",
         DataScope.Region when scope.RegionId is not null => "(o.created_by = @actor OR c.owner_user_id = @actor OR c.region_id = @scopeRegion)",
         _ => "(o.created_by = @actor OR c.owner_user_id = @actor)"
-    };
+    }) + scope.DoctorFilter("c.type");
 
     private static void AddScope(NpgsqlCommand command, AccessScope scope)
     {
