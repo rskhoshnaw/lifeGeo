@@ -150,7 +150,8 @@ public class CustomerApiIntegrationTests
                 var m48 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0048_product_details.sql"));
                 var m49 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0049_shift_alert_settings.sql"));
                 var m50 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0050_doctors_not_for_sales_rep.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50;
+                var m51 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0051_scientific_rep_doctors.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2029,7 +2030,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "107" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35)
+        Assert.Equal(new[] { "110" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -6329,10 +6330,19 @@ public class CustomerApiIntegrationTests
         // The scientific rep, the supervisor and the sales manager still see the doctor
         As(sci);
         Assert.Equal("D1", await Codes());
+        // The scientific rep registers and edits doctors, and only doctors
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D5", Name = "Dr. Hana" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new { Type = "Pharmacy", Code = "P9", Name = "Not allowed" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal("D1,D5", await Codes());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Doctor", Code = "D1", Name = "Dr. Ali Hassan" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}/doctor", new { ClinicName = "Azadi", Specialty = "ent", Cooperates = true, Dealer = false, CustomerClass = "A" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}/location", new { Latitude = 36.2, Longitude = 44.0, Source = "manual" })).StatusCode);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Pharmacy", Code = "D1", Name = "Dr. Ali Hassan" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{pharmacy}", new { Type = "Doctor", Code = "P1", Name = "Shifa Pharmacy" }), HttpStatusCode.NotFound, "NOT_FOUND");
         As(sup);
-        Assert.Equal("D1,P1,P2,W1", await Codes());
+        Assert.Equal("D1,D5,P1,P2,W1", await Codes());
         As(manager);
-        Assert.Equal("D1,P1,P2,W1", await Codes());
+        Assert.Equal("D1,D5,P1,P2,W1", await Codes());
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D4", Name = "Dr. Sara" })).StatusCode);
     }
 
