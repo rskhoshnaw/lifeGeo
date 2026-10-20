@@ -18,7 +18,9 @@ namespace LifeDrop.Application.Catalog;
 public sealed record ProductDto(Guid Id, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit, string Currency,
     decimal BasePrice, string Status, DateTimeOffset UpdatedAt,
     // Plan step 4.28: specialty key, manufacturer, expiry day, quantity in stock (null = not tracked) and a note. InStock: not tracked or quantity above 0.
-    string? Specialty = null, string? Manufacturer = null, DateOnly? ExpiryDate = null, decimal? StockQty = null, string? Notes = null)
+    string? Specialty = null, string? Manufacturer = null, DateOnly? ExpiryDate = null, decimal? StockQty = null, string? Notes = null,
+    // Plan step 4.40: key of the photo (GET /product-photos/{key}); null = no photo.
+    string? PhotoKey = null)
 {
     public bool InStock => StockQty is null or > 0;
 }
@@ -48,7 +50,10 @@ public sealed record AppliedDiscountDto(Guid Id, string Kind, decimal Value, Gui
 
 // What a customer pays for a product on a day. ListSource: base | city (the general price or the city's price); Price: after the discounts.
 public sealed record EffectivePriceDto(Guid ProductId, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit,
-    string Currency, decimal ListPrice, string ListSource, Guid? CityPriceId, IReadOnlyList<AppliedDiscountDto> Discounts, decimal Price);
+    string Currency, decimal ListPrice, string ListSource, Guid? CityPriceId, IReadOnlyList<AppliedDiscountDto> Discounts, decimal Price,
+    string? PhotoKey = null);
+
+public sealed record ProductPhoto(string ContentType, byte[] Data);
 
 public enum CatalogResult { Success, Forbidden, NotFound, InvalidData, Conflict }
 
@@ -69,6 +74,11 @@ public interface IProductStore
     // Specialty, manufacturer, expiry day, stock and note (plan step 4.28); null clears. False when the product does not exist. Audit product.details_changed.
     Task<bool> SetDetailsAsync(TenantId tenantId, UserId actorId, Guid productId, ProductDetailsRequest details, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    // Plan step 4.40. Set: replaces the photo with a new random key (false = no such product); audit product.photo_changed. Remove: false = no photo. Get: by key, any company.
+    Task<bool> SetPhotoAsync(TenantId tenantId, UserId actorId, Guid productId, ProductPhoto photo, CancellationToken cancellationToken) => throw new NotSupportedException();
+    Task<bool> RemovePhotoAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    Task<ProductPhoto?> GetPhotoAsync(string key, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     Task<IReadOnlyList<CityPriceDto>?> ListCityPricesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken);
     // NotFound: product or city missing. InvalidData: the place is not a city. Conflict: the days overlap another price of the same product and city.
@@ -147,6 +157,36 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
 
     public const int MaxManufacturerLength = 100;
     public const int MaxNotesLength = 500;
+    public const int MaxPhotoBytes = 1_048_576;
+
+    // JPEG, PNG or WEBP by the first bytes (the header the phone sent is not trusted); up to 1 MB. InvalidData otherwise.
+    public static string? PhotoTypeOf(ReadOnlySpan<byte> data)
+    {
+        if (data.Length is 0 or > MaxPhotoBytes) return null;
+        if (data.Length >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return "image/jpeg";
+        if (data.Length >= 8 && data[..8].SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A })) return "image/png";
+        if (data.Length >= 12 && data[..4].SequenceEqual("RIFF"u8) && data[8..12].SequenceEqual("WEBP"u8)) return "image/webp";
+        return null;
+    }
+
+    public async Task<CatalogResult> SetPhotoAsync(TenantId tenantId, UserId actorId, Guid productId, byte[] data, CancellationToken cancellationToken)
+    {
+        if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
+        var type = PhotoTypeOf(data);
+        if (productId == Guid.Empty || type is null) return CatalogResult.InvalidData;
+        return await store.SetPhotoAsync(tenantId, actorId, productId, new ProductPhoto(type, data), cancellationToken) ? CatalogResult.Success : CatalogResult.NotFound;
+    }
+
+    public async Task<CatalogResult> RemovePhotoAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken)
+    {
+        if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
+        if (productId == Guid.Empty) return CatalogResult.InvalidData;
+        return await store.RemovePhotoAsync(tenantId, actorId, productId, cancellationToken) ? CatalogResult.Success : CatalogResult.NotFound;
+    }
+
+    // Public: the key is 32 random hex characters.
+    public Task<ProductPhoto?> GetPhotoAsync(string key, CancellationToken cancellationToken) =>
+        key.Length == 32 && key.All(Uri.IsHexDigit) ? store.GetPhotoAsync(key.ToLowerInvariant(), cancellationToken) : Task.FromResult<ProductPhoto?>(null);
 
     // catalog.manage; an empty text or null clears a field. The quantity has up to three decimals.
     public async Task<CatalogResult> SetDetailsAsync(TenantId tenantId, UserId actorId, Guid productId, ProductDetailsRequest request, CancellationToken cancellationToken)
@@ -229,7 +269,7 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
             var list = row.CityPrice ?? row.Product.BasePrice;
             var (price, applied) = PriceCalculator.Apply(list, row.Product.Id, data.Discounts);
             var p = row.Product;
-            return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price);
+            return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price, p.PhotoKey);
         }).ToList();
         return (CatalogResult.Success, items);
     }

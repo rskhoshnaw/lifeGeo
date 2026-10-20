@@ -62,7 +62,10 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           <tbody>
             {products.data.map((p) => (
               <tr key={p.id} className="border-b">
-                <td className="py-2">{p.code}</td>
+                <td className="py-2">
+                  {p.photoKey && <img src={admin.productPhotoUrl(p.photoKey)} alt="" className="me-2 inline h-8 w-8 rounded border object-cover" />}
+                  {p.code}
+                </td>
                 <td>{p.name}</td>
                 <td>{p.unit}</td>
                 <td>
@@ -131,6 +134,8 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [expiry, setExpiry] = useState(product?.expiryDate ?? '')
   const [stock, setStock] = useState(product?.stockQty == null ? '' : String(product.stockQty))
   const [notes, setNotes] = useState(product?.notes ?? '')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [dropPhoto, setDropPhoto] = useState(false)
   const action = useAction(onDone)
   const field = 'rounded border px-2 py-1'
 
@@ -148,6 +153,8 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
         stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null,
       })
+      if (photo) await admin.setProductPhoto(product.id, photo)
+      else if (dropPhoto && product.photoKey) await admin.removeProductPhoto(product.id)
     })
   }
 
@@ -176,6 +183,19 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
             <input type="date" className={field} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
           </label>
           <input aria-label={t('web.catalog.stock')} placeholder={t('web.catalog.stockHint')} type="number" min={0} step="any" className={field} value={stock} onChange={(e) => setStock(e.target.value)} />
+          <label className="flex items-center gap-1">
+            {t('web.catalog.photo')}
+            <input type="file" accept="image/jpeg,image/png,image/webp" aria-label={t('web.catalog.photo')} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+          </label>
+          {product.photoKey && (
+            <>
+              <img src={admin.productPhotoUrl(product.photoKey)} alt={product.name} className="h-12 w-12 rounded border object-cover" />
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={dropPhoto} onChange={(e) => setDropPhoto(e.target.checked)} />
+                {t('web.catalog.removePhoto')}
+              </label>
+            </>
+          )}
           <input aria-label={t('web.catalog.notes')} placeholder={t('web.catalog.notes')} className={`${field} min-w-56 flex-1`} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       )}

@@ -10,7 +10,7 @@ namespace LifeDrop.Infrastructure.Catalog;
 
 public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProductStore
 {
-    private const string ProductColumns = "id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, stock_qty, notes";
+    private const string ProductColumns = "id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, stock_qty, notes, (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = products.tenant_id AND ph.product_id = products.id)";
 
     public async Task<IReadOnlyList<ProductDto>> ListAsync(TenantId tenantId, bool includeInactive, string? query, CancellationToken cancellationToken)
     {
@@ -95,6 +95,63 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         await AuditAsync(connection, transaction, tenantId, actorId, "product.details_changed", productId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<bool> SetPhotoAsync(TenantId tenantId, UserId actorId, Guid productId, ProductPhoto photo, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM products WHERE tenant_id = @tenant AND id = @id", tenantId, productId, cancellationToken)) return false;
+        await using (var upsert = new NpgsqlCommand("""
+            INSERT INTO product_photos (product_id, tenant_id, photo_key, content_type, data, updated_at) VALUES (@id, @tenant, @key, @type, @data, now())
+            ON CONFLICT (product_id) DO UPDATE SET photo_key = @key, content_type = @type, data = @data, updated_at = now()
+            """, connection, transaction))
+        {
+            upsert.Parameters.AddWithValue("id", productId);
+            upsert.Parameters.AddWithValue("tenant", tenantId.Value);
+            upsert.Parameters.AddWithValue("key", Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant());
+            upsert.Parameters.AddWithValue("type", photo.ContentType);
+            upsert.Parameters.Add(new NpgsqlParameter("data", NpgsqlTypes.NpgsqlDbType.Bytea) { Value = photo.Data });
+            await upsert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await TouchAsync(connection, transaction, tenantId, productId, cancellationToken);
+        await AuditAsync(connection, transaction, tenantId, actorId, "product.photo_changed", productId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> RemovePhotoAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        await using (var delete = new NpgsqlCommand("DELETE FROM product_photos WHERE tenant_id = @tenant AND product_id = @id", connection, transaction))
+        {
+            delete.Parameters.AddWithValue("tenant", tenantId.Value);
+            delete.Parameters.AddWithValue("id", productId);
+            if (await delete.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+        }
+        await TouchAsync(connection, transaction, tenantId, productId, cancellationToken);
+        await AuditAsync(connection, transaction, tenantId, actorId, "product.photo_removed", productId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    // Read by the photo key alone (no company is set: product_photos has no row level security).
+    public async Task<ProductPhoto?> GetPhotoAsync(string key, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT content_type, data FROM product_photos WHERE photo_key = @key", connection);
+        command.Parameters.AddWithValue("key", key);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? new ProductPhoto(reader.GetString(0), reader.GetFieldValue<byte[]>(1)) : null;
+    }
+
+    private static async Task TouchAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, Guid productId, CancellationToken cancellationToken)
+    {
+        await using var touch = new NpgsqlCommand("UPDATE products SET updated_at = now() WHERE tenant_id = @tenant AND id = @id", connection, transaction);
+        touch.Parameters.AddWithValue("tenant", tenantId.Value);
+        touch.Parameters.AddWithValue("id", productId);
+        await touch.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<CityPriceDto>?> ListCityPricesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken)
@@ -267,7 +324,8 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
                 SELECT p.id, p.parent_id, p.kind FROM places p JOIN chain ON p.id = chain.parent_id WHERE p.tenant_id = @tenant
             ),
             city AS (SELECT id FROM chain WHERE kind = 'city' LIMIT 1)
-            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id, p.specialty, p.manufacturer, p.expiry_date, p.stock_qty, p.notes
+            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id, p.specialty, p.manufacturer, p.expiry_date, p.stock_qty, p.notes,
+                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id)
             FROM products p
             LEFT JOIN LATERAL (
                 SELECT r.id, r.price FROM city_prices r
@@ -314,7 +372,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         reader.GetString(6), reader.GetString(7), reader.GetDecimal(8), reader.GetString(9), reader.GetFieldValue<DateTimeOffset>(10),
         reader.IsDBNull(extra) ? null : reader.GetString(extra), reader.IsDBNull(extra + 1) ? null : reader.GetString(extra + 1),
         reader.IsDBNull(extra + 2) ? null : reader.GetFieldValue<DateOnly>(extra + 2), reader.IsDBNull(extra + 3) ? null : reader.GetDecimal(extra + 3),
-        reader.IsDBNull(extra + 4) ? null : reader.GetString(extra + 4));
+        reader.IsDBNull(extra + 4) ? null : reader.GetString(extra + 4), reader.IsDBNull(extra + 5) ? null : reader.GetString(extra + 5));
 
     private static void AddFields(NpgsqlCommand command, SaveProductRequest product)
     {

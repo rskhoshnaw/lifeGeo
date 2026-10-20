@@ -153,7 +153,8 @@ public class CustomerApiIntegrationTests
                 var m51 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0051_scientific_rep_doctors.sql"));
                 var m52 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0052_user_city.sql"));
                 var m53 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0053_device_details.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53;
+                var m54 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0054_product_photos.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -4389,7 +4390,9 @@ public class CustomerApiIntegrationTests
             // Monitors (plan step 3.7): no business data; /metrics answers 404 without Metrics:Token and 401 without the token.
             "GET /health/live", "GET /health/ready", "GET /metrics",
             // Company directory for the app (plan step 4.2): public facts only (name, API address, support phone).
-            "GET /company-config/{code}"
+            "GET /company-config/{code}",
+            // Product pictures (plan step 4.40): fetched by an unguessable random key; a product picture is not private.
+            "GET /product-photos/{key}"
         };
 
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
@@ -4948,6 +4951,43 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
         var all = await Products("?includeInactive=true");
         Assert.Equal(("AMX-250", "Amoxicillin 250 mg", 4m, "inactive"), (all[0].Code, all[0].Name, all[0].BasePrice, all[0].Status));
+        // Photo (plan step 4.40): raw JPEG/PNG/WEBP body up to 1 MB, checked by its first bytes; fetched by its random key without a login; replaced with a new key; removed
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 };
+        var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 9, 9 };
+        ByteArrayContent Image(byte[] bytes, string type = "image/png") { var c = new ByteArrayContent(bytes); c.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(type); return c; }
+        await AssertProblemAsync(await client.PutAsync($"/products/{p1}/photo", Image(new byte[] { 1, 2, 3, 4 })), HttpStatusCode.BadRequest, "INVALID_DATA");   // not an image
+        await AssertProblemAsync(await client.PutAsync($"/products/{p1}/photo", Image(png.Concat(new byte[1_048_577]).ToArray())), HttpStatusCode.BadRequest, "INVALID_DATA");   // too big
+        await AssertProblemAsync(await client.PutAsync($"/products/{Guid.NewGuid()}/photo", Image(png)), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"/products/{p1}/photo", Image(png))).StatusCode);
+        var firstKey = (await Products()).Single(p => p.Code == "PAR-500").PhotoKey;
+        Assert.Matches("^[0-9a-f]{32}$", firstKey!);
+        using (var anonymous = factory.CreateClient())
+        {
+            var fetched = await anonymous.GetAsync($"/product-photos/{firstKey}");
+            Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
+            Assert.Equal("image/png", fetched.Content.Headers.ContentType!.MediaType);
+            Assert.Equal(png, await fetched.Content.ReadAsByteArrayAsync());
+            Assert.Contains("immutable", fetched.Headers.CacheControl!.ToString());
+            Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync($"/product-photos/{new string('a', 32)}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync("/product-photos/short")).StatusCode);
+        }
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"/products/{p1}/photo", Image(jpeg, "application/octet-stream"))).StatusCode);   // the type comes from the bytes
+        var secondKey = (await Products()).Single(p => p.Code == "PAR-500").PhotoKey;
+        Assert.NotEqual(firstKey, secondKey);
+        using (var anonymous = factory.CreateClient())
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync($"/product-photos/{firstKey}")).StatusCode);   // the old picture is gone
+            Assert.Equal("image/jpeg", (await anonymous.GetAsync($"/product-photos/{secondKey}")).Content.Headers.ContentType!.MediaType);
+        }
+        As(repA);
+        await AssertProblemAsync(await client.PutAsync($"/products/{p1}/photo", Image(png)), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.DeleteAsync($"/products/{p1}/photo"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/products/{p1}/photo")).StatusCode);
+        await AssertProblemAsync(await client.DeleteAsync($"/products/{p1}/photo"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Null((await Products()).Single(p => p.Code == "PAR-500").PhotoKey);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"/products/{p1}/photo", Image(png))).StatusCode);   // left on the product for the price list below
+
         // Details (plan step 4.28): saved apart from the main fields, so editing the main fields afterwards keeps them; wrong values are refused; reps cannot change them
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { Specialty = "pediatrics", Manufacturer = " Pioneer ", ExpiryDate = "2027-03-31", StockQty = 12.5m, Notes = "Keep cool" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}", Product(price: 1500m))).StatusCode);
@@ -5068,7 +5108,7 @@ public class CustomerApiIntegrationTests
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.details_changed=2,product.updated=2", reader.GetString(0));
+            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=2", reader.GetString(0));
         }
     }
 

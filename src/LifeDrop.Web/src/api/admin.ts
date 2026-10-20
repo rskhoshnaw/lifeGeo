@@ -276,6 +276,7 @@ export interface Product {
   stockQty?: number | null
   notes?: string | null
   inStock?: boolean
+  photoKey?: string | null
 }
 export interface ProductDetails {
   specialty: string | null
@@ -939,6 +940,12 @@ export class AdminApi {
   products = (includeInactive: boolean, search = '') =>
     this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
   createProduct = (product: ProductInput) => this.post('/products', product)
+  productPhotoUrl = (key: string) => this.api.publicUrl(`/product-photos/${key}`)
+  setProductPhoto = async (id: string, file: Blob) => {
+    const response = await this.api.request(`/products/${id}/photo`, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+    if (!response.ok) throw await toError(response)
+  }
+  removeProductPhoto = (id: string) => this.send('DELETE', `/products/${id}/photo`)
   setProductDetails = (id: string, details: ProductDetails) => this.send('PUT', `/products/${id}/details`, details)
   updateProduct = (id: string, product: ProductInput) => this.send('PUT', `/products/${id}`, product)
   cityPrices = (productId: string) => this.get<CityPrice[]>(`/products/${productId}/city-prices`)
