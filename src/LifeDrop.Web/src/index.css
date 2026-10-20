@@ -287,6 +287,18 @@
   }
 }
 
+/* Phones/tablets: wide tables scroll inside themselves instead of widening the page. */
+@media (max-width: 1023px) {
+  main table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main { overflow-wrap: anywhere; }
+  main :where(select, input[type="text"], input[type="search"], input[type="email"]) { max-width: 100%; }
+}
+
 @media print {
   nav, aside, header { display: none !important; }
 }
