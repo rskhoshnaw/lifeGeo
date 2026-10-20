@@ -7636,5 +7636,59 @@
   "ckb": "داواکاری {number} تۆمارکرا.",
   "ar": "تم تسجيل الطلب {number}.",
   "fa": "سفارش {number} ثبت شد."
+ },
+ "app.customer.doctorName": {
+  "en": "Doctor name",
+  "ckb": "ناوی پزیشک",
+  "ar": "اسم الطبيب",
+  "fa": "نام پزشک"
+ },
+ "app.customer.clinic": {
+  "en": "Clinic / medical complex",
+  "ckb": "ناوی کلینیک / کۆمپلێکسی پزیشکی",
+  "ar": "اسم العيادة / المجمع الطبي",
+  "fa": "نام مطب / مجتمع پزشکی"
+ },
+ "app.customer.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "الاختصاص",
+  "fa": "تخصص"
+ },
+ "app.customer.class": {
+  "en": "Class",
+  "ckb": "پۆل",
+  "ar": "الفئة",
+  "fa": "کلاس"
+ },
+ "app.customer.cooperates": {
+  "en": "Cooperates",
+  "ckb": "هاوکاری دەکات",
+  "ar": "متعاون",
+  "fa": "همکاری می‌کند"
+ },
+ "app.customer.dealer": {
+  "en": "Dealer",
+  "ckb": "Dealer",
+  "ar": "Dealer",
+  "fa": "Dealer"
+ },
+ "app.customer.yes": {
+  "en": "Yes",
+  "ckb": "بەڵێ",
+  "ar": "نعم",
+  "fa": "بله"
+ },
+ "app.customer.no": {
+  "en": "No",
+  "ckb": "نەخێر",
+  "ar": "لا",
+  "fa": "خیر"
+ },
+ "app.customer.notSet": {
+  "en": "Not set",
+  "ckb": "دیاری نەکراوە",
+  "ar": "غير محدد",
+  "fa": "تعیین نشده"
  }
 }

@@ -151,6 +151,39 @@ public class NewCustomerFlowTests
         Assert.Equal(new[] { "create" }, api.Calls.ToArray());
     }
 
+    [Fact]
+    public void TheTypesOfferedFollowThePermissions()
+    {
+        Assert.Equal(NewCustomerFlow.Types, NewCustomerFlow.TypesFor(null));                                   // unknown: everything, the server decides
+        Assert.Equal(NewCustomerFlow.Types, NewCustomerFlow.TypesFor(new[] { "customers.read", "customers.doctors.read" }));
+        Assert.DoesNotContain("Doctor", NewCustomerFlow.TypesFor(new[] { "customers.read", "customers.write" }));   // the sales rep
+        Assert.Equal(new[] { "Doctor" }, NewCustomerFlow.TypesFor(new[] { "customers.doctors.read", "customers.doctors.only", "customers.write" }));   // the scientific rep
+    }
+
+    [Fact]
+    public async Task ADoctorGetsItsDetailsAfterTheCustomerAndOtherTypesGetNone()
+    {
+        var api = new FakeApi();
+        var details = new DoctorDetails(" Azadi Complex ", "ent", true, false, "A+");
+        var outcome = await new NewCustomerFlow(api, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Dr. Ali", "Doctor", null, null, null, null, Doctor: details));
+        Assert.True(outcome.Complete);
+        Assert.Equal(new[] { "create", "doctor" }, api.Calls.ToArray());
+        Assert.Equal(("Azadi Complex", "ent", true, false, "A+"), (api.Doctor!.ClinicName, api.Doctor.Specialty, api.Doctor.Cooperates, api.Doctor.Dealer, api.Doctor.CustomerClass));
+
+        var pharmacy = new FakeApi();
+        await new NewCustomerFlow(pharmacy, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, Doctor: details));
+        Assert.Equal(new[] { "create" }, pharmacy.Calls.ToArray());   // doctor details are for doctors only
+
+        var empty = new FakeApi();
+        await new NewCustomerFlow(empty, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Dr. Omar", "Doctor", null, null, null, null, Doctor: new DoctorDetails(" ", null, null, null, null)));
+        Assert.Equal(new[] { "create" }, empty.Calls.ToArray());
+
+        var failing = new FakeApi { DoctorResult = VisitActionResult.NetworkError };
+        var partial = await new NewCustomerFlow(failing, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Dr. Sara", "Doctor", null, null, null, null, Doctor: details));
+        Assert.False(partial.Complete);   // the customer exists; the user finishes the details
+        Assert.NotNull(partial.CustomerId);
+    }
+
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
@@ -193,6 +226,16 @@ public class NewCustomerFlowTests
             Calls.Add("contact");
             Contact = (contactName, phone2, notes);
             return Task.FromResult(ContactResult);
+        }
+
+        public VisitActionResult DoctorResult { get; set; } = VisitActionResult.Success;
+        public DoctorDetails? Doctor { get; private set; }
+
+        public Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("doctor");
+            Doctor = details;
+            return Task.FromResult(DoctorResult);
         }
 
         public Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default)

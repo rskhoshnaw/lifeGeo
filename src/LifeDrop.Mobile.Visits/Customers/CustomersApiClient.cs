@@ -30,6 +30,19 @@ public sealed record CustomerListItem(Guid Id, string Code, string Name, string 
 // Customers and places for the field user (plan step 1.23-b): edit a customer's profile, register a new customer, pick or add
 // a neighbourhood, street or alley. Answers use VisitActionResult: Conflict = the name or code already exists,
 // InvalidData = refused data, Forbidden = no permission. Online only: nothing is queued.
+// Doctor details of a customer (plan step 4.27-b): all optional. Specialty is one of DoctorOptions.Specialties, CustomerClass one of DoctorOptions.Classes.
+public sealed record DoctorDetails(string? ClinicName, string? Specialty, bool? Cooperates, bool? Dealer, string? CustomerClass)
+{
+    public bool IsEmpty => string.IsNullOrWhiteSpace(ClinicName) && Specialty is null && Cooperates is null && Dealer is null && CustomerClass is null;
+}
+
+public static class DoctorOptions
+{
+    // The texts are specialty.<key> in i18n/strings.json; the same fixed list as the server.
+    public static readonly IReadOnlyList<string> Specialties = ["orthopedics", "neuro_spine", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
+    public static readonly IReadOnlyList<string> Classes = ["A+", "A", "B", "C"];
+}
+
 public interface ICustomersApiClient
 {
     Task<(VisitActionResult Result, CustomerProfile? Customer)> GetCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
@@ -41,6 +54,12 @@ public interface ICustomersApiClient
     Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default);
     // Contact person, second phone and note (plan step 4.15); null or empty clears. Own route, so a client that does not send them never clears them.
     Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // Doctor details (plan step 4.27-b); null clears a field. Own route, like the contact.
+    Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // The permission keys of the signed-in user (GET /me): the form uses them to offer only the customer types the user may register.
+    Task<(VisitActionResult Result, IReadOnlyList<string> Permissions)> GetMyPermissionsAsync(CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     // Customers in the user's area whose name, code or phone matches the text (two characters or more), at most 50.
     Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> SearchCustomersAsync(string search, CancellationToken cancellationToken = default) =>
@@ -97,6 +116,17 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     public async Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/contact", new { contactName, phone2, notes }, cancellationToken)).Result;
+
+    public async Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default) =>
+        (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/doctor",
+            new { clinicName = details.ClinicName, specialty = details.Specialty, cooperates = details.Cooperates, dealer = details.Dealer, customerClass = details.CustomerClass }, cancellationToken)).Result;
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<string> Permissions)> GetMyPermissionsAsync(CancellationToken cancellationToken = default)
+    {
+        var (result, me) = await CallAsync<MeDto>(HttpMethod.Get, "/me", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<string>());
+        return me?.Permissions is null ? (VisitActionResult.ServerError, Array.Empty<string>()) : (result, me.Permissions);
+    }
 
     public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> SearchCustomersAsync(string search, CancellationToken cancellationToken = default)
     {
@@ -156,6 +186,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
         }
     }
 
+    private sealed record MeDto(string[]? Permissions);
     private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath,
         string? ContactName = null, string? Phone2 = null, string? Notes = null);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
