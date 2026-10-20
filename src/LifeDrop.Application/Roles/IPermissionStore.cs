@@ -6,8 +6,12 @@ namespace LifeDrop.Application.Roles;
 public enum DataScope { Own = 0, Region = 1, Tenant = 2 }
 
 // What an actor may reach with one permission (plan step 0.6b). RegionId is the region of the actor's team, if any.
-public sealed record AccessScope(DataScope Scope, UserId ActorId, Guid? RegionId)
+// HideDoctors (plan step 4.35): the user lacks customers.doctors.read (the sales rep), so customers of type Doctor are not theirs to see.
+public sealed record AccessScope(DataScope Scope, UserId ActorId, Guid? RegionId, bool HideDoctors = false)
 {
+    // " AND lower(<column>) <> 'doctor'" for a customer type column when doctors are hidden; nothing otherwise.
+    public string DoctorFilter(string typeColumn) => HideDoctors ? $" AND lower({typeColumn}) <> 'doctor'" : "";
+
     public static AccessScope WholeTenant(UserId actorId) => new(DataScope.Tenant, actorId, null);
 
     // True when this scope reaches the user (userRegion = region of the user's team).

@@ -5,6 +5,8 @@ namespace LifeDrop.Application.Roles;
 public static class PermissionKeys
 {
     public const string CustomersRead = "customers.read";
+    // Plan step 4.35: customers of type Doctor are only for roles that have this (not the sales rep).
+    public const string CustomersDoctorsRead = "customers.doctors.read";
     public const string CustomersWrite = "customers.write";
     public const string CustomersLocationWrite = "customers.location.write";
     public const string CustomersGeofenceWrite = "customers.geofence.write";

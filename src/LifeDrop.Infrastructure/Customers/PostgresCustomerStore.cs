@@ -180,12 +180,12 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
     // Data scope (plan step 0.6b): tenant = all rows (RLS already limits the tenant); region = customers in the
     // region of the actor's team plus customers the actor owns; own = customers the actor owns.
-    private static string ScopeFilter(AccessScope scope) => scope.Scope switch
+    private static string ScopeFilter(AccessScope scope) => (scope.Scope switch
     {
         DataScope.Tenant => "TRUE",
         DataScope.Region when scope.RegionId is not null => "(owner_user_id = @scopeActor OR region_id = @scopeRegion)",
         _ => "owner_user_id = @scopeActor"
-    };
+    }) + scope.DoctorFilter("type");
 
     private static void AddScopeParameters(NpgsqlCommand command, AccessScope scope)
     {

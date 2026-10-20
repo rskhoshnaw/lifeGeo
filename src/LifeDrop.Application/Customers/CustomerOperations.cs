@@ -71,6 +71,9 @@ public interface ICustomerStore
 // as 'pending'; it waits for a sales manager or that region's supervisor and stays owned by the creator.
 public sealed class CreateCustomer(ICustomerStore store, IPermissionStore permissions)
 {
+    // Doctors are only for roles with customers.doctors.read (plan step 4.35); a sales rep cannot register one.
+    public static bool IsDoctor(string? type) => string.Equals(type?.Trim(), "doctor", StringComparison.OrdinalIgnoreCase);
+
     public async Task<(CreateCustomerResult Result, CustomerId Id)> ExecuteAsync(TenantId tenantId, UserId actorId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {
         if (tenantId.IsEmpty || actorId.IsEmpty) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
@@ -79,7 +82,7 @@ public sealed class CreateCustomer(ICustomerStore store, IPermissionStore permis
             return (CreateCustomerResult.InvalidData, CustomerId.Empty);
 
         var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
-        if (scope is null) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
+        if (scope is null || (scope.HideDoctors && IsDoctor(request.Type))) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
         var (_, creatorRegion) = await permissions.GetUserRegionAsync(tenantId, actorId, cancellationToken);
         var region = request.RegionId ?? creatorRegion;
         var pending = scope.Scope != DataScope.Tenant && region is not null && region != creatorRegion;
@@ -357,6 +360,7 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
         if (customerId == Guid.Empty || string.IsNullOrEmpty(type) || string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name) ||
             type.Length > MaxTypeLength || code.Length > MaxCodeLength || name.Length > MaxNameLength)
             return CustomerUpdateResult.InvalidData;
+        if (scope.HideDoctors && CreateCustomer.IsDoctor(type)) return CustomerUpdateResult.Forbidden;
         return await store.EditAsync(tenantId, actorId, new CustomerId(customerId), scope, type, code, name, cancellationToken);
     }
 

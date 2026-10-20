@@ -28,7 +28,9 @@ public sealed class PostgresPermissionStore(NpgsqlDataSource dataSource) : IPerm
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         const string sql = """
-            SELECT max(CASE r.data_scope WHEN 'tenant' THEN 2 WHEN 'region' THEN 1 ELSE 0 END)
+            SELECT max(CASE r.data_scope WHEN 'tenant' THEN 2 WHEN 'region' THEN 1 ELSE 0 END),
+                   NOT EXISTS (SELECT 1 FROM user_roles ur2 JOIN role_permissions rp2 ON rp2.tenant_id = ur2.tenant_id AND rp2.role_id = ur2.role_id
+                               WHERE ur2.tenant_id = @tenantId AND ur2.user_id = @userId AND rp2.permission_key = 'customers.doctors.read')
             FROM user_roles ur
             JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
             JOIN role_permissions rp ON rp.tenant_id = ur.tenant_id AND rp.role_id = ur.role_id
@@ -38,12 +40,18 @@ public sealed class PostgresPermissionStore(NpgsqlDataSource dataSource) : IPerm
         command.Parameters.AddWithValue("tenantId", tenantId.Value);
         command.Parameters.AddWithValue("userId", userId.Value);
         command.Parameters.AddWithValue("permissionKey", permissionKey);
-        var rank = await command.ExecuteScalarAsync(cancellationToken);
-        if (rank is null or DBNull) return null;
+        int rank;
+        bool hideDoctors;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken) || reader.IsDBNull(0)) return null;
+            rank = reader.GetInt32(0);
+            hideDoctors = reader.GetBoolean(1);
+        }
 
-        var scope = (DataScope)Convert.ToInt32(rank);
+        var scope = (DataScope)rank;
         var (_, regionId) = scope == DataScope.Tenant ? (true, null) : await GetUserRegionAsync(tenantId, userId, cancellationToken);
-        return new AccessScope(scope, userId, regionId);
+        return new AccessScope(scope, userId, regionId, hideDoctors);
     }
 
     public async Task<(bool Exists, Guid? RegionId)> GetUserRegionAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
