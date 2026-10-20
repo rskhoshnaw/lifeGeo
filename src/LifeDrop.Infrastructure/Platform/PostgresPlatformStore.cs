@@ -13,14 +13,15 @@ public sealed class PostgresPlatformStore(NpgsqlDataSource dataSource) : IPlatfo
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT t.id, t.code, t.name, t.is_active, count(u.id)::int, (count(u.id) FILTER (WHERE u.is_active))::int
+            SELECT t.id, t.code, t.name, t.is_active, count(u.id)::int, (count(u.id) FILTER (WHERE u.is_active))::int, t.industry, t.hidden_modules, t.text_overrides::text
             FROM tenants t LEFT JOIN users u ON u.tenant_id = t.id
             GROUP BY t.id ORDER BY t.code COLLATE "C"
             """, connection);
         var items = new List<TenantSummaryDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new TenantSummaryDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetBoolean(3), reader.GetInt32(4), reader.GetInt32(5)));
+            items.Add(new TenantSummaryDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetBoolean(3), reader.GetInt32(4), reader.GetInt32(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetFieldValue<string[]>(7), ReadTexts(reader.GetString(8))));
         return items;
     }
 
@@ -66,6 +67,31 @@ public sealed class PostgresPlatformStore(NpgsqlDataSource dataSource) : IPlatfo
         {
             return null;
         }
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions TextJson = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ReadTexts(string json) =>
+        (System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json, TextJson) ?? [])
+            .ToDictionary(kv => kv.Key, kv => (IReadOnlyDictionary<string, string>)kv.Value);
+
+    public async Task<bool> UpdateTenantProfileAsync(UserId actor, Guid tenantId, string? industry, IReadOnlyList<string> hiddenModules,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> textOverrides, string reason, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var update = new NpgsqlCommand("UPDATE tenants SET industry = @industry, hidden_modules = @modules, text_overrides = @texts::jsonb WHERE id = @id", connection, transaction))
+        {
+            update.Parameters.Add(new NpgsqlParameter("industry", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)industry ?? DBNull.Value });
+            update.Parameters.AddWithValue("modules", hiddenModules.ToArray());
+            update.Parameters.AddWithValue("texts", System.Text.Json.JsonSerializer.Serialize(textOverrides, TextJson));
+            update.Parameters.AddWithValue("id", tenantId);
+            if (await update.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+        }
+        await WriteAuditAsync(connection, transaction, actor, "platform.tenant_profile_changed", tenantId, reason,
+            $"industry={industry ?? "default"};hidden={string.Join(',', hiddenModules)};texts={textOverrides.Sum(t => t.Value.Count)}", cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     public async Task<bool> UpdateTenantAsync(UserId actor, Guid tenantId, string? name, bool? isActive, string reason, CancellationToken cancellationToken)

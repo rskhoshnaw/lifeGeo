@@ -103,6 +103,19 @@ public class CompanyDirectoryTests
     public async Task Industry_defaults_to_pharma(string json, string expected) =>
         Assert.Equal(expected, (await Resolve(StubHttpMessageHandler.FromResponse(HttpStatusCode.OK, json))).Config!.Industry);
 
+    [Fact]
+    public async Task The_hidden_modules_and_the_own_wording_of_the_company_are_read()
+    {
+        var found = (await Resolve(StubHttpMessageHandler.FromResponse(HttpStatusCode.OK,
+            """{"tenantCode":"acme","name":"Acme","industry":"food","hiddenModules":["Samples"," warehouse ","samples",""],"texts":{"app.home.customers":{"ckb":"دوکانەکانم","en":"My shops"}}}"""))).Config!;
+        Assert.Equal(new[] { "samples", "warehouse" }, found.HiddenModules!.ToArray());
+        Assert.Equal("My shops", found.Texts!["app.home.customers"]["en"]);
+
+        var plain = (await Resolve(StubHttpMessageHandler.FromResponse(HttpStatusCode.OK, """{"tenantCode":"acme","name":"Acme"}"""))).Config!;
+        Assert.Empty(plain.HiddenModules!);   // an older server sends neither
+        Assert.Empty(plain.Texts!);
+    }
+
     [Theory]
     [InlineData(null, "acme", false)]
     [InlineData("acme", "ACME", false)]

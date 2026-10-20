@@ -33,10 +33,24 @@ public partial class HomePage : ContentPage
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
+        // Parts of the product this company switched off (plan step 4.48) have no button.
+        var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
+        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
+        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
+        ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse"));
+        ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse"));
+        ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
         SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
         RenderShift();
+    }
+
+    // The button and the card around it.
+    private static void ShowButton(Button button, bool show)
+    {
+        button.IsVisible = show;
+        if (button.Parent is VisualElement card) card.IsVisible = show;
     }
 
     private async void OnLanguageClicked(object? sender, EventArgs e) => await AppLanguage.ChooseAsync(this, () => new HomePage());

@@ -158,6 +158,10 @@ public partial class MainPage : ContentPage
         if (config.SupportPhone is { } phone) Preferences.Set("SupportPhone", phone);
         Preferences.Set("Industry", config.Industry);
         Texts.Profile = config.Industry == "food" ? "food" : "";
+        // What the company switched off and its own wording (plan step 4.48); kept for the next run.
+        Preferences.Set("HiddenModules", CompanyModules.Serialize(config.HiddenModules));
+        Preferences.Set("TextOverrides", Texts.OverridesJson(config.Texts));
+        Texts.SetOverrides(config.Texts);
 
         return (new AuthApiClient(new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) }), store);
     }

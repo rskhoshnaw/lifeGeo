@@ -6,7 +6,9 @@ using System.Text.RegularExpressions;
 namespace LifeDrop.Mobile.Auth;
 
 /// <summary>What the app needs to know about a company before sign-in (plan step 4.2).</summary>
-public sealed record CompanyConfig(string TenantCode, string Name, string ApiBaseUrl, string? SupportPhone, string Industry = "pharma");
+public sealed record CompanyConfig(string TenantCode, string Name, string ApiBaseUrl, string? SupportPhone, string Industry = "pharma",
+    // Plan step 4.48: parts of the product this company switched off, and its own wording (text key -> language -> text).
+    IReadOnlyList<string>? HiddenModules = null, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? Texts = null);
 
 public enum CompanyLookupStatus { Found, NotFound, InvalidCode, NotConfigured, InsecureAddress, Unavailable }
 
@@ -67,7 +69,9 @@ public static partial class CompanyDirectory
             }
             return new CompanyLookup(CompanyLookupStatus.Found,
                 new CompanyConfig(body.TenantCode, body.Name, api.GetLeftPart(UriPartial.Authority), string.IsNullOrWhiteSpace(body.SupportPhone) ? null : body.SupportPhone,
-                    string.Equals(body.Industry, "food", StringComparison.OrdinalIgnoreCase) ? "food" : "pharma"));
+                    string.Equals(body.Industry, "food", StringComparison.OrdinalIgnoreCase) ? "food" : "pharma",
+                    (body.HiddenModules ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim().ToLowerInvariant()).Distinct().ToList(),
+                    (body.Texts ?? []).Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => (IReadOnlyDictionary<string, string>)kv.Value)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -92,5 +96,5 @@ public static partial class CompanyDirectory
 
     private static bool IsAllowed(Uri uri, bool allowInsecure) => uri.Scheme == Uri.UriSchemeHttps || (allowInsecure && uri.Scheme == Uri.UriSchemeHttp);
 
-    private sealed record Body(string? TenantCode, string? Name, string? ApiBaseUrl, string? SupportPhone, string? Industry);
+    private sealed record Body(string? TenantCode, string? Name, string? ApiBaseUrl, string? SupportPhone, string? Industry, string[]? HiddenModules = null, Dictionary<string, Dictionary<string, string>>? Texts = null);
 }

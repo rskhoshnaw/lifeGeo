@@ -12,6 +12,7 @@ public static class AppLanguage
     {
         Texts.Language = Preferences.Get(PreferenceKey, Texts.DefaultLanguage);
         Texts.Profile = Preferences.Get("Industry", "") == "food" ? "food" : "";   // wording of the company (plan step 4.3)
+        Texts.SetOverrides(Texts.ParseOverrides(Preferences.Get("TextOverrides", "")));   // the company's own wording (plan step 4.48)
     }
 
     public static FlowDirection Direction => Texts.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;

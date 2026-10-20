@@ -775,6 +775,17 @@ export interface Tenant {
   isActive: boolean
   users: number
   activeUsers: number
+  industry?: string | null
+  hiddenModules?: string[]
+  textOverrides?: Record<string, Partial<Record<'ckb' | 'ar' | 'fa' | 'en', string>>>
+}
+export const companyModules = ['catalog', 'orders', 'payments', 'samples', 'followups', 'warehouse'] as const
+
+export interface TenantProfileInput {
+  industry: string | null
+  hiddenModules: string[]
+  textOverrides: Record<string, Partial<Record<'ckb' | 'ar' | 'fa' | 'en', string>>>
+  reason: string
 }
 export interface TenantAuditEntry {
   id: string
@@ -1077,6 +1088,7 @@ export class AdminApi {
   // Platform (step 3.1): only users of the platform company with platform.tenants.manage / access.
   platformTenants = () => this.get<Tenant[]>('/platform/tenants')
   createTenant = (tenant: { code: string; name: string; managerEmail: string; managerPassword: string }) => this.post('/platform/tenants', tenant)
+  updateTenantProfile = (id: string, profile: TenantProfileInput) => this.send('PUT', `/platform/tenants/${id}/profile`, profile)
   updateTenant = (id: string, change: { name?: string; isActive?: boolean; reason: string }) => this.send('PUT', `/platform/tenants/${id}`, change)
   tenantAudit = (id: string, reason: string, action: string) =>
     this.get<TenantAuditEntry[]>(`/platform/tenants/${id}/audit-logs?reason=${encodeURIComponent(reason)}${action ? `&action=${encodeURIComponent(action)}` : ''}`)

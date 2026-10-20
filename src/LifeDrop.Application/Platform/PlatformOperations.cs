@@ -12,7 +12,22 @@ public static class PlatformTenant
     public const string Code = "platform";
 }
 
-public sealed record TenantSummaryDto(Guid Id, string Code, string Name, bool IsActive, int Users, int ActiveUsers);
+public sealed record TenantSummaryDto(Guid Id, string Code, string Name, bool IsActive, int Users, int ActiveUsers,
+    // Plan step 4.48: the profile of the company (null industry = the server default).
+    string? Industry = null, IReadOnlyList<string>? HiddenModules = null, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? TextOverrides = null);
+
+// The parts of the product a company may switch off (plan step 4.48). The apps and the panel leave out the buttons and tabs of a hidden module; the server's rules and permissions do not change.
+public static class CompanyModules
+{
+    public static readonly IReadOnlyList<string> All = ["catalog", "orders", "payments", "samples", "followups", "warehouse"];
+    public static readonly IReadOnlyList<string> Industries = ["pharma", "food"];
+    public static readonly IReadOnlyList<string> Languages = ["ckb", "ar", "fa", "en"];
+    public const int MaxOverrides = 200;
+    public const int MaxTextLength = 300;
+}
+
+// Industry: pharma | food | null (the server default). HiddenModules: names from CompanyModules.All. TextOverrides: text key -> language -> text (keys "app.…" or "web.…", up to 200 texts).
+public sealed record UpdateTenantProfileRequest(string? Industry, IReadOnlyList<string>? HiddenModules, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? TextOverrides, string? Reason);
 public sealed record CreateTenantRequest(string? Code, string? Name, string? ManagerEmail, string? ManagerPassword);
 public sealed record CreatedTenantDto(Guid Id, string Code, Guid ManagerId);
 public sealed record UpdateTenantRequest(string? Name, bool? IsActive, string? Reason);
@@ -29,6 +44,9 @@ public interface IPlatformStore
     Task<CreatedTenantDto?> CreateTenantAsync(UserId actor, string code, string name, string managerEmail, string managerPassword, CancellationToken cancellationToken);
     // Null when the company does not exist.
     Task<bool> UpdateTenantAsync(UserId actor, Guid tenantId, string? name, bool? isActive, string reason, CancellationToken cancellationToken);
+    // Replaces the profile of the company (industry, hidden modules, wording); false when the company does not exist. Audit platform.tenant_profile_changed.
+    Task<bool> UpdateTenantProfileAsync(UserId actor, Guid tenantId, string? industry, IReadOnlyList<string> hiddenModules, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> textOverrides, string reason, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     // Reads the company's audit log and writes the platform audit row in the same transaction; null when the company does not exist.
     Task<IReadOnlyList<TenantAuditEntryDto>?> ReadTenantAuditAsync(UserId actor, Guid tenantId, string reason, string? action, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyList<PlatformAuditEntryDto>> ListPlatformAuditAsync(Guid? tenantId, int limit, CancellationToken cancellationToken);
@@ -72,6 +90,38 @@ public sealed partial class PlatformService(IPlatformStore store, IPermissionSto
             return PlatformResult.InvalidData;
         if (targetId == PlatformTenant.Id.Value && request.IsActive == false) return PlatformResult.Conflict;   // the platform company never goes off
         return await store.UpdateTenantAsync(actorId, targetId, name, request.IsActive, reason, cancellationToken) ? PlatformResult.Success : PlatformResult.NotFound;
+    }
+
+    [GeneratedRegex(@"^(app|web)\.[A-Za-z0-9_.@-]{1,100}$")]
+    private static partial Regex TextKeyPattern();
+
+    // The profile of a company: nothing is merged, what is sent replaces what was there (send the whole profile).
+    public async Task<PlatformResult> UpdateTenantProfileAsync(TenantId tenantId, UserId actorId, Guid targetId, UpdateTenantProfileRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!await AllowedAsync(tenantId, actorId, ManagePermission, cancellationToken)) return PlatformResult.Forbidden;
+        var reason = request.Reason?.Trim();
+        var industry = string.IsNullOrWhiteSpace(request.Industry) ? null : request.Industry.Trim().ToLowerInvariant();
+        var modules = (request.HiddenModules ?? []).Select(m => m?.Trim().ToLowerInvariant() ?? "").Distinct().OrderBy(m => m, StringComparer.Ordinal).ToList();
+        var texts = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        var count = 0;
+        foreach (var (key, byLanguage) in request.TextOverrides ?? new Dictionary<string, IReadOnlyDictionary<string, string>>())
+        {
+            if (!TextKeyPattern().IsMatch(key ?? "") || byLanguage is null || byLanguage.Count == 0) return PlatformResult.InvalidData;
+            var clean = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (language, text) in byLanguage)
+            {
+                var value = text?.Trim();
+                if (!CompanyModules.Languages.Contains(language) || string.IsNullOrEmpty(value) || value.Length > CompanyModules.MaxTextLength) return PlatformResult.InvalidData;
+                clean[language] = value;
+                count++;
+            }
+            texts[key!] = clean;
+        }
+        if (targetId == Guid.Empty || reason is null || reason.Length is < 5 or > 500 || (industry is not null && !CompanyModules.Industries.Contains(industry)) ||
+            modules.Any(m => !CompanyModules.All.Contains(m)) || count > CompanyModules.MaxOverrides)
+            return PlatformResult.InvalidData;
+        return await store.UpdateTenantProfileAsync(actorId, targetId, industry, modules, texts, reason, cancellationToken) ? PlatformResult.Success : PlatformResult.NotFound;
     }
 
     // The explicit cross-company read: a reason is mandatory and is written to the platform audit before anything is returned.

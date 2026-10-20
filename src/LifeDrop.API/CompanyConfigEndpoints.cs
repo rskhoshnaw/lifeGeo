@@ -19,12 +19,15 @@ public static partial class CompanyConfigEndpoints
             var normalized = (code ?? "").Trim().ToLowerInvariant();
             if (!CodePattern().IsMatch(normalized)) return Results.NotFound();
 
-            await using var command = dataSource.CreateCommand("SELECT code, name FROM tenants WHERE lower(code)=@code AND is_active");
+            await using var command = dataSource.CreateCommand("SELECT code, name, industry, hidden_modules, text_overrides::text FROM tenants WHERE lower(code)=@code AND is_active");
             command.Parameters.AddWithValue("code", normalized);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return Results.NotFound();
             var tenantCode = reader.GetString(0);
             var name = reader.GetString(1);
+            var tenantIndustry = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var hiddenModules = reader.GetFieldValue<string[]>(3);
+            var texts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(reader.GetString(4), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
 
             var apiBaseUrl = configuration[$"CompanyDirectory:{tenantCode}:ApiBaseUrl"];
             if (!string.IsNullOrWhiteSpace(apiBaseUrl) &&
@@ -32,11 +35,13 @@ public static partial class CompanyConfigEndpoints
                 apiBaseUrl = null; // a bad entry must not point the app at an insecure address
             var supportPhone = configuration["Branding:SupportPhone"];
             // Wording profile of the business: "pharma" (default) or "food" (shops and restaurants instead of pharmacies and doctors).
-            var industry = string.Equals(configuration["Company:Industry"], "food", StringComparison.OrdinalIgnoreCase) ? "food" : "pharma";
+            // The company's own setting wins; without one the server's default (Company:Industry) is used.
+            var industry = (tenantIndustry ?? configuration["Company:Industry"])?.ToLowerInvariant() == "food" ? "food" : "pharma";
             return Results.Ok(new CompanyConfigResponse(tenantCode, name, string.IsNullOrWhiteSpace(apiBaseUrl) ? null : apiBaseUrl.TrimEnd('/'),
-                string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone, industry));
+                string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone, industry, hiddenModules, texts));
         }).ExcludeFromDescription();
     }
 
-    public sealed record CompanyConfigResponse(string TenantCode, string Name, string? ApiBaseUrl, string? SupportPhone, string Industry);
+    // HiddenModules and Texts (plan step 4.48): what the company switched off and its own wording (text key -> language -> text).
+    public sealed record CompanyConfigResponse(string TenantCode, string Name, string? ApiBaseUrl, string? SupportPhone, string Industry, string[] HiddenModules, Dictionary<string, Dictionary<string, string>> Texts);
 }

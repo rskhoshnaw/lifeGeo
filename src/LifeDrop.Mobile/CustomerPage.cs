@@ -48,6 +48,12 @@ public sealed class CustomerPage : ContentPage
         _sample.Clicked += async (_, _) => await Navigation.PushAsync(new SamplePage(_customerId, _titleLabel.Text));
         _followUp.Text = Texts.Get("app.followup.new");
         _followUp.Clicked += async (_, _) => await Navigation.PushAsync(new FollowUpPage(_customerId, _titleLabel.Text));
+        // Parts of the product this company switched off (plan step 4.48) have no button.
+        var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
+        _order.IsVisible = CompanyModules.Shows(hidden, "orders");
+        _payment.IsVisible = CompanyModules.Shows(hidden, "payments");
+        _sample.IsVisible = CompanyModules.Shows(hidden, "samples");
+        _followUp.IsVisible = CompanyModules.Shows(hidden, "followups");
         Content = new ScrollView
         {
             Content = new VerticalStackLayout

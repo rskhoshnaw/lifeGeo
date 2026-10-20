@@ -9955,6 +9955,100 @@
         }
       }
     },
+    "/platform/tenants/{tenantId}/profile": {
+      "put": {
+        "tags": [
+          "Platform"
+        ],
+        "operationId": "UpdatePlatformTenantProfile",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/platform/tenants/{tenantId}/audit-logs": {
       "get": {
         "tags": [
@@ -22700,6 +22794,33 @@
               "string"
             ],
             "format": "int32"
+          },
+          "industry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hiddenModules": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "textOverrides": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -22931,6 +23052,50 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "UpdateTenantProfileRequest": {
+        "required": [
+          "industry",
+          "hiddenModules",
+          "textOverrides",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "industry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hiddenModules": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "textOverrides": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

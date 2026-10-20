@@ -35,6 +35,12 @@ export interface Account {
   email: string
 }
 
+export interface CompanyProfile {
+  industry: string
+  hiddenModules: string[]
+  texts: Record<string, Partial<Record<'ckb' | 'ar' | 'fa' | 'en', string>>>
+}
+
 export class ApiClient {
   private readonly baseUrl: string
   private readonly fetcher: typeof fetch
@@ -118,6 +124,19 @@ export class ApiClient {
       throw new SessionExpired()
     }
     return response
+  }
+
+  /** Industry, the parts the company switched off and its own wording, from the public company directory (plan step 4.48); any failure means the defaults. */
+  async companyProfile(tenantCode: string): Promise<CompanyProfile> {
+    const none: CompanyProfile = { industry: 'pharma', hiddenModules: [], texts: {} }
+    try {
+      const response = await this.fetcher(`${this.baseUrl}/company-config/${encodeURIComponent(tenantCode.toLowerCase())}`)
+      if (!response.ok) return none
+      const body = (await response.json()) as { industry?: string; hiddenModules?: string[]; texts?: CompanyProfile['texts'] }
+      return { industry: body.industry === 'food' ? 'food' : 'pharma', hiddenModules: Array.isArray(body.hiddenModules) ? body.hiddenModules : [], texts: body.texts ?? {} }
+    } catch {
+      return none
+    }
   }
 
   /** Wording profile of the company ("food" or "pharma"), read from the public company directory; any failure means the default wording. */

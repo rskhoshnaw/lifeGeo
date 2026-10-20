@@ -37,3 +37,18 @@ describe('texts (plan step 1.21)', () => {
     expect(localStorage.getItem('lifedrop.lang')).toBe('en')
   })
 })
+
+describe('the own wording of a company (plan step 4.48)', () => {
+  it('wins in its language, fills placeholders and leaves other languages alone', async () => {
+    const { setTextOverrides } = await import('./i18n.ts')
+    try {
+      setTextOverrides({ 'web.teams.removeFrom': { en: 'Take {user} out of {team}' } })
+      expect(t('web.teams.removeFrom', { user: 'a@t1', team: 'A' }, 'en')).toBe('Take a@t1 out of A')
+      expect(t('web.teams.removeFrom', { user: 'a@t1', team: 'A' }, 'ckb')).toBe('لابردنی a@t1 لە A')
+      setTextOverrides({ 'web.teams.removeFrom': { en: '  ' } })
+      expect(t('web.teams.removeFrom', { user: 'a@t1', team: 'A' }, 'en')).toBe('Remove a@t1 from A')
+    } finally {
+      setTextOverrides(null)
+    }
+  })
+})

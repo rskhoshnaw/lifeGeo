@@ -42,6 +42,17 @@ public static class PlatformEndpoints
             .WithName("UpdatePlatformTenant").WithTags("Platform").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/platform/tenants/{tenantId:guid}/profile", async (Guid tenantId, UpdateTenantProfileRequest request, HttpContext context, PlatformService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var callerTenant, out var actorId)) return Results.Forbid();
+            var result = await service.UpdateTenantProfileAsync(callerTenant, actorId, tenantId, request, cancellationToken);
+            return result == PlatformResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("UpdatePlatformTenantProfile").WithTags("Platform").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/platform/tenants/{tenantId:guid}/audit-logs", async (Guid tenantId, string? reason, string? action, int? limit, HttpContext context, PlatformService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

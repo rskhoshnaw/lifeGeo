@@ -7840,5 +7840,101 @@
   "ckb": "کۆدی کۆمپانیا و ئیمەیڵەکەم لەسەر ئەم ئامێرە بپارێزە",
   "ar": "تذكّر رمز الشركة والبريد على هذا الجهاز",
   "fa": "کد شرکت و ایمیل من را در این دستگاه به خاطر بسپار"
+ },
+ "web.platform.profile": {
+  "en": "Profile",
+  "ckb": "پڕۆفایل",
+  "ar": "الملف",
+  "fa": "پروفایل"
+ },
+ "web.platform.profileOf": {
+  "en": "Profile of {company}",
+  "ckb": "پڕۆفایلی {company}",
+  "ar": "ملف {company}",
+  "fa": "پروفایل {company}"
+ },
+ "web.platform.industry": {
+  "en": "Business type (wording)",
+  "ckb": "جۆری کار (وشەسازی)",
+  "ar": "نوع العمل (الصياغة)",
+  "fa": "نوع کار (واژگان)"
+ },
+ "web.platform.industryDefault": {
+  "en": "Server default",
+  "ckb": "بنەڕەتی سێرڤەر",
+  "ar": "افتراضي الخادم",
+  "fa": "پیش‌فرض سرور"
+ },
+ "web.platform.industryPharma": {
+  "en": "Pharma (pharmacies and doctors)",
+  "ckb": "دەرمان (دەرمانخانە و پزیشک)",
+  "ar": "أدوية (صيدليات وأطباء)",
+  "fa": "دارو (داروخانه و پزشک)"
+ },
+ "web.platform.industryFood": {
+  "en": "Food (shops and restaurants)",
+  "ckb": "خۆراک (دوکان و چێشتخانە)",
+  "ar": "أغذية (محلات ومطاعم)",
+  "fa": "مواد غذایی (فروشگاه و رستوران)"
+ },
+ "web.platform.hiddenModules": {
+  "en": "Parts this company does not use",
+  "ckb": "بەشەکانی کە ئەم کۆمپانیایە بەکاریان ناهێنێت",
+  "ar": "أجزاء لا تستخدمها هذه الشركة",
+  "fa": "بخش‌هایی که این شرکت استفاده نمی‌کند"
+ },
+ "web.platform.module.catalog": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "web.platform.module.orders": {
+  "en": "Orders",
+  "ckb": "داواکارییەکان",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "web.platform.module.payments": {
+  "en": "Payments",
+  "ckb": "پارەدانەکان",
+  "ar": "المدفوعات",
+  "fa": "پرداخت‌ها"
+ },
+ "web.platform.module.samples": {
+  "en": "Samples",
+  "ckb": "نموونەکان",
+  "ar": "العينات",
+  "fa": "نمونه‌ها"
+ },
+ "web.platform.module.followups": {
+  "en": "Follow-ups",
+  "ckb": "شوێنکەوتنەکان",
+  "ar": "المتابعات",
+  "fa": "پیگیری‌ها"
+ },
+ "web.platform.module.warehouse": {
+  "en": "Warehouse and deliveries",
+  "ckb": "کۆگا و گەیاندن",
+  "ar": "المستودع والتوصيل",
+  "fa": "انبار و تحویل"
+ },
+ "web.platform.wording": {
+  "en": "The company's own wording (one line per text: key | language | text; languages ckb, ar, fa, en)",
+  "ckb": "وشەسازی تایبەتی کۆمپانیا (هەر دێڕێک: کلیل | زمان | دەق؛ زمانەکان ckb, ar, fa, en)",
+  "ar": "صياغة الشركة الخاصة (سطر لكل نص: المفتاح | اللغة | النص)",
+  "fa": "واژگان اختصاصی شرکت (هر خط: کلید | زبان | متن)"
+ },
+ "web.platform.badWording": {
+  "en": "Line {line} of the wording is not \"key | language | text\".",
+  "ckb": "دێڕی {line} لە وشەسازییەکە بە شێوەی «کلیل | زمان | دەق» نییە.",
+  "ar": "السطر {line} ليس بصيغة «المفتاح | اللغة | النص».",
+  "fa": "خط {line} واژگان به شکل «کلید | زبان | متن» نیست."
+ },
+ "web.platform.reason": {
+  "en": "Reason (written to the platform audit)",
+  "ckb": "هۆکار (دەنووسرێت لە ئۆدیتی پلاتفۆرم)",
+  "ar": "السبب (يُسجَّل في تدقيق المنصة)",
+  "fa": "دلیل (در ممیزی پلتفرم ثبت می‌شود)"
  }
 }
