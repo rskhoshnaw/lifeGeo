@@ -55,6 +55,22 @@ public class CustomersApiClientTests
     }
 
     [Fact]
+    public async Task GetCustomer_ReadsTheDoctorDetailsAndEditCustomerSendsTypeCodeAndName()
+    {
+        var (client, recorder) = Create((request, _) => request.Method == HttpMethod.Get
+            ? Json(HttpStatusCode.OK, $$"""{"id":"{{CustomerId}}","type":"Doctor","code":"D-1","name":"Dr. Ali","clinicName":"Azadi Complex","specialty":"ent","cooperates":true,"dealer":null,"customerClass":"A"}""")
+            : new HttpResponseMessage(HttpStatusCode.NoContent));
+        var (_, customer) = await client.GetCustomerAsync(CustomerId);
+        Assert.Equal(("Azadi Complex", "ent", true, null, "A"), (customer!.Doctor!.ClinicName, customer.Doctor.Specialty, customer.Doctor.Cooperates, customer.Doctor.Dealer, customer.Doctor.CustomerClass));
+
+        Assert.Equal(VisitActionResult.Success, await client.EditCustomerAsync(CustomerId, "Doctor", "D-1", "Dr. Ali Hassan"));
+        Assert.Equal(($"/customers/{CustomerId}", HttpMethod.Put), (recorder.Last!.RequestUri!.AbsolutePath, recorder.Last.Method));
+        Assert.Contains("\"name\":\"Dr. Ali Hassan\"", recorder.LastBody);
+        Assert.Contains("\"type\":\"Doctor\"", recorder.LastBody);
+        Assert.Contains("\"code\":\"D-1\"", recorder.LastBody);
+    }
+
+    [Fact]
     public async Task GetCustomer_WorksWithoutProfileFieldsAndRefusesABrokenAnswer()
     {
         var (client, _) = Create((_, _) => Json(HttpStatusCode.OK, $$"""{"id":"{{CustomerId}}","type":"Doctor","code":"D-1","name":"Dr"}"""));
