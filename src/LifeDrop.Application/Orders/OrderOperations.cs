@@ -50,7 +50,8 @@ public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string Cu
 // VisitDetached: an order saved without internet whose visit was cancelled or failed by the time it arrived is placed without the visit (plan step 2.13).
 public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false);
 
-public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked }
+// OutOfStock (plan step 4.41): a product whose stock is tracked has less than the order asks for; nothing is taken.
+public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock }
 
 // Delivery (plan step 2.4). Location: what the phone knows about where it is (all optional; a fake position is refused).
 public sealed record DeliveryLocation(double? Latitude, double? Longitude, double? AccuracyMeters = null, bool IsMocked = false);

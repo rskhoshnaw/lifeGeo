@@ -259,6 +259,7 @@ public static class OrderEndpoints
         OrderResult.CurrencyMismatch => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.CurrencyMismatch),
         OrderResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         OrderResult.CustomerNotApproved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerNotApproved),
+        OrderResult.OutOfStock => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.OutOfStock),
         OrderResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
         OrderResult.GpsMocked => ApiErrors.Problem(StatusCodes.Status422UnprocessableEntity, ApiErrors.GpsMocked),
         _ => Results.Forbid()

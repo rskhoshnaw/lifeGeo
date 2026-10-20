@@ -5113,6 +5113,104 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task OrderStock_IsTakenByAnOrderGivenBackOnCancelAndNeverGoesBelowZero()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), region = Guid.NewGuid(), team = Guid.NewGuid(), customer = Guid.NewGuid(), warehouse = Guid.NewGuid();
+        Guid tracked = Guid.NewGuid(), free = Guid.NewGuid(), empty = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@rep, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm, @t1, @r, 'Team A');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @tm);
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer 1', @r, 'approved');
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w, @t1, 'W1', 'Main');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price, stock_qty) VALUES
+                    (@p1, @t1, 'TRACKED', 'Tracked', 'box', 'IQD', 1000, 10), (@p2, @t1, 'FREE', 'Not tracked', 'box', 'IQD', 500, NULL), (@p3, @t1, 'EMPTY', 'Empty', 'box', 'IQD', 100, 0);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("rep", rep), ("r", region), ("tm", team), ("c", customer), ("w", warehouse), ("p1", tracked), ("p2", free), ("p3", empty) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Place(Guid? clientRef, params (Guid Product, decimal Quantity)[] lines) => client.PostAsJsonAsync("/orders", new
+        {
+            CustomerId = customer, WarehouseId = warehouse, ClientRef = clientRef ?? Guid.NewGuid(), Items = lines.Select(l => new { ProductId = l.Product, l.Quantity }).ToArray()
+        });
+        async Task<decimal?> Stock(Guid product)
+        {
+            var current = As2();
+            return (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products"))!.Single(p => p.Id == product).StockQty;
+            Guid As2() { As(manager); return manager; }
+        }
+        async Task<int> OrderCount() { As(rep); return (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.OrderDto>>("/orders"))!.Count; }
+
+        // An order takes its quantity from a tracked stock; a product without a stock figure is not limited
+        As(rep);
+        var first = Guid.NewGuid();
+        var created = await Place(first, (tracked, 4m), (free, 100m));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var firstOrderId = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!.Id;
+        Assert.Equal((6m, (decimal?)null), (await Stock(tracked), await Stock(free)));
+
+        // The same send again (a retry) takes nothing more
+        As(rep);
+        Assert.Equal(HttpStatusCode.OK, (await Place(first, (tracked, 4m), (free, 100m))).StatusCode);
+        Assert.Equal(6m, await Stock(tracked));
+
+        // Too much, or an empty product: refused with OUT_OF_STOCK, no order, nothing taken (also not from the other lines)
+        As(rep);
+        await AssertProblemAsync(await Place(null, (tracked, 7m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
+        await AssertProblemAsync(await Place(null, (free, 1m), (tracked, 2m), (empty, 1m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
+        Assert.Equal(1, await OrderCount());
+        Assert.Equal(6m, await Stock(tracked));
+
+        // The exact rest is allowed and leaves zero; then nothing more
+        As(rep);
+        Assert.Equal(HttpStatusCode.Created, (await Place(null, (tracked, 6m))).StatusCode);
+        Assert.Equal(0m, await Stock(tracked));
+        As(rep);
+        await AssertProblemAsync(await Place(null, (tracked, 1m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
+
+        // Cancelling gives the quantity back, once
+        As(rep);
+        var orderId = firstOrderId;
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/orders/{orderId}/cancel", new { Reason = "customer changed mind" })).StatusCode);
+        Assert.Equal(4m, await Stock(tracked));
+        As(rep);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/orders/{orderId}/cancel", new { Reason = "again" })).StatusCode);
+        Assert.Equal(4m, await Stock(tracked));
+        Assert.Equal((decimal?)null, await Stock(free));   // untracked stays untracked
+
+        // Two orders at the very same moment for more than is there together: exactly one gets it, the stock never goes below zero
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 10m })).StatusCode);
+        As(rep);
+        var race = await Task.WhenAll(Place(null, (tracked, 6m)), Place(null, (tracked, 6m)), Place(null, (tracked, 6m)));
+        Assert.Equal(new[] { HttpStatusCode.Created, HttpStatusCode.Conflict, HttpStatusCode.Conflict }, race.Select(r => r.StatusCode).OrderBy(c => c).ToArray());
+        Assert.Equal(4m, await Stock(tracked));
+    }
+
+    [SkippableFact]
     public async Task Orders_ServerPricesWarehouseChosenByVisitorScopeCancelAndRetry()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");

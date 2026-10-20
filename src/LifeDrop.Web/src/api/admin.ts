@@ -858,6 +858,7 @@ export function errorMessage(error: unknown): string {
     case 409:
       if (error.code === 'CUSTOMER_NOT_APPROVED') return t('web.error.customerNotApproved')
       if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
+      if (error.code === 'OUT_OF_STOCK') return t('web.error.outOfStock')
       return t('web.error.conflict')
     case 429:
       return t('web.error.tooMany')

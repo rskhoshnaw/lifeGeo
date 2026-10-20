@@ -105,6 +105,26 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         if (warehouseStatus is null) return (OrderResult.NotFound, null);
         if (warehouseStatus != "active") return (OrderResult.InvalidData, null);
 
+        // Plan step 4.41: a product with a tracked stock (stock_qty not null) is locked, checked and reduced by what the order takes, in a fixed order so that two orders never wait on each other.
+        // Nothing is taken when one line is short (the whole transaction is rolled back); a product without a stock figure is not limited.
+        foreach (var taken in order.Lines.GroupBy(l => l.ProductId).OrderBy(g => g.Key))
+        {
+            await using var stock = new NpgsqlCommand("SELECT stock_qty FROM products WHERE tenant_id = @tenant AND id = @product FOR UPDATE", connection, transaction);
+            stock.Parameters.AddWithValue("tenant", tenantId.Value);
+            stock.Parameters.AddWithValue("product", taken.Key);
+            var available = await stock.ExecuteScalarAsync(cancellationToken);
+            if (available is decimal quantity)
+            {
+                var needed = taken.Sum(l => l.Quantity);
+                if (quantity < needed) return (OrderResult.OutOfStock, null);
+                await using var reduce = new NpgsqlCommand("UPDATE products SET stock_qty = stock_qty - @needed, updated_at = now() WHERE tenant_id = @tenant AND id = @product", connection, transaction);
+                reduce.Parameters.AddWithValue("tenant", tenantId.Value);
+                reduce.Parameters.AddWithValue("product", taken.Key);
+                reduce.Parameters.AddWithValue("needed", needed);
+                await reduce.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+
         long number;
         await using (var counter = new NpgsqlCommand("""
             INSERT INTO order_counters (tenant_id, last_number) VALUES (@tenant, 1)
@@ -328,6 +348,17 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             update.Parameters.AddWithValue("tenant", tenantId.Value);
             update.Parameters.AddWithValue("id", orderId);
             await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        // Plan step 4.41: what the order took from a tracked stock goes back.
+        await using (var restore = new NpgsqlCommand("""
+            UPDATE products p SET stock_qty = p.stock_qty + t.qty, updated_at = now()
+            FROM (SELECT product_id, sum(quantity) AS qty FROM order_items WHERE tenant_id = @tenant AND order_id = @id GROUP BY product_id) t
+            WHERE p.tenant_id = @tenant AND p.id = t.product_id AND p.stock_qty IS NOT NULL
+            """, connection, transaction))
+        {
+            restore.Parameters.AddWithValue("tenant", tenantId.Value);
+            restore.Parameters.AddWithValue("id", orderId);
+            await restore.ExecuteNonQueryAsync(cancellationToken);
         }
         await AddHistoryAsync(connection, transaction, tenantId, orderId, "cancelled", actorId, reason, cancellationToken);
         await AuditAsync(connection, transaction, tenantId, actorId, "order.cancelled", orderId, cancellationToken);
