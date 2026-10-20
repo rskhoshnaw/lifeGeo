@@ -7546,5 +7546,95 @@
   "ckb": "نرخەکان لە بەکارهێنەری مەیدان بشارەوە",
   "ar": "إخفاء الأسعار عن المستخدمين الميدانيين",
   "fa": "پنهان‌کردن قیمت از کاربران میدانی"
+ },
+ "app.home.products": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "app.products.title": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "app.products.search": {
+  "en": "Search by code or name",
+  "ckb": "گەڕان بە کۆد یان ناو",
+  "ar": "بحث بالرمز أو الاسم",
+  "fa": "جست‌وجو با کد یا نام"
+ },
+ "app.products.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "الاختصاص",
+  "fa": "تخصص"
+ },
+ "app.products.specialtyAll": {
+  "en": "All specialties",
+  "ckb": "هەموو پسپۆڕییەکان",
+  "ar": "كل الاختصاصات",
+  "fa": "همهٔ تخصص‌ها"
+ },
+ "app.products.manufacturer": {
+  "en": "Manufacturer",
+  "ckb": "کۆمپانیای بەرهەمهێنەر",
+  "ar": "الشركة المصنعة",
+  "fa": "شرکت سازنده"
+ },
+ "app.products.manufacturerAll": {
+  "en": "All manufacturers",
+  "ckb": "هەموو کۆمپانیاکان",
+  "ar": "كل الشركات",
+  "fa": "همهٔ شرکت‌ها"
+ },
+ "app.products.stock": {
+  "en": "Stock",
+  "ckb": "بڕی ماوە",
+  "ar": "المخزون",
+  "fa": "موجودی"
+ },
+ "app.products.stockAll": {
+  "en": "In stock and out of stock",
+  "ckb": "بەردەست و نەماو",
+  "ar": "متوفر وغير متوفر",
+  "fa": "موجود و ناموجود"
+ },
+ "app.products.inStock": {
+  "en": "In stock only",
+  "ckb": "تەنها بەردەست",
+  "ar": "المتوفر فقط",
+  "fa": "فقط موجود"
+ },
+ "app.products.outOfStock": {
+  "en": "Out of stock",
+  "ckb": "نەماوە",
+  "ar": "غير متوفر",
+  "fa": "ناموجود"
+ },
+ "app.products.inStockQty": {
+  "en": "In stock: {qty}",
+  "ckb": "بەردەستە: {qty}",
+  "ar": "متوفر: {qty}",
+  "fa": "موجود: {qty}"
+ },
+ "app.products.expires": {
+  "en": "Expires {date}",
+  "ckb": "بەسەرچوون {date}",
+  "ar": "ينتهي {date}",
+  "fa": "انقضا {date}"
+ },
+ "app.products.none": {
+  "en": "No products match.",
+  "ckb": "هیچ بەرهەمێک نەدۆزرایەوە.",
+  "ar": "لا توجد منتجات مطابقة.",
+  "fa": "محصولی پیدا نشد."
+ },
+ "app.order.placedNoPrice": {
+  "en": "Order {number} placed.",
+  "ckb": "داواکاری {number} تۆمارکرا.",
+  "ar": "تم تسجيل الطلب {number}.",
+  "fa": "سفارش {number} ثبت شد."
  }
 }
