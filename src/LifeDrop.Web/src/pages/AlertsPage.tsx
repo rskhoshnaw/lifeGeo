@@ -166,7 +166,7 @@ function ShiftSettingsForm({ admin, current, onSaved }: { admin: AdminApi; curre
         <input type="number" min={5} max={120} className="w-20 rounded border px-2 py-1" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
       </label>
       <button type="submit" className="rounded border px-3 py-1" disabled={action.busy}>
-        {t('web.catalog.save')}
+        {t('web.places.save')}
       </button>
       {action.error && <span role="alert" className="text-red-700">{action.error}</span>}
     </form>

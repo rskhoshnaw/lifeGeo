@@ -9,7 +9,9 @@ namespace LifeDrop.Application.Users;
 public sealed record CurrentUserDto(Guid Id, string? Email, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
 
 public sealed record UserSummaryDto(Guid Id, string? Email, IReadOnlyList<string> Roles, Guid? TeamId, string? TeamName,
-    Guid? RegionId, int ActiveSessions, bool IsActive);
+    Guid? RegionId, int ActiveSessions, bool IsActive,
+    // Plan step 4.37: city and the platform (android | ios) of the newest phone the user registered.
+    string? City = null, string? PhoneType = null);
 
 public sealed record RoleDto(Guid Id, string Name, string DataScope);
 

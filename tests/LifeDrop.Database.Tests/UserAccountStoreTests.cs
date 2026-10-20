@@ -31,7 +31,7 @@ public class UserAccountStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0052_user_city.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
 
@@ -40,9 +40,13 @@ public class UserAccountStoreTests
             var actor = Guid.NewGuid();
             var otherActor = Guid.NewGuid();
             var rep = Guid.NewGuid();
+            var roleA = Guid.NewGuid();
+            var roleB = Guid.NewGuid();
             await using (var seed = new NpgsqlCommand("""
                 INSERT INTO tenants(id,name,code) VALUES (@tenant,'A','a'),(@other,'B','b');
                 INSERT INTO users(id,tenant_id,email) VALUES (@actor,@tenant,'boss@example.test'),(@rep,@tenant,'rep@example.test'),(@otherActor,@other,'rep@example.test');
+                INSERT INTO roles(id,tenant_id,name) VALUES (@roleA,@tenant,'SalesRep'),(@roleB,@tenant,'Driver');
+                INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES (@tenant,@rep,@roleA),(@tenant,@rep,@roleB);
                 INSERT INTO refresh_tokens(id,family_id,tenant_id,user_id,token_hash,expires_at) VALUES
                     (gen_random_uuid(),gen_random_uuid(),@tenant,@rep,'\x01',now()+interval '1 day'),
                     (gen_random_uuid(),gen_random_uuid(),@other,@otherActor,'\x02',now()+interval '1 day');
@@ -53,6 +57,8 @@ public class UserAccountStoreTests
                 seed.Parameters.AddWithValue("actor", actor);
                 seed.Parameters.AddWithValue("otherActor", otherActor);
                 seed.Parameters.AddWithValue("rep", rep);
+                seed.Parameters.AddWithValue("roleA", roleA);
+                seed.Parameters.AddWithValue("roleB", roleB);
                 await seed.ExecuteNonQueryAsync();
             }
 
@@ -82,8 +88,21 @@ public class UserAccountStoreTests
             Assert.Equal(ManageUserResult.NotFound, await store.SetActiveAsync(t, a, new UserId(otherActor), false, CancellationToken.None));
             Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM users WHERE id = @id AND is_active", otherActor));
 
+            // City (plan step 4.37): set and cleared; another company's user is not reachable.
+            Assert.Equal(ManageUserResult.Done, await store.SetCityAsync(t, a, new UserId(rep), "Erbil", CancellationToken.None));
+            Assert.Equal("Erbil", await Text(connection, "SELECT city FROM users WHERE id = @id", rep));
+            Assert.Equal(ManageUserResult.NotFound, await store.SetCityAsync(t, a, new UserId(otherActor), "Duhok", CancellationToken.None));
+            Assert.Equal(ManageUserResult.Done, await store.SetCityAsync(t, a, new UserId(rep), null, CancellationToken.None));
+            Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM users WHERE id = @id AND city IS NOT NULL", rep));
+
+            // Taking a role away removes only that role; a role the user does not have, or a foreign user, is not found.
+            Assert.Equal(ManageUserResult.Done, await store.RemoveRoleAsync(t, a, new UserId(rep), roleA, CancellationToken.None));
+            Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM user_roles WHERE user_id = @id", rep));
+            Assert.Equal(ManageUserResult.NotFound, await store.RemoveRoleAsync(t, a, new UserId(rep), roleA, CancellationToken.None));
+            Assert.Equal(ManageUserResult.NotFound, await store.RemoveRoleAsync(t, a, new UserId(otherActor), roleB, CancellationToken.None));
+
             // One audit row per success and none for refusals.
-            Assert.Equal(new[] { "user.activated", "user.deactivated", "user.email_changed", "user.password_changed" }, await Actions(connection, rep));
+            Assert.Equal(new[] { "user.activated", "user.city_changed", "user.city_changed", "user.deactivated", "user.email_changed", "user.password_changed", "user.role_removed" }, await Actions(connection, rep));
             Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM audit_logs WHERE entity_id = @id::text", otherActor));
         }
         finally
