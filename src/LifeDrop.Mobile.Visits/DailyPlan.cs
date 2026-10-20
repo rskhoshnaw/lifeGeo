@@ -201,5 +201,6 @@ public sealed class DailyPlan
     public static string StatusLabel(string status) => Texts.Has("app.status." + status) ? Texts.Get("app.status." + status) : status;
 
     public static string TypeLabel(string visitType) =>
-        Texts.Get(visitType is "pharmacy" or "doctor" or "wholesaler" ? "app.type." + visitType : "app.type.other");
+        Texts.Get(visitType is "pharmacy" or "doctor" or "wholesaler" ? "app.type." + visitType
+            : visitType == "medicalassistant" ? "app.type.medical_assistant" : "app.type.other");
 }

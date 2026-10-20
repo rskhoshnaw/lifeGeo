@@ -31,7 +31,7 @@ public class CustomerArchiveStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0043_customer_archive.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0043_customer_archive.sql", "0047_customer_doctor_fields.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
 
@@ -68,6 +68,15 @@ public class CustomerArchiveStoreTests
             Assert.Equal(CustomerUpdateResult.Conflict, await store.EditAsync(t, a, new CustomerId(c1), whole, "clinic", "A-2", "Renamed", CancellationToken.None));
             Assert.Equal("A-9", await InTenant(connection, tenant, $"SELECT code FROM customers WHERE id = '{c1}'"));
 
+            // Doctor details (plan step 4.27): stored and cleared with an audit row; outside the scope or company it is not found; the class is limited by the table.
+            Assert.True(await store.SetDoctorAsync(t, a, new CustomerId(c1), whole, new CustomerDoctorRequest("Azadi Complex", "orthopedics", true, false, "A+"), CancellationToken.None));
+            Assert.Equal("Azadi Complex|orthopedics|true|false|A+", await InTenant(connection, tenant, $"SELECT concat_ws('|', clinic_name, specialty, cooperates::text, is_dealer::text, customer_class) FROM customers WHERE id = '{c1}'"));
+            Assert.False(await store.SetDoctorAsync(t, a, new CustomerId(c1), own, new CustomerDoctorRequest(null, null, null, null, null), CancellationToken.None));
+            Assert.False(await store.SetDoctorAsync(t, a, new CustomerId(foreign), whole, new CustomerDoctorRequest(null, null, null, null, null), CancellationToken.None));
+            await Assert.ThrowsAsync<PostgresException>(() => store.SetDoctorAsync(t, a, new CustomerId(c1), whole, new CustomerDoctorRequest(null, null, null, null, "D"), CancellationToken.None));
+            Assert.True(await store.SetDoctorAsync(t, a, new CustomerId(c1), whole, new CustomerDoctorRequest(null, null, null, null, null), CancellationToken.None));
+            Assert.Equal("0", await InTenant(connection, tenant, $"SELECT count(*) FROM customers WHERE id = '{c1}' AND (clinic_name IS NOT NULL OR specialty IS NOT NULL OR cooperates IS NOT NULL OR customer_class IS NOT NULL)"));
+
             // Archive and restore, each audited; the normal list no longer shows an archived customer.
             Assert.True(await store.SetArchivedAsync(t, a, new CustomerId(c2), whole, true, CancellationToken.None));
             Assert.Equal("1", await InTenant(connection, tenant, $"SELECT count(*) FROM customers WHERE id = '{c2}' AND archived_at IS NOT NULL"));
@@ -76,7 +85,7 @@ public class CustomerArchiveStoreTests
             Assert.True(await store.SetArchivedAsync(t, a, new CustomerId(c2), whole, false, CancellationToken.None));
             Assert.Equal("0", await InTenant(connection, tenant, $"SELECT count(*) FROM customers WHERE id = '{c2}' AND archived_at IS NOT NULL"));
             Assert.Equal("customer.archived,customer.restored", await InTenant(connection, tenant, $"SELECT string_agg(action, ',' ORDER BY action COLLATE \"C\") FROM audit_logs WHERE entity_id = '{c2}'"));
-            Assert.Equal("customer.edited", await InTenant(connection, tenant, $"SELECT string_agg(action, ',') FROM audit_logs WHERE entity_id = '{c1}'"));
+            Assert.Equal("customer.doctor_changed,customer.doctor_changed,customer.edited", await InTenant(connection, tenant, $"SELECT string_agg(action, ',' ORDER BY action COLLATE \"C\") FROM audit_logs WHERE entity_id = '{c1}'"));
         }
         finally
         {

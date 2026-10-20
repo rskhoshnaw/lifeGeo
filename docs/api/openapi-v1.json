@@ -13974,6 +13974,100 @@
         }
       }
     },
+    "/customers/{customerId}/doctor": {
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "SetCustomerDoctor",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerDoctorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/customers/{customerId}/archive": {
       "post": {
         "tags": [
@@ -16302,6 +16396,48 @@
           }
         }
       },
+      "CustomerDoctorRequest": {
+        "required": [
+          "clinicName",
+          "specialty",
+          "cooperates",
+          "dealer",
+          "customerClass"
+        ],
+        "type": "object",
+        "properties": {
+          "clinicName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cooperates": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "dealer": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "customerClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CustomerDto": {
         "required": [
           "id",
@@ -16434,6 +16570,36 @@
             ]
           },
           "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clinicName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cooperates": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "dealer": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "customerClass": {
             "type": [
               "null",
               "string"

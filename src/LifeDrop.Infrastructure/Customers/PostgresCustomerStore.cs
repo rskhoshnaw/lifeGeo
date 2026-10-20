@@ -117,6 +117,17 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             command.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
         }, cancellationToken);
 
+    public async Task<bool> SetDoctorAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, CustomerDoctorRequest details, CancellationToken cancellationToken) =>
+        await UpdateWithAuditAsync(tenantId, actorId, id, scope, "customer.doctor_changed",
+            "clinic_name = @clinic, specialty = @specialty, cooperates = @cooperates, is_dealer = @dealer, customer_class = @class", command =>
+        {
+            command.Parameters.AddWithValue("clinic", (object?)details.ClinicName ?? DBNull.Value);
+            command.Parameters.AddWithValue("specialty", (object?)details.Specialty ?? DBNull.Value);
+            command.Parameters.Add(new NpgsqlParameter("cooperates", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = (object?)details.Cooperates ?? DBNull.Value });
+            command.Parameters.Add(new NpgsqlParameter("dealer", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = (object?)details.Dealer ?? DBNull.Value });
+            command.Parameters.AddWithValue("class", (object?)details.CustomerClass ?? DBNull.Value);
+        }, cancellationToken);
+
     public Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
         ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken, search);
 
@@ -192,7 +203,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
                    UNION ALL
                    SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
                SELECT * FROM chain) a),
-        priority, contact_name, phone2, notes
+        priority, contact_name, phone2, notes, clinic_name, specialty, cooperates, is_dealer, customer_class
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -206,7 +217,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.GetString(13),
         reader.IsDBNull(14) ? null : reader.GetString(14), reader.IsDBNull(15) ? null : reader.GetString(15),
         reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)), reader.GetString(18),
-        reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20), reader.IsDBNull(21) ? null : reader.GetString(21));
+        reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20), reader.IsDBNull(21) ? null : reader.GetString(21),
+        reader.IsDBNull(22) ? null : reader.GetString(22), reader.IsDBNull(23) ? null : reader.GetString(23),
+        reader.IsDBNull(24) ? null : reader.GetBoolean(24), reader.IsDBNull(25) ? null : reader.GetBoolean(25), reader.IsDBNull(26) ? null : reader.GetString(26));
 
     private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

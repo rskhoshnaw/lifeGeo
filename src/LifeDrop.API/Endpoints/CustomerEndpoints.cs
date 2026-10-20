@@ -103,6 +103,17 @@ public static class CustomerEndpoints
             .WithName("SetCustomerContact").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/customers/{customerId:guid}/doctor", async (Guid customerId, CustomerDoctorRequest request, HttpContext context,
+            CustomerEditService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await service.SetDoctorAsync(tenantId, actorId, customerId, request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SetCustomerDoctor").WithTags("Customers").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/customers/{customerId:guid}/archive", async (Guid customerId, HttpContext context,
             CustomerEditService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

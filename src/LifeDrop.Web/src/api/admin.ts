@@ -61,6 +61,11 @@ export interface Customer {
   contactName?: string | null
   phone2?: string | null
   notes?: string | null
+  clinicName?: string | null
+  specialty?: string | null
+  cooperates?: boolean | null
+  dealer?: boolean | null
+  customerClass?: string | null
 }
 
 // A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
@@ -124,6 +129,19 @@ export interface ImportSummary {
   created: number
   skipped: number
 }
+
+export interface CustomerDoctor {
+  clinicName: string | null
+  specialty: string | null
+  cooperates: boolean | null
+  dealer: boolean | null
+  customerClass: string | null
+}
+
+export const doctorSpecialties = ['orthopedics', 'neuro_spine', 'pediatrics', 'women_obstetrics', 'surgery', 'kidney_urology', 'ent', 'other'] as const
+export const doctorClasses = ['A+', 'A', 'B', 'C'] as const
+// Customer types the panel and the app offer; a customer may carry another text (older data), which the editor keeps.
+export const customerTypes = ['Pharmacy', 'MedicalAssistant', 'Doctor', 'Wholesaler', 'Other'] as const
 
 export interface CustomerProfile {
   phone: string | null
@@ -842,6 +860,7 @@ export class AdminApi {
       `/customers?limit=100${archived ? '&archived=true' : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}` +
         (after ? `&cursorCreatedAt=${encodeURIComponent(after.createdAt)}&cursorId=${after.id}` : ''),
     )
+  setCustomerDoctor = (id: string, doctor: CustomerDoctor) => this.send('PUT', `/customers/${id}/doctor`, doctor)
   setCustomerContact = (id: string, contact: { contactName: string | null; phone2: string | null; notes: string | null }) => this.send('PUT', `/customers/${id}/contact`, contact)
   editCustomer = (id: string, details: { type: string; code: string; name: string }) => this.send('PUT', `/customers/${id}`, details)
   archiveCustomer = (id: string) => this.post(`/customers/${id}/archive`)
