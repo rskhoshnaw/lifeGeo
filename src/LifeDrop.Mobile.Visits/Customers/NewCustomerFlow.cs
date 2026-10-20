@@ -30,7 +30,7 @@ public sealed class NewCustomerFlow(ICustomersApiClient api, TimeProvider clock,
     public const int MaxAttempts = 5;
     public const int MaxNameLength = 200;
     public const double MaxLocationAccuracyMeters = 100;
-    public static readonly string[] Types = ["Pharmacy", "Doctor", "Wholesaler", "Other"];
+    public static readonly string[] Types = ["Pharmacy", "MedicalAssistant", "Doctor", "Wholesaler", "Other"];
 
     private readonly Func<int, int> _random = random ?? Random.Shared.Next;
 

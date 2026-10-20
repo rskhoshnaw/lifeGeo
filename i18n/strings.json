@@ -7168,5 +7168,113 @@
   "ckb": "ئێستا نەتوانرا تێلێگرام ببەسترێتەوە. دواتر هەوڵ بدەرەوە.",
   "ar": "تعذّر ربط تيليجرام الآن. حاول لاحقاً.",
   "fa": "اکنون اتصال تلگرام ممکن نشد. بعداً دوباره امتحان کنید."
+ },
+ "app.type.medical_assistant": {
+  "en": "Medical assistant",
+  "ckb": "یاریدەدەری پزیشک",
+  "ar": "معاون طبي",
+  "fa": "دستیار پزشک"
+ },
+ "web.customers.doctorTitle": {
+  "en": "Doctor details",
+  "ckb": "زانیاری پزیشک",
+  "ar": "بيانات الطبيب",
+  "fa": "مشخصات پزشک"
+ },
+ "web.customers.clinic": {
+  "en": "Clinic / medical complex",
+  "ckb": "ناوی کلینیک / کۆمپلێکسی پزیشکی",
+  "ar": "اسم العيادة / المجمع الطبي",
+  "fa": "نام مطب / مجتمع پزشکی"
+ },
+ "web.customers.specialty": {
+  "en": "Specialty",
+  "ckb": "پسپۆڕی",
+  "ar": "الاختصاص",
+  "fa": "تخصص"
+ },
+ "web.customers.cooperates": {
+  "en": "Cooperates",
+  "ckb": "هاوکاری دەکات",
+  "ar": "متعاون",
+  "fa": "همکاری می‌کند"
+ },
+ "web.customers.dealer": {
+  "en": "Dealer",
+  "ckb": "Dealer",
+  "ar": "Dealer",
+  "fa": "Dealer"
+ },
+ "web.customers.class": {
+  "en": "Class",
+  "ckb": "پۆل",
+  "ar": "الفئة",
+  "fa": "کلاس"
+ },
+ "web.customers.yes": {
+  "en": "Yes",
+  "ckb": "بەڵێ",
+  "ar": "نعم",
+  "fa": "بله"
+ },
+ "web.customers.no": {
+  "en": "No",
+  "ckb": "نەخێر",
+  "ar": "لا",
+  "fa": "خیر"
+ },
+ "web.customers.unset": {
+  "en": "Not set",
+  "ckb": "دیاری نەکراوە",
+  "ar": "غير محدد",
+  "fa": "تعیین نشده"
+ },
+ "specialty.orthopedics": {
+  "en": "Orthopedics (bones and joints)",
+  "ckb": "نەشتەرگەری ئێسک و جومگە",
+  "ar": "جراحة العظام والمفاصل",
+  "fa": "ارتوپدی (استخوان و مفاصل)"
+ },
+ "specialty.neuro_spine": {
+  "en": "Neurology and spine",
+  "ckb": "دەمار و پشتێن",
+  "ar": "الأعصاب والعمود الفقري",
+  "fa": "مغز و اعصاب و ستون فقرات"
+ },
+ "specialty.pediatrics": {
+  "en": "Pediatrics",
+  "ckb": "منداڵان",
+  "ar": "طب الأطفال",
+  "fa": "کودکان"
+ },
+ "specialty.women_obstetrics": {
+  "en": "Women and obstetrics",
+  "ckb": "ژنان و منداڵبوون",
+  "ar": "النساء والتوليد",
+  "fa": "زنان و زایمان"
+ },
+ "specialty.surgery": {
+  "en": "General surgery",
+  "ckb": "نەشتەرگەری گشتی",
+  "ar": "الجراحة العامة",
+  "fa": "جراحی عمومی"
+ },
+ "specialty.kidney_urology": {
+  "en": "Kidney and urology",
+  "ckb": "گورچیلە و میزڕێ",
+  "ar": "الكلى والمسالك البولية",
+  "fa": "کلیه و مجاری ادراری"
+ },
+ "specialty.ent": {
+  "en": "Ear, nose and throat",
+  "ckb": "گوێ و لووت و قورگ",
+  "ar": "الأنف والأذن والحنجرة",
+  "fa": "گوش و حلق و بینی"
+ },
+ "specialty.other": {
+  "en": "Other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
  }
 }

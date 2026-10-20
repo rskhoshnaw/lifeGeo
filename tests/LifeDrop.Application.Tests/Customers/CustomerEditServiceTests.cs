@@ -34,6 +34,13 @@ public class CustomerEditServiceTests
             return Task.FromResult(EditResult);
         }
 
+        public bool DoctorResult = true;
+        public Task<bool> SetDoctorAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, CustomerDoctorRequest details, CancellationToken cancellationToken)
+        {
+            Calls.Add($"doctor:{details.ClinicName}|{details.Specialty}|{details.Cooperates}|{details.Dealer}|{details.CustomerClass}");
+            return Task.FromResult(DoctorResult);
+        }
+
         public Task<bool> SetContactAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken)
         {
             Calls.Add($"contact:{contactName}|{phone2}|{notes}");
@@ -121,6 +128,32 @@ public class CustomerEditServiceTests
         Assert.Empty(store.Calls);
         store.ContactResult = false;
         Assert.Equal(CustomerUpdateResult.NotFound, await service.SetContactAsync(Tenant, Actor, Customer, new CustomerContactRequest("a", null, null), CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("Pharmacy", "pharmacy")]
+    [InlineData("MedicalAssistant", "pharmacy")]
+    [InlineData("Doctor", "doctor")]
+    [InlineData("Wholesaler", "wholesaler")]
+    [InlineData("Clinic", "other")]
+    public void A_medical_assistant_is_visited_with_the_pharmacy_form(string customerType, string visitType) =>
+        Assert.Equal(visitType, LifeDrop.Application.Visits.PlanGenerator.VisitTypeOf(customerType));
+
+    [Fact]
+    public async Task Doctor_details_are_trimmed_and_checked_against_the_fixed_lists()
+    {
+        var store = new Store();
+        var service = Service(store, PermissionKeys.CustomersWrite);
+        Assert.Equal(CustomerUpdateResult.Success, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(" Azadi Complex ", "orthopedics", true, false, "A+"), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.Success, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(" ", null, null, null, null), CancellationToken.None));
+        Assert.Equal(new[] { "doctor:Azadi Complex|orthopedics|True|False|A+", "doctor:||||" }, store.Calls.ToArray());
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(null, "dentist", null, null, null), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(null, null, null, null, "D"), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.InvalidData, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(new string('c', CustomerEditService.MaxClinicNameLength + 1), null, null, null, null), CancellationToken.None));
+        Assert.Equal(CustomerUpdateResult.Forbidden, await Service(store, PermissionKeys.CustomersRead).SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(null, null, null, null, null), CancellationToken.None));
+        Assert.Equal(2, store.Calls.Count);
+        store.DoctorResult = false;
+        Assert.Equal(CustomerUpdateResult.NotFound, await service.SetDoctorAsync(Tenant, Actor, Customer, new CustomerDoctorRequest(null, null, null, null, null), CancellationToken.None));
     }
 
     [Theory]

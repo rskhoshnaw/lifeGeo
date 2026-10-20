@@ -32,7 +32,13 @@ public sealed record CustomerDto(
     // Plan step 4.15: the person to talk to, a second phone and a note.
     string? ContactName = null,
     string? Phone2 = null,
-    string? Notes = null
+    string? Notes = null,
+    // Plan step 4.27: doctor details (clinic, specialty key, cooperates, dealer, class A+|A|B|C).
+    string? ClinicName = null,
+    string? Specialty = null,
+    bool? Cooperates = null,
+    bool? Dealer = null,
+    string? CustomerClass = null
 )
 {
     // PRD §6.1: default check-in radius when the customer has no own radius.

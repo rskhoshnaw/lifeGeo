@@ -10,6 +10,14 @@ public class NewCustomerFlowTests
     private static DeviceFix Fix(double accuracy = 8) => new(36.19, 44.01, accuracy, Now, false);
 
     [Fact]
+    public void MedicalAssistant_IsOfferedAndHasItsOwnLabel()
+    {
+        Assert.Contains("MedicalAssistant", NewCustomerFlow.Types);
+        Assert.Equal("Medical assistant", DailyPlan.TypeLabel("medicalassistant"));
+        Assert.Equal("Other", DailyPlan.TypeLabel("something"));
+    }
+
+    [Fact]
     public void Generate_MakesAReadableCodeFromTheDayAndFourSafeCharacters()
     {
         var next = new Queue<int>([0, 1, 2, 30]);

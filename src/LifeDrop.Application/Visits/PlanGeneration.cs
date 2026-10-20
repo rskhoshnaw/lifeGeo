@@ -101,7 +101,7 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
     // The visit type that fits a customer type (Pharmacy, Doctor, Wholesaler; anything else is "other").
     public static string VisitTypeOf(string customerType) => customerType.ToLowerInvariant() switch
     {
-        "pharmacy" => "pharmacy",
+        "pharmacy" or "medicalassistant" => "pharmacy",
         "doctor" => "doctor",
         "wholesaler" => "wholesaler",
         _ => "other"

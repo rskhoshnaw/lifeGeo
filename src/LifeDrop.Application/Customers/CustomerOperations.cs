@@ -31,6 +31,9 @@ public interface ICustomerStore
     // Contact person, second phone and note (plan step 4.15); null clears. false when the customer is not in the actor's scope. Audit customer.contact_changed.
     Task<bool> SetContactAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+    // Doctor details (plan step 4.27); null clears. false when the customer is not in the actor's scope. Audit customer.doctor_changed.
+    Task<bool> SetDoctorAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, CustomerDoctorRequest details, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     // Active customers whose name, code or phone matches the text (plan step 4.15).
     Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -322,6 +325,14 @@ public sealed class CustomerProfileService(ICustomerStore store, IPermissionStor
 
 public sealed record EditCustomerRequest(string? Type, string? Code, string? Name);
 public sealed record CustomerContactRequest(string? ContactName, string? Phone2, string? Notes);
+public sealed record CustomerDoctorRequest(string? ClinicName, string? Specialty, bool? Cooperates, bool? Dealer, string? CustomerClass);
+
+// The fixed list of doctor specialties (plan step 4.27); the texts are `specialty.<key>` in i18n/strings.json.
+public static class DoctorSpecialties
+{
+    public static readonly IReadOnlyList<string> Keys = ["orthopedics", "neuro_spine", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
+    public static readonly IReadOnlyList<string> Classes = ["A+", "A", "B", "C"];
+}
 
 // Renaming, recoding and archiving customers from the panel (plan step 4.11). Editing needs customers.write, archiving and restoring customers.approve
 // (a manager or supervisor), each within the actor's data scope. A customer is never deleted: visits, orders, payments and reports keep referring to it.
@@ -333,6 +344,7 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
     public const int MaxContactNameLength = 100;
     public const int MaxPhone2Length = 40;
     public const int MaxNotesLength = 500;
+    public const int MaxClinicNameLength = 150;
 
     public async Task<CustomerUpdateResult> EditAsync(TenantId tenantId, UserId actorId, Guid customerId, EditCustomerRequest request, CancellationToken cancellationToken)
     {
@@ -359,6 +371,23 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
         var notes = Clean(request.Notes);
         if (customerId == Guid.Empty || contact?.Length > MaxContactNameLength || phone2?.Length > MaxPhone2Length || notes?.Length > MaxNotesLength) return CustomerUpdateResult.InvalidData;
         return await store.SetContactAsync(tenantId, actorId, new CustomerId(customerId), scope, contact, phone2, notes, cancellationToken)
+            ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
+    }
+
+    // Doctor details, by whoever may edit the customer (customers.write within the data scope). Empty text / null clears a field.
+    public async Task<CustomerUpdateResult> SetDoctorAsync(TenantId tenantId, UserId actorId, Guid customerId, CustomerDoctorRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
+        if (scope is null) return CustomerUpdateResult.Forbidden;
+        var clinic = Clean(request.ClinicName);
+        var specialty = Clean(request.Specialty);
+        var customerClass = Clean(request.CustomerClass);
+        if (customerId == Guid.Empty || clinic?.Length > MaxClinicNameLength || (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) ||
+            (customerClass is not null && !DoctorSpecialties.Classes.Contains(customerClass)))
+            return CustomerUpdateResult.InvalidData;
+        return await store.SetDoctorAsync(tenantId, actorId, new CustomerId(customerId), scope,
+                new CustomerDoctorRequest(clinic, specialty, request.Cooperates, request.Dealer, customerClass), cancellationToken)
             ? CustomerUpdateResult.Success : CustomerUpdateResult.NotFound;
     }
 
