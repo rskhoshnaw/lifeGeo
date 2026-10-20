@@ -37,6 +37,24 @@ public class CustomersApiClientTests
     }
 
     [Fact]
+    public async Task SetDoctor_SendsTheDetailsToTheDoctorRouteAndMyPermissionsAreRead()
+    {
+        var (client, recorder) = Create((_, _) => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var result = await client.SetDoctorAsync(CustomerId, new DoctorDetails("Azadi", "ent", true, null, "A+"));
+        Assert.Equal(VisitActionResult.Success, result);
+        Assert.Equal(($"/customers/{CustomerId}/doctor", HttpMethod.Put), (recorder.Last!.RequestUri!.AbsolutePath, recorder.Last.Method));
+        Assert.Contains("\"clinicName\":\"Azadi\"", recorder.LastBody);
+        Assert.Contains("\"customerClass\":\"A\\u002B\"", recorder.LastBody);   // the encoder writes + as \u002B; the server reads it back as +
+
+        var (me, meRecorder) = Create((_, _) => Json(HttpStatusCode.OK, """{"id":"u1","email":"rep@t1","roles":["SalesRep"],"permissions":["customers.read","customers.write"]}"""));
+        var (permissionsResult, permissions) = await me.GetMyPermissionsAsync();
+        Assert.Equal(VisitActionResult.Success, permissionsResult);
+        Assert.Equal(new[] { "customers.read", "customers.write" }, permissions.ToArray());
+        Assert.Equal("/me", meRecorder.Last!.RequestUri!.AbsolutePath);
+        Assert.Equal(VisitActionResult.ServerError, (await Create((_, _) => Json(HttpStatusCode.OK, "{}")).Client.GetMyPermissionsAsync()).Result);
+    }
+
+    [Fact]
     public async Task GetCustomer_WorksWithoutProfileFieldsAndRefusesABrokenAnswer()
     {
         var (client, _) = Create((_, _) => Json(HttpStatusCode.OK, $$"""{"id":"{{CustomerId}}","type":"Doctor","code":"D-1","name":"Dr"}"""));
