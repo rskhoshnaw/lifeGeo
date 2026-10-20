@@ -6282,7 +6282,7 @@ public class CustomerApiIntegrationTests
 
         var t1 = Guid.NewGuid();
         Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sci = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), region = Guid.NewGuid(), team = Guid.NewGuid();
-        Guid pharmacy = Guid.NewGuid(), other = Guid.NewGuid(), doctor = Guid.NewGuid();
+        Guid pharmacy = Guid.NewGuid(), other = Guid.NewGuid(), doctor = Guid.NewGuid(), ownPharmacy = Guid.NewGuid();
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
@@ -6303,8 +6303,9 @@ public class CustomerApiIntegrationTests
                 INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id, geom, status) VALUES
                     (@p, @t1, 'Pharmacy', 'P1', 'Shifa Pharmacy', @r, @rep2, ST_SetSRID(ST_MakePoint(44.01, 36.19), 4326)::geography, 'located'),
                     (@o, @t1, 'Wholesaler', 'W1', 'Big Wholesaler', @r, NULL, ST_SetSRID(ST_MakePoint(44.02, 36.19), 4326)::geography, 'located'),
-                    (@d, @t1, 'Doctor', 'D1', 'Dr. Ali', @r, @sci, ST_SetSRID(ST_MakePoint(44.03, 36.19), 4326)::geography, 'located');", conn);
-            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sci", sci), ("sup", sup), ("m", manager), ("r", region), ("tm", team), ("p", pharmacy), ("o", other), ("d", doctor) })
+                    (@d, @t1, 'Doctor', 'D1', 'Dr. Ali', @r, @sci, ST_SetSRID(ST_MakePoint(44.03, 36.19), 4326)::geography, 'located'),
+                    (@op, @t1, 'Pharmacy', 'P7', 'Pharmacy given to the scientific rep', @r, @sci, ST_SetSRID(ST_MakePoint(44.04, 36.19), 4326)::geography, 'located');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sci", sci), ("sup", sup), ("m", manager), ("r", region), ("tm", team), ("p", pharmacy), ("o", other), ("d", doctor), ("op", ownPharmacy) })
                 cmd.Parameters.AddWithValue(name, value);
             await cmd.ExecuteNonQueryAsync();
         }
@@ -6316,9 +6317,9 @@ public class CustomerApiIntegrationTests
 
         // The sales rep sees every other customer of the region (also those of colleagues) but no doctor, in the list, the search and the map; the doctor is "not found"
         As(rep);
-        Assert.Equal("P1,W1", await Codes());
+        Assert.Equal("P1,P7,W1", await Codes());
         Assert.Equal("", await Codes("/customers?q=Dr.%20Ali"));
-        Assert.Equal("P1,W1", await Codes("/customers/map"));
+        Assert.Equal("P1,P7,W1", await Codes("/customers/map"));
         await AssertProblemAsync(await client.GetAsync($"/customers/{doctor}"), HttpStatusCode.NotFound, "NOT_FOUND");
         await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Pharmacy", Code = "D1", Name = "Renamed" }), HttpStatusCode.NotFound, "NOT_FOUND");
         // and cannot register one, or turn a customer into one
@@ -6329,20 +6330,23 @@ public class CustomerApiIntegrationTests
 
         // The scientific rep, the supervisor and the sales manager still see the doctor
         As(sci);
-        Assert.Equal("D1", await Codes());
+        Assert.Equal("D1,P7", await Codes());
         // The scientific rep registers and edits doctors, and only doctors
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D5", Name = "Dr. Hana" })).StatusCode);
         await AssertProblemAsync(await client.PostAsJsonAsync("/customers", new { Type = "Pharmacy", Code = "P9", Name = "Not allowed" }), HttpStatusCode.Forbidden, "FORBIDDEN");
-        Assert.Equal("D1,D5", await Codes());
+        Assert.Equal("D1,D5,P7", await Codes());
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Doctor", Code = "D1", Name = "Dr. Ali Hassan" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}/doctor", new { ClinicName = "Azadi", Specialty = "ent", Cooperates = true, Dealer = false, CustomerClass = "A" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/customers/{doctor}/location", new { Latitude = 36.2, Longitude = 44.0, Source = "manual" })).StatusCode);
         await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Pharmacy", Code = "D1", Name = "Dr. Ali Hassan" }), HttpStatusCode.Forbidden, "FORBIDDEN");
         await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{pharmacy}", new { Type = "Doctor", Code = "P1", Name = "Shifa Pharmacy" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        // a pharmacy that is theirs by ownership still cannot be changed: only doctors can
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{ownPharmacy}", new { Type = "Doctor", Code = "P7", Name = "Now a doctor?" }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{ownPharmacy}/contact", new { ContactName = "x" }), HttpStatusCode.NotFound, "NOT_FOUND");
         As(sup);
-        Assert.Equal("D1,D5,P1,P2,W1", await Codes());
+        Assert.Equal("D1,D5,P1,P2,P7,W1", await Codes());
         As(manager);
-        Assert.Equal("D1,D5,P1,P2,W1", await Codes());
+        Assert.Equal("D1,D5,P1,P2,P7,W1", await Codes());
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D4", Name = "Dr. Sara" })).StatusCode);
     }
 
