@@ -44,11 +44,13 @@ public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string Cu
     string WarehouseName, Guid CreatedBy, string? CreatedByEmail, string Status, string Currency, decimal Total, string? Note, string? CancelReason,
     DateTimeOffset CreatedAt, IReadOnlyList<OrderLineDto> Items,
     // Plan step 2.3: the driver who took the order, and its steps (when one order is read).
-    Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null, DeliveryInfo? Delivery = null);
+    Guid? DriverId = null, string? DriverEmail = null, IReadOnlyList<OrderHistoryDto>? History = null, DeliveryInfo? Delivery = null,
+    // Plan step 4.42: the prices are hidden from this reader (every amount is 0).
+    bool PricesHidden = false);
 
 // Replayed: the same ClientRef was sent before and the order that exists is returned.
 // VisitDetached: an order saved without internet whose visit was cancelled or failed by the time it arrived is placed without the visit (plan step 2.13).
-public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false);
+public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false, bool PricesHidden = false);
 
 // OutOfStock (plan step 4.41): a product whose stock is tracked has less than the order asks for; nothing is taken.
 public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock }
@@ -119,8 +121,14 @@ public interface IOrderStore
     Task<bool> HasPlacedOrderForVisitAsync(TenantId tenantId, Guid visitId, CancellationToken cancellationToken);
 }
 
-public sealed class OrderService(IOrderStore store, IProductStore products, IPermissionStore permissions, ICustomerStore customers, IVisitStore visits, TimeProvider clock)
+public sealed class OrderService(IOrderStore store, IProductStore products, IPermissionStore permissions, ICustomerStore customers, IVisitStore visits, TimeProvider clock, PriceVisibility visibility)
 {
+    // Plan step 4.42: a reader who must not see prices gets every amount as 0 (the order itself is unchanged).
+    private static OrderDto Mask(OrderDto order) => order with
+    {
+        Total = 0, PricesHidden = true,
+        Items = order.Items.Select(i => i with { ListPrice = 0, UnitPrice = 0, LineTotal = 0, Discounts = [] }).ToList()
+    };
     public const int MaxLines = 100;
     public const decimal MaxQuantity = 100_000m;
     public const int MaxNoteLength = 500;
@@ -203,7 +211,9 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
 
         var (created, order) = await store.CreateAsync(tenantId, actorId, new NewOrder(customer.Id, request.WarehouseId.Value, visitIdToUse, request.ClientRef.Value, currency,
             lines.Sum(l => l.LineTotal), note, lines), cancellationToken);
-        return (created, order is not null && visitDetached && !order.Replayed ? order with { VisitDetached = true } : order);
+        if (order is not null && visitDetached && !order.Replayed) order = order with { VisitDetached = true };
+        if (order is not null && (await visibility.HiddenForAsync(tenantId, actorId, [request.CustomerId!.Value], cancellationToken)).Contains(request.CustomerId!.Value)) order = order with { Total = 0, PricesHidden = true };
+        return (created, order);
     }
 
     public async Task<(OrderResult Result, OrderDto? Order)> GetAsync(TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
@@ -211,7 +221,8 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.OrdersRead, cancellationToken);
         if (scope is null) return (OrderResult.Forbidden, null);
         var order = orderId == Guid.Empty ? null : await store.GetAsync(tenantId, orderId, scope, cancellationToken);
-        return order is null ? (OrderResult.NotFound, null) : (OrderResult.Success, order);
+        if (order is null) return (OrderResult.NotFound, null);
+        return (OrderResult.Success, (await visibility.HiddenForAsync(tenantId, actorId, [order.CustomerId], cancellationToken)).Contains(order.CustomerId) ? Mask(order) : order);
     }
 
     // Newest first. Before / BeforeId continue after the last row of the previous page.
@@ -223,7 +234,9 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var take = limit ?? 50;
         if (take is < 1 or > 100 || (before is null) != (beforeId is null) || customerId == Guid.Empty || status is not (null or "placed" or "preparing" or "ready" or "handed_over" or "cancelled"))
             return (OrderResult.InvalidData, Array.Empty<OrderDto>());
-        return (OrderResult.Success, await store.ListAsync(tenantId, scope, customerId, status, take, before, beforeId, cancellationToken));
+        var items = await store.ListAsync(tenantId, scope, customerId, status, take, before, beforeId, cancellationToken);
+        var hidden = await visibility.HiddenForAsync(tenantId, actorId, items.Select(o => o.CustomerId).Distinct().ToList(), cancellationToken);
+        return (OrderResult.Success, hidden.Count == 0 ? items : items.Select(o => hidden.Contains(o.CustomerId) ? Mask(o) : o).ToList());
     }
 
     // The sales manager and supervisors (orders.cancel) cancel orders in their area; the creator cancels their own while it is still "placed".

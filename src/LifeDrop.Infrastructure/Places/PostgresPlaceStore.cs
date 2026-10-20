@@ -12,7 +12,7 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
 {
     private const string SelectColumns = """
         p.id, p.parent_id, p.kind, p.name, p.name_ckb, p.name_ar, p.name_en, p.status, p.merged_into,
-        (SELECT count(*)::int FROM places c WHERE c.parent_id = p.id AND c.status = 'active' AND c.merged_into IS NULL)
+        (SELECT count(*)::int FROM places c WHERE c.parent_id = p.id AND c.status = 'active' AND c.merged_into IS NULL), p.hide_prices
         """;
 
     public async Task<IReadOnlyList<PlaceDto>> ListAsync(TenantId tenantId, Guid? parentId, string? kind, string? search, bool includeInactive, int limit,
@@ -266,7 +266,7 @@ public sealed class PostgresPlaceStore(NpgsqlDataSource dataSource) : IPlaceStor
         var items = new List<PlaceDto>();
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new PlaceDto(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
-                Text(reader, 4), Text(reader, 5), Text(reader, 6), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetInt32(9)));
+                Text(reader, 4), Text(reader, 5), Text(reader, 6), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetInt32(9), reader.GetBoolean(10)));
         return items;
     }
 

@@ -73,6 +73,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Places.IPlaceStore, LifeDrop.Infrastructure.Places.PostgresPlaceStore>();
         builder.Services.AddScoped<LifeDrop.Application.Places.PlaceService>();
         builder.Services.AddScoped<LifeDrop.Application.Catalog.IProductStore, LifeDrop.Infrastructure.Catalog.PostgresProductStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Catalog.IPriceVisibilityStore, LifeDrop.Infrastructure.Catalog.PostgresPriceVisibilityStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Catalog.PriceVisibility>();
         builder.Services.AddScoped<LifeDrop.Application.Catalog.CatalogService>();
         builder.Services.AddScoped<LifeDrop.Application.Orders.IOrderStore, LifeDrop.Infrastructure.Orders.PostgresOrderStore>();
         builder.Services.AddScoped<LifeDrop.Application.Orders.OrderService>();
@@ -752,6 +754,7 @@ public partial class Program
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);
         LifeDrop.API.Endpoints.RoleEndpoints.MapRoleEndpoints(app);
+        LifeDrop.API.Endpoints.PriceVisibilityEndpoints.MapPriceVisibilityEndpoints(app);
         LifeDrop.API.Endpoints.VisitEndpoints.MapVisitEndpoints(app);
         LifeDrop.API.Endpoints.CustomerEndpoints.MapCustomerEndpoints(app);
         LifeDrop.API.Endpoints.ShiftEndpoints.MapShiftEndpoints(app);

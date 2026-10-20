@@ -11,7 +11,9 @@ namespace LifeDrop.Application.Places;
 // Kind: city | neighbourhood | street | alley. Status: active | inactive. MergedInto: the place this one was merged into.
 // ChildCount: active places directly below.
 public sealed record PlaceDto(Guid Id, Guid? ParentId, string Kind, string Name, string? NameCkb, string? NameAr, string? NameEn, string Status,
-    Guid? MergedInto = null, int ChildCount = 0);
+    Guid? MergedInto = null, int ChildCount = 0,
+    // Plan step 4.42: prices are hidden from field users for customers in this city.
+    bool HidePrices = false);
 
 // ParentId: null for a city, otherwise the place above (neighbourhood: a city, street: a neighbourhood, alley: a street
 // or a neighbourhood).

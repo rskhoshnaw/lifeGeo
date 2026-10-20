@@ -5,7 +5,7 @@ namespace LifeDrop.Application.Regions;
 
 // Regions and teams (plan step 0.6a, decision D11): each team operates in exactly one region,
 // the sales manager defines regions and assigns them to teams, and a user belongs to at most one team.
-public sealed record RegionDto(Guid Id, string Name, DateTimeOffset CreatedAt);
+public sealed record RegionDto(Guid Id, string Name, DateTimeOffset CreatedAt, bool HidePrices = false);
 public sealed record TeamDto(Guid Id, string Name, Guid RegionId, DateTimeOffset CreatedAt);
 
 public sealed record CreateRegionRequest(string Name);

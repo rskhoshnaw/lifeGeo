@@ -20,7 +20,9 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
     // Plan step 4.28: specialty key, manufacturer, expiry day, quantity in stock (null = not tracked) and a note. InStock: not tracked or quantity above 0.
     string? Specialty = null, string? Manufacturer = null, DateOnly? ExpiryDate = null, decimal? StockQty = null, string? Notes = null,
     // Plan step 4.40: key of the photo (GET /product-photos/{key}); null = no photo.
-    string? PhotoKey = null)
+    string? PhotoKey = null,
+    // Plan step 4.42: the prices are hidden from this reader (the amounts are 0).
+    bool PricesHidden = false)
 {
     public bool InStock => StockQty is null or > 0;
 }
@@ -51,7 +53,8 @@ public sealed record AppliedDiscountDto(Guid Id, string Kind, decimal Value, Gui
 // What a customer pays for a product on a day. ListSource: base | city (the general price or the city's price); Price: after the discounts.
 public sealed record EffectivePriceDto(Guid ProductId, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit,
     string Currency, decimal ListPrice, string ListSource, Guid? CityPriceId, IReadOnlyList<AppliedDiscountDto> Discounts, decimal Price,
-    string? PhotoKey = null);
+    string? PhotoKey = null,
+    bool PricesHidden = false);
 
 public sealed record ProductPhoto(string ContentType, byte[] Data);
 
@@ -116,7 +119,7 @@ public static class PriceCalculator
     }
 }
 
-public sealed partial class CatalogService(IProductStore store, IPermissionStore permissions, ICustomerStore customers, TimeProvider clock)
+public sealed partial class CatalogService(IProductStore store, IPermissionStore permissions, ICustomerStore customers, TimeProvider clock, PriceVisibility visibility)
 {
     public const int MaxCodeLength = 40;
     public const int MaxNameLength = 160;
@@ -135,7 +138,8 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         var inactive = includeInactive && await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken);
         var text = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
         if (text is { Length: > MaxNameLength }) return (CatalogResult.InvalidData, Array.Empty<ProductDto>());
-        return (CatalogResult.Success, await store.ListAsync(tenantId, inactive, text, cancellationToken));
+        var items = await store.ListAsync(tenantId, inactive, text, cancellationToken);
+        return (CatalogResult.Success, await visibility.HiddenWithoutCustomerAsync(tenantId, actorId, cancellationToken) ? items.Select(PriceVisibility.Mask).ToList() : items);
     }
 
     public async Task<(CatalogResult Result, Guid? Id)> CreateAsync(TenantId tenantId, UserId actorId, SaveProductRequest request, CancellationToken cancellationToken)
@@ -271,6 +275,7 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
             var p = row.Product;
             return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price, p.PhotoKey);
         }).ToList();
+        if ((await visibility.HiddenForAsync(tenantId, actorId, [customerId], cancellationToken)).Contains(customerId)) items = items.Select(PriceVisibility.Mask).ToList();
         return (CatalogResult.Success, items);
     }
 

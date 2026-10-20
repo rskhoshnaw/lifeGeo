@@ -123,6 +123,7 @@ export interface Place {
   status: 'active' | 'inactive'
   mergedInto: string | null
   childCount: number
+  hidePrices?: boolean
 }
 
 // Names of one place: the main name and the optional Kurdish, Arabic and English names.
@@ -619,6 +620,7 @@ export interface NewOrderInput {
 export interface Region {
   id: string
   name: string
+  hidePrices?: boolean
 }
 
 export interface Team {
@@ -942,6 +944,8 @@ export class AdminApi {
     this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
   createProduct = (product: ProductInput) => this.post('/products', product)
   productPhotoUrl = (key: string) => this.api.publicUrl(`/product-photos/${key}`)
+  setCityHidePrices = (id: string, hidePrices: boolean) => this.send('PUT', `/places/${id}/hide-prices`, { hidePrices })
+  setRegionHidePrices = (id: string, hidePrices: boolean) => this.send('PUT', `/regions/${id}/hide-prices`, { hidePrices })
   setProductPhoto = async (id: string, file: Blob) => {
     const response = await this.api.request(`/products/${id}/photo`, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
     if (!response.ok) throw await toError(response)
