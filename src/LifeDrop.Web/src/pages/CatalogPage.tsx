@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, can, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
+import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
@@ -53,6 +53,8 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <th>{t('web.catalog.name')}</th>
               <th>{t('web.catalog.unit')}</th>
               <th>{t('web.catalog.basePrice')}</th>
+              <th>{t('web.catalog.specialty')}</th>
+              <th>{t('web.catalog.stock')}</th>
               <th>{t('web.catalog.status')}</th>
               <th />
             </tr>
@@ -66,6 +68,8 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 <td>
                   {money(p.basePrice)} {p.currency}
                 </td>
+                <td>{p.specialty ? t(`specialty.${p.specialty}` as TextKey) : ''}</td>
+                <td>{p.stockQty == null ? '' : p.inStock ? `${t('web.catalog.inStock')} (${money(p.stockQty)})` : t('web.catalog.outOfStock')}</td>
                 <td>{t(`web.catalog.${p.status}`)}</td>
                 <td className="space-x-2 text-end">
                   {canManage && (
@@ -122,6 +126,11 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [currency, setCurrency] = useState<'IQD' | 'USD'>(product?.currency ?? 'IQD')
   const [price, setPrice] = useState(product ? String(product.basePrice) : '')
   const [status, setStatus] = useState<'active' | 'inactive'>(product?.status ?? 'active')
+  const [specialty, setSpecialty] = useState(product?.specialty ?? '')
+  const [maker, setMaker] = useState(product?.manufacturer ?? '')
+  const [expiry, setExpiry] = useState(product?.expiryDate ?? '')
+  const [stock, setStock] = useState(product?.stockQty == null ? '' : String(product.stockQty))
+  const [notes, setNotes] = useState(product?.notes ?? '')
   const action = useAction(onDone)
   const field = 'rounded border px-2 py-1'
 
@@ -132,7 +141,14 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       name: name.trim(), nameCkb: ckb.trim() || null, nameAr: ar.trim() || null, nameEn: en.trim() || null,
       unit: unit.trim(), currency, basePrice: Number(price), status,
     }
-    void action.run(() => (product ? admin.updateProduct(product.id, input) : admin.createProduct({ ...input, code: code.trim() })))
+    void action.run(async () => {
+      if (!product) return admin.createProduct({ ...input, code: code.trim() })
+      await admin.updateProduct(product.id, input)
+      await admin.setProductDetails(product.id, {
+        specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
+        stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null,
+      })
+    })
   }
 
   return (
@@ -146,6 +162,23 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         <input aria-label={t('web.catalog.nameAr')} placeholder={t('web.catalog.nameAr')} className={field} maxLength={160} value={ar} onChange={(e) => setAr(e.target.value)} />
         <input aria-label={t('web.catalog.nameEn')} placeholder={t('web.catalog.nameEn')} className={field} maxLength={160} value={en} onChange={(e) => setEn(e.target.value)} />
       </div>
+      {product && (
+        <div className="flex flex-wrap items-center gap-2">
+          <select aria-label={t('web.catalog.specialty')} className={field} value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
+            <option value="">{t('web.catalog.specialty')}</option>
+            {doctorSpecialties.map((x) => (
+              <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
+            ))}
+          </select>
+          <input aria-label={t('web.catalog.manufacturer')} placeholder={t('web.catalog.manufacturer')} className={field} maxLength={100} value={maker} onChange={(e) => setMaker(e.target.value)} />
+          <label className="flex items-center gap-1">
+            {t('web.catalog.expiry')}
+            <input type="date" className={field} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          </label>
+          <input aria-label={t('web.catalog.stock')} placeholder={t('web.catalog.stockHint')} type="number" min={0} step="any" className={field} value={stock} onChange={(e) => setStock(e.target.value)} />
+          <input aria-label={t('web.catalog.notes')} placeholder={t('web.catalog.notes')} className={`${field} min-w-56 flex-1`} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.catalog.unit')} placeholder={t('web.catalog.unit')} className={field} maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} />
         <select aria-label={t('web.catalog.currency')} className={field} value={currency} onChange={(e) => setCurrency(e.target.value as 'IQD' | 'USD')}>

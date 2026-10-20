@@ -399,6 +399,7 @@ Migration 0024: `products`, permissions `catalog.read` (SalesManager, Supervisor
 | `GET /products?includeInactive=&q=` | `catalog.read` | Active products by code; `includeInactive` only counts for `catalog.manage`; `q` matches code and names (`%` and `_` are plain characters); max 1000 | — |
 | `POST /products` | `catalog.manage` | Body: `code` (1-40, letters, digits, `.` `_` `-`), `name`, optional `nameCkb/Ar/En`, `unit`, `currency`, `basePrice`, `status`. 201 `{id}`; 400; 409 `CONFLICT` for a repeated code | `product.created` |
 | `PUT /products/{id}` | `catalog.manage` | Same fields (the code never changes); 204; 404 | `product.updated` |
+| `PUT /products/{id}/details` | `catalog.manage` | Body `{specialty, manufacturer, expiryDate, stockQty, notes}` (all optional; null/empty clears; specialty from the fixed list; manufacturer ≤100; notes ≤500; stock ≥0 with ≤3 decimals, null = not tracked); 204, 400, 403, 404. `GET /products` now also returns these fields and `inStock` (not tracked or stock above 0). | `product.details_changed` |
 | `GET /products/{id}/city-prices` | `catalog.read` | Newest start first, with `cityName`; 404 | — |
 | `POST /products/{id}/city-prices` | `catalog.manage` | `cityId` (a place of kind city), `price`, `validFrom` (default today, Iraq), `validTo` (empty = open; both days count). 409 when the days overlap a price of the same product and city (checked under a lock on the product); 404 unknown product or city; 400 (also when the place is not a city) | `city_price.created` |
 | `POST /city-prices/{id}/end` | `catalog.manage` | `validTo`: not before the start, not later than an end it has; prices are never deleted | `city_price.ended` |
@@ -528,6 +529,8 @@ Permissions: `alerts.read` (SalesManager, CompanyManager: all; Supervisor: the r
 |---|---|---|---|
 | `GET /alerts?category=&status=&kind=&limit=` | `alerts.read` and/or `alerts.security.read` | Only the categories/areas the caller may see; unhandled first, newest first; limit 1-200 | — |
 | `GET /alerts/count` | same | `{new}` = new alerts the caller may see | — |
+| `GET /settings/shift-alerts` | Any alert reader (`alerts.read` or `alerts.security.read`) | `{shiftWindowHours, stationaryMinutes}` of the company (defaults 3 and 20) | — |
+| `PUT /settings/shift-alerts` | `alerts.handle` with tenant-wide scope (the sales manager); a supervisor gets 403 | Body `{shiftWindowHours 1-12, stationaryMinutes 5-120}`; 204, 400, 403 | `shift_alert_settings.changed` |
 | `GET /alerts/{id}` | same | 404 outside the caller's categories/area | — |
 | `POST /alerts/{id}/seen` | `alerts.handle` | `new` → `seen`; 409 otherwise; 404 outside the area | `alert.seen` |
 | `POST /alerts/{id}/handle` | `alerts.handle` | `{note}` (1-500); `new`/`seen` → `handled`; 409 when handled | `alert.handled` |

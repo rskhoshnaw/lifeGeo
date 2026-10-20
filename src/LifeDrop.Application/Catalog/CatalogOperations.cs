@@ -16,7 +16,14 @@ namespace LifeDrop.Application.Catalog;
 // can get discounts (percentage or amount, on one product or on all). City prices of one product and city never overlap; a price or a
 // discount is ended, not deleted.
 public sealed record ProductDto(Guid Id, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit, string Currency,
-    decimal BasePrice, string Status, DateTimeOffset UpdatedAt);
+    decimal BasePrice, string Status, DateTimeOffset UpdatedAt,
+    // Plan step 4.28: specialty key, manufacturer, expiry day, quantity in stock (null = not tracked) and a note. InStock: not tracked or quantity above 0.
+    string? Specialty = null, string? Manufacturer = null, DateOnly? ExpiryDate = null, decimal? StockQty = null, string? Notes = null)
+{
+    public bool InStock => StockQty is null or > 0;
+}
+
+public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes);
 
 // Code is needed to create and ignored when editing (it never changes). Status: active (default) | inactive.
 public sealed record SaveProductRequest(string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency,
@@ -58,6 +65,10 @@ public interface IProductStore
     Task<Guid?> CreateAsync(TenantId tenantId, UserId actorId, SaveProductRequest product, CancellationToken cancellationToken);
     // False when the product does not exist.
     Task<bool> UpdateAsync(TenantId tenantId, UserId actorId, Guid productId, SaveProductRequest product, CancellationToken cancellationToken);
+
+    // Specialty, manufacturer, expiry day, stock and note (plan step 4.28); null clears. False when the product does not exist. Audit product.details_changed.
+    Task<bool> SetDetailsAsync(TenantId tenantId, UserId actorId, Guid productId, ProductDetailsRequest details, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 
     Task<IReadOnlyList<CityPriceDto>?> ListCityPricesAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken);
     // NotFound: product or city missing. InvalidData: the place is not a city. Conflict: the days overlap another price of the same product and city.
@@ -132,6 +143,25 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
         if (productId == Guid.Empty || Clean(request, out var clean) is { } error && error != CatalogResult.Success) return CatalogResult.InvalidData;
         return await store.UpdateAsync(tenantId, actorId, productId, clean!, cancellationToken) ? CatalogResult.Success : CatalogResult.NotFound;
+    }
+
+    public const int MaxManufacturerLength = 100;
+    public const int MaxNotesLength = 500;
+
+    // catalog.manage; an empty text or null clears a field. The quantity has up to three decimals.
+    public async Task<CatalogResult> SetDetailsAsync(TenantId tenantId, UserId actorId, Guid productId, ProductDetailsRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
+        string? Opt(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        var specialty = Opt(request.Specialty);
+        var manufacturer = Opt(request.Manufacturer);
+        var notes = Opt(request.Notes);
+        if (productId == Guid.Empty || (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) || manufacturer?.Length > MaxManufacturerLength ||
+            notes?.Length > MaxNotesLength || request.StockQty is { } qty && !(qty >= 0 && qty <= MaxPrice && decimal.Round(qty, 3) == qty))
+            return CatalogResult.InvalidData;
+        return await store.SetDetailsAsync(tenantId, actorId, productId, new ProductDetailsRequest(specialty, manufacturer, request.ExpiryDate, request.StockQty, notes), cancellationToken)
+            ? CatalogResult.Success : CatalogResult.NotFound;
     }
 
     public async Task<(CatalogResult Result, IReadOnlyList<CityPriceDto>? Items)> ListCityPricesAsync(TenantId tenantId, UserId actorId, Guid productId, CancellationToken cancellationToken)
