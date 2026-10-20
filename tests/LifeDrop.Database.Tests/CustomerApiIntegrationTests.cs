@@ -154,7 +154,8 @@ public class CustomerApiIntegrationTests
                 var m52 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0052_user_city.sql"));
                 var m53 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0053_device_details.sql"));
                 var m54 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0054_product_photos.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54;
+                var m55 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0055_hide_prices.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2030,10 +2031,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.prices.restricted", "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "110" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36)
+        Assert.Equal(new[] { "112" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36) + catalog.prices.restricted for the two field roles (4.42)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5110,6 +5111,116 @@ public class CustomerApiIntegrationTests
             await reader.ReadAsync();
             Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=2", reader.GetString(0));
         }
+    }
+
+    [SkippableFact]
+    public async Task HidePrices_CityAndRegionTicksHideAmountsFromFieldUsersOnlyEverywherePricesAreShown()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), repA = Guid.NewGuid(), repB = Guid.NewGuid(), regionA = Guid.NewGuid(), regionB = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        Guid kirkuk = Guid.NewGuid(), kirkukHood = Guid.NewGuid(), erbil = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid(), warehouse = Guid.NewGuid(), product = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@ra, @t1), (@rb, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @ra, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rb, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@rga, @t1, 'Region A'), (@rgb, @t1, 'Region B');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @rga, 'Team A'), (@tb, @t1, @rgb, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @ra, @ta), (@t1, @rb, @tb);
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES (@k, @t1, NULL, 'city', 'Kirkuk'), (@kh, @t1, @k, 'neighbourhood', 'Rahimawa'), (@e, @t1, NULL, 'city', 'Erbil');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, place_id, approval_status) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'Kirkuk pharmacy', @rga, @kh, 'approved'),
+                    (@c2, @t1, 'Pharmacy', 'C2', 'Erbil pharmacy', @rga, @e, 'approved'),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'Region B pharmacy', @rgb, @e, 'approved');
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w, @t1, 'W1', 'Main');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES (@p, @t1, 'P1', 'Product', 'box', 'IQD', 1500);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("ra", repA), ("rb", repB), ("rga", regionA), ("rgb", regionB), ("ta", teamA), ("tb", teamB), ("k", kirkuk), ("kh", kirkukHood), ("e", erbil),
+                ("c1", c1), ("c2", c2), ("c3", c3), ("w", warehouse), ("p", product) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<(decimal Price, bool Hidden)> Price(Guid customer)
+        {
+            var prices = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.EffectivePriceDto>>($"/customers/{customer}/prices"))!;
+            return (prices.Single().Price, prices.Single().PricesHidden);
+        }
+        async Task<(decimal Price, bool Hidden)> Listed()
+        {
+            var products = (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products"))!;
+            return (products.Single().BasePrice, products.Single().PricesHidden);
+        }
+        async Task<LifeDrop.Application.Orders.CreatedOrderDto> Order(Guid customer)
+        {
+            var response = await client.PostAsJsonAsync("/orders", new { CustomerId = customer, WarehouseId = warehouse, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = product, Quantity = 2m } } });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!;
+        }
+
+        // Ticking: managers only; only a city can be ticked
+        As(repA);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{kirkuk}/hide-prices", new { HidePrices = true }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/regions/{regionB}/hide-prices", new { HidePrices = true }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{kirkukHood}/hide-prices", new { HidePrices = true }), HttpStatusCode.NotFound, "NOT_FOUND");   // not a city
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{Guid.NewGuid()}/hide-prices", new { HidePrices = true }), HttpStatusCode.NotFound, "NOT_FOUND");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/places/{kirkuk}/hide-prices", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/places/{kirkuk}/hide-prices", new { HidePrices = true })).StatusCode);
+        Assert.True((await client.GetFromJsonAsync<List<LifeDrop.Application.Places.PlaceDto>>("/places?kind=city"))!.Single(p => p.Id == kirkuk).HidePrices);
+
+        // A customer in a ticked city: the field user sees zeros and the flag; other customers and the manager see real prices
+        As(repA);
+        Assert.Equal((0m, true), await Price(c1));
+        Assert.Equal((1500m, false), await Price(c2));
+        Assert.Equal((1500m, false), await Listed());   // without a customer only the user's own region counts
+        var hiddenOrder = await Order(c1);
+        Assert.Equal((0m, true), (hiddenOrder.Total, hiddenOrder.PricesHidden));
+        var visibleOrder = await Order(c2);
+        Assert.Equal((3000m, false), (visibleOrder.Total, visibleOrder.PricesHidden));
+        var read = (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{hiddenOrder.Id}"))!;
+        Assert.Equal((0m, true, 0m, 0m), (read.Total, read.PricesHidden, read.Items.Single().UnitPrice, read.Items.Single().LineTotal));
+        Assert.Equal(2m, read.Items.Single().Quantity);   // the quantity stays
+        var listed = (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.OrderDto>>("/orders"))!;
+        Assert.Equal(new[] { (0m, true), (3000m, false) }, listed.OrderBy(o => o.Total).Select(o => (o.Total, o.PricesHidden)).ToArray());
+        As(manager);
+        Assert.Equal((1500m, false), await Price(c1));
+        Assert.Equal(3000m, (await client.GetFromJsonAsync<LifeDrop.Application.Orders.OrderDto>($"/orders/{hiddenOrder.Id}"))!.Total);
+
+        // A ticked region hides everything from its field users, also the product list and customers of other cities
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/regions/{regionB}/hide-prices", new { HidePrices = true })).StatusCode);
+        Assert.True((await client.GetFromJsonAsync<List<LifeDrop.Application.Regions.RegionDto>>("/regions"))!.Single(r => r.Id == regionB).HidePrices);
+        As(repB);
+        Assert.Equal((0m, true), await Listed());
+        Assert.Equal((0m, true), await Price(c3));
+        As(repA);
+        Assert.Equal((1500m, false), await Listed());   // region A is not ticked
+
+        // Unticking brings the prices back
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/places/{kirkuk}/hide-prices", new { HidePrices = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/regions/{regionB}/hide-prices", new { HidePrices = false })).StatusCode);
+        As(repA);
+        Assert.Equal((1500m, false), await Price(c1));
+        As(repB);
+        Assert.Equal((1500m, false), await Listed());
     }
 
     [SkippableFact]

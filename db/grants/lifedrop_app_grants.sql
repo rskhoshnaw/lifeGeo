@@ -35,3 +35,5 @@ GRANT DELETE ON roles, role_permissions TO lifedrop_app;
 -- (devices already has UPDATE)
 -- Step 4.40: product photos (read by their random key without a company; written by managers).
 GRANT SELECT, INSERT, UPDATE, DELETE ON product_photos TO lifedrop_app;
+-- Step 4.42: a manager ticks "hide prices" on a region.
+GRANT UPDATE ON regions TO lifedrop_app;

@@ -218,6 +218,12 @@ export function PlacesPage({ admin }: { admin: AdminApi }) {
                         >
                           {t(next === 'active' ? 'web.places.activate' : 'web.places.deactivate')}
                         </button>
+                        {place.kind === 'city' && (
+                          <label className="inline-flex items-center gap-1">
+                            <input type="checkbox" checked={!!place.hidePrices} disabled={action.busy} onChange={(e) => void action.run(() => admin.setCityHidePrices(place.id, e.target.checked))} />
+                            {t('web.places.hidePrices')}
+                          </label>
+                        )}
                         {place.status === 'active' && mergeTargets.length > 0 && (
                           <>
                             <select aria-label={t('web.places.mergeTo', { name: place.name })} className="rounded border px-1 py-1" value={mergeInto[place.id] ?? ''} onChange={(e) => setMergeInto({ ...mergeInto, [place.id]: e.target.value })}>

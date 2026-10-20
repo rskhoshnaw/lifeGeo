@@ -442,6 +442,9 @@ Prices: the request carries **no price**. The server takes the general or city p
 | `GET /orders/{id}` | same scope (else 404) | The order with its lines | — |
 | `POST /orders/{id}/cancel` | `orders.read` scope; `orders.cancel` holders cancel any order in scope, the creator cancels their own | `reason` (1-500). 204; 409 when the order is not `placed` any more; 403 for someone who is neither; 404 out of scope | `order.cancelled` |
 | (rule) order stock (step 4.41) | `POST /orders` | A product with a stock figure (`stockQty` not null) is locked and checked: when an order asks for more than is there, nothing is taken and the answer is 409 `OUT_OF_STOCK` (also for stock 0; the whole order is refused); otherwise the quantity is taken. A product without a stock figure is not limited. A retry of the same send takes nothing more. Cancelling (placed, preparing or ready) gives the quantity back once. A failed delivery does not change the stock: the manager corrects it in the product. | `order.created` / `order.cancelled` (stock moves with them) |
+| `PUT /places/{id}/hide-prices` | `places.manage` | Body `{hidePrices}`; only a CITY can be ticked (else 404); 204, 400, 403 | `place.prices_visibility_changed` |
+| `PUT /regions/{id}/hide-prices` | `regions.manage` | Body `{hidePrices}`; 204, 400, 403, 404 | `region.prices_visibility_changed` |
+| (rule) hidden prices (step 4.42) | users with the restriction `catalog.prices.restricted` (SalesRep, ScientificRep); everybody else is unaffected | `GET /products` (own region ticked), `GET /customers/{id}/prices` and the orders (`POST /orders` result, `GET /orders`, `GET /orders/{id}`) show every amount as 0 with `pricesHidden = true` when the customer's city is ticked or the user's own region is ticked; quantities, stock and order creation work as usual | — |
 
 The visit report accepts the outcome `order_placed` only when the visit has a `placed` order (`409 ORDER_REQUIRED` otherwise).
 

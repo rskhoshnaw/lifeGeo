@@ -32,11 +32,11 @@ public sealed class PostgresRegionTeamStore(NpgsqlDataSource dataSource) : IRegi
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginTenantTransactionAsync(connection, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT id, name, created_at FROM regions ORDER BY name, id", connection, transaction);
+            "SELECT id, name, created_at, hide_prices FROM regions ORDER BY name, id", connection, transaction);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var items = new List<RegionDto>();
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new RegionDto(reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)));
+            items.Add(new RegionDto(reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.GetBoolean(3)));
         return items;
     }
 

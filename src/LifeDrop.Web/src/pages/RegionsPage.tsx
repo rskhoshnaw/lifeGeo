@@ -46,7 +46,15 @@ export function RegionsPage({ admin, me }: { admin: AdminApi; me: Me }) {
         {regions.data?.length === 0 && <p className="mb-3 text-sm text-slate-600">{t('web.regions.none')}</p>}
         <ul className="mb-3 list-disc ps-6 text-sm">
           {regions.data?.map((region) => (
-            <li key={region.id}>{region.name}</li>
+            <li key={region.id}>
+              {region.name}
+              {can(me, ...Permissions.manageRegions) && (
+                <label className="ms-3 inline-flex items-center gap-1">
+                  <input type="checkbox" checked={!!region.hidePrices} disabled={action.busy} onChange={(e) => void action.run(() => admin.setRegionHidePrices(region.id, e.target.checked))} />
+                  {t('web.regions.hidePrices')}
+                </label>
+              )}
+            </li>
           ))}
         </ul>
         {can(me, ...Permissions.manageRegions) && (

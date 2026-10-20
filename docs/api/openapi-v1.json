@@ -12762,6 +12762,194 @@
         }
       }
     },
+    "/places/{placeId}/hide-prices": {
+      "put": {
+        "tags": [
+          "Places"
+        ],
+        "operationId": "SetCityHidePrices",
+        "parameters": [
+          {
+            "name": "placeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHidePricesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regions/{regionId}/hide-prices": {
+      "put": {
+        "tags": [
+          "Regions"
+        ],
+        "operationId": "SetRegionHidePrices",
+        "parameters": [
+          {
+            "name": "regionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHidePricesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/visits/unplanned": {
       "post": {
         "tags": [
@@ -16866,6 +17054,10 @@
           "visitDetached": {
             "type": "boolean",
             "default": false
+          },
+          "pricesHidden": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -18305,6 +18497,10 @@
               "null",
               "string"
             ]
+          },
+          "pricesHidden": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -19544,6 +19740,10 @@
                 "$ref": "#/components/schemas/DeliveryInfo"
               }
             ]
+          },
+          "pricesHidden": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -19994,6 +20194,10 @@
             ],
             "format": "int32",
             "default": 0
+          },
+          "hidePrices": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -20442,6 +20646,10 @@
               "string"
             ]
           },
+          "pricesHidden": {
+            "type": "boolean",
+            "default": false
+          },
           "inStock": {
             "type": "boolean"
           }
@@ -20720,6 +20928,10 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "hidePrices": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -22061,6 +22273,20 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "SetHidePricesRequest": {
+        "required": [
+          "hidePrices"
+        ],
+        "type": "object",
+        "properties": {
+          "hidePrices": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

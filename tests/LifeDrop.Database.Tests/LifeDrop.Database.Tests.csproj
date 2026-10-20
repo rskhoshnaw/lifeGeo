@@ -70,6 +70,7 @@
     <None Include="../../db/migrations/0052_user_city.sql" Link="0052_user_city.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0053_device_details.sql" Link="0053_device_details.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0054_product_photos.sql" Link="0054_product_photos.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0055_hide_prices.sql" Link="0055_hide_prices.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
