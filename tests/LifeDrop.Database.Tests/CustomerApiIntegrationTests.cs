@@ -156,7 +156,8 @@ public class CustomerApiIntegrationTests
                 var m54 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0054_product_photos.sql"));
                 var m55 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0055_hide_prices.sql"));
                 var m56 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0056_place_name_norm.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56;
+                var m57 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0057_company_profile.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -7926,6 +7927,7 @@ public class CustomerApiIntegrationTests
             await AssertProblemAsync(await client.GetAsync("/platform/tenants"), HttpStatusCode.Forbidden, "FORBIDDEN");
             await AssertProblemAsync(await client.PostAsJsonAsync("/platform/tenants", NewTenant("sneaky")), HttpStatusCode.Forbidden, "FORBIDDEN");
             await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{t1}", new { IsActive = false, Reason = "just because" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+            await AssertProblemAsync(await client.PutAsJsonAsync($"/platform/tenants/{t1}/profile", new { Industry = "food", Reason = "just because" }), HttpStatusCode.Forbidden, "FORBIDDEN");
             await AssertProblemAsync(await client.GetAsync($"/platform/tenants/{t1}/audit-logs?reason=curiosity+about+others"), HttpStatusCode.Forbidden, "FORBIDDEN");
             await AssertProblemAsync(await client.GetAsync("/platform/audit-logs"), HttpStatusCode.Forbidden, "FORBIDDEN");
         }
@@ -8399,6 +8401,78 @@ public class CustomerApiIntegrationTests
         Assert.Contains("lifedrop_job_failures_total{job=\"bad_job\"} 1", text);
         Assert.Contains($"lifedrop_job_last_success_timestamp_seconds{{job=\"test_job\"}} {now.ToUnixTimeSeconds()}", text);
         Assert.DoesNotContain("lifedrop_job_last_success_timestamp_seconds{job=\"bad_job\"}", text);   // it never succeeded
+    }
+
+    [SkippableFact]
+    public async Task CompanyProfile_SuperAdminSetsIndustryModulesAndWordingAndThePublicConfigCarriesThem()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var platform = LifeDrop.Application.Platform.PlatformTenant.Id.Value;
+        Guid acme = Guid.NewGuid(), plain = Guid.NewGuid(), admin = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@a, 'Acme Foods', 'acme'), (@pl, 'Plain Co', 'plain');
+                INSERT INTO users (id, tenant_id, email) VALUES (@admin, @p, 'root@platform');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @p, @admin, id FROM roles WHERE tenant_id = @p AND name = 'SuperAdmin';", conn);
+            cmd.Parameters.AddWithValue("a", acme); cmd.Parameters.AddWithValue("pl", plain); cmd.Parameters.AddWithValue("p", platform); cmd.Parameters.AddWithValue("admin", admin);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken(platform, admin, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Put(Guid tenant, object body) => client.PutAsJsonAsync($"/platform/tenants/{tenant}/profile", body);
+        using var anonymous = factory.CreateClient();
+        async Task<System.Text.Json.JsonElement> Config(string code) =>
+            (await (await anonymous.GetAsync($"/company-config/{code}")).Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())!.RootElement.Clone();
+
+        // Without a profile: the server default industry, nothing hidden, no own wording
+        var before = await Config("acme");
+        Assert.Equal("pharma", before.GetProperty("industry").GetString());
+        Assert.Equal(0, before.GetProperty("hiddenModules").GetArrayLength());
+        Assert.Equal(0, before.GetProperty("texts").EnumerateObject().Count());
+
+        // The whole profile is replaced at once
+        var texts = new Dictionary<string, Dictionary<string, string>> { ["app.home.customers"] = new() { ["ckb"] = " دوکانەکانم ", ["en"] = "My shops" } };
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(acme, new { Industry = "food", HiddenModules = new[] { "samples", "warehouse", "samples" }, TextOverrides = texts, Reason = "food distributor" })).StatusCode);
+        var after = await Config("acme");
+        Assert.Equal("food", after.GetProperty("industry").GetString());
+        Assert.Equal(new[] { "samples", "warehouse" }, after.GetProperty("hiddenModules").EnumerateArray().Select(e => e.GetString()).ToArray());
+        Assert.Equal("دوکانەکانم", after.GetProperty("texts").GetProperty("app.home.customers").GetProperty("ckb").GetString());
+        Assert.Equal("My shops", after.GetProperty("texts").GetProperty("app.home.customers").GetProperty("en").GetString());
+        Assert.Equal("pharma", (await Config("plain")).GetProperty("industry").GetString());   // another company is untouched
+        var listed = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.TenantSummaryDto>>("/platform/tenants"))!.Single(t => t.Code == "acme");
+        Assert.Equal(("food", 2, 1), (listed.Industry, listed.HiddenModules!.Count, listed.TextOverrides!.Count));
+
+        // Sending an empty profile clears everything (the industry goes back to the server default)
+        Assert.Equal(HttpStatusCode.NoContent, (await Put(acme, new { Reason = "back to the default" })).StatusCode);
+        var cleared = await Config("acme");
+        Assert.Equal(("pharma", 0, 0), (cleared.GetProperty("industry").GetString(), cleared.GetProperty("hiddenModules").GetArrayLength(), cleared.GetProperty("texts").EnumerateObject().Count()));
+
+        // Bad input is refused and changes nothing
+        foreach (var bad in new object[]
+        {
+            new { Industry = "mining", Reason = "not an industry" }, new { HiddenModules = new[] { "reports" }, Reason = "not a module" },
+            new { Industry = "food", Reason = "x" },
+            new { TextOverrides = new Dictionary<string, Dictionary<string, string>> { ["customers"] = new() { ["en"] = "x" } }, Reason = "key without app. or web." },
+            new { TextOverrides = new Dictionary<string, Dictionary<string, string>> { ["app.x"] = new() { ["de"] = "x" } }, Reason = "language not offered" },
+            new { TextOverrides = new Dictionary<string, Dictionary<string, string>> { ["app.x"] = new() { ["en"] = new string('x', 301) } }, Reason = "text too long" },
+            new { TextOverrides = new Dictionary<string, Dictionary<string, string>> { ["app.x"] = new() { ["en"] = " " } }, Reason = "empty text" },
+        })
+            await AssertProblemAsync(await Put(acme, bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Put(Guid.NewGuid(), new { Industry = "food", Reason = "no such company" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Audited with the reason
+        var audit = (await client.GetFromJsonAsync<List<LifeDrop.Application.Platform.PlatformAuditEntryDto>>("/platform/audit-logs?limit=50"))!.Where(a => a.Action == "platform.tenant_profile_changed").ToList();
+        Assert.Equal(2, audit.Count);
+        Assert.Contains(audit, a => a.Reason == "food distributor" && a.Detail!.Contains("industry=food") && a.Detail.Contains("hidden=samples,warehouse"));
     }
 
     [SkippableFact]

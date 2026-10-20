@@ -21,6 +21,44 @@ public sealed class PostgresUserAccountStore(NpgsqlDataSource dataSource) : IUse
         ChangeAsync(tenantId, actorId, targetId, active ? "user.activated" : "user.deactivated", "UPDATE users SET is_active = @active WHERE tenant_id = @tenant AND id = @target",
             command => command.Parameters.AddWithValue("active", active), endSessions: !active, cancellationToken);
 
+    public async Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid keepFamilyId, string currentPassword, string newPassword, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        string? hash;
+        await using (var read = new NpgsqlCommand("SELECT password_hash FROM users WHERE tenant_id = @tenant AND id = @user AND is_active FOR UPDATE", connection, transaction))
+        {
+            read.Parameters.AddWithValue("tenant", tenantId.Value);
+            read.Parameters.AddWithValue("user", userId.Value);
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken)) return ManageUserResult.NotFound;
+            hash = reader.IsDBNull(0) ? null : reader.GetString(0);
+        }
+        if (!PasswordHash.Verify(currentPassword, hash)) return ManageUserResult.WrongPassword;
+        await using (var update = new NpgsqlCommand("UPDATE users SET password_hash = @hash WHERE tenant_id = @tenant AND id = @user", connection, transaction))
+        {
+            update.Parameters.AddWithValue("hash", PasswordHash.Create(newPassword));
+            update.Parameters.AddWithValue("tenant", tenantId.Value);
+            update.Parameters.AddWithValue("user", userId.Value);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var revoke = new NpgsqlCommand("UPDATE refresh_tokens SET revoked_at = now() WHERE tenant_id = @tenant AND user_id = @user AND revoked_at IS NULL AND family_id <> @keep", connection, transaction))
+        {
+            revoke.Parameters.AddWithValue("tenant", tenantId.Value);
+            revoke.Parameters.AddWithValue("user", userId.Value);
+            revoke.Parameters.AddWithValue("keep", keepFamilyId);
+            await revoke.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var audit = new NpgsqlCommand("INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at) VALUES (gen_random_uuid(), @tenant, @user, 'user.password_changed_self', @user::text, now())", connection, transaction))
+        {
+            audit.Parameters.AddWithValue("tenant", tenantId.Value);
+            audit.Parameters.AddWithValue("user", userId.Value);
+            await audit.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return ManageUserResult.Done;
+    }
+
     public Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) =>
         ChangeAsync(tenantId, actorId, targetId, "user.city_changed", "UPDATE users SET city = @city WHERE tenant_id = @tenant AND id = @target",
             command => command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)city ?? DBNull.Value }), endSessions: false, cancellationToken);

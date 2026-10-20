@@ -26,6 +26,9 @@ public partial class MainPage : ContentPage
         {
             if (CompanyJoinLink.LooksLikeLink(e.NewTextValue) && CompanyJoinLink.TryGetCode(e.NewTextValue) is { } code) TenantEntry.Text = code;
         };
+        // Remembered after a sign-out (plan step 4.47): the company code and the e-mail. The password is never kept, it is asked every time.
+        TenantEntry.Text = Preferences.Get("CompanyCode", "");
+        EmailEntry.Text = Preferences.Get("LastEmail", "");
         QrScanBtn.Text = Texts.Get("app.login.scanQr");
         EmailEntry.Placeholder = Texts.Get("app.login.email");
         PasswordEntry.Placeholder = Texts.Get("app.login.password");
@@ -147,6 +150,7 @@ public partial class MainPage : ContentPage
         {
             await store.ClearAllAsync(cancellationToken);
             TrackingHost.Reset();
+            Preferences.Remove("LastEmail");   // another company: the old e-mail is not offered
         }
         Preferences.Set("CompanyCode", config.TenantCode);
         Preferences.Set("CompanyName", config.Name);
@@ -154,6 +158,10 @@ public partial class MainPage : ContentPage
         if (config.SupportPhone is { } phone) Preferences.Set("SupportPhone", phone);
         Preferences.Set("Industry", config.Industry);
         Texts.Profile = config.Industry == "food" ? "food" : "";
+        // What the company switched off and its own wording (plan step 4.48); kept for the next run.
+        Preferences.Set("HiddenModules", CompanyModules.Serialize(config.HiddenModules));
+        Preferences.Set("TextOverrides", Texts.OverridesJson(config.Texts));
+        Texts.SetOverrides(config.Texts);
 
         return (new AuthApiClient(new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) }), store);
     }
@@ -240,6 +248,7 @@ public partial class MainPage : ContentPage
 
             if (result.Status == AuthStatus.Success)
             {
+                Preferences.Set("LastEmail", (EmailEntry.Text ?? "").Trim());
                 // Navigate to HomePage
                 AppLanguage.ShowRoot(new HomePage());
             }

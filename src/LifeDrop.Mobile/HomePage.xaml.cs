@@ -28,14 +28,29 @@ public partial class HomePage : ContentPage
         CustomersBtn.Text = Texts.Get("app.home.customers");
         TelegramBtn.Text = Texts.Get("app.home.telegram");
         ProductsBtn.Text = Texts.Get("app.home.products");
+        AccountBtn.Text = Texts.Get("app.home.account");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
+        // Parts of the product this company switched off (plan step 4.48) have no button.
+        var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
+        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
+        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
+        ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse"));
+        ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse"));
+        ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
         SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
         RenderShift();
+    }
+
+    // The button and the card around it.
+    private static void ShowButton(Button button, bool show)
+    {
+        button.IsVisible = show;
+        if (button.Parent is VisualElement card) card.IsVisible = show;
     }
 
     private async void OnLanguageClicked(object? sender, EventArgs e) => await AppLanguage.ChooseAsync(this, () => new HomePage());
@@ -48,6 +63,7 @@ public partial class HomePage : ContentPage
         CustomersBtn.IsEnabled = !isBusy;
         TelegramBtn.IsEnabled = !isBusy;
         ProductsBtn.IsEnabled = !isBusy;
+        AccountBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = !isBusy;
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
@@ -214,6 +230,8 @@ public partial class HomePage : ContentPage
     private async void OnNewCustomerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new NewCustomerPage());
 
     private async void OnCustomersClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new CustomersListPage());
+
+    private async void OnAccountClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new AccountPage());
 
     private async void OnProductsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new ProductsPage());
 

@@ -49,6 +49,19 @@ public static class UserEndpoints
             .WithName("CreateUser").WithTags("Users").Produces<CreatedUserDto>(201)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
+        // Plan step 4.46: a signed-in user changes their own password (the current one is needed); their other sessions end, this one stays. Rate limited like the login.
+        app.MapPut("/me/password", async (ChangeOwnPasswordRequest request, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            if (!Guid.TryParse(context.User.FindFirst("session_family")?.Value, out var family)) return Results.Forbid();
+            var result = await manage.ChangeOwnPasswordAsync(tenantId, actorId, family, request, cancellationToken);
+            return result == ManageUserResult.WrongPassword ? ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.WrongPassword) : ToResult(result);
+        }).RequireAuthorization().RequireRateLimiting("login")
+            .WithName("ChangeOwnPassword").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPut("/users/{id:guid}/email", async (Guid id, ChangeUserEmailRequest request, HttpContext context, ManageUsers manage,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

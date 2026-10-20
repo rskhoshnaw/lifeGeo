@@ -25,6 +25,7 @@ public class ManageUsersTests
         public Task<ManageUserResult> ChangeEmailAsync(TenantId tenantId, UserId actorId, UserId targetId, string email, CancellationToken cancellationToken) => Record("email:" + email);
         public Task<ManageUserResult> SetPasswordAsync(TenantId tenantId, UserId actorId, UserId targetId, string password, CancellationToken cancellationToken) => Record("password");
         public Task<ManageUserResult> SetActiveAsync(TenantId tenantId, UserId actorId, UserId targetId, bool active, CancellationToken cancellationToken) => Record("active:" + active);
+        public Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid keepFamilyId, string currentPassword, string newPassword, CancellationToken cancellationToken) => Record("own:" + currentPassword + ">" + newPassword);
         public Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) => Record("city:" + city);
         public Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) => Record("removeRole");
         private Task<ManageUserResult> Record(string call) { Calls.Add(call); return Task.FromResult(Result); }
@@ -113,5 +114,20 @@ public class ManageUsersTests
         Assert.Empty(store.Calls);
         Assert.Equal(ManageUserResult.Done, await service.RemoveRoleAsync(Tenant, Actor, Target, Guid.NewGuid(), CancellationToken.None));
         Assert.Single(store.Calls);
+    }
+
+    [Fact]
+    public async Task Anybody_changes_their_own_password_but_the_new_one_must_be_long_and_different()
+    {
+        var store = new Store();
+        var service = Service(store);   // no permission needed
+        var family = Guid.NewGuid();
+        Assert.Equal(ManageUserResult.Done, await service.ChangeOwnPasswordAsync(Tenant, Actor, family, new ChangeOwnPasswordRequest("old-password-1", "brand-new-password-2"), CancellationToken.None));
+        Assert.Equal(ManageUserResult.InvalidData, await service.ChangeOwnPasswordAsync(Tenant, Actor, family, new ChangeOwnPasswordRequest("old-password-1", "short"), CancellationToken.None));
+        Assert.Equal(ManageUserResult.InvalidData, await service.ChangeOwnPasswordAsync(Tenant, Actor, family, new ChangeOwnPasswordRequest("same-password-12", "same-password-12"), CancellationToken.None));
+        Assert.Equal(ManageUserResult.InvalidData, await service.ChangeOwnPasswordAsync(Tenant, Actor, family, new ChangeOwnPasswordRequest("", "brand-new-password-2"), CancellationToken.None));
+        Assert.Equal(ManageUserResult.InvalidData, await service.ChangeOwnPasswordAsync(Tenant, Actor, family, new ChangeOwnPasswordRequest("old-password-1", null), CancellationToken.None));
+        Assert.Equal(ManageUserResult.Forbidden, await service.ChangeOwnPasswordAsync(Tenant, UserId.Empty, family, new ChangeOwnPasswordRequest("a", "brand-new-password-2"), CancellationToken.None));
+        Assert.Equal(new[] { "own:old-password-1>brand-new-password-2" }, store.Calls.ToArray());
     }
 }

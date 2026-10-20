@@ -775,6 +775,17 @@ export interface Tenant {
   isActive: boolean
   users: number
   activeUsers: number
+  industry?: string | null
+  hiddenModules?: string[]
+  textOverrides?: Record<string, Partial<Record<'ckb' | 'ar' | 'fa' | 'en', string>>>
+}
+export const companyModules = ['catalog', 'orders', 'payments', 'samples', 'followups', 'warehouse'] as const
+
+export interface TenantProfileInput {
+  industry: string | null
+  hiddenModules: string[]
+  textOverrides: Record<string, Partial<Record<'ckb' | 'ar' | 'fa' | 'en', string>>>
+  reason: string
 }
 export interface TenantAuditEntry {
   id: string
@@ -852,6 +863,7 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return t('web.error.network')
   switch (error.status) {
     case 400:
+      if (error.code === 'WRONG_PASSWORD') return t('web.account.wrongPassword')
       return t('web.error.badData')
     case 403:
       return t('web.error.forbidden')
@@ -910,6 +922,7 @@ export class AdminApi {
   createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
   setUserCity = (userId: string, city: string | null) => this.send('PUT', `/users/${userId}/city`, { city })
   removeUserRole = (userId: string, roleId: string) => this.send('DELETE', `/users/${userId}/roles/${roleId}`)
+  changeOwnPassword = (currentPassword: string, newPassword: string) => this.send('PUT', '/me/password', { currentPassword, newPassword })
   changeUserEmail = (userId: string, email: string) => this.send('PUT', `/users/${userId}/email`, { email })
   setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
   deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)
@@ -1075,6 +1088,7 @@ export class AdminApi {
   // Platform (step 3.1): only users of the platform company with platform.tenants.manage / access.
   platformTenants = () => this.get<Tenant[]>('/platform/tenants')
   createTenant = (tenant: { code: string; name: string; managerEmail: string; managerPassword: string }) => this.post('/platform/tenants', tenant)
+  updateTenantProfile = (id: string, profile: TenantProfileInput) => this.send('PUT', `/platform/tenants/${id}/profile`, profile)
   updateTenant = (id: string, change: { name?: string; isActive?: boolean; reason: string }) => this.send('PUT', `/platform/tenants/${id}`, change)
   tenantAudit = (id: string, reason: string, action: string) =>
     this.get<TenantAuditEntry[]>(`/platform/tenants/${id}/audit-logs?reason=${encodeURIComponent(reason)}${action ? `&action=${encodeURIComponent(action)}` : ''}`)

@@ -25,7 +25,17 @@ export function setCurrentProfile(next: string) {
   profile = next
 }
 
+// The company's own wording (plan step 4.48), sent by the server before sign-in: text key -> language -> text. It wins over the built-in text of that key in that language.
+export type TextOverrides = Record<string, Partial<Record<Lang, string>>>
+let overrides: TextOverrides = {}
+
+export function setTextOverrides(next: TextOverrides | null | undefined) {
+  overrides = next ?? {}
+}
+
 export function t(key: TextKey, vars: Record<string, string | number> = {}, lang: Lang = current): string {
+  const own = overrides[key]?.[lang]?.trim()
+  if (own) return own.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match))
   const special = profile ? (strings as Record<string, unknown>)[`${key}@${profile}`] : undefined
   const entry = (special ?? strings[key]) as Record<Lang, string>
   return (entry[lang] || entry.en).replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match))

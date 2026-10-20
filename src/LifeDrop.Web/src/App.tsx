@@ -4,6 +4,7 @@ import { AdminApi, can, errorMessage, Permissions, type Me } from './api/admin.t
 import { LoginPage } from './pages/LoginPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { UsersPage } from './pages/UsersPage.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
 import { DevicesPage } from './pages/DevicesPage.tsx'
 import { CustomersPage } from './pages/CustomersPage.tsx'
 import { VisitsPage } from './pages/VisitsPage.tsx'
@@ -26,9 +27,9 @@ import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
-import { setCurrentProfile, t, useLang } from './i18n.ts'
+import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -56,12 +57,15 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   const [unread, setUnread] = useState(0)
   const [alertCount, setAlertCount] = useState(0)
   const [, setWording] = useState('')
+  const [hiddenModules, setHiddenModules] = useState<string[]>([])
 
-  // Wording of the company (a food distributor says shops and restaurants, not pharmacies and doctors).
+  // The company's profile (plan steps 4.3 and 4.48): a food distributor says shops and restaurants, a company may use its own wording and may switch parts of the product off.
   useEffect(() => {
-    void api.industry(account.tenantCode).then((industry) => {
-      setCurrentProfile(industry === 'food' ? 'food' : '')
-      setWording(industry)
+    void api.companyProfile(account.tenantCode).then((profile) => {
+      setCurrentProfile(profile.industry === 'food' ? 'food' : '')
+      setTextOverrides(profile.texts)
+      setHiddenModules(profile.hiddenModules)
+      setWording(profile.industry + JSON.stringify(profile.texts))
     })
   }, [api, account.tenantCode])
 
@@ -90,7 +94,8 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     admin.me().then(setMe, (e: unknown) => setError(errorMessage(e)))
   }, [admin])
 
-  // Tabs follow the user's permissions; hiding is for convenience only, the server checks every request.
+  // Tabs follow the user's permissions and the parts the company switched off; hiding is for convenience only, the server checks every request.
+  const shows = (module: string) => !hiddenModules.includes(module)
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
     { id: 'home', label: t('web.tab.home'), visible: true },
     { id: 'map', label: t('web.tab.map'), visible: can(me, ...Permissions.liveMap) },
@@ -99,20 +104,21 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'devices', label: t('web.tab.devices'), visible: can(me, ...Permissions.devices) },
     { id: 'customers', label: t('web.tab.customers'), visible: can(me, ...Permissions.customers, ...Permissions.approveCustomers) },
     { id: 'places', label: t('web.tab.places'), visible: can(me, ...Permissions.places) },
-    { id: 'catalog', label: t('web.tab.catalog'), visible: can(me, ...Permissions.catalog) },
-    { id: 'orders', label: t('web.tab.orders'), visible: can(me, ...Permissions.orders) },
-    { id: 'payments', label: t('web.tab.payments'), visible: can(me, ...Permissions.payments) },
-    { id: 'samples', label: t('web.tab.samples'), visible: can(me, ...Permissions.samples) },
-    { id: 'followups', label: t('web.tab.followups'), visible: can(me, ...Permissions.followUps) },
+    { id: 'catalog', label: t('web.tab.catalog'), visible: shows('catalog') && can(me, ...Permissions.catalog) },
+    { id: 'orders', label: t('web.tab.orders'), visible: shows('orders') && can(me, ...Permissions.orders) },
+    { id: 'payments', label: t('web.tab.payments'), visible: shows('payments') && can(me, ...Permissions.payments) },
+    { id: 'samples', label: t('web.tab.samples'), visible: shows('samples') && can(me, ...Permissions.samples) },
+    { id: 'followups', label: t('web.tab.followups'), visible: shows('followups') && can(me, ...Permissions.followUps) },
     { id: 'alerts', label: alertCount > 0 ? `${t('web.tab.alerts')} (${alertCount})` : t('web.tab.alerts'), visible: canAlerts },
     { id: 'route', label: t('web.tab.route'), visible: can(me, ...Permissions.routeHistory) },
     { id: 'reports', label: t('web.tab.reports'), visible: can(me, ...Permissions.reports) },
-    { id: 'warehouse', label: t('web.tab.warehouse'), visible: can(me, ...Permissions.warehouseWork) },
+    { id: 'warehouse', label: t('web.tab.warehouse'), visible: shows('warehouse') && can(me, ...Permissions.warehouseWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
     { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
     { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
     { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
+    { id: 'account', label: t('web.tab.account'), visible: true },
   ]
   const notificationsLabel = unread > 0 ? `${t('web.tab.notifications')} (${unread})` : t('web.tab.notifications')
 
@@ -128,6 +134,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     >
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
       {tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}
+      {me && tab === 'account' && <AccountPage admin={admin} me={me} />}
       {me && tab === 'users' && <UsersPage admin={admin} me={me} />}
       {me && tab === 'devices' && <DevicesPage admin={admin} />}
       {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}

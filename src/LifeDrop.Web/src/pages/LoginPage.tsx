@@ -5,6 +5,7 @@ import { LanguagePicker } from '../components/I18n.tsx'
 import { Logo } from '../components/Shell.tsx'
 import { contours } from '../components/contours.ts'
 import { companyFromSearch } from '../components/inviteLinks.ts'
+import { readRemembered, saveRemembered } from '../components/rememberMe.ts'
 import { LoginFailed, type Account, type ApiClient, type LoginError } from '../api/client.ts'
 
 const messages: Record<LoginError, TextKey> = {
@@ -17,8 +18,10 @@ const messages: Record<LoginError, TextKey> = {
 
 export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (account: Account) => void }) {
   // A company link (…/?company=acme, plan step 4.7) fills the company code; the user only types the e-mail and the password.
-  const [tenantCode, setTenantCode] = useState(() => companyFromSearch(window.location.search))
-  const [email, setEmail] = useState('')
+  const [remembered] = useState(readRemembered)
+  const [tenantCode, setTenantCode] = useState(() => companyFromSearch(window.location.search) || remembered?.tenantCode || '')
+  const [email, setEmail] = useState(remembered?.email ?? '')
+  const [remember, setRemember] = useState(remembered !== null)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +36,9 @@ export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (ac
     setBusy(true)
     setError(null)
     try {
-      onSignedIn(await api.login(tenantCode.trim(), email.trim(), password))
+      const account = await api.login(tenantCode.trim(), email.trim(), password)
+      saveRemembered(remember, { tenantCode: tenantCode.trim(), email: email.trim() })
+      onSignedIn(account)
     } catch (e) {
       setError(t(messages[e instanceof LoginFailed ? e.reason : 'server']))
     } finally {
@@ -81,6 +86,10 @@ export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (ac
             <label className="block">
               <span className="text-sm font-medium text-slate-700">{t('web.login.password')}</span>
               <input className="mt-1.5 w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              {t('web.login.remember')}
             </label>
             {error && <p role="alert" className="rounded-md bg-red-100 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={busy} className="w-full rounded-md bg-brand-700 px-3 py-2.5 text-white disabled:opacity-50">

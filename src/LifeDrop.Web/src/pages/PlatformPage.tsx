@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, type Tenant, type TenantAuditEntry } from '../api/admin.ts'
+import { AdminApi, companyModules, type Tenant, type TenantAuditEntry } from '../api/admin.ts'
+import { formatWording, parseWording } from '../components/companyProfile.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { appLink, panelLink, qrSvg } from '../components/inviteLinks.ts'
@@ -23,6 +24,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
   const [actionFilter, setActionFilter] = useState('')
   const [entries, setEntries] = useState<TenantAuditEntry[] | null>(null)
   const [inviting, setInviting] = useState<string | null>(null)
+  const [profileFor, setProfileFor] = useState<string | null>(null)
 
   async function add(event: FormEvent) {
     event.preventDefault()
@@ -101,6 +103,9 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
                   <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => rename(x)}>
                     {t('web.platform.rename')}
                   </button>
+                  <button className="rounded border px-2 py-1" aria-expanded={profileFor === x.id} onClick={() => setProfileFor(profileFor === x.id ? null : x.id)}>
+                    {t('web.platform.profile')}
+                  </button>
                   {x.code !== 'platform' && (
                     <button className="rounded border px-2 py-1" aria-expanded={inviting === x.id} onClick={() => setInviting(inviting === x.id ? null : x.id)}>
                       {t('web.platform.invite')}
@@ -117,6 +122,7 @@ export function PlatformPage({ admin }: { admin: AdminApi }) {
           </tbody>
         </table>
       )}
+      {tenants.data?.filter((x) => x.id === profileFor).map((x) => <ProfileEditor key={x.id} admin={admin} tenant={x} onSaved={() => { setProfileFor(null); reloadAll() }} />)}
       {tenants.data?.filter((x) => x.id === inviting).map((x) => <InviteCard key={x.id} code={x.code} />)}
 
       <form className="grid max-w-3xl grid-cols-2 gap-3 rounded border p-4" onSubmit={(e) => void read(e)}>
@@ -229,5 +235,64 @@ function InviteCard({ code }: { code: string }) {
       </div>
       <div className="w-40 shrink-0" role="img" aria-label={t('web.platform.inviteQr', { code })} dangerouslySetInnerHTML={{ __html: qrSvg(app) }} />
     </div>
+  )
+}
+
+// The profile of one company (plan step 4.48): the wording profile, the parts it does not use and its own wording. Saving replaces the whole profile and needs a written reason.
+function ProfileEditor({ admin, tenant, onSaved }: { admin: AdminApi; tenant: Tenant; onSaved: () => void }) {
+  const [industry, setIndustry] = useState(tenant.industry ?? '')
+  const [hidden, setHidden] = useState<string[]>(tenant.hiddenModules ?? [])
+  const [wording, setWording] = useState(formatWording(tenant.textOverrides ?? {}))
+  const [reason, setReason] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const action = useAction(onSaved)
+
+  function toggle(module: string) {
+    setHidden(hidden.includes(module) ? hidden.filter((m) => m !== module) : [...hidden, module])
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const parsed = parseWording(wording)
+    if ('badLine' in parsed) return setProblem(t('web.platform.badWording', { line: parsed.badLine }))
+    setProblem(null)
+    void action.run(() => admin.updateTenantProfile(tenant.id, { industry: industry || null, hiddenModules: hidden, textOverrides: parsed.wording, reason: reason.trim() }))
+  }
+
+  return (
+    <form onSubmit={submit} className="max-w-3xl space-y-3 rounded border p-4 text-sm">
+      <h3 className="font-medium">{t('web.platform.profileOf', { company: tenant.code })}</h3>
+      {(problem ?? action.error) && <p role="alert" className="text-red-700">{problem ?? action.error}</p>}
+      <label className="block">
+        {t('web.platform.industry')}
+        <select className="mt-1 block rounded border px-2 py-1" value={industry} onChange={(e) => setIndustry(e.target.value)}>
+          <option value="">{t('web.platform.industryDefault')}</option>
+          <option value="pharma">{t('web.platform.industryPharma')}</option>
+          <option value="food">{t('web.platform.industryFood')}</option>
+        </select>
+      </label>
+      <fieldset className="rounded border p-2">
+        <legend className="px-1">{t('web.platform.hiddenModules')}</legend>
+        <div className="flex flex-wrap gap-4">
+          {companyModules.map((module) => (
+            <label key={module} className="flex items-center gap-1">
+              <input type="checkbox" checked={hidden.includes(module)} onChange={() => toggle(module)} />
+              {t(`web.platform.module.${module}` as never)}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="block">
+        {t('web.platform.wording')}
+        <textarea className="mt-1 block h-32 w-full rounded border px-2 py-1 font-mono" dir="ltr" value={wording} onChange={(e) => setWording(e.target.value)} placeholder="app.home.customers | en | My shops" />
+      </label>
+      <label className="block">
+        {t('web.platform.reason')}
+        <input className="mt-1 block w-full rounded border px-2 py-1" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+      </label>
+      <button type="submit" className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy || reason.trim().length < 5}>
+        {t('web.places.save')}
+      </button>
+    </form>
   )
 }
