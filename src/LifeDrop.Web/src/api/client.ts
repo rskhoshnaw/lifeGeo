@@ -102,6 +102,11 @@ export class ApiClient {
 
   // Authorized request. On 401 the session is refreshed once and the request repeated; if the refresh fails
   // the user is signed out.
+  // Address of a file served without a login (a product photo), for an <img src>.
+  publicUrl(path: string): string {
+    return `${this.baseUrl}${path}`
+  }
+
   async request(path: string, init: RequestInit = {}): Promise<Response> {
     if (!this.accessToken && !(await this.refresh())) throw new SessionExpired()
     let response = await this.send(path, init)

@@ -33,3 +33,5 @@ GRANT UPDATE ON roles TO lifedrop_app;
 GRANT DELETE ON roles, role_permissions TO lifedrop_app;
 -- Step 4.39: a manager gives a device a label and deletes (hides) it.
 -- (devices already has UPDATE)
+-- Step 4.40: product photos (read by their random key without a company; written by managers).
+GRANT SELECT, INSERT, UPDATE, DELETE ON product_photos TO lifedrop_app;

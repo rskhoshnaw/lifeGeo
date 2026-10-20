@@ -53,6 +53,49 @@ public static class CatalogEndpoints
             .WithName("SetProductDetails").WithTags("Catalog").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Plan step 4.40: the photo is the raw body of the request (JPEG, PNG or WEBP, up to 1 MB).
+        app.MapPut("/products/{productId:guid}/photo", async (Guid productId, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            using var buffer = new MemoryStream();
+            var chunk = new byte[16 * 1024];
+            int read;
+            while ((read = await context.Request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+            {
+                buffer.Write(chunk, 0, read);
+                if (buffer.Length > CatalogService.MaxPhotoBytes) return ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData);
+            }
+            var result = await service.SetPhotoAsync(tenantId, actorId, productId, buffer.ToArray(), cancellationToken);
+            return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .Accepts<byte[]>("image/jpeg", "image/png", "image/webp", "application/octet-stream")
+            .WithName("SetProductPhoto").WithTags("Catalog").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapDelete("/products/{productId:guid}/photo", async (Guid productId, HttpContext context, CatalogService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.RemovePhotoAsync(tenantId, actorId, productId, cancellationToken);
+            return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("RemoveProductPhoto").WithTags("Catalog").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // Public (reviewed): a photo is fetched by its random key so that an image address is enough for the app and the panel.
+        app.MapGet("/product-photos/{key}", async (string key, HttpContext context, CatalogService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            var photo = await service.GetPhotoAsync(key, cancellationToken);
+            if (photo is null) return ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound);
+            context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            return Results.File(photo.Data, photo.ContentType);
+        }).AllowAnonymous()
+            .WithName("GetProductPhoto").WithTags("Catalog").Produces(200, contentType: "image/jpeg").ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/products/{productId:guid}/city-prices", async (Guid productId, HttpContext context, CatalogService service,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
