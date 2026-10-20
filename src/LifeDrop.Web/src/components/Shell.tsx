@@ -115,7 +115,7 @@ export function Shell({ items, current, onSelect, notifications, email, company,
             </button>
           </div>
         </header>
-        <main>{children}</main>
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   )
