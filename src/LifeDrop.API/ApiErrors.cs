@@ -21,6 +21,7 @@ public static class ApiErrors
     public const string RegionNotFound = "REGION_NOT_FOUND";
     public const string CustomerNotApproved = "CUSTOMER_NOT_APPROVED";
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
+    public const string OutOfStock = "OUT_OF_STOCK";
     public const string OrderRequired = "ORDER_REQUIRED";
     public const string DuplicateName = "DUPLICATE_NAME";
     public const string DeviceRequired = "DEVICE_REQUIRED";

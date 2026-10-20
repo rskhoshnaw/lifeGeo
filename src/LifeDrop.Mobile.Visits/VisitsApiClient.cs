@@ -44,7 +44,9 @@ public enum VisitActionResult
     InvalidData, DeviceRequired, CustomerLocationMissing, ReportRequired,
     OutsideGeofence, GpsLowAccuracy, GpsStale, GpsClockSkew, GpsMocked, OfflineExpired,
     // Orders (plan step 2.2): "order placed" needs a real order; all lines of an order share one currency; the customer is not approved yet.
-    OrderRequired, CurrencyMismatch, CustomerNotApproved
+    OrderRequired, CurrencyMismatch, CustomerNotApproved,
+    // Plan step 4.41: a product of the order is out of stock (or short of what was asked).
+    OutOfStock
 }
 
 // A position from the device, sent as captured (plan step 1.12; the server judges it, PRD §6).
