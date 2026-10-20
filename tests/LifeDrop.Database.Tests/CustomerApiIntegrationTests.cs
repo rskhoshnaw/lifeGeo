@@ -6266,6 +6266,121 @@ public class CustomerApiIntegrationTests
         Assert.Equal(2L, reader.GetInt64(0));
     }
 
+    // Plan step 4.34: what every default role may open. One user per role calls the list endpoints of the panel; 200 = allowed, 403 = refused. The table is the
+    // reviewed decision (docs/ROLES-MATRIX.md); a change in the default grants must change this table on purpose.
+    private static readonly string[] AuditedRoles = ["CompanyManager", "SalesManager", "Supervisor", "FinanceManager", "SalesRep", "ScientificRep", "WarehouseManager", "Driver"];
+
+    // Reviewed with the owner (plan step 4.34). Roles that may open each path, in AuditedRoles order. Scope inside the path (own / region / everything) is tested with each feature.
+    private const string ExpectedRoleMatrix = """
+/alerts CompanyManager,SalesManager,Supervisor
+/audit-logs CompanyManager,SalesManager,FinanceManager
+/channels CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep,WarehouseManager,Driver
+/customer-approvals SalesManager,Supervisor
+/customers CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep
+/customers/map CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep
+/deliveries Driver
+/devices SalesManager
+/followups CompanyManager,SalesManager,Supervisor,SalesRep,ScientificRep
+/form-fields CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep,WarehouseManager,Driver
+/live-map SalesManager,Supervisor,FinanceManager
+/notifications CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep,WarehouseManager,Driver
+/offline-reviews SalesManager,Supervisor
+/orders CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep
+/payments CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep
+/payments/mine FinanceManager,SalesRep
+/places CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep
+/platform/tenants 
+/products CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep
+/regions CompanyManager,SalesManager,Supervisor
+/reports/kpis?from=2026-10-01&to=2026-10-05 CompanyManager,SalesManager,Supervisor
+/roles SalesManager
+/samples CompanyManager,SalesManager,Supervisor,SalesRep,ScientificRep
+/saved-reports CompanyManager,SalesManager,Supervisor
+/settings/shift-alerts CompanyManager,SalesManager,Supervisor
+/teams CompanyManager,SalesManager,Supervisor
+/tracking/users SalesManager,Supervisor
+/users SalesManager,Supervisor
+/visit-plan SalesManager,Supervisor
+/visits CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep,WarehouseManager,Driver
+/warehouse/drivers WarehouseManager
+/warehouse/orders WarehouseManager
+/warehouses CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep
+""";
+
+    [SkippableFact]
+    public async Task RoleMatrix_EveryDefaultRoleOpensOnlyWhatItShould()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        var users = AuditedRoles.ToDictionary(r => r, _ => Guid.NewGuid());
+        var region = Guid.NewGuid();
+        var team = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm, @t1, @r, 'Team A');", conn);
+            cmd.Parameters.AddWithValue("t1", t1);
+            cmd.Parameters.AddWithValue("r", region);
+            cmd.Parameters.AddWithValue("tm", team);
+            await cmd.ExecuteNonQueryAsync();
+            foreach (var (role, id) in users)
+            {
+                await using var add = new NpgsqlCommand(@"
+                    INSERT INTO users (id, tenant_id) VALUES (@u, @t1);
+                    INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @t1, @u, id FROM roles WHERE tenant_id = @t1 AND name = @role;
+                    INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @u, @tm);", conn);
+                add.Parameters.AddWithValue("t1", t1);
+                add.Parameters.AddWithValue("u", id);
+                add.Parameters.AddWithValue("role", role);
+                add.Parameters.AddWithValue("tm", team);
+                await add.ExecuteNonQueryAsync();
+            }
+        }
+
+        var endpoints = new[]
+        {
+            "/customers", "/customers/map", "/customer-approvals", "/visits", "/visit-plan", "/offline-reviews", "/regions", "/teams", "/places", "/products", "/orders",
+            "/warehouses", "/warehouse/orders", "/warehouse/drivers", "/deliveries", "/payments", "/payments/mine", "/samples", "/followups", "/alerts", "/live-map",
+            "/tracking/users", "/reports/kpis?from=2026-10-01&to=2026-10-05", "/notifications", "/saved-reports", "/form-fields", "/audit-logs", "/users", "/roles", "/devices", "/channels", "/settings/shift-alerts",
+            "/platform/tenants",
+        };
+        var actual = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var path in endpoints)
+        {
+            var allowed = new List<string>();
+            foreach (var role in AuditedRoles)
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+                    GenerateToken(t1, users[role], conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+                var response = await client.GetAsync(path);
+                if (response.StatusCode == HttpStatusCode.OK) allowed.Add(role);
+                else if (response.StatusCode != HttpStatusCode.Forbidden && response.StatusCode != HttpStatusCode.BadRequest && response.StatusCode != HttpStatusCode.NotFound)
+                    Assert.Fail($"{role} {path} -> {(int)response.StatusCode}");
+                else if (response.StatusCode != HttpStatusCode.Forbidden) allowed.Add(role + "?" + (int)response.StatusCode);
+            }
+            actual[path] = string.Join(",", allowed);
+        }
+        var dump = Environment.GetEnvironmentVariable("ROLE_MATRIX_DUMP");
+        if (!string.IsNullOrEmpty(dump)) await File.WriteAllLinesAsync(dump, actual.Select(kv => kv.Key + " " + kv.Value));
+        // "?400" would mean the path needs other input than the audit gives; every audited path must answer 200 or 403.
+        Assert.DoesNotContain(actual.Values, v => v.Contains('?'));
+        var expected = ExpectedRoleMatrix.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToDictionary(l => l[..l.IndexOf(' ')], l => l[(l.IndexOf(' ') + 1)..].Trim());
+        Assert.Equal(expected.Select(kv => $"{kv.Key} {kv.Value}").ToArray(), actual.Select(kv => $"{kv.Key} {kv.Value}").ToArray());
+    }
+
     [SkippableFact]
     public async Task Alerts_ScanMakesOneAlertPerEventSeparatesSecurityAndRespectsTheArea()
     {
