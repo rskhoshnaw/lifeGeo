@@ -18,7 +18,9 @@ public sealed record RoleDto(Guid Id, string Name, string DataScope, IReadOnlyLi
 
 // Never includes the device secret.
 public sealed record DeviceSummaryDto(Guid Id, Guid UserId, string? UserEmail, string Label, string Platform, string AppVersion,
-    string Status, DateTimeOffset RegisteredAt);
+    string Status, DateTimeOffset RegisteredAt,
+    // Plan step 4.39: the manager's label, the phone model and the system version.
+    string? AdminLabel = null, string? Model = null, string? OsVersion = null);
 
 public enum DirectoryResult { Success, Forbidden, InvalidData }
 
@@ -28,7 +30,8 @@ public interface IUserDirectoryStore
     // Active users (also locked ones with includeInactive, for the panel's Users page); Region scope = members of teams in scope.RegionId, Own = only the actor.
     Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, bool includeInactive, CancellationToken cancellationToken);
     Task<IReadOnlyList<RoleDto>> ListRolesAsync(TenantId tenantId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<DeviceSummaryDto>> ListDevicesAsync(TenantId tenantId, string? status, CancellationToken cancellationToken);
+    // platform: android | ios; search: text in the label, the manager's label, the model or the user's e-mail. Deleted devices are never listed.
+    Task<IReadOnlyList<DeviceSummaryDto>> ListDevicesAsync(TenantId tenantId, string? status, string? platform, string? search, CancellationToken cancellationToken);
 }
 
 public sealed class UserDirectory(IUserDirectoryStore store, IPermissionStore permissions)
@@ -64,11 +67,12 @@ public sealed class UserDirectory(IUserDirectoryStore store, IPermissionStore pe
         return (DirectoryResult.Success, await store.ListRolesAsync(tenantId, cancellationToken));
     }
 
-    public async Task<(DirectoryResult Result, IReadOnlyList<DeviceSummaryDto> Items)> ListDevicesAsync(TenantId tenantId, UserId actorId, string? status, CancellationToken cancellationToken)
+    public async Task<(DirectoryResult Result, IReadOnlyList<DeviceSummaryDto> Items)> ListDevicesAsync(TenantId tenantId, UserId actorId, string? status, string? platform, string? search, CancellationToken cancellationToken)
     {
         if (!await HasAnyAsync(tenantId, actorId, DevicePermissions, cancellationToken)) return (DirectoryResult.Forbidden, []);
-        if (status is not null && !DeviceStatuses.Contains(status)) return (DirectoryResult.InvalidData, []);
-        return (DirectoryResult.Success, await store.ListDevicesAsync(tenantId, status, cancellationToken));
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        if ((status is not null && !DeviceStatuses.Contains(status)) || (platform is not null && platform is not ("android" or "ios")) || search?.Length > 100) return (DirectoryResult.InvalidData, []);
+        return (DirectoryResult.Success, await store.ListDevicesAsync(tenantId, status, platform, search, cancellationToken));
     }
 
     private async Task<bool> HasAnyAsync(TenantId tenantId, UserId actorId, string[] keys, CancellationToken cancellationToken)

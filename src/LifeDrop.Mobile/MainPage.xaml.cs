@@ -186,7 +186,9 @@ public partial class MainPage : ContentPage
                 DeviceLabelEntry.Text ?? "",
                 DeviceInfo.Platform == DevicePlatform.iOS ? "ios" : "android",
                 installId,
-                "1.0.0");
+                "1.0.0",
+                DeviceInfo.Model,
+                DeviceInfo.Platform + " " + DeviceInfo.VersionString);
 
             var coord = new DeviceRegistrationCoordinator(apiClient, store);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));

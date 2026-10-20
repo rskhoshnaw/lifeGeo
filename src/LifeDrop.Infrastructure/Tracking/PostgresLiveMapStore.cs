@@ -24,8 +24,9 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
         const string sql = """
             SELECT s.user_id, u.email, t.name, t.region_id, s.started_at,
                 p.captured_at, ST_Y(p.geom::geometry), ST_X(p.geom::geometry), p.accuracy_m::float8, p.is_mocked,
-                lv.name, lv.occurred_at
+                lv.name, lv.occurred_at, COALESCE(dv.admin_label, dv.device_label)
             FROM shifts s
+            LEFT JOIN devices dv ON dv.tenant_id = s.tenant_id AND dv.id = s.device_id
             JOIN users u ON u.tenant_id = s.tenant_id AND u.id = s.user_id AND u.is_active
             LEFT JOIN team_members m ON m.user_id = s.user_id
             LEFT JOIN teams t ON t.id = m.team_id
@@ -64,7 +65,8 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
                 reader.IsDBNull(8) ? null : reader.GetDouble(8),
                 reader.IsDBNull(9) ? null : reader.GetBoolean(9),
                 reader.IsDBNull(10) ? null : reader.GetString(10),
-                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11)));
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11),
+                reader.IsDBNull(12) ? null : reader.GetString(12)));
         }
         return rows;
     }

@@ -120,12 +120,12 @@ public static class UserEndpoints
             .WithName("ListRoles").WithTags("Users").Produces<List<RoleDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
-        app.MapGet("/devices", async (string? status, HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
+        app.MapGet("/devices", async (string? status, string? platform, string? q, HttpContext context, UserDirectory directory, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await directory.ListDevicesAsync(tenantId, actorId, status, cancellationToken);
+            var (result, items) = await directory.ListDevicesAsync(tenantId, actorId, status, platform, q, cancellationToken);
             return ToResult(result, items);
         }).RequireAuthorization()
             .WithName("ListDevices").WithTags("Devices").Produces<List<DeviceSummaryDto>>(200)

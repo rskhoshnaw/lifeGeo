@@ -152,7 +152,8 @@ public class CustomerApiIntegrationTests
                 var m50 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0050_doctors_not_for_sales_rep.sql"));
                 var m51 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0051_scientific_rep_doctors.sql"));
                 var m52 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0052_user_city.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52;
+                var m53 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0053_device_details.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2285,6 +2286,35 @@ public class CustomerApiIntegrationTests
         Assert.Equal(deviceA, pending.EnumerateArray().Single().GetProperty("id").GetGuid());
         Assert.Equal("rep-a@t1", pending.EnumerateArray().Single().GetProperty("userEmail").GetString());
         Assert.Equal(foreignDevice, (await JsonAsync(foreign, "/devices")).EnumerateArray().Single().GetProperty("id").GetGuid());
+
+        // Plan step 4.39: filters, the manager's label, and delete (hides the device for good)
+        await AssertProblemAsync(await GetAsync(manager, "/devices?platform=symbian"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Empty((await JsonAsync(manager, "/devices?platform=ios")).EnumerateArray());
+        Assert.Equal(2, (await JsonAsync(manager, "/devices?platform=android")).GetArrayLength());
+        Assert.Equal(deviceB, (await JsonAsync(manager, "/devices?q=rep%20b")).EnumerateArray().Single().GetProperty("id").GetGuid());
+        Assert.Empty((await JsonAsync(manager, "/devices?q=%25")).EnumerateArray());   // a % is a plain character
+        HttpRequestMessage Authorised(Guid actor, HttpMethod method, string path, object? body = null)
+        {
+            var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body) };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                GenerateToken(actor == foreign ? t2 : t1, actor, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!, families[actor]));
+            return request;
+        }
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(Authorised(supervisor, HttpMethod.Put, $"/devices/{deviceA}/label", new { Label = "Front desk" }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(Authorised(manager, HttpMethod.Put, $"/devices/{deviceA}/label", new { Label = new string('x', 81) }))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(Authorised(manager, HttpMethod.Put, $"/devices/{deviceA}/label", new { Label = " Front desk " }))).StatusCode);
+        Assert.Equal("Front desk", (await JsonAsync(manager, "/devices?q=front")).EnumerateArray().Single().GetProperty("adminLabel").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(Authorised(manager, HttpMethod.Put, $"/devices/{foreignDevice}/label", new { Label = "x" }))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(Authorised(manager, HttpMethod.Put, $"/devices/{deviceA}/label", new { Label = "" }))).StatusCode);
+        Assert.Empty((await JsonAsync(manager, "/devices?q=front")).EnumerateArray());
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(Authorised(supervisor, HttpMethod.Delete, $"/devices/{deviceB}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(Authorised(manager, HttpMethod.Delete, $"/devices/{foreignDevice}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(Authorised(manager, HttpMethod.Delete, $"/devices/{deviceB}"))).StatusCode);
+        Assert.Equal(new[] { deviceA }, (await JsonAsync(manager, "/devices")).EnumerateArray().Select(d => d.GetProperty("id").GetGuid()).ToArray());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(Authorised(manager, HttpMethod.Delete, $"/devices/{deviceB}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(Authorised(manager, HttpMethod.Post, $"/devices/{deviceB}/approve"))).StatusCode);
+        Assert.Equal(foreignDevice, (await JsonAsync(foreign, "/devices")).EnumerateArray().Single().GetProperty("id").GetGuid());   // the other company's device is untouched
     }
 
     [SkippableFact]

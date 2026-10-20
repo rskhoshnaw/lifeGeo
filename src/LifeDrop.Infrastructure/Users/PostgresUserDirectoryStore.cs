@@ -86,23 +86,27 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
         return items;
     }
 
-    public async Task<IReadOnlyList<DeviceSummaryDto>> ListDevicesAsync(TenantId tenantId, string? status, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DeviceSummaryDto>> ListDevicesAsync(TenantId tenantId, string? status, string? platform, string? search, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT d.id, d.user_id, u.email, d.device_label, d.platform, d.app_version, d.status, d.registered_at
+            SELECT d.id, d.user_id, u.email, d.device_label, d.platform, d.app_version, d.status, d.registered_at, d.admin_label, d.model, d.os_version
             FROM devices d JOIN users u ON u.tenant_id = d.tenant_id AND u.id = d.user_id
-            WHERE d.tenant_id = @tenant AND (@status::text IS NULL OR d.status = @status)
+            WHERE d.tenant_id = @tenant AND d.deleted_at IS NULL AND (@status::text IS NULL OR d.status = @status) AND (@platform::text IS NULL OR d.platform = @platform)
+              AND (@q::text IS NULL OR d.device_label ILIKE @q ESCAPE '\' OR d.admin_label ILIKE @q ESCAPE '\' OR d.model ILIKE @q ESCAPE '\' OR u.email ILIKE @q ESCAPE '\')
             ORDER BY d.registered_at DESC, d.id
             LIMIT 500
             """, connection);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("status", NpgsqlTypes.NpgsqlDbType.Text, (object?)status ?? DBNull.Value);
+        command.Parameters.AddWithValue("platform", NpgsqlTypes.NpgsqlDbType.Text, (object?)platform ?? DBNull.Value);
+        command.Parameters.AddWithValue("q", NpgsqlTypes.NpgsqlDbType.Text, search is null ? DBNull.Value : "%" + search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%");
         var items = new List<DeviceSummaryDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new DeviceSummaryDto(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetFieldValue<DateTimeOffset>(7)));
+                reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetFieldValue<DateTimeOffset>(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
         return items;
     }
 

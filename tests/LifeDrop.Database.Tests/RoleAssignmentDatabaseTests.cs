@@ -46,6 +46,9 @@ public class RoleAssignmentDatabaseTests
             var sessionMigration = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0003_sessions_devices.sql"));
             await using (var migrate = new NpgsqlCommand(sessionMigration, connection))
                 await migrate.ExecuteNonQueryAsync();
+            var deviceDetails = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0053_device_details.sql"));
+            await using (var migrate = new NpgsqlCommand(deviceDetails, connection))
+                await migrate.ExecuteNonQueryAsync();
 
             var tenant = Guid.NewGuid();
             var otherTenant = Guid.NewGuid();

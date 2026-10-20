@@ -9,7 +9,10 @@ public sealed record RegisterDeviceRequest(
     string DeviceLabel,
     string Platform,
     string InstallId,
-    string AppVersion)
+    string AppVersion,
+    // Plan step 4.39: the phone model and system version, shown to the manager in the panel.
+    string? Model = null,
+    string? OsVersion = null)
 {
     public override string ToString() =>
         $"RegisterDeviceRequest(TenantCode={TenantCode}, Email={Email}, DeviceLabel={DeviceLabel}, Platform={Platform}, InstallId={InstallId}, AppVersion={AppVersion}, Password=[REDACTED])";

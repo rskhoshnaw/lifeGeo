@@ -68,6 +68,7 @@
     <None Include="../../db/migrations/0050_doctors_not_for_sales_rep.sql" Link="0050_doctors_not_for_sales_rep.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0051_scientific_rep_doctors.sql" Link="0051_scientific_rep_doctors.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0052_user_city.sql" Link="0052_user_city.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0053_device_details.sql" Link="0053_device_details.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

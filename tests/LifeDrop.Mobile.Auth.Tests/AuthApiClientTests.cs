@@ -51,13 +51,17 @@ public sealed class AuthApiClientTests
             DeviceLabel: "Pixel 8 Pro",
             Platform: "android",
             InstallId: "install-uuid-123",
-            AppVersion: "1.0.0");
+            AppVersion: "1.0.0",
+            Model: "Pixel 8 Pro",
+            OsVersion: "Android 15");
 
         var result = await client.RegisterDeviceAsync(request);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AuthStatus.Success, result.Status);
         Assert.Equal(200, result.HttpStatusCode);
+        Assert.Contains("\"model\":\"Pixel 8 Pro\"", handler.LastRequestBody);
+        Assert.Contains("\"osVersion\":\"Android 15\"", handler.LastRequestBody);
         Assert.NotNull(result.Data);
         Assert.Equal(expectedDeviceId, result.Data.DeviceId);
         Assert.Equal(expectedSecret, result.Data.DeviceSecret);
