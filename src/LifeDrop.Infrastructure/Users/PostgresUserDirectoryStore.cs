@@ -70,12 +70,19 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT id, name, data_scope FROM roles WHERE tenant_id = @tenant ORDER BY name COLLATE \"C\"", connection);
+            """
+            SELECT r.id, r.name, r.data_scope,
+                   COALESCE((SELECT array_agg(rp.permission_key ORDER BY rp.permission_key COLLATE "C") FROM role_permissions rp WHERE rp.tenant_id = r.tenant_id AND rp.role_id = r.id), '{}'),
+                   (SELECT count(*)::int FROM user_roles ur WHERE ur.tenant_id = r.tenant_id AND ur.role_id = r.id),
+                   r.requires_device_binding
+            FROM roles r WHERE r.tenant_id = @tenant ORDER BY r.name COLLATE "C"
+            """, connection);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         var items = new List<RoleDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new RoleDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
+            items.Add(new RoleDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetInt32(4),
+                RoleDefaults.Names.Contains(reader.GetString(1)), reader.GetBoolean(5)));
         return items;
     }
 

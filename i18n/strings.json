@@ -7378,5 +7378,95 @@
   "ckb": "لابردنی ڕۆڵی {role}",
   "ar": "إزالة الدور {role}",
   "fa": "حذف نقش {role}"
+ },
+ "web.roles.title": {
+  "en": "Roles",
+  "ckb": "ڕۆڵەکان",
+  "ar": "الأدوار",
+  "fa": "نقش‌ها"
+ },
+ "web.roles.new": {
+  "en": "New role",
+  "ckb": "ڕۆڵی نوێ",
+  "ar": "دور جديد",
+  "fa": "نقش تازه"
+ },
+ "web.roles.name": {
+  "en": "Role name",
+  "ckb": "ناوی ڕۆڵ",
+  "ar": "اسم الدور",
+  "fa": "نام نقش"
+ },
+ "web.roles.scope": {
+  "en": "Data reach",
+  "ckb": "کەمەرەی داتا",
+  "ar": "نطاق البيانات",
+  "fa": "دامنهٔ دسترسی به داده"
+ },
+ "web.roles.scope.tenant": {
+  "en": "Whole company",
+  "ckb": "هەموو کۆمپانیا",
+  "ar": "كل الشركة",
+  "fa": "کل شرکت"
+ },
+ "web.roles.scope.region": {
+  "en": "Own region",
+  "ckb": "ناوچەی خۆی",
+  "ar": "منطقته",
+  "fa": "منطقهٔ خودش"
+ },
+ "web.roles.scope.own": {
+  "en": "Own records",
+  "ckb": "تۆمارەکانی خۆی",
+  "ar": "سجلاته فقط",
+  "fa": "فقط رکوردهای خودش"
+ },
+ "web.roles.users": {
+  "en": "Users",
+  "ckb": "بەکارهێنەران",
+  "ar": "المستخدمون",
+  "fa": "کاربران"
+ },
+ "web.roles.permissions": {
+  "en": "Permissions",
+  "ckb": "مۆڵەتەکان",
+  "ar": "الصلاحيات",
+  "fa": "مجوزها"
+ },
+ "web.roles.default": {
+  "en": "default",
+  "ckb": "بنەڕەتی",
+  "ar": "افتراضي",
+  "fa": "پیش‌فرض"
+ },
+ "web.roles.edit": {
+  "en": "Edit role {role}",
+  "ckb": "دەستکاری ڕۆڵی {role}",
+  "ar": "تعديل الدور {role}",
+  "fa": "ویرایش نقش {role}"
+ },
+ "web.roles.delete": {
+  "en": "Delete role {role}",
+  "ckb": "سڕینەوەی ڕۆڵی {role}",
+  "ar": "حذف الدور {role}",
+  "fa": "حذف نقش {role}"
+ },
+ "web.roles.deleteAction": {
+  "en": "Delete",
+  "ckb": "سڕینەوە",
+  "ar": "حذف",
+  "fa": "حذف"
+ },
+ "web.roles.confirmDelete": {
+  "en": "Delete the role {role}?",
+  "ckb": "ڕۆڵی {role} بسڕدرێتەوە؟",
+  "ar": "حذف الدور {role}؟",
+  "fa": "نقش {role} حذف شود؟"
+ },
+ "web.roles.binding": {
+  "en": "Needs a registered phone",
+  "ckb": "مۆبایلی تۆمارکراو پێویستە",
+  "ar": "يتطلب هاتفاً مسجلاً",
+  "fa": "گوشی ثبت‌شده لازم است"
  }
 }

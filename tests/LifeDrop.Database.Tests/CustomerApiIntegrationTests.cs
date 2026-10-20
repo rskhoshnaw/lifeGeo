@@ -6270,6 +6270,99 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task Roles_ManagerBuildsChangesAndDeletesRolesWithGuards()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), helper = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@rep, @t1), (@h, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("rep", rep), ("h", helper) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<List<LifeDrop.Application.Users.RoleDto>> Roles() => (await client.GetFromJsonAsync<List<LifeDrop.Application.Users.RoleDto>>("/roles"))!;
+        object Body(string name, string scope = "region", params string[] permissions) => new { Name = name, DataScope = scope, RequiresDeviceBinding = false, Permissions = permissions };
+
+        // Reps cannot see or change roles; the manager sees the catalogue (no system.admin) and the default roles with their permissions, user counts and the default flag
+        As(rep);
+        await AssertProblemAsync(await client.GetAsync("/permissions"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/roles", Body("X")), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(manager);
+        var catalogue = (await client.GetFromJsonAsync<List<LifeDrop.Application.Roles.PermissionDto>>("/permissions"))!;
+        Assert.Contains(catalogue, p => p.Key == "orders.read" && p.Group == "orders");
+        Assert.DoesNotContain(catalogue, p => p.Key == "system.admin");
+        var salesRep = (await Roles()).Single(r => r.Name == "SalesRep");
+        Assert.True(salesRep.IsDefault);
+        Assert.Equal(1, salesRep.UserCount);
+        Assert.Contains("orders.create", salesRep.Permissions!);
+
+        // Create: a custom role; bad input is refused; the name is unique
+        foreach (var bad in new object[] { Body(" "), Body("Y", "world"), Body("Y", "region", "no.such.permission"), Body("Y", "region", "system.admin"), new { Name = "Y", DataScope = "own" } })
+            await AssertProblemAsync(await client.PostAsJsonAsync("/roles", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
+        var created = await client.PostAsJsonAsync("/roles", Body(" Finance Assistant ", "tenant", "payments.read", "orders.read", "payments.read"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var roleId = (await created.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
+        await AssertProblemAsync(await client.PostAsJsonAsync("/roles", Body("Finance Assistant")), HttpStatusCode.Conflict, "CONFLICT");
+        var custom = (await Roles()).Single(r => r.Id == roleId);
+        Assert.Equal(("Finance Assistant", "tenant", false, 0), (custom.Name, custom.DataScope, custom.IsDefault, custom.UserCount));
+        Assert.Equal(new[] { "orders.read", "payments.read" }, custom.Permissions!.ToArray());
+
+        // The new role works: a user who gets it can read payments, and only that
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/users/{helper}/roles/{roleId}", null)).StatusCode);
+        As(helper);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/payments")).StatusCode);
+        await AssertProblemAsync(await client.GetAsync("/alerts"), HttpStatusCode.Forbidden, "FORBIDDEN");
+
+        // Change: permissions and reach are replaced at once (the helper loses payments), the name can change for a custom role
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/roles/{roleId}", Body("Alert Reader", "tenant", "alerts.read"))).StatusCode);
+        As(helper);
+        await AssertProblemAsync(await client.GetAsync("/payments"), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/alerts")).StatusCode);
+        As(manager);
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/roles/{Guid.NewGuid()}", Body("Z")), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Default roles keep their names but their permissions can change
+        var salesManager = (await Roles()).Single(r => r.Name == "SalesManager");
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/roles/{salesRep.Id}", Body("Renamed", "region", "orders.read")), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/roles/{salesRep.Id}", Body("SalesRep", "region", "orders.read", "customers.read"))).StatusCode);
+        Assert.Equal(new[] { "customers.read", "orders.read" }, (await Roles()).Single(r => r.Id == salesRep.Id).Permissions!.ToArray());
+
+        // Nobody may be locked out: the only role that can manage roles cannot lose that, nor be deleted
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/roles/{salesManager.Id}", Body("SalesManager", "tenant", "orders.read")), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Contains("user.manageroles", (await Roles()).Single(r => r.Id == salesManager.Id).Permissions!);   // the refused change was rolled back
+        await AssertProblemAsync(await client.DeleteAsync($"/roles/{salesManager.Id}"), HttpStatusCode.Conflict, "CONFLICT");
+
+        // Delete: not a default role, not a role somebody has; then it is gone
+        await AssertProblemAsync(await client.DeleteAsync($"/roles/{salesRep.Id}"), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await client.DeleteAsync($"/roles/{roleId}"), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/users/{helper}/roles/{roleId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/roles/{roleId}")).StatusCode);
+        await AssertProblemAsync(await client.DeleteAsync($"/roles/{roleId}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.DoesNotContain(await Roles(), r => r.Id == roleId);
+    }
+
+    [SkippableFact]
     public async Task Doctors_AreHiddenFromTheSalesRepButEveryOtherCustomerOfTheRegionIsVisible()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
