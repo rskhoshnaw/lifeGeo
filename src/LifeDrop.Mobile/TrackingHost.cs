@@ -23,6 +23,7 @@ public static class TrackingHost
     private static Outbox? _outbox;
     private static IVisitsApiClient? _visits;
     private static ICustomersApiClient? _customers;
+    private static IChannelsApiClient? _channels;
     private static IOrdersApiClient? _orders;
     private static IWarehouseApiClient? _warehouse;
     private static IDeliveryApiClient? _delivery;
@@ -68,6 +69,12 @@ public static class TrackingHost
     public static IVisitsApiClient? VisitsApi
     {
         get { lock (Gate) return _visits; }
+    }
+
+    // Telegram link of the signed-in user (step 4.22); online only.
+    public static IChannelsApiClient? ChannelsApi
+    {
+        get { lock (Gate) return _channels; }
     }
 
     // Customers and places (step 1.23-b); online only.
@@ -149,6 +156,7 @@ public static class TrackingHost
             _store = new FileDurableStore(OfflineFolder);
             _visits = new VisitsApiClient(http, session);
             _customers = new CustomersApiClient(http, session);
+            _channels = new ChannelsApiClient(http, session);
             _orders = new OrdersApiClient(http, session);
             _warehouse = new WarehouseApiClient(http, session);
             _delivery = new DeliveryApiClient(http, session);
@@ -208,6 +216,7 @@ public static class TrackingHost
             _outbox = null;
             _visits = null;
             _customers = null;
+            _channels = null;
             _orders = null;
             _warehouse = null;
             _delivery = null;
