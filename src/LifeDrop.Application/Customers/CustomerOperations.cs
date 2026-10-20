@@ -82,7 +82,7 @@ public sealed class CreateCustomer(ICustomerStore store, IPermissionStore permis
             return (CreateCustomerResult.InvalidData, CustomerId.Empty);
 
         var scope = await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.CustomersWrite, cancellationToken);
-        if (scope is null || (scope.HideDoctors && IsDoctor(request.Type))) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
+        if (scope is null || ((scope.HideDoctors && IsDoctor(request.Type)) || (scope.DoctorsOnly && !IsDoctor(request.Type)))) return (CreateCustomerResult.Forbidden, CustomerId.Empty);
         var (_, creatorRegion) = await permissions.GetUserRegionAsync(tenantId, actorId, cancellationToken);
         var region = request.RegionId ?? creatorRegion;
         var pending = scope.Scope != DataScope.Tenant && region is not null && region != creatorRegion;
@@ -360,7 +360,7 @@ public sealed class CustomerEditService(ICustomerStore store, IPermissionStore p
         if (customerId == Guid.Empty || string.IsNullOrEmpty(type) || string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name) ||
             type.Length > MaxTypeLength || code.Length > MaxCodeLength || name.Length > MaxNameLength)
             return CustomerUpdateResult.InvalidData;
-        if (scope.HideDoctors && CreateCustomer.IsDoctor(type)) return CustomerUpdateResult.Forbidden;
+        if ((scope.HideDoctors && CreateCustomer.IsDoctor(type)) || (scope.DoctorsOnly && !CreateCustomer.IsDoctor(type))) return CustomerUpdateResult.Forbidden;
         return await store.EditAsync(tenantId, actorId, new CustomerId(customerId), scope, type, code, name, cancellationToken);
     }
 
