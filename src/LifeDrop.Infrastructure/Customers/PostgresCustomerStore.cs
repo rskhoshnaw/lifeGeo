@@ -400,8 +400,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         audit.Parameters.AddWithValue("action", auditAction);
         audit.Parameters.AddWithValue("entity", id.Value.ToString());
         await audit.ExecuteNonQueryAsync(cancellationToken);
-        if (auditAction == "customer.location_changed")
-            await NotifyAsync(connection, transaction, tenantId, actorId, id, auditAction, cancellationToken);
+        // Location changes keep their own message; a change of the name, contact details or doctor details is told as a profile change.
+        if (auditAction is "customer.location_changed" or "customer.edited" or "customer.contact_changed" or "customer.doctor_changed")
+            await NotifyAsync(connection, transaction, tenantId, actorId, id, auditAction == "customer.location_changed" ? auditAction : "customer.profile_changed", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
     }
