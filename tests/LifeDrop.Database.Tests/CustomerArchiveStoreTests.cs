@@ -31,9 +31,13 @@ public class CustomerArchiveStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0007_regions_teams.sql", "0022_region_rep_notifications.sql", "0043_customer_archive.sql", "0047_customer_doctor_fields.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0043_customer_archive.sql", "0047_customer_doctor_fields.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
+
+            // The store tells the people responsible about an edit; only the table it writes to is needed here (the full 0022 also reseeds roles).
+            await using (var notifications = new NpgsqlCommand("CREATE TABLE notifications (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, user_id uuid NOT NULL, kind text NOT NULL, entity_id text NOT NULL, actor_id uuid NOT NULL)", connection))
+                await notifications.ExecuteNonQueryAsync();
 
             var tenant = Guid.NewGuid();
             var other = Guid.NewGuid();
