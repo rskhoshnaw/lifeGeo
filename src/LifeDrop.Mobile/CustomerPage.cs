@@ -67,7 +67,8 @@ public sealed class CustomerPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    _titleLabel, _typeLabel, _name, _doctor, _phone, _address, _contactName, _phone2, _notes,
+                    _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", _phone), new CaptionedField("app.customer.address", _address),
+                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", _phone2), new CaptionedField("app.customer.notes", _notes),
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
                 }

@@ -9,6 +9,7 @@ namespace LifeDrop.Mobile;
 public sealed class NewCustomerPage : ContentPage
 {
     private readonly Entry _name = new() { MaxLength = NewCustomerFlow.MaxNameLength };
+    private CaptionedField _nameBox = null!;
     private readonly Picker _type = new() { ItemsSource = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
     private IReadOnlyList<string> _types = NewCustomerFlow.Types;
     // Doctor details (plan step 4.27-b): shown only when the type is Doctor.
@@ -31,6 +32,7 @@ public sealed class NewCustomerPage : ContentPage
     {
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.customer.new");
+        _nameBox = new CaptionedField("app.customer.name", _name);
         _name.Placeholder = Texts.Get("app.customer.name");
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
@@ -50,7 +52,8 @@ public sealed class NewCustomerPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    _type, _name, _doctorBox, _phone, _address, _contactName, _phone2, _notes,
+                    new CaptionedField("app.customer.type", _type), _nameBox, _doctorBox, new CaptionedField("app.customer.phone", _phone), new CaptionedField("app.customer.address", _address),
+                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", _phone2), new CaptionedField("app.customer.notes", _notes),
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _locationButton, _locationLabel, _create, _spinner, _message
                 }
@@ -95,7 +98,7 @@ public sealed class NewCustomerPage : ContentPage
     {
         var doctor = NewCustomerFlow.IsDoctor(SelectedType);
         _doctorBox.IsVisible = doctor;
-        _name.Placeholder = Texts.Get(doctor ? "app.customer.doctorName" : "app.customer.name");
+        _nameBox.Caption.Text = _name.Placeholder = Texts.Get(doctor ? "app.customer.doctorName" : "app.customer.name");
     }
 
     private DoctorDetails? DoctorFromForm() => NewCustomerFlow.IsDoctor(SelectedType) ? _doctorBox.Read() : null;
