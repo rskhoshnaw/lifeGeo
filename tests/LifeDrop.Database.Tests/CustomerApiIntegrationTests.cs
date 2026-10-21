@@ -3969,15 +3969,17 @@ public class CustomerApiIntegrationTests
         // Region with supervisors: a rep's change of a colleague's customer is told to both supervisors, nobody else
         As(t1, repA);
         Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 111")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA, "0750 222")).StatusCode);   // the rep's own customer: nobody is told
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA, "0750 222")).StatusCode);   // the rep's own customer: the supervisors are told too
         Assert.Equal(0, await Unread());
         foreach (var supervisor in new[] { sv, sv2 })
         {
             As(t1, supervisor);
-            var message = Assert.Single(await Inbox());
+            var supervisorInbox = await Inbox();
+            Assert.Equal(2, supervisorInbox.Count);
+            var message = Assert.Single(supervisorInbox, n => n.EntityId == cA2.ToString());
             Assert.Equal(("customer.profile_changed", cA2.ToString(), repA, "repa@t1", "CA2", "Erbil Two"), (message.Kind, message.EntityId, message.ActorId, message.ActorEmail, message.CustomerCode, message.CustomerName));
             Assert.Null(message.ReadAt);
-            Assert.Equal(1, await Unread());
+            Assert.Equal(2, await Unread());
         }
         As(t1, manager);
         Assert.Empty(await Inbox());   // the region has supervisors, so the sales manager is not told
@@ -3986,45 +3988,46 @@ public class CustomerApiIntegrationTests
         As(t1, sv);
         Assert.Equal(HttpStatusCode.NoContent, (await Profile(cA2, "0750 333")).StatusCode);
         As(t1, sv2);
-        Assert.Equal(2, (await Inbox()).Count);
+        Assert.Equal(3, (await Inbox()).Count);
         As(t1, sv);
-        Assert.Equal(1, (await Inbox()).Count);
+        Assert.Equal(2, (await Inbox()).Count);
 
         // Region without a supervisor: the sales managers are told (profile and location changes alike)
         As(t1, repB2);
         Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 444")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await Location(cB)).StatusCode);
         As(t1, repB);
-        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 555")).StatusCode);   // the owner: nobody is told
+        Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 555")).StatusCode);   // the owner: the managers are told too
         foreach (var salesManager in new[] { manager, manager2 })
         {
             As(t1, salesManager);
             var inbox = await Inbox();
-            Assert.Equal(new[] { "customer.location_changed", "customer.profile_changed" }, inbox.Select(n => n.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
-            Assert.All(inbox, n => Assert.Equal(("repb2@t1", "CB"), (n.ActorEmail, n.CustomerCode)));
+            Assert.Equal(new[] { "customer.location_changed", "customer.profile_changed", "customer.profile_changed" }, inbox.Select(n => n.Kind).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+            Assert.All(inbox, n => Assert.Equal("CB", n.CustomerCode));
+            Assert.Equal(new[] { "repb2@t1", "repb2@t1", "repb@t1" }, inbox.Select(n => n.ActorEmail).OrderBy(e => e, StringComparer.Ordinal).ToArray());
             Assert.True(inbox[0].CreatedAt >= inbox[1].CreatedAt);   // newest first
         }
         // The sales manager's own change tells the other manager only if the region has none... it has none, so the other manager
         As(t1, manager);
         Assert.Equal(HttpStatusCode.NoContent, (await Profile(cB, "0750 666")).StatusCode);
         As(t1, manager2);
-        Assert.Equal(3, (await Inbox()).Count);
+        Assert.Equal(4, (await Inbox()).Count);
         As(t1, manager);
-        Assert.Equal(2, (await Inbox()).Count);
+        Assert.Equal(3, (await Inbox()).Count);
 
         // Everybody reads and marks only their own messages
         As(t1, manager2);
         var mine = await Inbox("?unread=true&limit=2");
         Assert.Equal(2, mine.Count);
-        Assert.Equal(3, await Unread());
+        Assert.Equal(4, await Unread());
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/notifications/{mine[0].Id}/read", null)).StatusCode);   // again: harmless
-        Assert.Equal(2, await Unread());
-        Assert.Equal(2, (await Inbox("?unread=true")).Count);
-        Assert.Equal(3, (await Inbox()).Count);
+        Assert.Equal(3, await Unread());
+        Assert.Equal(3, (await Inbox("?unread=true")).Count);
+        Assert.Equal(4, (await Inbox()).Count);
         As(t1, manager);
         await AssertProblemAsync(await client.PostAsync($"/notifications/{mine[0].Id}/read", null), HttpStatusCode.NotFound, "NOT_FOUND");   // not the manager's message
-        Assert.Equal(2, await Unread());
+        Assert.Equal(3, await Unread());
         As(t1, manager2);
         await AssertProblemAsync(await client.GetAsync("/notifications?limit=0"), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await client.GetAsync("/notifications?limit=201"), HttpStatusCode.BadRequest, "INVALID_DATA");
@@ -4032,9 +4035,9 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/notifications/read-all", null)).StatusCode);
         Assert.Equal(0, await Unread());
         Assert.Empty(await Inbox("?unread=true"));
-        Assert.Equal(3, (await Inbox()).Count);
+        Assert.Equal(4, (await Inbox()).Count);
         As(t1, sv);
-        Assert.Equal(1, await Unread());   // marking one's own messages did not touch the others'
+        Assert.Equal(2, await Unread());   // marking one's own messages did not touch the others'
 
         // Another company sees none of it
         As(t2, tenant2Manager);

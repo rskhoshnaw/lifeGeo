@@ -37,3 +37,5 @@ GRANT DELETE ON roles, role_permissions TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON product_photos TO lifedrop_app;
 -- Step 4.42: a manager ticks "hide prices" on a region.
 GRANT UPDATE ON regions TO lifedrop_app;
+-- Managers change a user e-mail, password, active flag and city (PUT /users/{id}/...); tenant RLS still applies.
+GRANT UPDATE ON users TO lifedrop_app;

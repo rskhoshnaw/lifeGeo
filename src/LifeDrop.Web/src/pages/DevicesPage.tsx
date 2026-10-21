@@ -3,6 +3,7 @@ import { AdminApi, type Device, type DeviceStatus } from '../api/admin.ts'
 import { Badge } from '../components/Badge.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { SortTh, useSort } from '../components/sort.tsx'
 
 const filters: { value: DeviceStatus | 'all'; label: TextKey }[] = [
   { value: 'pending', label: 'web.devices.pending' },
@@ -19,6 +20,7 @@ export function DevicesPage({ admin }: { admin: AdminApi }) {
   const [search, setSearch] = useState('')
   const devices = useLoad(useCallback(() => admin.devices(filter === 'all' ? undefined : filter, platform || undefined, search), [admin, filter, platform, search]))
   const action = useAction(devices.reload)
+  const sorted = useSort(devices.data, { user: (d) => d.userEmail ?? d.userId, device: (d) => d.adminLabel || d.label, app: (d) => d.appVersion, registered: (d) => d.registeredAt, status: (d) => d.status })
 
   function block(device: Device) {
     if (!window.confirm(t('web.devices.confirmBlock', { device: device.label, user: device.userEmail ?? device.userId }))) return
@@ -61,16 +63,16 @@ export function DevicesPage({ admin }: { admin: AdminApi }) {
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
-              <th className="py-2">{t('web.devices.user')}</th>
-              <th>{t('web.devices.device')}</th>
-              <th>{t('web.devices.app')}</th>
-              <th>{t('web.devices.registered')}</th>
-              <th>{t('web.devices.status')}</th>
+              <SortTh id="user" className="py-2" sort={sorted.sort} onSort={sorted.toggle}>{t('web.devices.user')}</SortTh>
+              <SortTh id="device" sort={sorted.sort} onSort={sorted.toggle}>{t('web.devices.device')}</SortTh>
+              <SortTh id="app" sort={sorted.sort} onSort={sorted.toggle}>{t('web.devices.app')}</SortTh>
+              <SortTh id="registered" sort={sorted.sort} onSort={sorted.toggle}>{t('web.devices.registered')}</SortTh>
+              <SortTh id="status" sort={sorted.sort} onSort={sorted.toggle}>{t('web.devices.status')}</SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {devices.data.map((device) => (
+            {(sorted.rows ?? devices.data).map((device) => (
               <tr key={device.id} className="border-b">
                 <td className="py-2">{device.userEmail ?? device.userId}</td>
                 <td>
