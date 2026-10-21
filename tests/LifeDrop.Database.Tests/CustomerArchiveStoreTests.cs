@@ -31,7 +31,7 @@ public class CustomerArchiveStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0043_customer_archive.sql", "0047_customer_doctor_fields.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0007_regions_teams.sql", "0022_region_rep_notifications.sql", "0043_customer_archive.sql", "0047_customer_doctor_fields.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
 
