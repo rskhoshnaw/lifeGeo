@@ -10,6 +10,7 @@ import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
 import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
+import { SortTh, useSort } from '../components/sort.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   return (
@@ -81,6 +82,7 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
   const [profileFor, setProfileFor] = useState<Customer | null>(null)
   const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
+  const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, type: (c) => c.type, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
 
   function reload() {
     setEditFor(null)
@@ -150,16 +152,16 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
           <thead>
             <tr className="border-b">
               {canPrioritise && <th />}
-              <th className="py-2">{t('web.customers.code')}</th>
-              <th>{t('web.customers.name')}</th>
-              <th>{t('web.customers.type')}</th>
-              <th>{t('web.customers.approval')}</th>
-              <th>{t('web.customers.priority')}</th>
+              <SortTh id="code" className="py-2" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.code')}</SortTh>
+              <SortTh id="name" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.name')}</SortTh>
+              <SortTh id="type" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.type')}</SortTh>
+              <SortTh id="approval" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.approval')}</SortTh>
+              <SortTh id="priority" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.priority')}</SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {items.map((customer) => (
+            {(sorted.rows ?? items).map((customer) => (
               <tr key={customer.id} className="border-b">
                 {canPrioritise && (
                   <td>

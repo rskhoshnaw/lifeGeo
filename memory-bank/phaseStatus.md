@@ -36,6 +36,7 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 3.1/3.2 panel screens | in PR (same branch): Companies tab, Visit forms tab, Saved reports in Reports; panel 79 tests; app screen for form answers not built |
 | 3.7 observability + load script | in PR (same branch); no migration |
 | 3.9 wall screen (TV tab) | in PR (same branch): panel only, totals only |
+| Panel: user editor inline under the row (email, password, city, roles) + click-to-sort headers (users, devices, customers) | in PR (same branch); panel only, 118 tests |
 | Next | plan section 7: 4.7 CI + real-device test (intent-filter, QR scan, camera); 3.8 iOS after Apple account; real-device tests (tracking, offline, Push); load test; buy domain/VPS and deploy (3.3 last) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.

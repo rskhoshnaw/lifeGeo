@@ -1,8 +1,9 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, Permissions, type Me, type Role, type UserSummary } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { RolesPanel } from '../components/RolesPanel.tsx'
+import { SortTh, useSort } from '../components/sort.tsx'
 
 export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [showInactive, setShowInactive] = useState(false)
@@ -11,6 +12,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const canAssign = can(me, ...Permissions.assignRoles)
   const roles = useLoad(useCallback(() => (canAssign ? admin.roles() : Promise.resolve<Role[]>([])), [admin, canAssign]))
   const action = useAction(users.reload)
+  const sorted = useSort(users.data, { email: (u) => u.email ?? u.id, roles: (u) => u.roles.join(', '), team: (u) => u.teamName, city: (u) => u.city, phone: (u) => u.phoneType, sessions: (u) => u.activeSessions, status: (u) => u.isActive })
 
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState({ email: '', password: '', roleId: '' })
@@ -91,19 +93,20 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
-              <th className="py-2">{t('web.users.email')}</th>
-              <th>{t('web.users.roles')}</th>
-              <th>{t('web.users.team')}</th>
-              <th>{t('web.users.city')}</th>
-              <th>{t('web.users.phone')}</th>
-              <th>{t('web.users.sessions')}</th>
-              <th>{t('web.users.status')}</th>
+              <SortTh id="email" className="py-2" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.email')}</SortTh>
+              <SortTh id="roles" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.roles')}</SortTh>
+              <SortTh id="team" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.team')}</SortTh>
+              <SortTh id="city" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.city')}</SortTh>
+              <SortTh id="phone" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.phone')}</SortTh>
+              <SortTh id="sessions" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.sessions')}</SortTh>
+              <SortTh id="status" sort={sorted.sort} onSort={sorted.toggle}>{t('web.users.status')}</SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {users.data.map((user) => (
-              <tr key={user.id} className="border-b align-top">
+            {(sorted.rows ?? users.data).map((user) => (
+              <Fragment key={user.id}>
+              <tr className="border-b align-top">
                 <td className="py-2">
                   {canAssign ? (
                     <button className="text-brand-700 underline" aria-label={t('web.users.edit', { user: user.email ?? user.id })} onClick={() => setEditing(editing === user.id ? null : user.id)}>
@@ -145,22 +148,19 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   )}
                 </td>
               </tr>
+              {canAssign && editing === user.id && roles.data && (
+                <tr className="border-b bg-slate-50">
+                  <td colSpan={8} className="p-2">
+                    <UserEditor user={user} roles={roles.data} self={user.id === me.id} admin={admin} onClose={() => setEditing(null)} onChanged={users.reload} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
       )}
       {canAssign && <RolesPanel admin={admin} />}
-      {canAssign && editing && users.data?.find((u) => u.id === editing) && roles.data && (
-        <UserEditor
-          key={editing}
-          user={users.data.find((u) => u.id === editing)!}
-          roles={roles.data}
-          self={editing === me.id}
-          admin={admin}
-          onClose={() => setEditing(null)}
-          onChanged={users.reload}
-        />
-      )}
     </section>
   )
 }
@@ -168,12 +168,34 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
 // One user in detail (plan step 4.37): city, and the roles with a button to take each away.
 export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { user: UserSummary; roles: Role[]; self: boolean; admin: AdminApi; onClose: () => void; onChanged: () => void }) {
   const [city, setCity] = useState(user.city ?? '')
+  const [email, setEmail] = useState(user.email ?? '')
+  const [password, setPassword] = useState('')
   const action = useAction(onChanged)
   const own = roles.filter((role) => user.roles.includes(role.name))
   return (
     <div className="mt-4 max-w-3xl space-y-2 rounded border p-4 text-sm">
       <h3 className="font-semibold">{user.email ?? user.id}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
+      {user.isActive && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="email" aria-label={t('web.users.email')} placeholder={t('web.users.email')} className="rounded border px-2 py-1" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button className="rounded border px-2 py-1" disabled={action.busy || !email.trim() || email.trim() === user.email} onClick={() => void action.run(() => admin.changeUserEmail(user.id, email.trim()))}>
+              {t('web.users.changeEmail')}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="password" autoComplete="new-password" aria-label={t('web.users.newPassword')} placeholder={t('web.users.newPassword')} className="rounded border px-2 py-1" minLength={12} maxLength={200} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button
+              className="rounded border px-2 py-1"
+              disabled={action.busy || password.length < 12}
+              onClick={() => void action.run(async () => { await admin.setUserPassword(user.id, password); setPassword('') })}
+            >
+              {t('web.users.setPassword')}
+            </button>
+          </div>
+        </>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.users.city')} placeholder={t('web.users.city')} className="rounded border px-2 py-1" maxLength={80} value={city} onChange={(e) => setCity(e.target.value)} />
         <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.setUserCity(user.id, city.trim() || null))}>
@@ -194,6 +216,11 @@ export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { u
           </span>
         ))}
       </div>
+      {user.isActive && (
+        <div className="flex flex-wrap items-center gap-2">
+          <AssignRole user={user} roles={roles} busy={action.busy} onAssign={(roleId) => void action.run(() => admin.assignRole(user.id, roleId))} />
+        </div>
+      )}
       <button className="rounded border px-2 py-1" onClick={onClose}>
         {t('web.customers.closeHours')}
       </button>
