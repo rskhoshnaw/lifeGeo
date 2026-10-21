@@ -407,7 +407,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         return true;
     }
 
-    // Tells the people responsible that somebody other than the customer's owner changed it (plan step 1.23-c): the supervisors of the
+    // Tells the people responsible that somebody changed the customer, the owner included (plan step 1.23-c, owner request 2026-10-21): the supervisors of the
     // customer's region (a role with customers.approve and region scope, in a team of that region); when the region has none, the sales
     // managers (customers.approve with tenant scope). The person who made the change is never told.
     private static async Task NotifyAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, CustomerId id,
@@ -442,7 +442,7 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
             INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
             SELECT @tenant, r.user_id, @kind, @entity, @actor
             FROM recipients r
-            WHERE r.user_id <> @actor AND (SELECT owner_user_id FROM c) IS DISTINCT FROM @actor
+            WHERE r.user_id <> @actor
             """, connection, transaction);
         command.Parameters.AddWithValue("id", id.Value);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
