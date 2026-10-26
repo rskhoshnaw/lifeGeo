@@ -7,8 +7,8 @@ using Xunit;
 
 namespace LifeDrop.Database.Tests;
 
-// The customer list filters of plan step 5.2 (type, place with everything below it, cooperates, with or without a search text) against the first migrations
-// in an isolated schema; the places table is created here in its minimal form so the test does not depend on the later role migrations.
+// The customer list filters of plan step 5.2 (type, place with everything below it, cooperates, with or without a search text) against the current schema
+// in an isolated schema with every migration applied.
 public class CustomerFilterStoreTests
 {
     [Fact]
@@ -31,14 +31,12 @@ public class CustomerFilterStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0004_customers.sql", "0007_regions_teams.sql", "0008_role_data_scope.sql", "0047_customer_doctor_fields.sql" })
-                await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
-                    await migrate.ExecuteNonQueryAsync();
-            await using (var places = new NpgsqlCommand("""
-                CREATE TABLE places (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), parent_id uuid, kind text NOT NULL, name text NOT NULL, UNIQUE (tenant_id, id));
-                ALTER TABLE customers ADD COLUMN place_id uuid;
-                """, connection))
-                await places.ExecuteNonQueryAsync();
+            // All migrations, so the store always runs against the current schema (the list reads many columns and the places).
+            var all = string.Concat(Directory.GetFiles(AppContext.BaseDirectory, "00??_*.sql")
+                .Select(Path.GetFileName).OrderBy(f => f, StringComparer.Ordinal)
+                .Select(f => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, f!))));
+            await using (var migrate = new NpgsqlCommand($"SET search_path TO {schema}, public; {all}", connection))
+                await migrate.ExecuteNonQueryAsync();
 
             Guid tenant = Guid.NewGuid(), other = Guid.NewGuid(), actor = Guid.NewGuid();
             Guid erbil = Guid.NewGuid(), ankawa = Guid.NewGuid(), street = Guid.NewGuid(), sulaymaniyah = Guid.NewGuid();
