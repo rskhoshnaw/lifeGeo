@@ -127,6 +127,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanGenerationStore, LifeDrop.Infrastructure.Visits.PostgresPlanGenerationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanGenerator>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerVisitWindows>();
+        builder.Services.AddScoped<LifeDrop.Application.Targets.ITargetStore, LifeDrop.Infrastructure.Targets.PostgresTargetStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Targets.SalesTargets>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerHistoryStore, LifeDrop.Infrastructure.Customers.PostgresCustomerHistoryStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerHistory>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitPlanBoard>();
@@ -758,6 +760,7 @@ public partial class Program
         LifeDrop.API.Endpoints.PlatformEndpoints.MapPlatformEndpoints(app);
         LifeDrop.API.Endpoints.SavedReportEndpoints.MapSavedReportEndpoints(app);
         LifeDrop.API.Endpoints.FormFieldEndpoints.MapFormFieldEndpoints(app);
+        LifeDrop.API.Endpoints.TargetEndpoints.MapTargetEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);

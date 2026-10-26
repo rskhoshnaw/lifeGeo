@@ -1,6 +1,6 @@
 import {
   Banknote, Building2, CalendarCheck, ChartColumn, ClipboardList, FlaskConical, House, Layers, ListChecks, Map, MapPinned, Package, Route, ScrollText,
-  ShoppingCart, Smartphone, Store, TriangleAlert, Tv, User, Users, Warehouse, type LucideIcon,
+  ShoppingCart, Smartphone, Store, Target, TriangleAlert, Tv, User, Users, Warehouse, type LucideIcon,
 } from 'lucide-react'
 import type { TextKey } from '../i18n.ts'
 
@@ -29,6 +29,7 @@ export const placement: Record<string, { group: NavGroup; icon: LucideIcon }> = 
   warehouse: { group: 'sales', icon: Warehouse },
   payments: { group: 'sales', icon: Banknote },
   reports: { group: 'insight', icon: ChartColumn },
+  targets: { group: 'insight', icon: Target },
   alerts: { group: 'insight', icon: TriangleAlert },
   audit: { group: 'insight', icon: ScrollText },
   users: { group: 'organisation', icon: Users },

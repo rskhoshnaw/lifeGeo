@@ -133,6 +133,15 @@
                             LineBreakMode="WordWrap" />
                 </Border>
 
+                <Border Grid.Row="5" Grid.Column="1" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
+                    <Button x:Name="TargetsBtn" Clicked="OnTargetsClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
                 <Border Grid.Row="5" Grid.Column="0" StrokeThickness="1"
                         BackgroundColor="{StaticResource White}"
                         StrokeShape="RoundRectangle 14">

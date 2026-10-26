@@ -73,6 +73,7 @@
     <None Include="../../db/migrations/0055_hide_prices.sql" Link="0055_hide_prices.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0056_place_name_norm.sql" Link="0056_place_name_norm.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0057_company_profile.sql" Link="0057_company_profile.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0058_sales_targets.sql" Link="0058_sales_targets.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -68,6 +68,10 @@ public static class PermissionKeys
     public const string AlertsHandle = "alerts.handle";
     public const string ReportsRead = "reports.read";
 
+    // Sales targets per visitor, product and month (plan step 5.5): set by managers inside their area, read for the report.
+    public const string TargetsManage = "targets.manage";
+    public const string TargetsRead = "targets.read";
+
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
     public const string TrackingSummary = "tracking.summary";
