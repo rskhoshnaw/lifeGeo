@@ -131,11 +131,14 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
     public Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
         ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken, search);
 
+    public Task<IReadOnlyList<CustomerDto>> FilterAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string? search, CustomerFilter filter, CancellationToken cancellationToken) =>
+        ListCoreAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken, search, filter);
+
     public async Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
         await UpdateWithAuditAsync(tenantId, actorId, id, scope, archived ? "customer.archived" : "customer.restored",
             archived ? "archived_at = COALESCE(archived_at, now())" : "archived_at = NULL", _ => { }, cancellationToken);
 
-    private async Task<IReadOnlyList<CustomerDto>> ListCoreAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken, string? search = null)
+    private async Task<IReadOnlyList<CustomerDto>> ListCoreAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, bool archived, CancellationToken cancellationToken, string? search = null, CustomerFilter? filter = null)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -151,6 +154,10 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         sql += "\nWHERE " + ScopeFilter(scope) + (archived ? " AND archived_at IS NOT NULL" : " AND archived_at IS NULL");
         if (search is not null)
             sql += "\nAND (name ILIKE @search ESCAPE '\\' OR code ILIKE @search ESCAPE '\\' OR phone ILIKE @search ESCAPE '\\' OR phone2 ILIKE @search ESCAPE '\\')";
+        if (!string.IsNullOrWhiteSpace(filter?.Type)) sql += "\nAND lower(type) = lower(@fType)";
+        if (filter?.PlaceId is not null)
+            sql += "\nAND place_id IN (WITH RECURSIVE below AS (SELECT id FROM places WHERE id = @fPlace UNION ALL SELECT p.id FROM places p JOIN below b ON p.parent_id = b.id) SELECT id FROM below)";
+        if (filter?.Cooperates is not null) sql += "\nAND cooperates = @fCooperates";
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             sql += "\nAND ((created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId))";
@@ -162,6 +169,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         command.Parameters.AddWithValue("limit", limit);
         if (search is not null) command.Parameters.AddWithValue("search", "%" + search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%");
         AddScopeParameters(command, scope);
+        if (!string.IsNullOrWhiteSpace(filter?.Type)) command.Parameters.AddWithValue("fType", filter!.Type!);
+        if (filter?.PlaceId is { } placeFilter) command.Parameters.AddWithValue("fPlace", placeFilter);
+        if (filter?.Cooperates is { } cooperatesFilter) command.Parameters.Add(new NpgsqlParameter("fCooperates", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = cooperatesFilter });
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             command.Parameters.AddWithValue("cursorDate", cursorCreatedAt.Value);

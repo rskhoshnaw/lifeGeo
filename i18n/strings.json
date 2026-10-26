@@ -7848,10 +7848,10 @@
   "fa": "رمز فعلی درست نیست."
  },
  "web.login.remember": {
-  "en": "Remember my company code and e-mail on this device",
-  "ckb": "کۆدی کۆمپانیا و ئیمەیڵەکەم لەسەر ئەم ئامێرە بپارێزە",
-  "ar": "تذكّر رمز الشركة والبريد على هذا الجهاز",
-  "fa": "کد شرکت و ایمیل من را در این دستگاه به خاطر بسپار"
+  "en": "Remember my company code and e-mail and keep me signed in on this device",
+  "ckb": "کۆدی کۆمپانیا و ئیمەیڵەکەم بپارێزە و لەسەر ئەم ئامێرە چوونەژوورەوەکەم بهێڵەرەوە",
+  "ar": "تذكّر رمز الشركة والبريد وأبقني مسجّلاً على هذا الجهاز",
+  "fa": "کد شرکت و ایمیل من را به خاطر بسپار و در این دستگاه وارد نگه دار"
  },
  "web.platform.profile": {
   "en": "Profile",
@@ -7960,5 +7960,35 @@
   "ckb": "واتساپ",
   "ar": "واتساب",
   "fa": "واتساپ"
+ },
+ "app.choice.search": {
+  "en": "Search",
+  "ckb": "گەڕان",
+  "ar": "بحث",
+  "fa": "جستجو"
+ },
+ "app.customers.apply": {
+  "en": "Show customers",
+  "ckb": "پیشاندانی کڕیاران",
+  "ar": "عرض العملاء",
+  "fa": "نمایش مشتریان"
+ },
+ "app.customers.all": {
+  "en": "All types",
+  "ckb": "هەموو جۆرەکان",
+  "ar": "كل الأنواع",
+  "fa": "همه نوع‌ها"
+ },
+ "app.customers.place": {
+  "en": "City and neighbourhood",
+  "ckb": "شار و گەڕەک",
+  "ar": "المدينة والحي",
+  "fa": "شهر و محله"
+ },
+ "app.login.remember": {
+  "en": "Remember my login (including the password) on this phone",
+  "ckb": "زانیاری چوونەژوورەوەم (لەگەڵ وشەی نهێنی) لەسەر ئەم مۆبایلە بپارێزە",
+  "ar": "تذكّر بيانات الدخول (مع كلمة السر) على هذا الهاتف",
+  "fa": "اطلاعات ورود من (با رمز) را در این گوشی به خاطر بسپار"
  }
 }

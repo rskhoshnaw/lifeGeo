@@ -8,19 +8,17 @@ namespace LifeDrop.Mobile;
 public sealed class DoctorFieldsView : VerticalStackLayout
 {
     private readonly Entry _clinic = new() { MaxLength = 150 };
-    private readonly Picker _specialty = new();
+    private readonly ChoiceField _specialty = new(Texts.Get("app.customer.specialty"));
     private readonly YesNoView _cooperates = new();
     private readonly YesNoView _dealer = new();
-    private readonly Picker _class = new();
+    private readonly ChoiceField _class = new(Texts.Get("app.customer.class"));
 
     public DoctorFieldsView()
     {
         Spacing = 12;
         _clinic.Placeholder = Texts.Get("app.customer.clinic");
-        _specialty.Title = Texts.Get("app.customer.specialty");
-        _specialty.ItemsSource = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Specialties.Select(k => Texts.Get("specialty." + k))).ToList();
-        _class.Title = Texts.Get("app.customer.class");
-        _class.ItemsSource = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Classes).ToList();
+        _specialty.Items = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Specialties.Select(k => Texts.Get("specialty." + k))).ToList();
+        _class.Items = new[] { Texts.Get("app.customer.notSet") }.Concat(DoctorOptions.Classes).ToList();
         Show(null);
         Children.Add(new CaptionedField("app.customer.clinic", _clinic));
         Children.Add(new CaptionedField("app.customer.specialty", _specialty));

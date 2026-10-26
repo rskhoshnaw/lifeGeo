@@ -69,6 +69,10 @@ public interface ICustomersApiClient
     // Customers in the user's area whose name, code or phone matches the text (two characters or more), at most 50.
     Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> SearchCustomersAsync(string search, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    // The customer list narrowed by type, place (a city or neighbourhood, everything below it) and "cooperates" (plan step 5.2); the text is optional when a filter is set.
+    Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }
 
 public sealed class CustomersApiClient : ICustomersApiClient
@@ -143,6 +147,25 @@ public sealed class CustomersApiClient : ICustomersApiClient
         if (result != VisitActionResult.Success) return (result, Array.Empty<CustomerListItem>());
         if (items is null || items.Any(c => c is null || c.Id == Guid.Empty || string.IsNullOrWhiteSpace(c.Code))) return (VisitActionResult.ServerError, Array.Empty<CustomerListItem>());
         return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone)).ToList());
+    }
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await CallAsync<List<CustomerDto>>(HttpMethod.Get, FilterPath(search, type, placeId, cooperates), null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<CustomerListItem>());
+        if (items is null || items.Any(c => c is null || c.Id == Guid.Empty || string.IsNullOrWhiteSpace(c.Code))) return (VisitActionResult.ServerError, Array.Empty<CustomerListItem>());
+        return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone)).ToList());
+    }
+
+    // The request path of a filtered list; only the filters that are set are sent.
+    public static string FilterPath(string? search, string? type, Guid? placeId, bool? cooperates)
+    {
+        var path = "/customers?limit=50";
+        if (!string.IsNullOrWhiteSpace(search)) path += "&q=" + Uri.EscapeDataString(search.Trim());
+        if (!string.IsNullOrWhiteSpace(type)) path += "&type=" + Uri.EscapeDataString(type.Trim());
+        if (placeId is { } place) path += "&placeId=" + place;
+        if (cooperates is { } cooperatesFilter) path += "&cooperates=" + (cooperatesFilter ? "true" : "false");
+        return path;
     }
 
     public async Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default) =>

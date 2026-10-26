@@ -18,6 +18,9 @@ public sealed class PlacePickerView : ContentView
 
     public PlacePickerView() => Content = _root;
 
+    // False for filters: the lists only choose, nothing is typed or added to the place reference.
+    public bool AllowAdd { get; set; } = true;
+
     public Guid? PlaceId => _picker?.PlaceId;
     // The answer of the last failed call, for the page to show; Success when all went well.
     public VisitActionResult Result => _picker?.Result ?? VisitActionResult.Success;
@@ -70,7 +73,7 @@ public sealed class PlacePickerView : ContentView
         for (var i = 0; i < picker.Levels.Count; i++)
         {
             var level = picker.Levels[i];
-            var addable = PlacePicker.AddableKinds(level);
+            IReadOnlyList<string> addable = AllowAdd ? PlacePicker.AddableKinds(level) : Array.Empty<string>();
             if (level.Items.Count == 0 && addable.Count == 0) continue;
             var index = i;
 
@@ -80,7 +83,7 @@ public sealed class PlacePickerView : ContentView
                 var mixed = level.ParentKind == "neighbourhood";
                 var choices = new List<string> { Texts.Get("app.place.choose") };
                 choices.AddRange(level.Items.Select(p => Label(p, mixed)));
-                var list = new Picker { ItemsSource = choices, SelectedIndex = level.SelectedId is { } selected ? level.Items.ToList().FindIndex(p => p.Id == selected) + 1 : 0 };
+                var list = new ChoiceField(Title(level.ParentKind)) { Items = choices, SelectedIndex = level.SelectedId is { } selected ? level.Items.ToList().FindIndex(p => p.Id == selected) + 1 : 0 };
                 list.SelectedIndexChanged += async (_, _) =>
                 {
                     if (_rendering) return;

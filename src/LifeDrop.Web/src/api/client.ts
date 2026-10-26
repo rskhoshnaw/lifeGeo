@@ -1,7 +1,9 @@
 // Client for the LifeDrop API used by the web panel (plan step 1.16).
-// The access token lives only in memory. The refresh token is kept in sessionStorage so a page reload in the same
-// tab stays signed in; it is gone when the tab closes. Refresh tokens rotate on every use (server rule), and
+// The access token lives only in memory. The refresh token is kept in the browser (sessionStorage, or localStorage when the user chose to stay signed in; see
+// sessionStore.ts), so a page reload stays signed in. Refresh tokens rotate on every use (server rule), and
 // concurrent requests share a single refresh.
+
+import { browserSessionStore, SessionStore } from './sessionStore.ts'
 
 export interface TokenResponse {
   accessToken: string
@@ -49,10 +51,15 @@ export class ApiClient {
   private refreshing: Promise<boolean> | null = null
   private readonly listeners = new Set<() => void>()
 
-  constructor(baseUrl: string, fetcher: typeof fetch = (...args) => fetch(...args), storage: Storage = sessionStorage) {
+  constructor(baseUrl: string, fetcher: typeof fetch = (...args) => fetch(...args), storage: Storage = browserSessionStore()) {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
     this.fetcher = fetcher
     this.storage = storage
+  }
+
+  // "Stay signed in" (plan step 5.2b): keep the sign-in in this browser until the user signs out instead of until the tab closes.
+  setStayLoggedIn(on: boolean): void {
+    if (this.storage instanceof SessionStore) this.storage.setPersistent(on)
   }
 
   get account(): Account | null {

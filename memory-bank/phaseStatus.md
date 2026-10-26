@@ -40,6 +40,7 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | App customer/doctor forms: caption above every field, yes/no radio buttons (CaptionedField.cs); not compiled here (no .NET), CI `mobile-android` builds it | in PR (same branch) |
 | Edits of name/contact/doctor details notify supervisors/managers like profile edits (kind profile_changed); "کۆمپلێکسی"→"کۆمەڵگای"; DB tests not run here | in PR (same branch) |
 | 5.1 name/support WhatsApp/wholesaler rename/WhatsApp on customer phones/neurology+psychiatry/doctors-only fix for two-role users | in PR (same branch); C# not compiled here (no .NET); DB test extended |
+| 5.2 ChoiceField (same picker on Android/iPhone) + customer list filters (type, place, cooperates) + 5.2b remember-me v2 (panel stays signed in; app keeps the password in secure storage) | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand for the 3 new query parameters |
 | Next | plan section 7: 4.7 CI + real-device test (intent-filter, QR scan, camera); 3.8 iOS after Apple account; real-device tests (tracking, offline, Push); load test; buy domain/VPS and deploy (3.3 last) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
