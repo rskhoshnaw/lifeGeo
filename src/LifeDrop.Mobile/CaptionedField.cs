@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Visits;
 using LifeDrop.Mobile.Localization;
 
 namespace LifeDrop.Mobile;
@@ -46,5 +47,39 @@ public sealed class YesNoView : HorizontalStackLayout
             _yes.IsChecked = value == true;
             _no.IsChecked = value == false;
         }
+    }
+}
+
+// Opening WhatsApp from a phone number (customer phones, the support line). The link is https://wa.me/..., so the phone hands it to WhatsApp (or its web page).
+public static class WhatsAppUi
+{
+    public static async Task OpenAsync(string? phone)
+    {
+        if (WhatsAppLink.Url(phone) is { } url) await Launcher.OpenAsync(new Uri(url));
+    }
+
+    // A label that looks and works like a link to the phone's WhatsApp chat.
+    public static void MakeLink(Label label, string? phone)
+    {
+        label.TextDecorations = TextDecorations.Underline;
+        label.GestureRecognizers.Clear();
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await OpenAsync(phone);
+        label.GestureRecognizers.Add(tap);
+    }
+}
+
+// A phone field with a WhatsApp button under it that shows while the text is a usable number.
+public sealed class PhoneWithWhatsApp : VerticalStackLayout
+{
+    public PhoneWithWhatsApp(Entry entry)
+    {
+        Spacing = 6;
+        var button = new Button { Text = Texts.Get("app.customer.whatsapp"), HorizontalOptions = LayoutOptions.Start, IsVisible = false };
+        button.Clicked += async (_, _) => await WhatsAppUi.OpenAsync(entry.Text);
+        entry.TextChanged += (_, _) => button.IsVisible = WhatsAppLink.Digits(entry.Text) is not null;
+        Children.Add(entry);
+        Children.Add(button);
+        button.IsVisible = WhatsAppLink.Digits(entry.Text) is not null;
     }
 }

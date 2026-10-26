@@ -583,8 +583,8 @@
  },
  "web.visitType.wholesaler": {
   "en": "wholesaler",
-  "ckb": "کۆفرۆش",
-  "ar": "تاجر جملة",
+  "ckb": "کۆگای دەرمان",
+  "ar": "مذخر",
   "fa": "عمده‌فروش"
  },
  "web.visitType.other": {
@@ -1363,8 +1363,8 @@
  },
  "app.type.wholesaler": {
   "en": "Wholesaler",
-  "ckb": "کۆفرۆش",
-  "ar": "تاجر جملة",
+  "ckb": "کۆگای دەرمان",
+  "ar": "مذخر",
   "fa": "عمده‌فروش"
  },
  "app.type.other": {
@@ -5827,8 +5827,8 @@
  },
  "web.forms.applies.wholesaler": {
   "en": "Wholesaler",
-  "ckb": "فرۆشیاری بە کۆمەڵ",
-  "ar": "تاجر جملة",
+  "ckb": "کۆگای دەرمان",
+  "ar": "مذخر",
   "fa": "عمده‌فروش"
  },
  "web.forms.applies.other": {
@@ -7241,6 +7241,18 @@
   "ar": "الأعصاب والعمود الفقري",
   "fa": "مغز و اعصاب و ستون فقرات"
  },
+ "specialty.neurology": {
+  "en": "Neurology (brain and nerves)",
+  "ckb": "دەمار و مێشک",
+  "ar": "الأعصاب",
+  "fa": "مغز و اعصاب"
+ },
+ "specialty.psychiatry": {
+  "en": "Psychiatry (mental health)",
+  "ckb": "دەروونناسی (نەخۆشیی دەروونی)",
+  "ar": "الطب النفسي",
+  "fa": "روان‌پزشکی"
+ },
  "specialty.pediatrics": {
   "en": "Pediatrics",
   "ckb": "منداڵان",
@@ -7936,5 +7948,17 @@
   "ckb": "هۆکار (دەنووسرێت لە ئۆدیتی پلاتفۆرم)",
   "ar": "السبب (يُسجَّل في تدقيق المنصة)",
   "fa": "دلیل (در ممیزی پلتفرم ثبت می‌شود)"
+ },
+ "app.customer.whatsapp": {
+  "en": "Open WhatsApp",
+  "ckb": "کردنەوەی واتساپ",
+  "ar": "فتح واتساب",
+  "fa": "باز کردن واتساپ"
+ },
+ "web.customers.whatsapp": {
+  "en": "WhatsApp",
+  "ckb": "واتساپ",
+  "ar": "واتساب",
+  "fa": "واتساپ"
  }
 }

@@ -18,7 +18,12 @@ public sealed class PostgresUserDirectoryStore(NpgsqlDataSource dataSource) : IU
                              WHERE ur.tenant_id = u.tenant_id AND ur.user_id = u.id), '{}'),
                    COALESCE((SELECT array_agg(DISTINCT rp.permission_key ORDER BY rp.permission_key) FROM user_roles ur
                              JOIN role_permissions rp ON rp.tenant_id = ur.tenant_id AND rp.role_id = ur.role_id
-                             WHERE ur.tenant_id = u.tenant_id AND ur.user_id = u.id), '{}')
+                             WHERE ur.tenant_id = u.tenant_id AND ur.user_id = u.id
+                               -- the "doctors only" restriction counts only when every role that lets the user write customers carries it (a user with SalesRep and ScientificRep is not restricted)
+                               AND NOT (rp.permission_key = 'customers.doctors.only' AND EXISTS (
+                                   SELECT 1 FROM user_roles ur2 JOIN role_permissions rw ON rw.tenant_id = ur2.tenant_id AND rw.role_id = ur2.role_id AND rw.permission_key = 'customers.write'
+                                   WHERE ur2.tenant_id = u.tenant_id AND ur2.user_id = u.id
+                                     AND NOT EXISTS (SELECT 1 FROM role_permissions ro WHERE ro.tenant_id = ur2.tenant_id AND ro.role_id = ur2.role_id AND ro.permission_key = 'customers.doctors.only')))), '{}')
             FROM users u JOIN tenants t ON t.id = u.tenant_id
             WHERE u.tenant_id = @tenant AND u.id = @user AND u.is_active AND t.is_active
             """, connection);

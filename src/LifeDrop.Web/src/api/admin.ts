@@ -165,7 +165,7 @@ export interface CustomerDoctor {
   customerClass: string | null
 }
 
-export const doctorSpecialties = ['orthopedics', 'neuro_spine', 'pediatrics', 'women_obstetrics', 'surgery', 'kidney_urology', 'ent', 'other'] as const
+export const doctorSpecialties = ['orthopedics', 'neuro_spine', 'neurology', 'psychiatry', 'pediatrics', 'women_obstetrics', 'surgery', 'kidney_urology', 'ent', 'other'] as const
 export const doctorClasses = ['A+', 'A', 'B', 'C'] as const
 // Customer types the panel and the app offer; a customer may carry another text (older data), which the editor keeps.
 export const customerTypes = ['Pharmacy', 'MedicalAssistant', 'Doctor', 'Wholesaler', 'Other'] as const

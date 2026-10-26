@@ -41,7 +41,7 @@ public sealed record DoctorDetails(string? ClinicName, string? Specialty, bool? 
 public static class DoctorOptions
 {
     // The texts are specialty.<key> in i18n/strings.json; the same fixed list as the server.
-    public static readonly IReadOnlyList<string> Specialties = ["orthopedics", "neuro_spine", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
+    public static readonly IReadOnlyList<string> Specialties = ["orthopedics", "neuro_spine", "neurology", "psychiatry", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
     public static readonly IReadOnlyList<string> Classes = ["A+", "A", "B", "C"];
 }
 

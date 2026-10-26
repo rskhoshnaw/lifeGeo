@@ -32,7 +32,10 @@ public sealed class PostgresPermissionStore(NpgsqlDataSource dataSource) : IPerm
                    NOT EXISTS (SELECT 1 FROM user_roles ur2 JOIN role_permissions rp2 ON rp2.tenant_id = ur2.tenant_id AND rp2.role_id = ur2.role_id
                                WHERE ur2.tenant_id = @tenantId AND ur2.user_id = @userId AND rp2.permission_key = 'customers.doctors.read'),
                    (@permissionKey LIKE 'customers.%write' AND EXISTS (SELECT 1 FROM user_roles ur3 JOIN role_permissions rp3 ON rp3.tenant_id = ur3.tenant_id AND rp3.role_id = ur3.role_id
-                               WHERE ur3.tenant_id = @tenantId AND ur3.user_id = @userId AND rp3.permission_key = 'customers.doctors.only'))
+                               WHERE ur3.tenant_id = @tenantId AND ur3.user_id = @userId AND rp3.permission_key = 'customers.doctors.only')
+                    AND NOT EXISTS (SELECT 1 FROM user_roles ur4 JOIN role_permissions rw ON rw.tenant_id = ur4.tenant_id AND rw.role_id = ur4.role_id AND rw.permission_key = @permissionKey
+                               WHERE ur4.tenant_id = @tenantId AND ur4.user_id = @userId
+                                 AND NOT EXISTS (SELECT 1 FROM role_permissions ro WHERE ro.tenant_id = ur4.tenant_id AND ro.role_id = ur4.role_id AND ro.permission_key = 'customers.doctors.only')))
             FROM user_roles ur
             JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
             JOIN role_permissions rp ON rp.tenant_id = ur.tenant_id AND rp.role_id = ur.role_id

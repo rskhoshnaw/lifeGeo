@@ -6668,16 +6668,17 @@ public class CustomerApiIntegrationTests
 
         var t1 = Guid.NewGuid();
         Guid rep = Guid.NewGuid(), rep2 = Guid.NewGuid(), sci = Guid.NewGuid(), sup = Guid.NewGuid(), manager = Guid.NewGuid(), region = Guid.NewGuid(), team = Guid.NewGuid();
-        Guid pharmacy = Guid.NewGuid(), other = Guid.NewGuid(), doctor = Guid.NewGuid(), ownPharmacy = Guid.NewGuid();
+        Guid pharmacy = Guid.NewGuid(), other = Guid.NewGuid(), doctor = Guid.NewGuid(), ownPharmacy = Guid.NewGuid(), both = Guid.NewGuid();
         await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
         {
             await conn.OpenAsync();
             await using var cmd = new NpgsqlCommand(@"
                 INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
                 SELECT seed_default_roles(@t1);
-                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sci, @t1), (@sup, @t1), (@m, @t1);
+                INSERT INTO users (id, tenant_id) VALUES (@rep, @t1), (@rep2, @t1), (@sci, @t1), (@sup, @t1), (@m, @t1), (@both, @t1);
                 INSERT INTO user_roles (tenant_id, user_id, role_id)
                 SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @both, id FROM roles WHERE tenant_id = @t1 AND name IN ('SalesRep', 'ScientificRep')
                 UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
                 UNION ALL SELECT @t1, @sci, id FROM roles WHERE tenant_id = @t1 AND name = 'ScientificRep'
                 UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
@@ -6685,13 +6686,13 @@ public class CustomerApiIntegrationTests
                 SELECT set_config('app.current_tenant', @t1::text, false);
                 INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil');
                 INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm, @t1, @r, 'Team A');
-                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @tm), (@t1, @rep2, @tm), (@t1, @sup, @tm), (@t1, @sci, @tm);
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @tm), (@t1, @rep2, @tm), (@t1, @sup, @tm), (@t1, @sci, @tm), (@t1, @both, @tm);
                 INSERT INTO customers (id, tenant_id, type, code, name, region_id, owner_user_id, geom, status) VALUES
                     (@p, @t1, 'Pharmacy', 'P1', 'Shifa Pharmacy', @r, @rep2, ST_SetSRID(ST_MakePoint(44.01, 36.19), 4326)::geography, 'located'),
                     (@o, @t1, 'Wholesaler', 'W1', 'Big Wholesaler', @r, NULL, ST_SetSRID(ST_MakePoint(44.02, 36.19), 4326)::geography, 'located'),
                     (@d, @t1, 'Doctor', 'D1', 'Dr. Ali', @r, @sci, ST_SetSRID(ST_MakePoint(44.03, 36.19), 4326)::geography, 'located'),
                     (@op, @t1, 'Pharmacy', 'P7', 'Pharmacy given to the scientific rep', @r, @sci, ST_SetSRID(ST_MakePoint(44.04, 36.19), 4326)::geography, 'located');", conn);
-            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sci", sci), ("sup", sup), ("m", manager), ("r", region), ("tm", team), ("p", pharmacy), ("o", other), ("d", doctor), ("op", ownPharmacy) })
+            foreach (var (name, value) in new[] { ("t1", t1), ("rep", rep), ("rep2", rep2), ("sci", sci), ("sup", sup), ("m", manager), ("both", both), ("r", region), ("tm", team), ("p", pharmacy), ("o", other), ("d", doctor), ("op", ownPharmacy) })
                 cmd.Parameters.AddWithValue(name, value);
             await cmd.ExecuteNonQueryAsync();
         }
@@ -6734,6 +6735,13 @@ public class CustomerApiIntegrationTests
         As(manager);
         Assert.Equal("D1,D5,P1,P2,P7,W1", await Codes());
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D4", Name = "Dr. Sara" })).StatusCode);
+        // A user with the sales rep and the scientific rep roles is not limited to doctors: every type can be registered, and /me does not report the restriction
+        As(both);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Pharmacy", Code = "P20", Name = "Both roles pharmacy" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/customers", new { Type = "Doctor", Code = "D20", Name = "Dr. Both" })).StatusCode);
+        Assert.DoesNotContain("customers.doctors.only", (await client.GetFromJsonAsync<LifeDrop.Application.Users.CurrentUserDto>("/me"))!.Permissions);
+        As(sci);
+        Assert.Contains("customers.doctors.only", (await client.GetFromJsonAsync<LifeDrop.Application.Users.CurrentUserDto>("/me"))!.Permissions);
     }
 
     // Plan step 4.34: what every default role may open. One user per role calls the list endpoints of the panel; 200 = allowed, 403 = refused. The table is the

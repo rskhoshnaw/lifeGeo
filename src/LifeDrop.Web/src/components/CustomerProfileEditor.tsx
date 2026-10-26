@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AdminApi, type Customer } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { PlaceCascade } from './PlaceCascade.tsx'
+import { whatsappUrl } from './whatsapp.ts'
 import { useAction } from './useLoad.ts'
 
 // Phone, address note and the place of a customer (plan step 1.23-b): city, then neighbourhood, street and alley, each
@@ -33,11 +34,13 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
       {action.error && <p role="alert" className="mb-2 text-red-700">{action.error}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <input aria-label={t('web.customers.phone')} placeholder={t('web.customers.phone')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={40} value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <WhatsAppLink phone={phone} />
         <input aria-label={t('web.customers.address')} placeholder={t('web.customers.address')} className="min-w-64 flex-1 rounded border px-2 py-1" disabled={!canEdit} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <input aria-label={t('web.customers.contactName')} placeholder={t('web.customers.contactName')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={100} value={contactName} onChange={(e) => setContactName(e.target.value)} />
         <input aria-label={t('web.customers.phone2')} placeholder={t('web.customers.phone2')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={40} value={phone2} onChange={(e) => setPhone2(e.target.value)} />
+        <WhatsAppLink phone={phone2} />
         <input aria-label={t('web.customers.notes')} placeholder={t('web.customers.notes')} className="min-w-64 flex-1 rounded border px-2 py-1" disabled={!canEdit} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -54,5 +57,16 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
         </button>
       </div>
     </div>
+  )
+}
+
+// Opens the WhatsApp chat with the number typed in the box next to it; nothing shows while the text is not a usable number.
+function WhatsAppLink({ phone }: { phone: string }) {
+  const url = whatsappUrl(phone)
+  if (!url) return null
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="rounded border px-2 py-1 text-green-700">
+      {t('web.customers.whatsapp')}
+    </a>
   )
 }
