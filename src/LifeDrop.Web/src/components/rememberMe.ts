@@ -1,6 +1,8 @@
-// "Remember me" on the sign-in page (plan step 4.47, owner decision: the safe kind). When it is ticked, the company code and the e-mail are kept in this browser and
-// filled in next time; the password is never kept and is asked every time, and no session survives closing the tab. Off by default.
+// "Remember me" on the sign-in page (plan steps 4.47 and 5.2b). When it is ticked (the default), the company code and the e-mail are kept in this browser and filled in
+// next time, and the sign-in itself stays until the user signs out (see api/sessionStore.ts). The password is never stored by the panel: the browser's own password
+// manager fills it (the fields carry the standard autocomplete names). Unticking forgets everything and is remembered, so the box stays unticked next time.
 const Key = 'lifedrop.remembered'
+const OffKey = 'lifedrop.remember.off'
 
 export interface Remembered {
   tenantCode: string
@@ -19,9 +21,23 @@ export function readRemembered(storage: Storage = localStorage): Remembered | nu
 // Ticked: keep the two values. Not ticked: forget whatever was kept.
 export function saveRemembered(remember: boolean, value: Remembered, storage: Storage = localStorage): void {
   try {
-    if (remember) storage.setItem(Key, JSON.stringify(value))
-    else storage.removeItem(Key)
+    if (remember) {
+      storage.setItem(Key, JSON.stringify(value))
+      storage.removeItem(OffKey)
+    } else {
+      storage.removeItem(Key)
+      storage.setItem(OffKey, '1')
+    }
   } catch {
     // Storage may be blocked (private window); signing in works without it.
+  }
+}
+
+// The state of the box when the page opens: ticked unless the user once unticked it.
+export function rememberDefault(storage: Storage = localStorage): boolean {
+  try {
+    return storage.getItem(OffKey) !== '1'
+  } catch {
+    return true
   }
 }

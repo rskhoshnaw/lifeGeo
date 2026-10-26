@@ -10,7 +10,7 @@ public sealed class NewCustomerPage : ContentPage
 {
     private readonly Entry _name = new() { MaxLength = NewCustomerFlow.MaxNameLength };
     private CaptionedField _nameBox = null!;
-    private readonly Picker _type = new() { ItemsSource = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
+    private readonly ChoiceField _type = new(Texts.Get("app.customer.type")) { Items = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
     private IReadOnlyList<string> _types = NewCustomerFlow.Types;
     // Doctor details (plan step 4.27-b): shown only when the type is Doctor.
     private readonly DoctorFieldsView _doctorBox = new() { IsVisible = false };
@@ -80,7 +80,7 @@ public sealed class NewCustomerPage : ContentPage
             if (permissionsResult == VisitActionResult.Success)
             {
                 _types = NewCustomerFlow.TypesFor(permissions);
-                _type.ItemsSource = _types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList();
+                _type.Items = _types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList();
                 _type.SelectedIndex = 0;
                 OnTypeChanged();
             }

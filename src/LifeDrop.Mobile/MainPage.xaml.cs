@@ -26,7 +26,13 @@ public partial class MainPage : ContentPage
         {
             if (CompanyJoinLink.LooksLikeLink(e.NewTextValue) && CompanyJoinLink.TryGetCode(e.NewTextValue) is { } code) TenantEntry.Text = code;
         };
-        // Remembered after a sign-out (plan step 4.47): the company code and the e-mail. The password is never kept, it is asked every time.
+        // Remembered after a sign-out (plan steps 4.47 and 5.2b): the company code, the e-mail and, when the box is ticked, the password (in the phone's secure storage).
+        RememberLabel.Text = Texts.Get("app.login.remember");
+        RememberCheck.IsChecked = RememberedLogin.Enabled;
+        RememberCheck.CheckedChanged += async (_, e) =>
+        {
+            if (!e.Value) await RememberedLogin.SaveAsync(false, null);   // unticked: the stored password goes at once
+        };
         TenantEntry.Text = Preferences.Get("CompanyCode", "");
         EmailEntry.Text = Preferences.Get("LastEmail", "");
         QrScanBtn.Text = Texts.Get("app.login.scanQr");
@@ -62,6 +68,7 @@ public partial class MainPage : ContentPage
         base.OnAppearing();
         var pending = AppConfig.ConsumePendingJoinCode();
         if (pending is not null) TenantEntry.Text = pending;
+        if (string.IsNullOrEmpty(PasswordEntry.Text) && await RememberedLogin.LoadPasswordAsync() is { } saved) PasswordEntry.Text = saved;
         await CheckStatusAsync();
     }
 
@@ -151,7 +158,8 @@ public partial class MainPage : ContentPage
         {
             await store.ClearAllAsync(cancellationToken);
             TrackingHost.Reset();
-            Preferences.Remove("LastEmail");   // another company: the old e-mail is not offered
+            Preferences.Remove("LastEmail");   // another company: the old e-mail and password are not offered
+            RememberedLogin.Forget();
         }
         Preferences.Set("CompanyCode", config.TenantCode);
         Preferences.Set("CompanyName", config.Name);
@@ -250,6 +258,7 @@ public partial class MainPage : ContentPage
             if (result.Status == AuthStatus.Success)
             {
                 Preferences.Set("LastEmail", (EmailEntry.Text ?? "").Trim());
+                await RememberedLogin.SaveAsync(RememberCheck.IsChecked, PasswordEntry.Text);
                 // Navigate to HomePage
                 AppLanguage.ShowRoot(new HomePage());
             }
@@ -268,7 +277,7 @@ public partial class MainPage : ContentPage
         }
         finally
         {
-            PasswordEntry.Text = string.Empty;
+            if (!RememberCheck.IsChecked) PasswordEntry.Text = string.Empty;
             SetBusy(false);
         }
     }

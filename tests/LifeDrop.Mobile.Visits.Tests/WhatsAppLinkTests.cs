@@ -26,3 +26,16 @@ public class WhatsAppLinkTests
     [Fact]
     public void Url_CarriesAnEscapedMessage() => Assert.Equal("https://wa.me/9647722656566?text=Hello%20%26%20welcome", WhatsAppLink.Url("07722656566", "Hello & welcome"));
 }
+
+public class CustomerFilterPathTests
+{
+    private static readonly Guid Place = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+    [Fact]
+    public void FilterPath_SendsOnlyTheFiltersThatAreSet()
+    {
+        Assert.Equal("/customers?limit=50", CustomersApiClient.FilterPath(null, null, null, null));
+        Assert.Equal("/customers?limit=50&q=ali%20h&type=Doctor&placeId=" + Place + "&cooperates=false", CustomersApiClient.FilterPath(" ali h ", "Doctor", Place, false));
+        Assert.Equal("/customers?limit=50&cooperates=true", CustomersApiClient.FilterPath("  ", " ", null, true));
+    }
+}

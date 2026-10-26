@@ -37,6 +37,9 @@ public interface ICustomerStore
     // Active customers whose name, code or phone matches the text (plan step 4.15).
     Task<IReadOnlyList<CustomerDto>> SearchAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string search, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+    // Active customers narrowed by type, place (the place and everything below it) and "cooperates", optionally with a search text (plan step 5.2).
+    Task<IReadOnlyList<CustomerDto>> FilterAsync(TenantId tenantId, AccessScope scope, int limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string? search, CustomerFilter filter, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     // Archive or restore (audit customer.archived / customer.restored); false when the customer is not in the actor's scope.
     Task<bool> SetArchivedAsync(TenantId tenantId, UserId actorId, CustomerId id, AccessScope scope, bool archived, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -157,8 +160,29 @@ public sealed class GetCustomer(ICustomerStore store)
     }
 }
 
+// The filters of the customer list (plan step 5.2): Type is one of the customer types, PlaceId a city or neighbourhood (customers placed anywhere below it match), Cooperates the doctor flag.
+public sealed record CustomerFilter(string? Type, Guid? PlaceId, bool? Cooperates)
+{
+    public const int MaxTypeLength = 40;
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Type) && PlaceId is null && Cooperates is null;
+}
+
 public sealed class ListCustomers(ICustomerStore store)
 {
+    // With filters (plan step 5.2) the search text is optional; when given it follows the rules of SearchAsync.
+    public async Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> FilterAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, string? search, CustomerFilter filter, CancellationToken cancellationToken)
+    {
+        var text = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        var type = string.IsNullOrWhiteSpace(filter.Type) ? null : filter.Type.Trim();
+        var actualLimit = limit ?? 20;
+        if (tenantId.IsEmpty || actualLimit is <= 0 or > 100 || cursorCreatedAt.HasValue != cursorId.HasValue
+            || (text is not null && (text.Length < 2 || text.Length > MaxSearchLength))
+            || (type is not null && type.Length > CustomerFilter.MaxTypeLength)
+            || filter.PlaceId == Guid.Empty)
+            return (false, Array.Empty<CustomerDto>());
+        return (true, await store.FilterAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, text, filter with { Type = type }, cancellationToken));
+    }
+
     public Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>
         ExecuteAsync(tenantId, scope, limit, cursorCreatedAt, cursorId, archived: false, cancellationToken);
 

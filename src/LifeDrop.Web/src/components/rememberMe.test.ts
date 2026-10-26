@@ -1,4 +1,4 @@
-import { readRemembered, saveRemembered } from './rememberMe.ts'
+import { readRemembered, rememberDefault, saveRemembered } from './rememberMe.ts'
 
 describe('remember me on the sign-in page (plan step 4.47)', () => {
   it('keeps the company code and e-mail only when ticked, and forgets them when not', () => {
@@ -21,5 +21,16 @@ describe('remember me on the sign-in page (plan step 4.47)', () => {
     expect(readRemembered(blocked)).toBeNull()
     expect(() => saveRemembered(true, { tenantCode: 'a', email: 'b' }, blocked)).not.toThrow()
     window.localStorage.clear()
+  })
+
+  it('is ticked by default and stays unticked once the user unticks it', () => {
+    const storage = window.localStorage
+    storage.clear()
+    expect(rememberDefault(storage)).toBe(true)
+    saveRemembered(false, { tenantCode: 'a', email: 'b' }, storage)
+    expect(rememberDefault(storage)).toBe(false)
+    saveRemembered(true, { tenantCode: 'a', email: 'b' }, storage)
+    expect(rememberDefault(storage)).toBe(true)
+    storage.clear()
   })
 })

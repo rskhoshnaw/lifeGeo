@@ -47,6 +47,10 @@
 
                     <Entry x:Name="EmailEntry" Keyboard="Email" FlowDirection="LeftToRight" />
                     <Entry x:Name="PasswordEntry" IsPassword="True" FlowDirection="LeftToRight" />
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox x:Name="RememberCheck" IsChecked="True" VerticalOptions="Center" />
+                        <Label x:Name="RememberLabel" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
                     <Entry x:Name="DeviceLabelEntry" />
 
                     <Button x:Name="LoginBtn" Clicked="OnLoginClicked"

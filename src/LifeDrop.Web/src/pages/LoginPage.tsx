@@ -5,7 +5,7 @@ import { LanguagePicker } from '../components/I18n.tsx'
 import { Logo } from '../components/Shell.tsx'
 import { contours } from '../components/contours.ts'
 import { companyFromSearch } from '../components/inviteLinks.ts'
-import { readRemembered, saveRemembered } from '../components/rememberMe.ts'
+import { readRemembered, rememberDefault, saveRemembered } from '../components/rememberMe.ts'
 import { LoginFailed, type Account, type ApiClient, type LoginError } from '../api/client.ts'
 
 const messages: Record<LoginError, TextKey> = {
@@ -21,7 +21,7 @@ export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (ac
   const [remembered] = useState(readRemembered)
   const [tenantCode, setTenantCode] = useState(() => companyFromSearch(window.location.search) || remembered?.tenantCode || '')
   const [email, setEmail] = useState(remembered?.email ?? '')
-  const [remember, setRemember] = useState(remembered !== null)
+  const [remember, setRemember] = useState(rememberDefault)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +36,7 @@ export function LoginPage({ api, onSignedIn }: { api: ApiClient; onSignedIn: (ac
     setBusy(true)
     setError(null)
     try {
+      api.setStayLoggedIn(remember)
       const account = await api.login(tenantCode.trim(), email.trim(), password)
       saveRemembered(remember, { tenantCode: tenantCode.trim(), email: email.trim() })
       onSignedIn(account)

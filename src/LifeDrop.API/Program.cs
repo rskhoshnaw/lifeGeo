@@ -658,6 +658,9 @@ public partial class Program
             Guid? cursorId,
             bool? archived,
             string? q,
+            string? type,
+            Guid? placeId,
+            bool? cooperates,
             HttpContext context, 
             LifeDrop.Application.Customers.ListCustomers listCustomers,
             LifeDrop.Application.Roles.IPermissionStore permissionStore,
@@ -680,7 +683,10 @@ public partial class Program
             if (archived == true && await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.approve", cancellationToken) is null)
                 return Results.Forbid();
 
-            var result = archived != true && !string.IsNullOrWhiteSpace(q)
+            var filter = new LifeDrop.Application.Customers.CustomerFilter(type, placeId, cooperates);
+            var result = archived != true && !filter.IsEmpty
+                ? await listCustomers.FilterAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, q, filter, cancellationToken)
+                : archived != true && !string.IsNullOrWhiteSpace(q)
                 ? await listCustomers.SearchAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, q, cancellationToken)
                 : await listCustomers.ExecuteAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, archived == true, cancellationToken);
             return result.IsValid ? Results.Ok(result.Items) : Results.BadRequest();
