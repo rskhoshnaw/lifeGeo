@@ -17,8 +17,10 @@ namespace LifeDrop.Application.Orders;
 // price (general or city price, then the customer's discounts; see PriceCalculator) and stores it on the line with the discounts
 // that were applied; the phone never sends a price. "Placed" is true only after the server accepted the order. A retry with the
 // same ClientRef returns the order that exists.
-public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status);
-public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null);
+// Kind (plan step 5.6): "company" (our own warehouse) or "wholesaler" (a mudhakhar that takes the order to the pharmacy with its own car).
+public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status, string Kind = "company");
+// Kind is chosen when the warehouse is created (company when empty) and cannot be changed later: orders may already follow its rules.
+public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null, string? Kind = null);
 
 public sealed record OrderLineRequest(Guid? ProductId, decimal? Quantity);
 public sealed record CreateOrderRequest(Guid? CustomerId, Guid? WarehouseId, Guid? VisitId, Guid? ClientRef, IReadOnlyList<OrderLineRequest>? Items, string? Note = null, bool? DetachVisitIfInvalid = null);
@@ -232,7 +234,7 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var scope = await ScopeAsync(tenantId, actorId, PermissionKeys.OrdersRead, cancellationToken);
         if (scope is null) return (OrderResult.Forbidden, Array.Empty<OrderDto>());
         var take = limit ?? 50;
-        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || customerId == Guid.Empty || status is not (null or "placed" or "preparing" or "ready" or "handed_over" or "cancelled"))
+        if (take is < 1 or > 100 || (before is null) != (beforeId is null) || customerId == Guid.Empty || status is not (null or "placed" or "preparing" or "ready" or "handed_over" or "dispatched" or "cancelled"))
             return (OrderResult.InvalidData, Array.Empty<OrderDto>());
         var items = await store.ListAsync(tenantId, scope, customerId, status, take, before, beforeId, cancellationToken);
         var hidden = await visibility.HiddenForAsync(tenantId, actorId, items.Select(o => o.CustomerId).Distinct().ToList(), cancellationToken);
@@ -398,9 +400,10 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
     {
         var name = request.Name?.Trim();
         var status = request.Status ?? "active";
+        var kind = request.Kind ?? "company";
         clean = null;
-        if (string.IsNullOrEmpty(name) || name.Length > 160 || status is not ("active" or "inactive")) return false;
-        clean = request with { Name = name, Status = status };
+        if (string.IsNullOrEmpty(name) || name.Length > 160 || status is not ("active" or "inactive") || kind is not ("company" or "wholesaler")) return false;
+        clean = request with { Name = name, Status = status, Kind = kind };
         return true;
     }
 }

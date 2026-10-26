@@ -31,6 +31,7 @@ public partial class HomePage : ContentPage
         ProductsBtn.Text = Texts.Get("app.home.products");
         AccountBtn.Text = Texts.Get("app.home.account");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
+        WholesalerBtn.Text = Texts.Get("app.home.wholesaler");
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
@@ -50,6 +51,7 @@ public partial class HomePage : ContentPage
         ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
         ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
         ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
+        ShowButton(WholesalerBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("wholesaler.work"));
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
         ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
@@ -91,6 +93,7 @@ public partial class HomePage : ContentPage
         ProductsBtn.IsEnabled = !isBusy;
         AccountBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = !isBusy;
+        WholesalerBtn.IsEnabled = !isBusy;
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
         FollowUpsBtn.IsEnabled = !isBusy;
@@ -238,6 +241,8 @@ public partial class HomePage : ContentPage
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 
     private async void OnWarehouseClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WarehouseOrdersPage());
+
+    private async void OnWholesalerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WholesalerOrdersPage());
 
     private async void OnDeliveriesClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DeliveriesPage());
 

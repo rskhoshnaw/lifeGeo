@@ -333,6 +333,33 @@ export interface Warehouse {
   code: string
   name: string
   status: 'active' | 'inactive'
+  kind?: 'company' | 'wholesaler'
+}
+export interface Wholesaler {
+  id: string
+  code: string
+  name: string
+  openOrders: number
+}
+export interface WholesalerOrder {
+  id: string
+  number: string
+  createdAt: string
+  status: string
+  warehouseId: string
+  wholesalerName: string
+  customerId: string
+  customerCode: string
+  customerName: string
+  contactName: string | null
+  phone: string | null
+  phone2: string | null
+  address: string | null
+  place: string | null
+  currency: string
+  total: number
+  note: string | null
+  lines: { productCode: string; productName: string; unit: string; quantity: number; unitPrice: number; lineTotal: number }[]
 }
 export interface OrderLine {
   lineNo: number
@@ -884,6 +911,7 @@ export const Permissions = {
   cancelOrders: ['orders.cancel'],
   manageWarehouses: ['warehouses.manage'],
   warehouseWork: ['warehouse.work'],
+  wholesalerWork: ['wholesaler.work'],
   manageCatalog: ['catalog.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
@@ -1025,7 +1053,8 @@ export class AdminApi {
   customerPrices = (customerId: string, date: string) => this.get<EffectivePrice[]>(`/customers/${customerId}/prices?date=${date}`)
   // Warehouses and orders (step 2.2). The server prices every order line; no price is ever sent.
   warehouses = (includeInactive = false) => this.get<Warehouse[]>(`/warehouses${includeInactive ? '?includeInactive=true' : ''}`)
-  createWarehouse = (code: string, name: string) => this.post('/warehouses', { code, name })
+  createWarehouse = (code: string, name: string, kind: 'company' | 'wholesaler' = 'company') =>
+    this.post('/warehouses', kind === 'company' ? { code, name } : { code, name, kind })
   updateWarehouse = (id: string, name: string, status: 'active' | 'inactive') => this.send('PUT', `/warehouses/${id}`, { name, status })
   orders = (before?: Order) =>
     this.get<Order[]>(before ? `/orders?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/orders?limit=50')
@@ -1076,6 +1105,11 @@ export class AdminApi {
   markReady = (id: string, lines: { lineNo: number; quantity: number; reason?: string | null }[]) => this.post(`/warehouse/orders/${id}/ready`, { lines })
   handOver = (id: string, driverId: string) => this.post(`/warehouse/orders/${id}/handover`, { driverId })
   drivers = () => this.get<Driver[]>('/warehouse/drivers')
+  // Orders of the wholesalers (step 5.6): no preparation and no driver, only "dispatched".
+  wholesalers = () => this.get<Wholesaler[]>('/wholesaler/warehouses')
+  wholesalerOrders = (warehouseId: string, status: string) =>
+    this.get<WholesalerOrder[]>(`/wholesaler/orders?limit=200${warehouseId ? `&warehouseId=${warehouseId}` : ''}${status ? `&status=${status}` : ''}`)
+  dispatchOrder = (id: string, note: string | null = null) => this.post(`/wholesaler/orders/${id}/dispatch`, { note })
   createVisit = (visit: NewVisit) => this.post('/visits', visit)
   reassignVisit = (id: string, assignedUserId: string) => this.send('PUT', `/visits/${id}/assignee`, { assignedUserId })
   cancelVisit = (id: string, reason: string) => this.post(`/visits/${id}/cancel`, { reason })

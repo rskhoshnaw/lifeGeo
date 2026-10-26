@@ -158,7 +158,8 @@ public class CustomerApiIntegrationTests
                 var m56 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0056_place_name_norm.sql"));
                 var m57 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0057_company_profile.sql"));
                 var m58 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0058_sales_targets.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58;
+                var m59 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0059_wholesaler_orders.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2032,17 +2033,17 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[]
         {
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
-            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false"
+            "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "WarehouseManager:own:false", "WholesalerOfficer:own:true"
         }, await RowsAsync(rolesSql));
         Assert.Equal(new[] { "catalog.prices.restricted", "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "118" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36) + catalog.prices.restricted for the two field roles (4.42) + targets.manage/read for SalesManager and Supervisor, targets.read for CompanyManager and FinanceManager (5.5)
+        Assert.Equal(new[] { "119" }, grantsBefore);   // 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36) + catalog.prices.restricted for the two field roles (4.42) + targets.manage/read for SalesManager and Supervisor, targets.read for CompanyManager and FinanceManager (5.5) + wholesaler.work for the new WholesalerOfficer (5.6)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
         Assert.Equal(grantsBefore, await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1"));
-        Assert.Equal(8, (await RowsAsync(rolesSql)).Length);
+        Assert.Equal(9, (await RowsAsync(rolesSql)).Length);
 
         // The seeded roles work through the API: the sales manager manages regions, a rep cannot
         // and sees only own customers.

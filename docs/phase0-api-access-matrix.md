@@ -477,6 +477,14 @@ A warehouse worker sees and handles **only the orders of the warehouses they are
 | `POST /warehouse/orders/{id}/handover` | same | `driverId` of a user with the `Driver` role (else 400). `ready` → `handed_over`; 409 in another status | `order.handed_over` |
 | `GET /warehouse/drivers` | `warehouse.work` | Users with the Driver role | — |
 
+Wholesaler orders (step 5.6, migration 0059): a warehouse has a `kind` (`company` default, or `wholesaler`; set on `POST /warehouses`, never changed afterwards). Orders of a `wholesaler` warehouse have no preparation and no driver: `placed` → `dispatched`. The company warehouse flow ignores wholesaler warehouses. New role `WholesalerOfficer` (مسئول مذخر, scope `own`, no phone binding) with permission `wholesaler.work`; `POST /warehouses/{id}/staff` accepts a user with `wholesaler.work` for wholesaler warehouses (and `warehouse.work` for company ones).
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `GET /wholesaler/warehouses` | `wholesaler.work`; own wholesalers | `[{id, code, name, openOrders}]` | — |
+| `GET /wholesaler/orders?warehouseId=&status=&limit=` | same | Newest first; without `status` the open ones (`placed`); `status=dispatched` for the sent ones; lines with product, quantity, price, plus customer name, address, phone | — |
+| `POST /wholesaler/orders/{orderId}/dispatch` | same | Body `{note?}`; `placed` → `dispatched`; 409 in another status; 404 for an order of another wholesaler | `order.dispatched` |
+
 Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
 
 Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).

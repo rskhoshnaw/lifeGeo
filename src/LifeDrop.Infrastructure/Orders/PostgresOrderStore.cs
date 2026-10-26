@@ -22,13 +22,13 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT id, code, name, status FROM warehouses WHERE tenant_id = @tenant AND (@all OR status = 'active') ORDER BY code COLLATE "C"
+            SELECT id, code, name, status, kind FROM warehouses WHERE tenant_id = @tenant AND (@all OR status = 'active') ORDER BY code COLLATE "C"
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("all", includeInactive);
         var items = new List<WarehouseDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) items.Add(new WarehouseDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+        while (await reader.ReadAsync(cancellationToken)) items.Add(new WarehouseDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4)));
         return items;
     }
 
@@ -38,7 +38,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         var id = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand("""
-            INSERT INTO warehouses (id, tenant_id, code, name, status, created_by) VALUES (@id, @tenant, @code, @name, @status, @actor)
+            INSERT INTO warehouses (id, tenant_id, code, name, status, kind, created_by) VALUES (@id, @tenant, @code, @name, @status, @kind, @actor)
             ON CONFLICT (tenant_id, code) DO NOTHING
             """, connection, transaction))
         {
@@ -47,6 +47,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             insert.Parameters.AddWithValue("code", warehouse.Code!);
             insert.Parameters.AddWithValue("name", warehouse.Name!);
             insert.Parameters.AddWithValue("status", warehouse.Status ?? "active");
+            insert.Parameters.AddWithValue("kind", warehouse.Kind ?? "company");
             insert.Parameters.AddWithValue("actor", actorId.Value);
             if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0) return null;
         }
@@ -391,8 +392,12 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM warehouses WHERE tenant_id = @tenant AND id = @id", tenantId, warehouseId, cancellationToken)) return OrderResult.NotFound;
         if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM users WHERE tenant_id = @tenant AND id = @id", tenantId, userId, cancellationToken)) return OrderResult.NotFound;
-        // Only a user whose roles give warehouse.work can be put to work in a warehouse.
-        if (!await ExistsAsync(connection, transaction, """
+        // Only a user whose roles give warehouse.work can be put to work in a warehouse, and wholesaler.work in a wholesaler (plan step 5.6).
+        var wholesaler = await ExistsAsync(connection, transaction, "SELECT 1 FROM warehouses WHERE tenant_id = @tenant AND id = @id AND kind = 'wholesaler'", tenantId, warehouseId, cancellationToken);
+        if (!await ExistsAsync(connection, transaction, wholesaler ? """
+            SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.tenant_id = ur.tenant_id AND rp.role_id = ur.role_id
+            WHERE ur.tenant_id = @tenant AND ur.user_id = @id AND rp.permission_key = 'wholesaler.work'
+            """ : """
             SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.tenant_id = ur.tenant_id AND rp.role_id = ur.role_id
             WHERE ur.tenant_id = @tenant AND ur.user_id = @id AND rp.permission_key = 'warehouse.work'
             """, tenantId, userId, cancellationToken)) return OrderResult.InvalidData;
@@ -443,7 +448,8 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
 
     // ---- Warehouse work ----
 
-    private const string WorksHere = "EXISTS (SELECT 1 FROM warehouse_staff s WHERE s.tenant_id = o.tenant_id AND s.warehouse_id = o.warehouse_id AND s.user_id = @actor)";
+    // The orders of the warehouses the actor works in; a wholesaler's orders are handled by the wholesaler officer (plan step 5.6), never through the warehouse flow.
+    private const string WorksHere = "EXISTS (SELECT 1 FROM warehouse_staff s JOIN warehouses sw ON sw.tenant_id = s.tenant_id AND sw.id = s.warehouse_id WHERE s.tenant_id = o.tenant_id AND s.warehouse_id = o.warehouse_id AND s.user_id = @actor AND sw.kind = 'company')";
 
     public async Task<IReadOnlyList<OrderDto>> ListForWarehouseAsync(TenantId tenantId, UserId actorId, string? status, int limit, DateTimeOffset? before, Guid? beforeId,
         CancellationToken cancellationToken)
