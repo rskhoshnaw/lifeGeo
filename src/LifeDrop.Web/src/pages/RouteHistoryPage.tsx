@@ -3,8 +3,9 @@ import { AdminApi, iraqToday, type TrackableUser } from '../api/admin.ts'
 import { formatDuration, nextIndex } from '../api/geo.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { RouteMapView } from '../components/RouteMapView.tsx'
+import { RouteCalendar } from '../components/RouteCalendar.tsx'
 import { t, type TextKey } from '../i18n.ts'
-import { errorMessage, type RouteHistory } from '../api/admin.ts'
+import { errorMessage, type RouteDay, type RouteHistory } from '../api/admin.ts'
 
 const playMs = 150
 const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -16,6 +17,8 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
   const users = useLoad(useCallback(() => admin.trackingUsers(), [admin]))
   const [user, setUser] = useState('')
   const [date, setDate] = useState(iraqToday())
+  const [month, setMonth] = useState(`${iraqToday().slice(0, 7)}-01`)
+  const [days, setDays] = useState<RouteDay[]>([])
   const [route, setRoute] = useState<RouteHistory | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [index, setIndex] = useState(0)
@@ -39,6 +42,19 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
       active = false
     }
   }, [admin, user, date])
+
+  // The days of the month that have a route, for the calendar; a failure only leaves the calendar uncoloured.
+  useEffect(() => {
+    if (!user) return
+    let active = true
+    admin.routeDays(user, month).then(
+      (d) => active && setDays(d),
+      () => active && setDays([]),
+    )
+    return () => {
+      active = false
+    }
+  }, [admin, user, month])
 
   const count = route?.points.length ?? 0
   useEffect(() => {
@@ -67,8 +83,8 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
             </option>
           ))}
         </select>
-        <input type="date" aria-label={t('web.route.date')} className="rounded border px-2 py-1 text-sm" max={iraqToday()} value={date} onChange={(e) => e.target.value && (reset(), setDate(e.target.value))} />
       </div>
+      <RouteCalendar month={month} days={user ? days : []} selected={date} today={iraqToday()} onPick={(d) => (reset(), setDate(d))} onMonth={(m) => (setMonth(m), setDays([]))} />
       {route && route.shifts.some((s) => s.pointsPurged) && <p className="text-sm text-amber-700">{t('web.route.purged')}</p>}
       {route && route.truncated && <p className="text-sm text-amber-700">{t('web.route.truncated')}</p>}
       {route && count === 0 && <p className="text-slate-600">{t('web.route.nopoints')}</p>}

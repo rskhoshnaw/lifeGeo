@@ -30,6 +30,7 @@ public sealed class CustomerPage : ContentPage
     private readonly Button _payment = new();
     private readonly Button _sample = new();
     private readonly Button _followUp = new();
+    private readonly Button _history = new();
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private bool _loaded;
@@ -55,6 +56,8 @@ public sealed class CustomerPage : ContentPage
         _payment.Clicked += async (_, _) => await Navigation.PushAsync(new PaymentPage(_customerId, _titleLabel.Text));
         _sample.Text = Texts.Get("app.sample.button");
         _sample.Clicked += async (_, _) => await Navigation.PushAsync(new SamplePage(_customerId, _titleLabel.Text));
+        _history.Text = Texts.Get("app.customer.history");
+        _history.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerHistoryPage(_customerId, _profile?.Name));
         _followUp.Text = Texts.Get("app.followup.new");
         _followUp.Clicked += async (_, _) => await Navigation.PushAsync(new FollowUpPage(_customerId, _titleLabel.Text));
         // Parts of the product this company switched off (plan step 4.48) have no button.
@@ -76,7 +79,7 @@ public sealed class CustomerPage : ContentPage
                     _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", new PhoneWithWhatsApp(_phone)), new CaptionedField("app.customer.address", _address),
                     new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", new PhoneWithWhatsApp(_phone2)), new CaptionedField("app.customer.notes", _notes), _flags,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
-                    _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
+                    _places, _save, _history, _order, _payment, _sample, _followUp, _spinner, _message
                 }
             }
         };

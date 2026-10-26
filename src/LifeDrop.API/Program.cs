@@ -127,6 +127,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanGenerationStore, LifeDrop.Infrastructure.Visits.PostgresPlanGenerationStore>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanGenerator>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerVisitWindows>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerHistoryStore, LifeDrop.Infrastructure.Customers.PostgresCustomerHistoryStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerHistory>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitPlanBoard>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.VisitReports>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.IVisitDetailsStore, LifeDrop.Infrastructure.Visits.PostgresVisitDetailsStore>();

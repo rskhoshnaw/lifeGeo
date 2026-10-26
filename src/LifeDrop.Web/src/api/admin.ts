@@ -508,6 +508,40 @@ export interface RouteHistory {
   events: RouteVisitEvent[]
   truncated: boolean
 }
+// A day of a month on which the user had a shift, with the points still kept for it (plan step 5.4).
+export interface RouteDay {
+  date: string
+  shifts: number
+  points: number
+}
+// What happened with one customer (plan step 5.4); orders is null when the reader may not read orders.
+export interface CustomerHistory {
+  visits: {
+    id: string
+    date: string
+    status: string
+    visitType: string
+    userEmail: string | null
+    checkInAt: string | null
+    checkOutAt: string | null
+    outcome: string | null
+    note: string | null
+    reason: string | null
+  }[]
+  orders:
+    | {
+        id: string
+        number: string
+        createdAt: string
+        status: string
+        currency: string
+        total: number
+        pricesHidden: boolean
+        createdByEmail: string | null
+        lines: { productName: string; quantity: number; deliveredQuantity: number | null }[]
+      }[]
+    | null
+}
 export interface TrackableUser {
   id: string
   email: string | null
@@ -1095,6 +1129,9 @@ export class AdminApi {
   platformAudit = () => this.get<PlatformAuditEntry[]>('/platform/audit-logs')
   // Route history (step 2.11): needs tracking.read; every read is audited by the server.
   trackingUsers = () => this.get<TrackableUser[]>('/tracking/users')
+  // month: any date of the month, for example 2026-10-01.
+  routeDays = (userId: string, month: string) => this.get<RouteDay[]>(`/tracking/days?userId=${userId}&month=${month}`)
+  customerHistory = (customerId: string) => this.get<CustomerHistory>(`/customers/${customerId}/history`)
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)
   mapCustomers = () => this.get<MapCustomer[]>('/customers/map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))

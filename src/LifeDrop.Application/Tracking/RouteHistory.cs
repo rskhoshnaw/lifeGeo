@@ -19,6 +19,8 @@ public sealed record RouteShiftDto(Guid ShiftId, DateTimeOffset StartedAt, DateT
 public sealed record RouteHistoryDto(Guid UserId, string? Email, DateOnly Date, IReadOnlyList<RouteShiftDto> Shifts, IReadOnlyList<RoutePointDto> Points, IReadOnlyList<RouteStopDto> Stops,
     IReadOnlyList<RouteVisitEventDto> Events, bool Truncated);
 public sealed record TrackableUserDto(Guid Id, string? Email, string? TeamName);
+// A day of the month on which the user had a shift (Iraq date), with the number of shifts and of exact points still kept for it (plan step 5.4); 0 points = the points are gone or never came.
+public sealed record RouteDayDto(DateOnly Date, int Shifts, int Points);
 
 public enum RouteResult { Success, Forbidden, NotFound, InvalidData }
 
@@ -31,6 +33,9 @@ public interface IRouteHistoryStore
     Task<IReadOnlyList<TrackableUserDto>> ListUsersAsync(TenantId tenantId, AccessScope scope, CancellationToken cancellationToken);
     // The points, check-in/out events and shifts of one user between from (inclusive) and to (exclusive); at most MaxPoints points (Truncated tells).
     Task<RouteRaw> LoadAsync(TenantId tenantId, UserId userId, DateTimeOffset from, DateTimeOffset to, int maxPoints, CancellationToken cancellationToken);
+    // The days between from (inclusive) and to (exclusive) on which the user had a shift (plan step 5.4).
+    Task<IReadOnlyList<RouteDayDto>> ListDaysAsync(TenantId tenantId, UserId userId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
     Task<NearCustomer?> NearestCustomerAsync(TenantId tenantId, double latitude, double longitude, int maxMeters, CancellationToken cancellationToken);
     Task AuditViewAsync(TenantId tenantId, UserId actorId, string entity, CancellationToken cancellationToken);
     // Writes the summary of every shift that ended before the cutoff and still has points, then deletes those points. Returns the number of points deleted.
@@ -86,6 +91,20 @@ public sealed class RouteHistory(IRouteHistoryStore store, IPermissionStore perm
     {
         var scope = await ScopeAsync(tenantId, actorId, cancellationToken);
         return scope is null ? (RouteResult.Forbidden, Array.Empty<TrackableUserDto>()) : (RouteResult.Success, await store.ListUsersAsync(tenantId, scope, cancellationToken));
+    }
+
+    // The days of one month on which the user had a route, for the calendar of the panel (plan step 5.4). Any date in the month names the month. Not audited: no point is shown.
+    public async Task<(RouteResult Result, IReadOnlyList<RouteDayDto> Days)> DaysAsync(TenantId tenantId, UserId actorId, Guid userId, DateOnly month, CancellationToken cancellationToken)
+    {
+        var scope = await ScopeAsync(tenantId, actorId, cancellationToken);
+        if (scope is null) return (RouteResult.Forbidden, Array.Empty<RouteDayDto>());
+        var today = IraqCalendar.Today(clock);
+        var first = new DateOnly(month.Year, month.Month, 1);
+        if (userId == Guid.Empty || first > today || first < today.AddYears(-2)) return (RouteResult.InvalidData, Array.Empty<RouteDayDto>());
+        var (exists, region) = await permissions.GetUserRegionAsync(tenantId, new UserId(userId), cancellationToken);
+        if (!exists || !ManageVisit.IsUserInScope(scope, new UserId(userId), region)) return (RouteResult.NotFound, Array.Empty<RouteDayDto>());
+        var from = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3));
+        return (RouteResult.Success, await store.ListDaysAsync(tenantId, new UserId(userId), from, from.AddMonths(1), cancellationToken));
     }
 
     public async Task<(RouteResult Result, RouteHistoryDto? History)> GetAsync(TenantId tenantId, UserId actorId, Guid userId, DateOnly date, CancellationToken cancellationToken)

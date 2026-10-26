@@ -9,6 +9,7 @@ import { useAction, useLoad } from '../components/useLoad.ts'
 import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
 import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
+import { CustomerHistoryPanel } from '../components/CustomerHistoryPanel.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 import { SortTh, useSort } from '../components/sort.tsx'
 
@@ -80,6 +81,7 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
   const [error, setError] = useState<string | null>(null)
   const [hoursFor, setHoursFor] = useState<Customer | null>(null)
   const [profileFor, setProfileFor] = useState<Customer | null>(null)
+  const [historyFor, setHistoryFor] = useState<Customer | null>(null)
   const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
   const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, type: (c) => c.type, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
@@ -197,6 +199,9 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
                   <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.profile')} ${customer.code}`} onClick={() => setProfileFor(customer)}>
                     {t('web.customers.profile')}
                   </button>
+                  <button className="rounded border px-2 py-1" aria-label={`${t('web.customers.history')} ${customer.code}`} onClick={() => setHistoryFor(customer)}>
+                    {t('web.customers.history')}
+                  </button>
                   <button className="rounded border px-2 py-1" onClick={() => setHoursFor(customer)}>
                     {t('web.customers.visitHours')}
                   </button>
@@ -207,6 +212,7 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
         </table>
       )}
       {editFor && <CustomerDetailsEditor key={editFor.id} admin={admin} customer={editFor} onClose={() => setEditFor(null)} onSaved={reload} />}
+      {historyFor && <CustomerHistoryPanel key={historyFor.id} admin={admin} customer={historyFor} onClose={() => setHistoryFor(null)} />}
       {profileFor && <CustomerProfileEditor key={profileFor.id} admin={admin} customer={profileFor} canEdit={canEdit} onClose={() => setProfileFor(null)} />}
       {hoursFor && <VisitWindowsEditor key={hoursFor.id} admin={admin} customer={hoursFor} canEdit={canEdit} onClose={() => setHoursFor(null)} />}
       {first.data && first.data.length === 100 && !done && (

@@ -55,6 +55,19 @@ public static class CustomerEndpoints
             .WithName("SetCustomerVisitWindows").WithTags("Customers").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // The visits (with their result) and the orders (with their products) of one customer (plan step 5.4).
+        app.MapGet("/customers/{customerId:guid}/history", async (Guid customerId, int? limit, HttpContext context,
+            CustomerHistory history, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole)
+                return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, dto) = await history.GetAsync(tenantId, actorId, customerId, limit, cancellationToken);
+            return result == CustomerUpdateResult.Success ? Results.Ok(dto) : ToResult(result);
+        }).RequireAuthorization()
+            .WithName("GetCustomerHistory").WithTags("Customers").Produces<CustomerHistoryDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // Customers registered outside the rep's region, waiting for approval (plan step 1.15, decision D11).
         app.MapGet("/customer-approvals", async (HttpContext context, CustomerApprovals approvals, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
