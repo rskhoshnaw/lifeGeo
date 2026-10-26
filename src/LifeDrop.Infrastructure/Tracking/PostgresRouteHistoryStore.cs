@@ -65,8 +65,8 @@ public sealed class PostgresRouteHistoryStore(NpgsqlDataSource dataSource) : IRo
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("user", userId.Value);
-        command.Parameters.AddWithValue("from", from);
-        command.Parameters.AddWithValue("to", to);
+        command.Parameters.Add(new NpgsqlParameter("from", NpgsqlDbType.TimestampTz) { Value = from.ToUniversalTime() });   // Npgsql accepts only offset 0
+        command.Parameters.Add(new NpgsqlParameter("to", NpgsqlDbType.TimestampTz) { Value = to.ToUniversalTime() });
         var days = new List<RouteDayDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) days.Add(new RouteDayDto(DateOnly.FromDateTime(reader.GetDateTime(0)), reader.GetInt32(1), reader.GetInt32(2)));
