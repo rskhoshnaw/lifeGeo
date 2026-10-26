@@ -259,6 +259,7 @@ public partial class MainPage : ContentPage
             {
                 Preferences.Set("LastEmail", (EmailEntry.Text ?? "").Trim());
                 await RememberedLogin.SaveAsync(RememberCheck.IsChecked, PasswordEntry.Text);
+                MyPermissions.Forget();   // the next home page fetches this user's permissions
                 // Navigate to HomePage
                 AppLanguage.ShowRoot(new HomePage());
             }

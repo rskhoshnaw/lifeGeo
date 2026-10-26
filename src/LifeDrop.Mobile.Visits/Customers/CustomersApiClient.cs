@@ -38,6 +38,9 @@ public sealed record DoctorDetails(string? ClinicName, string? Specialty, bool? 
     public bool IsEmpty => string.IsNullOrWhiteSpace(ClinicName) && Specialty is null && Cooperates is null && Dealer is null && CustomerClass is null;
 }
 
+// A day and the hours in which a customer accepts visits (plan step 5.3): Weekday 0 = Sunday .. 6 = Saturday, times as HH:mm:ss in Iraq time.
+public sealed record VisitWindowItem(int Weekday, string OpensAt, string ClosesAt);
+
 public static class DoctorOptions
 {
     // The texts are specialty.<key> in i18n/strings.json; the same fixed list as the server.
@@ -56,6 +59,9 @@ public interface ICustomersApiClient
     Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default);
     // Contact person, second phone and note (plan step 4.15); null or empty clears. Own route, so a client that does not send them never clears them.
     Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // The days and hours in which the customer accepts visits (plan step 5.3); an empty list means "always". Replaces the old list.
+    Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     // Doctor details (plan step 4.27-b); null clears a field. Own route, like the contact.
     Task<VisitActionResult> SetDoctorAsync(Guid customerId, DoctorDetails details, CancellationToken cancellationToken = default) =>
@@ -126,6 +132,9 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     public async Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/contact", new { contactName, phone2, notes }, cancellationToken)).Result;
+
+    public async Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
+        (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/visit-windows", new { windows = windows.Select(w => new { weekday = w.Weekday, opensAt = w.OpensAt, closesAt = w.ClosesAt }).ToList() }, cancellationToken)).Result;
 
     public async Task<VisitActionResult> EditCustomerAsync(Guid customerId, string type, string code, string name, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}", new { type, code, name }, cancellationToken)).Result;

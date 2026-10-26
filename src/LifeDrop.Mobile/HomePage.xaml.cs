@@ -1,3 +1,4 @@
+using LifeDrop.Mobile.Visits;
 using LifeDrop.Mobile.Localization;
 using LifeDrop.Mobile.Auth;
 using LifeDrop.Mobile.Auth.Models;
@@ -33,18 +34,40 @@ public partial class HomePage : ContentPage
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
-        // Parts of the product this company switched off (plan step 4.48) have no button.
-        var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
-        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
-        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
-        ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse"));
-        ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse"));
-        ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
+        ApplyButtonVisibility();
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
         SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
         WhatsAppUi.MakeLink(SupportLabel, AppConfig.SupportPhone);
         RenderShift();
+    }
+
+    // Parts of the product this company switched off (plan step 4.48) have no button; the warehouse and delivery buttons only for people whose role has those permissions (plan step 5.3).
+    private void ApplyButtonVisibility()
+    {
+        var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
+        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
+        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
+        ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
+        ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
+        ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
+    }
+
+    private async Task RefreshPermissionsAsync()
+    {
+        if (TrackingHost.CustomersApi is not { } api) return;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var (result, permissions) = await api.GetMyPermissionsAsync(cts.Token);
+            if (result != VisitActionResult.Success) return;
+            MyPermissions.Save(permissions);
+            ApplyButtonVisibility();
+        }
+        catch (OperationCanceledException)
+        {
+            // The kept list stays.
+        }
     }
 
     // The button and the card around it.
@@ -77,6 +100,7 @@ public partial class HomePage : ContentPage
     {
         base.OnAppearing();
         RenderPending();
+        _ = RefreshPermissionsAsync();
         // Continue a shift that is still open on the server (app restarted).
         var tracker = TrackingHost.GetOrCreate();
         if (tracker is not null && tracker.State == ShiftState.Off)

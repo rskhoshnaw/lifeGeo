@@ -14,6 +14,10 @@ public sealed class CustomerPage : ContentPage
     // A registered doctor (plan step 4.27-b follow-up): the name and the doctor fields can be changed here.
     private readonly Entry _name = new() { MaxLength = NewCustomerFlow.MaxNameLength, IsVisible = false };
     private readonly DoctorFieldsView _doctor = new() { IsVisible = false };
+    // Cooperates and Dealer of every other type (plan step 5.3); a doctor has them in the doctor fields.
+    private readonly YesNoView _flagCooperates = new();
+    private readonly YesNoView _flagDealer = new();
+    private readonly VerticalStackLayout _flags = new() { Spacing = 12, IsVisible = false };
     private CustomerProfile? _profile;
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
@@ -59,6 +63,8 @@ public sealed class CustomerPage : ContentPage
         _payment.IsVisible = CompanyModules.Shows(hidden, "payments");
         _sample.IsVisible = CompanyModules.Shows(hidden, "samples");
         _followUp.IsVisible = CompanyModules.Shows(hidden, "followups");
+        _flags.Children.Add(new CaptionedField("app.customer.cooperates", _flagCooperates));
+        _flags.Children.Add(new CaptionedField("app.customer.dealer", _flagDealer));
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
@@ -68,7 +74,7 @@ public sealed class CustomerPage : ContentPage
                 Children =
                 {
                     _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", new PhoneWithWhatsApp(_phone)), new CaptionedField("app.customer.address", _address),
-                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", new PhoneWithWhatsApp(_phone2)), new CaptionedField("app.customer.notes", _notes),
+                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", new PhoneWithWhatsApp(_phone2)), new CaptionedField("app.customer.notes", _notes), _flags,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _save, _order, _payment, _sample, _followUp, _spinner, _message
                 }
@@ -103,6 +109,12 @@ public sealed class CustomerPage : ContentPage
             _profile = customer;
             var isDoctor = NewCustomerFlow.IsDoctor(customer.Type);
             _name.IsVisible = _doctor.IsVisible = isDoctor;
+            _flags.IsVisible = !isDoctor;
+            if (!isDoctor)
+            {
+                _flagCooperates.Value = customer.Doctor?.Cooperates;
+                _flagDealer.Value = customer.Doctor?.Dealer;
+            }
             if (isDoctor)
             {
                 _name.Text = customer.Name;
@@ -157,6 +169,8 @@ public sealed class CustomerPage : ContentPage
                 }
                 if (result == VisitActionResult.Success) result = await api.SetDoctorAsync(_customerId, _doctor.Read(), cts.Token);
             }
+            if (result == VisitActionResult.Success && _profile is { } other && !NewCustomerFlow.IsDoctor(other.Type))
+                result = await api.SetDoctorAsync(_customerId, new DoctorDetails(null, null, _flagCooperates.Value, _flagDealer.Value, null), cts.Token);
             Show(result == VisitActionResult.Success ? Texts.Get("app.customer.saved")
                 : result == VisitActionResult.NotFound ? Texts.Get("app.customer.notYours") : VisitLifecycle.Describe(result), result);
         }
