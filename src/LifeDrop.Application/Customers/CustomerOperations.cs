@@ -333,7 +333,7 @@ public sealed record CustomerDoctorRequest(string? ClinicName, string? Specialty
 // The fixed list of doctor specialties (plan step 4.27); the texts are `specialty.<key>` in i18n/strings.json.
 public static class DoctorSpecialties
 {
-    public static readonly IReadOnlyList<string> Keys = ["orthopedics", "neuro_spine", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
+    public static readonly IReadOnlyList<string> Keys = ["orthopedics", "neuro_spine", "neurology", "psychiatry", "pediatrics", "women_obstetrics", "surgery", "kidney_urology", "ent", "other"];
     public static readonly IReadOnlyList<string> Classes = ["A+", "A", "B", "C"];
 }
 

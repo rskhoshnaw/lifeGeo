@@ -20,7 +20,7 @@
                         <Label Text="●" FontSize="30" TextColor="{StaticResource Primary}"
                                VerticalOptions="Center" HorizontalOptions="Center" />
                     </Border>
-                    <Label Text="LifeDrop" FontSize="26" FontAttributes="Bold"
+                    <Label Text="Pixelo GeoTrack" FontSize="26" FontAttributes="Bold"
                            TextColor="White" HorizontalOptions="Center" />
                 </VerticalStackLayout>
             </Grid>

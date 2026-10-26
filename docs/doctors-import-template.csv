@@ -1,0 +1,3 @@
+﻿name,clinic_name,specialty,cooperates,dealer,class,phone,phone2,city,neighbourhood,street,address,latitude,longitude,notes,visitor_email
+Dr. Example One,Example Clinic,neurology,yes,no,A,07701234567,,Erbil,Ankawa,,Near the main road,36.2201,43.9924,Sample row - delete it,rep1@dev.local
+Dr. Example Two,Example Medical Complex,psychiatry,no,no,B,07507654321,07712345678,Sulaymaniyah,,,,,,Location unknown - leave latitude and longitude empty,

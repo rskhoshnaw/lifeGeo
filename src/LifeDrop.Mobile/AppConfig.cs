@@ -8,7 +8,7 @@ public static class AppConfig
 {
     public const string Developer = "Pixelo Design";
     public const string DeveloperUrl = "https://pixelo-design.com/";
-    public const string DefaultSupportPhone = "+9647510686828";
+    public const string DefaultSupportPhone = "+9647722656566";
 
     private static string Metadata(string key) => Assembly.GetExecutingAssembly().GetCustomAttributes<AssemblyMetadataAttribute>()
         .FirstOrDefault(a => a.Key == key)?.Value ?? "";

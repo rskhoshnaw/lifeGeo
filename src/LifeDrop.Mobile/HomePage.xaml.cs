@@ -43,6 +43,7 @@ public partial class HomePage : ContentPage
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
         SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
+        WhatsAppUi.MakeLink(SupportLabel, AppConfig.SupportPhone);
         RenderShift();
     }
 

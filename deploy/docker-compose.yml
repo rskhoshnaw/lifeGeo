@@ -36,7 +36,7 @@ services:
       Tracking__RetentionDays: ${TRACKING_RETENTION_DAYS:-30}
       Metrics__Token: ${METRICS_TOKEN:-}
       Company__Industry: ${COMPANY_INDUSTRY:-pharma}
-      Branding__SupportPhone: ${SUPPORT_PHONE:-+9647510686828}
+      Branding__SupportPhone: ${SUPPORT_PHONE:-+9647722656566}
       Push__Fcm__ServiceAccountFile: /run/fcm/service-account.json
       # Telegram for staff (docs/CHANNELS.md): off unless CHANNELS_ENABLED=true and a bot token is set in deploy/.env.
       Channels__Enabled: ${CHANNELS_ENABLED:-false}

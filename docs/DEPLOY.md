@@ -110,5 +110,5 @@ gets the certificate), create the tenant with code `acme` (`deploy/create-super-
 
 Per-company settings in that server's `deploy/.env`:
 - `COMPANY_INDUSTRY=pharma` (default) or `food`: a food distributor gets shops/restaurants wording instead of pharmacies/doctors, and no doctor-only form fields. Panel and app both read it from `GET /company-config/<code>`.
-- `SUPPORT_PHONE=+9647510686828`: shown on the panel and app sign-in screens.
+- `SUPPORT_PHONE=+9647722656566`: shown on the panel and app sign-in screens as a WhatsApp link (wa.me).
 - Optional `CompanyDirectory__<code>__ApiBaseUrl` (https) if that company's API lives under another address.

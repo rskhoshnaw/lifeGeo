@@ -37,6 +37,7 @@ public partial class MainPage : ContentPage
         LoginBtn.Text = Texts.Get("app.login.submit");
         StatusLabel.Text = Texts.Get("app.login.checking");
         SupportLabel.Text = Texts.Get("app.support", ("phone", AppConfig.SupportPhone));
+        WhatsAppUi.MakeLink(SupportLabel, AppConfig.SupportPhone);
 
 #if !DEBUG
         // Completely hide the URL field in Release
