@@ -47,6 +47,32 @@ public sealed class PostgresRouteHistoryStore(NpgsqlDataSource dataSource) : IRo
         return users;
     }
 
+    public async Task<IReadOnlyList<RouteDayDto>> ListDaysAsync(TenantId tenantId, UserId userId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT d.day, d.shifts, COALESCE(p.points, 0)
+            FROM (SELECT (s.started_at AT TIME ZONE 'Asia/Baghdad')::date AS day, count(*)::int AS shifts
+                  FROM shifts s
+                  WHERE s.tenant_id = @tenant AND s.user_id = @user AND s.started_at >= @from AND s.started_at < @to
+                  GROUP BY 1) d
+            LEFT JOIN (SELECT (t.captured_at AT TIME ZONE 'Asia/Baghdad')::date AS day, count(*)::int AS points
+                       FROM tracking_points t
+                       WHERE t.tenant_id = @tenant AND t.user_id = @user AND t.captured_at >= @from AND t.captured_at < @to
+                       GROUP BY 1) p ON p.day = d.day
+            ORDER BY d.day
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId.Value);
+        command.Parameters.Add(new NpgsqlParameter("from", NpgsqlDbType.TimestampTz) { Value = from.ToUniversalTime() });   // Npgsql accepts only offset 0
+        command.Parameters.Add(new NpgsqlParameter("to", NpgsqlDbType.TimestampTz) { Value = to.ToUniversalTime() });
+        var days = new List<RouteDayDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) days.Add(new RouteDayDto(DateOnly.FromDateTime(reader.GetDateTime(0)), reader.GetInt32(1), reader.GetInt32(2)));
+        return days;
+    }
+
     public async Task<RouteRaw> LoadAsync(TenantId tenantId, UserId userId, DateTimeOffset from, DateTimeOffset to, int maxPoints, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

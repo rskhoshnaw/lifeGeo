@@ -38,6 +38,12 @@ public sealed record DoctorDetails(string? ClinicName, string? Specialty, bool? 
     public bool IsEmpty => string.IsNullOrWhiteSpace(ClinicName) && Specialty is null && Cooperates is null && Dealer is null && CustomerClass is null;
 }
 
+// The history of a customer (plan step 5.4): visits with their result, and the orders with their products (Orders is null when the user may not read orders).
+public sealed record VisitHistoryItem(Guid Id, string Date, string Status, string? UserEmail, DateTimeOffset? CheckInAt, DateTimeOffset? CheckOutAt, string? Outcome, string? Note, string? Reason);
+public sealed record OrderHistoryLine(string ProductName, decimal Quantity, decimal? DeliveredQuantity);
+public sealed record OrderHistoryItem(string Number, DateTimeOffset CreatedAt, string Status, string Currency, decimal Total, bool PricesHidden, IReadOnlyList<OrderHistoryLine> Lines);
+public sealed record CustomerHistoryData(IReadOnlyList<VisitHistoryItem> Visits, IReadOnlyList<OrderHistoryItem>? Orders);
+
 // A day and the hours in which a customer accepts visits (plan step 5.3): Weekday 0 = Sunday .. 6 = Saturday, times as HH:mm:ss in Iraq time.
 public sealed record VisitWindowItem(int Weekday, string OpensAt, string ClosesAt);
 
@@ -59,6 +65,8 @@ public interface ICustomersApiClient
     Task<VisitActionResult> SetLocationAsync(Guid customerId, DeviceFix fix, CancellationToken cancellationToken = default);
     // Contact person, second phone and note (plan step 4.15); null or empty clears. Own route, so a client that does not send them never clears them.
     Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    Task<(VisitActionResult Result, CustomerHistoryData? History)> GetCustomerHistoryAsync(Guid customerId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     // The days and hours in which the customer accepts visits (plan step 5.3); an empty list means "always". Replaces the old list.
     Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
@@ -132,6 +140,13 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     public async Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/contact", new { contactName, phone2, notes }, cancellationToken)).Result;
+
+    public async Task<(VisitActionResult Result, CustomerHistoryData? History)> GetCustomerHistoryAsync(Guid customerId, CancellationToken cancellationToken = default)
+    {
+        var (result, history) = await CallAsync<CustomerHistoryData>(HttpMethod.Get, $"/customers/{customerId}/history?limit=50", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, null);
+        return history?.Visits is null ? (VisitActionResult.ServerError, null) : (result, history);
+    }
 
     public async Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/visit-windows", new { windows = windows.Select(w => new { weekday = w.Weekday, opensAt = w.OpensAt, closesAt = w.ClosesAt }).ToList() }, cancellationToken)).Result;

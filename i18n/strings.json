@@ -8098,5 +8098,203 @@
   "ckb": "کڕیاری {code} دروست کرا، بەڵام ڕۆژ و کاتی سەردان پاشەکەوت نەکران. لە پانێل کڕیارەکە بکەرەوە و دووبارە دایبنێ.",
   "ar": "تم إنشاء العميل {code} لكن لم تُحفظ أيام وساعات الزيارة. افتح العميل في اللوحة واضبطها من جديد.",
   "fa": "مشتری {code} ساخته شد، اما روز و ساعت ملاقات ذخیره نشد. مشتری را در پنل باز کنید و دوباره تنظیم کنید."
+ },
+ "web.customers.history": {
+  "en": "History",
+  "ckb": "مێژوو",
+  "ar": "السجل",
+  "fa": "تاریخچه"
+ },
+ "web.history.title": {
+  "en": "History of {customer}",
+  "ckb": "مێژووی {customer}",
+  "ar": "سجل {customer}",
+  "fa": "تاریخچهٔ {customer}"
+ },
+ "web.history.visits": {
+  "en": "Visits",
+  "ckb": "سەردانەکان",
+  "ar": "الزيارات",
+  "fa": "ملاقات‌ها"
+ },
+ "web.history.orders": {
+  "en": "Purchases (orders)",
+  "ckb": "کڕینەکان (داواکاری)",
+  "ar": "المشتريات (الطلبات)",
+  "fa": "خریدها (سفارش‌ها)"
+ },
+ "web.history.none": {
+  "en": "Nothing yet.",
+  "ckb": "هیچ نییە تا ئێستا.",
+  "ar": "لا شيء بعد.",
+  "fa": "هنوز چیزی نیست."
+ },
+ "web.history.ordersHidden": {
+  "en": "Orders are not shown for your role.",
+  "ckb": "داواکارییەکان بۆ ڕۆڵی تۆ نیشان نادرێن.",
+  "ar": "الطلبات غير ظاهرة لدورك.",
+  "fa": "سفارش‌ها برای نقش شما نمایش داده نمی‌شوند."
+ },
+ "web.history.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.history.by": {
+  "en": "By",
+  "ckb": "لەلایەن",
+  "ar": "بواسطة",
+  "fa": "توسط"
+ },
+ "web.history.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.history.checkIn": {
+  "en": "Check-in / out",
+  "ckb": "هاتن / چوون",
+  "ar": "الحضور / الانصراف",
+  "fa": "ورود / خروج"
+ },
+ "web.history.result": {
+  "en": "Result",
+  "ckb": "ئەنجام",
+  "ar": "النتيجة",
+  "fa": "نتیجه"
+ },
+ "web.history.number": {
+  "en": "Order",
+  "ckb": "داواکاری",
+  "ar": "الطلب",
+  "fa": "سفارش"
+ },
+ "web.history.products": {
+  "en": "Products",
+  "ckb": "بەرهەمەکان",
+  "ar": "المنتجات",
+  "fa": "محصولات"
+ },
+ "web.history.total": {
+  "en": "Total",
+  "ckb": "کۆ",
+  "ar": "المجموع",
+  "fa": "جمع"
+ },
+ "web.route.prevMonth": {
+  "en": "Previous month",
+  "ckb": "مانگی پێشوو",
+  "ar": "الشهر السابق",
+  "fa": "ماه قبل"
+ },
+ "web.route.nextMonth": {
+  "en": "Next month",
+  "ckb": "مانگی داهاتوو",
+  "ar": "الشهر التالي",
+  "fa": "ماه بعد"
+ },
+ "web.route.legend": {
+  "en": "Coloured days have a route; the darker, the more points. Click a day to see it.",
+  "ckb": "ڕۆژە ڕەنگاوڕەنگەکان ڕێڕەویان هەیە، هەرچی تۆختر بێت خاڵی زیاترە. کلیک لەسەر ڕۆژێک بکە.",
+  "ar": "الأيام الملونة لها مسار، وكلما كان اللون أغمق زادت النقاط. انقر على يوم لعرضه.",
+  "fa": "روزهای رنگی مسیر دارند؛ هرچه تیره‌تر، نقطهٔ بیشتر. روی یک روز کلیک کنید."
+ },
+ "app.customer.history": {
+  "en": "History of this customer",
+  "ckb": "مێژووی ئەم کڕیارە",
+  "ar": "سجل هذا العميل",
+  "fa": "تاریخچهٔ این مشتری"
+ },
+ "app.history.title": {
+  "en": "History",
+  "ckb": "مێژوو",
+  "ar": "السجل",
+  "fa": "تاریخچه"
+ },
+ "app.history.visits": {
+  "en": "Visits",
+  "ckb": "سەردانەکان",
+  "ar": "الزيارات",
+  "fa": "ملاقات‌ها"
+ },
+ "app.history.orders": {
+  "en": "Purchases (orders)",
+  "ckb": "کڕینەکان (داواکاری)",
+  "ar": "المشتريات (الطلبات)",
+  "fa": "خریدها (سفارش‌ها)"
+ },
+ "app.history.none": {
+  "en": "Nothing yet.",
+  "ckb": "هیچ نییە تا ئێستا.",
+  "ar": "لا شيء بعد.",
+  "fa": "هنوز چیزی نیست."
+ },
+ "app.history.ordersHidden": {
+  "en": "Orders are not shown for your role.",
+  "ckb": "داواکارییەکان بۆ ڕۆڵی تۆ نیشان نادرێن.",
+  "ar": "الطلبات غير ظاهرة لدورك.",
+  "fa": "سفارش‌ها برای نقش شما نمایش داده نمی‌شوند."
+ },
+ "app.history.loadFailed": {
+  "en": "The history could not be loaded.",
+  "ckb": "مێژوو بار نەکرا.",
+  "ar": "تعذر تحميل السجل.",
+  "fa": "تاریخچه بارگیری نشد."
+ },
+ "app.history.order.placed": {
+  "en": "placed",
+  "ckb": "تۆمارکراو",
+  "ar": "مسجّل",
+  "fa": "ثبت‌شده"
+ },
+ "app.history.order.preparing": {
+  "en": "preparing",
+  "ckb": "ئامادەکردن",
+  "ar": "قيد التجهيز",
+  "fa": "در حال آماده‌سازی"
+ },
+ "app.history.order.ready": {
+  "en": "ready",
+  "ckb": "ئامادەیە",
+  "ar": "جاهز",
+  "fa": "آماده"
+ },
+ "app.history.order.handed_over": {
+  "en": "handed to driver",
+  "ckb": "دراوە بە شوفێر",
+  "ar": "سُلّم للسائق",
+  "fa": "تحویل راننده"
+ },
+ "app.history.order.picked_up": {
+  "en": "picked up by driver",
+  "ckb": "شوفێر وەریگرت",
+  "ar": "استلمه السائق",
+  "fa": "راننده تحویل گرفت"
+ },
+ "app.history.order.on_the_way": {
+  "en": "on the way",
+  "ckb": "لە ڕێگایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "app.history.order.delivered": {
+  "en": "delivered",
+  "ckb": "گەیەنرا",
+  "ar": "تم التسليم",
+  "fa": "تحویل شد"
+ },
+ "app.history.order.delivery_failed": {
+  "en": "not delivered",
+  "ckb": "نەگەیەنرا",
+  "ar": "لم يتم التسليم",
+  "fa": "تحویل نشد"
+ },
+ "app.history.order.cancelled": {
+  "en": "cancelled",
+  "ckb": "هەڵوەشێنراوە",
+  "ar": "ملغى",
+  "fa": "لغوشده"
  }
 }

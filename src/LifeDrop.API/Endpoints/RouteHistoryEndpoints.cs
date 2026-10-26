@@ -19,6 +19,16 @@ public static class RouteHistoryEndpoints
             .WithName("ListTrackableUsers").WithTags("Tracking").Produces<List<TrackableUserDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapGet("/tracking/days", async (Guid userId, DateOnly month, HttpContext context, RouteHistory history, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, days) = await history.DaysAsync(tenantId, actorId, userId, month, cancellationToken);
+            return result == RouteResult.Success ? Results.Ok(days) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListRouteDays").WithTags("Tracking").Produces<List<RouteDayDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/tracking/history", async (Guid userId, DateOnly date, HttpContext context, RouteHistory history, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
