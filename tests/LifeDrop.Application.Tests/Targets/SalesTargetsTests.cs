@@ -79,6 +79,18 @@ public class SalesTargetsTests
         Assert.Equal(TargetResult.InvalidData, (await Service(store, null, DataScope.Tenant).ListAsync(new TenantId(Tenant), new UserId(Actor), new DateOnly(2030, 1, 1), CancellationToken.None)).Result);
     }
 
+    [Fact]
+    public async Task EveryoneSeesOnlyTheirOwnFigures()
+    {
+        var store = new Store();
+        var service = Service(store, null);   // no targets permission at all
+        var (result, _) = await service.MineAsync(new TenantId(Tenant), new UserId(Rep), new DateOnly(2026, 10, 9), CancellationToken.None);
+        Assert.Equal(TargetResult.Success, result);
+        Assert.Equal((DataScope.Own, new UserId(Rep)), (store.ListScope!.Scope, store.ListScope.ActorId));
+        Assert.Equal(TargetResult.InvalidData, (await service.MineAsync(new TenantId(Tenant), new UserId(Rep), new DateOnly(2030, 1, 1), CancellationToken.None)).Result);
+        Assert.Equal(TargetResult.Forbidden, (await service.MineAsync(new TenantId(Tenant), default, new DateOnly(2026, 10, 9), CancellationToken.None)).Result);
+    }
+
     private sealed class Store : ITargetStore
     {
         public List<(Guid User, Guid Product, DateOnly Month, decimal? Quantity)> Sets { get; } = [];

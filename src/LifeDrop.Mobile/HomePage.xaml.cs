@@ -34,6 +34,7 @@ public partial class HomePage : ContentPage
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
+        TargetsBtn.Text = Texts.Get("app.home.targets");
         ApplyButtonVisibility();
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
@@ -51,6 +52,7 @@ public partial class HomePage : ContentPage
         ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
+        ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
     }
 
     private async Task RefreshPermissionsAsync()
@@ -230,6 +232,8 @@ public partial class HomePage : ContentPage
         IosTrackingService.Stop();
 #endif
     }
+
+    private async void OnTargetsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyTargetsPage());
 
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 

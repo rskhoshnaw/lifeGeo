@@ -48,6 +48,16 @@ public sealed class SalesTargets(ITargetStore store, IPermissionStore permission
         return await store.SetAsync(tenantId, actorId, request.UserId, request.ProductId, new DateOnly(request.Month.Year, request.Month.Month, 1), quantity, cancellationToken);
     }
 
+    // The user's own targets and deliveries of a month (plan step 5.5, the visitor's own page in the app): no permission is needed to see one's own figures.
+    public async Task<(TargetResult Result, IReadOnlyList<TargetRowDto> Rows)> MineAsync(TenantId tenantId, UserId actorId, DateOnly month, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (TargetResult.Forbidden, Array.Empty<TargetRowDto>());
+        if (!MonthAllowed(month)) return (TargetResult.InvalidData, Array.Empty<TargetRowDto>());
+        var first = new DateOnly(month.Year, month.Month, 1);
+        var from = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3));
+        return (TargetResult.Success, await store.ListAsync(tenantId, new AccessScope(DataScope.Own, actorId, null), first, from, from.AddMonths(1), cancellationToken));
+    }
+
     public async Task<(TargetResult Result, IReadOnlyList<TargetRowDto> Rows)> ListAsync(TenantId tenantId, UserId actorId, DateOnly month, CancellationToken cancellationToken)
     {
         var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.TargetsRead, cancellationToken);

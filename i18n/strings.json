@@ -8410,5 +8410,53 @@
   "ckb": "بۆ لابردنی ئامانج، خانەکە بەتاڵ بهێڵەرەوە یان ٠ بنووسە.",
   "ar": "اترك الخانة فارغة أو اكتب 0 لإزالة الهدف.",
   "fa": "برای حذف هدف، کادر را خالی بگذارید یا 0 بنویسید."
+ },
+ "app.home.targets": {
+  "en": "My targets and progress",
+  "ckb": "ئامانج و پێشکەوتنەکەم",
+  "ar": "أهدافي وتقدمي",
+  "fa": "هدف و پیشرفت من"
+ },
+ "app.targets.title": {
+  "en": "My targets",
+  "ckb": "ئامانجەکانم",
+  "ar": "أهدافي",
+  "fa": "اهداف من"
+ },
+ "app.targets.none": {
+  "en": "No target and no delivery in this month.",
+  "ckb": "لەم مانگەدا نە ئامانج هەیە نە گەیاندن.",
+  "ar": "لا أهداف ولا تسليمات في هذا الشهر.",
+  "fa": "در این ماه نه هدفی هست و نه تحویلی."
+ },
+ "app.targets.target": {
+  "en": "Target: {value} {unit}",
+  "ckb": "ئامانج: {value} {unit}",
+  "ar": "الهدف: {value} {unit}",
+  "fa": "هدف: {value} {unit}"
+ },
+ "app.targets.delivered": {
+  "en": "Delivered: {value} {unit}",
+  "ckb": "گەیەندراو: {value} {unit}",
+  "ar": "المسلَّم: {value} {unit}",
+  "fa": "تحویل‌شده: {value} {unit}"
+ },
+ "app.targets.noTarget": {
+  "en": "No target set for this product",
+  "ckb": "بۆ ئەم بەرهەمە ئامانج دانەنراوە",
+  "ar": "لا هدف لهذا المنتج",
+  "fa": "برای این محصول هدفی تعیین نشده"
+ },
+ "app.targets.loadFailed": {
+  "en": "The targets could not be loaded.",
+  "ckb": "ئامانجەکان بار نەکران.",
+  "ar": "تعذر تحميل الأهداف.",
+  "fa": "اهداف بارگیری نشد."
+ },
+ "app.targets.note": {
+  "en": "Delivered = what was really delivered of your orders, counted in the month of the delivery.",
+  "ckb": "گەیەندراو = ئەوەی بە ڕاستی لە داواکارییەکانت گەیەندراوە، لە مانگی گەیاندن دەژمێردرێت.",
+  "ar": "المسلَّم = ما سُلِّم فعلاً من طلباتك، ويُحسب في شهر التسليم.",
+  "fa": "تحویل‌شده = آنچه واقعاً از سفارش‌های شما تحویل شده و در ماه تحویل شمرده می‌شود."
  }
 }

@@ -28,6 +28,17 @@ public static class TargetEndpoints
         }).RequireAuthorization()
             .WithName("SetTarget").WithTags("Targets").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
+        // The caller's own targets and deliveries (the visitor's page in the app); needs no permission.
+        app.MapGet("/targets/mine", async (DateOnly month, HttpContext context, SalesTargets targets, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, rows) = await targets.MineAsync(tenantId, actorId, month, cancellationToken);
+            return result == TargetResult.Success ? Results.Ok(rows) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListMyTargets").WithTags("Targets").Produces<List<TargetRowDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

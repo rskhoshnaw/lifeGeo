@@ -44,6 +44,9 @@ public sealed record OrderHistoryLine(string ProductName, decimal Quantity, deci
 public sealed record OrderHistoryItem(string Number, DateTimeOffset CreatedAt, string Status, string Currency, decimal Total, bool PricesHidden, IReadOnlyList<OrderHistoryLine> Lines);
 public sealed record CustomerHistoryData(IReadOnlyList<VisitHistoryItem> Visits, IReadOnlyList<OrderHistoryItem>? Orders);
 
+// One product of the caller's month: the target (null when none was set) and what was delivered of the caller's orders (plan step 5.5).
+public sealed record MyTargetRow(Guid ProductId, string ProductCode, string ProductName, string Unit, decimal? Target, decimal Actual);
+
 // A day and the hours in which a customer accepts visits (plan step 5.3): Weekday 0 = Sunday .. 6 = Saturday, times as HH:mm:ss in Iraq time.
 public sealed record VisitWindowItem(int Weekday, string OpensAt, string ClosesAt);
 
@@ -67,6 +70,9 @@ public interface ICustomersApiClient
     Task<VisitActionResult> SetContactAsync(Guid customerId, string? contactName, string? phone2, string? notes, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     Task<(VisitActionResult Result, CustomerHistoryData? History)> GetCustomerHistoryAsync(Guid customerId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // The caller's own targets and deliveries of a month, month = the first day of it, "2026-10-01" (plan step 5.5).
+    Task<(VisitActionResult Result, IReadOnlyList<MyTargetRow> Rows)> GetMyTargetsAsync(string month, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     // The days and hours in which the customer accepts visits (plan step 5.3); an empty list means "always". Replaces the old list.
     Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
@@ -146,6 +152,13 @@ public sealed class CustomersApiClient : ICustomersApiClient
         var (result, history) = await CallAsync<CustomerHistoryData>(HttpMethod.Get, $"/customers/{customerId}/history?limit=50", null, cancellationToken);
         if (result != VisitActionResult.Success) return (result, null);
         return history?.Visits is null ? (VisitActionResult.ServerError, null) : (result, history);
+    }
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<MyTargetRow> Rows)> GetMyTargetsAsync(string month, CancellationToken cancellationToken = default)
+    {
+        var (result, rows) = await CallAsync<List<MyTargetRow>>(HttpMethod.Get, $"/targets/mine?month={Uri.EscapeDataString(month)}", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<MyTargetRow>());
+        return rows is null || rows.Any(r => r is null) ? (VisitActionResult.ServerError, Array.Empty<MyTargetRow>()) : (result, rows);
     }
 
     public async Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
