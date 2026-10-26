@@ -1,13 +1,14 @@
 namespace LifeDrop.Mobile.Visits;
 
 public sealed record NewCustomerRequest(string Name, string Type, string? Phone, string? Address, Guid? PlaceId, DeviceFix? Location,
-    string? ContactName = null, string? Phone2 = null, string? Notes = null, DoctorDetails? Doctor = null);
+    string? ContactName = null, string? Phone2 = null, string? Notes = null, DoctorDetails? Doctor = null,
+    IReadOnlyList<VisitWindowItem>? Windows = null);
 
 // Create: the customer itself. Profile and Location: null when nothing was to be saved, otherwise the answer; a failure
 // there leaves the customer created (CustomerId is set) and the user finishes in the customer's details.
-public sealed record NewCustomerOutcome(VisitActionResult Create, Guid? CustomerId, string? Code, VisitActionResult? Profile, VisitActionResult? Location, VisitActionResult? Contact = null, VisitActionResult? Doctor = null)
+public sealed record NewCustomerOutcome(VisitActionResult Create, Guid? CustomerId, string? Code, VisitActionResult? Profile, VisitActionResult? Location, VisitActionResult? Contact = null, VisitActionResult? Doctor = null, VisitActionResult? Windows = null)
 {
-    public bool Complete => Create == VisitActionResult.Success && Profile is null or VisitActionResult.Success && Location is null or VisitActionResult.Success && Contact is null or VisitActionResult.Success && Doctor is null or VisitActionResult.Success;
+    public bool Complete => Create == VisitActionResult.Success && Profile is null or VisitActionResult.Success && Location is null or VisitActionResult.Success && Contact is null or VisitActionResult.Success && Doctor is null or VisitActionResult.Success && Windows is null or VisitActionResult.Success;
 }
 
 // Codes of customers a field user registers: N, the day, and four letters or digits without look-alikes (O/0, I/1/L), so
@@ -79,8 +80,12 @@ public sealed class NewCustomerFlow(ICustomersApiClient api, TimeProvider clock,
         if (contactName is not null || phone2 is not null || notes is not null)
             contact = await api.SetContactAsync(customerId, contactName, phone2, notes, cancellationToken);
         VisitActionResult? doctor = null;
-        if (IsDoctor(request.Type) && request.Doctor is { IsEmpty: false } details)
+        // A doctor has all the doctor fields; every other type only "cooperates" and "dealer" (plan step 5.3).
+        if (request.Doctor is { IsEmpty: false } details && (IsDoctor(request.Type) || (details.ClinicName is null && details.Specialty is null && details.CustomerClass is null)))
             doctor = await api.SetDoctorAsync(customerId, details with { ClinicName = string.IsNullOrWhiteSpace(details.ClinicName) ? null : details.ClinicName.Trim() }, cancellationToken);
-        return new NewCustomerOutcome(created, customerId, code, profile, location, contact, doctor);
+        VisitActionResult? windows = null;
+        if (request.Windows is { Count: > 0 } visitWindows)
+            windows = await api.SetVisitWindowsAsync(customerId, visitWindows, cancellationToken);
+        return new NewCustomerOutcome(created, customerId, code, profile, location, contact, doctor, windows);
     }
 }

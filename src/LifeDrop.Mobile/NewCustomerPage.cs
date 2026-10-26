@@ -6,10 +6,11 @@ namespace LifeDrop.Mobile;
 // Registers a customer in the field (plan step 1.23-b): name, type, phone, address, where it is, and the GPS position of
 // the place the user stands at. The code is made by the app. Online only. If the customer is created but the details or the
 // position could not be saved, the customer's page opens to finish it.
+// Two forms (plan step 5.3): a doctor keeps the doctor form; every other type has: type, place name, customer name, mobile, day of the week, hours, cooperates,
+// Dealer, city, neighbourhood, address, notes, location. The place name is the customer's name in the lists; the customer name is the contact person.
 public sealed class NewCustomerPage : ContentPage
 {
     private readonly Entry _name = new() { MaxLength = NewCustomerFlow.MaxNameLength };
-    private CaptionedField _nameBox = null!;
     private readonly ChoiceField _type = new(Texts.Get("app.customer.type")) { Items = NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant())).ToList(), SelectedIndex = 0 };
     private IReadOnlyList<string> _types = NewCustomerFlow.Types;
     // Doctor details (plan step 4.27-b): shown only when the type is Doctor.
@@ -17,6 +18,10 @@ public sealed class NewCustomerPage : ContentPage
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
     private readonly Entry _contactName = new() { MaxLength = 100 };
+    // Only the form of the other types: day and hours of the visit, cooperates, Dealer.
+    private readonly VisitWindowsView _when = new();
+    private readonly YesNoView _cooperates = new();
+    private readonly YesNoView _dealer = new();
     private readonly Entry _phone2 = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _notes = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 500, HeightRequest = 80 };
     private readonly PlacePickerView _places = new();
@@ -25,6 +30,17 @@ public sealed class NewCustomerPage : ContentPage
     private readonly Button _create = new();
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
+    private readonly VerticalStackLayout _form = new() { Padding = 16, Spacing = 12 };
+    private readonly CaptionedField _typeBox;
+    private readonly CaptionedField _nameBox;
+    private readonly CaptionedField _contactBox;
+    private readonly CaptionedField _phoneBox;
+    private readonly CaptionedField _phone2Box;
+    private readonly CaptionedField _addressBox;
+    private readonly CaptionedField _notesBox;
+    private readonly CaptionedField _cooperatesBox;
+    private readonly CaptionedField _dealerBox;
+    private readonly Label _placeTitle = new() { FontAttributes = FontAttributes.Bold };
     private DeviceFix? _fix;
     private bool _placesLoaded;
 
@@ -32,8 +48,6 @@ public sealed class NewCustomerPage : ContentPage
     {
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.customer.new");
-        _nameBox = new CaptionedField("app.customer.name", _name);
-        _name.Placeholder = Texts.Get("app.customer.name");
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
         _contactName.Placeholder = Texts.Get("app.customer.contactName");
@@ -44,21 +58,41 @@ public sealed class NewCustomerPage : ContentPage
         _type.SelectedIndexChanged += (_, _) => OnTypeChanged();
         _create.Text = Texts.Get("app.customer.create");
         _create.Clicked += async (_, _) => await CreateAsync();
-        Content = new ScrollView
+        _typeBox = new CaptionedField("app.customer.type", _type);
+        _nameBox = new CaptionedField("app.customer.name", _name);
+        _contactBox = new CaptionedField("app.customer.contactName", _contactName);
+        _phoneBox = new CaptionedField("app.customer.phone", _phone);
+        _phone2Box = new CaptionedField("app.customer.phone2", _phone2);
+        _addressBox = new CaptionedField("app.customer.address", _address);
+        _notesBox = new CaptionedField("app.customer.notes", _notes);
+        _cooperatesBox = new CaptionedField("app.customer.cooperates", _cooperates);
+        _dealerBox = new CaptionedField("app.customer.dealer", _dealer);
+        Content = new ScrollView { Content = _form };
+        Layout();
+    }
+
+    // The fields in the order of the chosen type: the doctor form as before, the other types as listed at the top of this class.
+    private void Layout()
+    {
+        var doctor = NewCustomerFlow.IsDoctor(SelectedType);
+        _doctorBox.IsVisible = doctor;
+        _nameBox.Caption.Text = Texts.Get(doctor ? "app.customer.doctorName" : "app.customer.placeName");
+        _name.Placeholder = _nameBox.Caption.Text;
+        _contactBox.Caption.Text = Texts.Get(doctor ? "app.customer.contactName" : "app.customer.name");
+        _contactName.Placeholder = _contactBox.Caption.Text;
+        _placeTitle.Text = Texts.Get(doctor ? "app.customer.place" : "app.customers.place");
+        _form.Children.Clear();
+        _form.Children.Add(_typeBox);
+        _form.Children.Add(_nameBox);
+        if (doctor)
         {
-            Content = new VerticalStackLayout
-            {
-                Padding = 16,
-                Spacing = 12,
-                Children =
-                {
-                    new CaptionedField("app.customer.type", _type), _nameBox, _doctorBox, new CaptionedField("app.customer.phone", _phone), new CaptionedField("app.customer.address", _address),
-                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", _phone2), new CaptionedField("app.customer.notes", _notes),
-                    new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
-                    _places, _locationButton, _locationLabel, _create, _spinner, _message
-                }
-            }
-        };
+            foreach (var view in new View[] { _doctorBox, _phoneBox, _addressBox, _contactBox, _phone2Box, _notesBox, _placeTitle, _places }) _form.Children.Add(view);
+        }
+        else
+        {
+            foreach (var view in new View[] { _contactBox, _phoneBox, _when, _cooperatesBox, _dealerBox, _placeTitle, _places, _addressBox, _notesBox }) _form.Children.Add(view);
+        }
+        foreach (var view in new View[] { _locationButton, _locationLabel, _create, _spinner, _message }) _form.Children.Add(view);
     }
 
     protected override async void OnAppearing()
@@ -94,12 +128,7 @@ public sealed class NewCustomerPage : ContentPage
 
     private string SelectedType => _types[Math.Max(0, Math.Min(_type.SelectedIndex, _types.Count - 1))];
 
-    private void OnTypeChanged()
-    {
-        var doctor = NewCustomerFlow.IsDoctor(SelectedType);
-        _doctorBox.IsVisible = doctor;
-        _nameBox.Caption.Text = _name.Placeholder = Texts.Get(doctor ? "app.customer.doctorName" : "app.customer.name");
-    }
+    private void OnTypeChanged() => Layout();
 
     private DoctorDetails? DoctorFromForm() => NewCustomerFlow.IsDoctor(SelectedType) ? _doctorBox.Read() : null;
 
@@ -125,7 +154,22 @@ public sealed class NewCustomerPage : ContentPage
     {
         var api = TrackingHost.CustomersApi;
         if (api is null) return;
-        var request = new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, _phone2.Text, _notes.Text, DoctorFromForm());
+        var isDoctor = NewCustomerFlow.IsDoctor(SelectedType);
+        IReadOnlyList<VisitWindowItem>? windows = null;
+        if (!isDoctor)
+        {
+            var (plan, items) = _when.Read();
+            if (plan != VisitWindowPlanResult.Ok)
+            {
+                Show(Texts.Get(plan == VisitWindowPlanResult.NoDays ? "app.customer.daysNone" : "app.customer.hoursInvalid"));
+                return;
+            }
+            windows = items;
+        }
+        var request = isDoctor
+            ? new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, _phone2.Text, _notes.Text, DoctorFromForm())
+            : new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, null, _notes.Text,
+                new DoctorDetails(null, null, _cooperates.Value, _dealer.Value, null), windows);
         if (!NewCustomerFlow.IsValid(request))
         {
             Show(Texts.Get("app.customer.nameRequired"));
@@ -171,6 +215,7 @@ public sealed class NewCustomerPage : ContentPage
         if (outcome.Profile is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialProfile", ("code", outcome.Code ?? "")));
         if (outcome.Location is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialLocation", ("code", outcome.Code ?? "")));
         if (outcome.Contact is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialContact", ("code", outcome.Code ?? "")));
+        if (outcome.Windows is not null and not VisitActionResult.Success) notes.Add(Texts.Get("app.customer.partialWindows", ("code", outcome.Code ?? "")));
         await DisplayAlertAsync(Texts.Get("app.customer.new"), string.Join("\n\n", notes), Texts.Get("app.ok"));
         Navigation.InsertPageBefore(new CustomerPage(customerId, _name.Text?.Trim()), this);
         await Navigation.PopAsync();
@@ -186,7 +231,7 @@ public sealed class NewCustomerPage : ContentPage
     {
         _spinner.IsVisible = _spinner.IsRunning = busy;
         _create.IsEnabled = _locationButton.IsEnabled = !busy;
-        _name.IsEnabled = _phone.IsEnabled = _address.IsEnabled = _type.IsEnabled = !busy;
+        _name.IsEnabled = _phone.IsEnabled = _address.IsEnabled = _type.IsEnabled = _contactName.IsEnabled = _notes.IsEnabled = _when.IsEnabled = _cooperates.IsEnabled = _dealer.IsEnabled = !busy;
         _places.SetEnabled(!busy);
         if (busy) _message.IsVisible = false;
     }

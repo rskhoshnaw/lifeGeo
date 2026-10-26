@@ -189,6 +189,29 @@ public class NewCustomerFlowTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
+    [Fact]
+    public async Task OtherTypesGetOnlyCooperatesAndDealerAndTheirVisitDays()
+    {
+        var api = new FakeApi();
+        var windows = new[] { new VisitWindowItem(6, "09:00:00", "13:00:00"), new VisitWindowItem(0, "09:00:00", "13:00:00") };
+        var outcome = await new NewCustomerFlow(api, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null,
+            Doctor: new DoctorDetails(null, null, true, false, null), Windows: windows));
+        Assert.True(outcome.Complete);
+        Assert.Equal(new[] { "create", "doctor", "windows" }, api.Calls.ToArray());
+        Assert.Equal((null, null, true, false, null), (api.Doctor!.ClinicName, api.Doctor.Specialty, api.Doctor.Cooperates, api.Doctor.Dealer, api.Doctor.CustomerClass));
+        Assert.Equal(windows, api.Windows);
+
+        var always = new FakeApi();   // "always": no windows are sent at all
+        await new NewCustomerFlow(always, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, Windows: Array.Empty<VisitWindowItem>()));
+        Assert.Equal(new[] { "create" }, always.Calls.ToArray());
+
+        var failing = new FakeApi { WindowsResult = VisitActionResult.NetworkError };
+        var partial = await new NewCustomerFlow(failing, new FixedClock(Now), _ => 3).CreateAsync(new NewCustomerRequest("Shifa", "Pharmacy", null, null, null, null, Windows: windows));
+        Assert.False(partial.Complete);
+        Assert.Equal(VisitActionResult.NetworkError, partial.Windows);
+        Assert.NotNull(partial.CustomerId);
+    }
+
     private sealed class FakeApi : ICustomersApiClient
     {
         public List<string> Calls { get; } = new();
@@ -216,6 +239,16 @@ public class NewCustomerFlowTests
             Calls.Add("profile");
             Profile = (phone, address, placeId);
             return Task.FromResult(ProfileResult);
+        }
+
+        public VisitActionResult WindowsResult { get; set; } = VisitActionResult.Success;
+        public IReadOnlyList<VisitWindowItem>? Windows { get; private set; }
+
+        public Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("windows");
+            Windows = windows;
+            return Task.FromResult(WindowsResult);
         }
 
         public VisitActionResult ContactResult { get; set; } = VisitActionResult.Success;

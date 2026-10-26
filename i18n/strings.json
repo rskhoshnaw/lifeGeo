@@ -7990,5 +7990,113 @@
   "ckb": "زانیاری چوونەژوورەوەم (لەگەڵ وشەی نهێنی) لەسەر ئەم مۆبایلە بپارێزە",
   "ar": "تذكّر بيانات الدخول (مع كلمة السر) على هذا الهاتف",
   "fa": "اطلاعات ورود من (با رمز) را در این گوشی به خاطر بسپار"
+ },
+ "app.weekday.0": {
+  "en": "Sunday",
+  "ckb": "یەکشەممە",
+  "ar": "الأحد",
+  "fa": "یکشنبه"
+ },
+ "app.weekday.1": {
+  "en": "Monday",
+  "ckb": "دووشەممە",
+  "ar": "الاثنين",
+  "fa": "دوشنبه"
+ },
+ "app.weekday.2": {
+  "en": "Tuesday",
+  "ckb": "سێشەممە",
+  "ar": "الثلاثاء",
+  "fa": "سه‌شنبه"
+ },
+ "app.weekday.3": {
+  "en": "Wednesday",
+  "ckb": "چوارشەممە",
+  "ar": "الأربعاء",
+  "fa": "چهارشنبه"
+ },
+ "app.weekday.4": {
+  "en": "Thursday",
+  "ckb": "پێنجشەممە",
+  "ar": "الخميس",
+  "fa": "پنجشنبه"
+ },
+ "app.weekday.5": {
+  "en": "Friday",
+  "ckb": "هەینی",
+  "ar": "الجمعة",
+  "fa": "جمعه"
+ },
+ "app.weekday.6": {
+  "en": "Saturday",
+  "ckb": "شەممە",
+  "ar": "السبت",
+  "fa": "شنبه"
+ },
+ "app.customer.placeName": {
+  "en": "Place name (shop, pharmacy, clinic...)",
+  "ckb": "ناوی شوێن (دووکان، دەرمانخانە، کلینیک...)",
+  "ar": "اسم المحل (متجر، صيدلية، عيادة...)",
+  "fa": "نام محل (مغازه، داروخانه، کلینیک...)"
+ },
+ "app.customer.visitDays": {
+  "en": "Visit day of the week",
+  "ckb": "ڕۆژی سەردان لە هەفتەدا",
+  "ar": "يوم الزيارة في الأسبوع",
+  "fa": "روز ملاقات در هفته"
+ },
+ "app.customer.visitHours": {
+  "en": "Visit time",
+  "ckb": "کاتی سەردان",
+  "ar": "وقت الزيارة",
+  "fa": "ساعت ملاقات"
+ },
+ "app.customer.always": {
+  "en": "Always",
+  "ckb": "هەمیشە",
+  "ar": "دائماً",
+  "fa": "همیشه"
+ },
+ "app.customer.selectedDays": {
+  "en": "Chosen days",
+  "ckb": "ڕۆژە هەڵبژێردراوەکان",
+  "ar": "أيام محددة",
+  "fa": "روزهای انتخابی"
+ },
+ "app.customer.hoursRange": {
+  "en": "From - to",
+  "ckb": "لە - بۆ",
+  "ar": "من - إلى",
+  "fa": "از - تا"
+ },
+ "app.customer.hoursFrom": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "app.customer.hoursTo": {
+  "en": "To",
+  "ckb": "بۆ",
+  "ar": "إلى",
+  "fa": "تا"
+ },
+ "app.customer.daysNone": {
+  "en": "Choose at least one day, or choose \"Always\".",
+  "ckb": "لانیکەم یەک ڕۆژ هەڵبژێرە، یان «هەمیشە».",
+  "ar": "اختر يوماً واحداً على الأقل أو «دائماً».",
+  "fa": "دست‌کم یک روز را انتخاب کنید یا «همیشه» را بزنید."
+ },
+ "app.customer.hoursInvalid": {
+  "en": "The closing time must be after the opening time.",
+  "ckb": "کاتی کۆتایی دەبێت دوای کاتی دەستپێک بێت.",
+  "ar": "يجب أن يكون وقت الانتهاء بعد وقت البدء.",
+  "fa": "ساعت پایان باید بعد از ساعت شروع باشد."
+ },
+ "app.customer.partialWindows": {
+  "en": "Customer {code} was created, but the visit days and hours were not saved. Open the customer in the panel and set them again.",
+  "ckb": "کڕیاری {code} دروست کرا، بەڵام ڕۆژ و کاتی سەردان پاشەکەوت نەکران. لە پانێل کڕیارەکە بکەرەوە و دووبارە دایبنێ.",
+  "ar": "تم إنشاء العميل {code} لكن لم تُحفظ أيام وساعات الزيارة. افتح العميل في اللوحة واضبطها من جديد.",
+  "fa": "مشتری {code} ساخته شد، اما روز و ساعت ملاقات ذخیره نشد. مشتری را در پنل باز کنید و دوباره تنظیم کنید."
  }
 }
