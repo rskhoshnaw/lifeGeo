@@ -508,6 +508,18 @@ export interface RouteHistory {
   events: RouteVisitEvent[]
   truncated: boolean
 }
+// A visitor and a product of a month: the target (null when none was set) and what was delivered of the orders the visitor placed (plan step 5.5).
+export interface TargetRow {
+  userId: string
+  userEmail: string | null
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  target: number | null
+  actual: number
+}
+
 // A day of a month on which the user had a shift, with the points still kept for it (plan step 5.4).
 export interface RouteDay {
   date: string
@@ -883,6 +895,8 @@ export const Permissions = {
   liveMap: ['tracking.read', 'tracking.summary'],
   routeHistory: ['tracking.read'],
   reports: ['reports.read'],
+  targets: ['targets.read'],
+  manageTargets: ['targets.manage'],
   forms: ['forms.manage'],
   platform: ['platform.tenants.manage'],
   audit: ['audit.read'],
@@ -1130,6 +1144,10 @@ export class AdminApi {
   // Route history (step 2.11): needs tracking.read; every read is audited by the server.
   trackingUsers = () => this.get<TrackableUser[]>('/tracking/users')
   // month: any date of the month, for example 2026-10-01.
+  // month: any date of the month, for example 2026-10-01.
+  targets = (month: string) => this.get<TargetRow[]>(`/targets?month=${month}`)
+  // quantity null or 0 clears the target.
+  setTarget = (userId: string, productId: string, month: string, quantity: number | null) => this.send('PUT', '/targets', { userId, productId, month, quantity })
   routeDays = (userId: string, month: string) => this.get<RouteDay[]>(`/tracking/days?userId=${userId}&month=${month}`)
   customerHistory = (customerId: string) => this.get<CustomerHistory>(`/customers/${customerId}/history`)
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)

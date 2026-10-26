@@ -43,6 +43,7 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 5.2 ChoiceField (same picker on Android/iPhone) + customer list filters (type, place, cooperates) + 5.2b remember-me v2 (panel stays signed in; app keeps the password in secure storage) | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand for the 3 new query parameters |
 | 5.3 new-customer form for non-doctor types (place name, customer name, mobile, visit days/hours, cooperates, Dealer, city, neighbourhood, address, notes, location) + warehouse/delivery buttons by permission | in PR (same branch); C# not compiled here; no migration, no API change |
 | 5.4 customer history (visits with result, orders with products; app + panel) + route-history calendar (panel) | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand (2 paths, 5 schemas) |
+| 5.5 sales targets per visitor/product/month + report against delivered quantity (panel tab Targets, CSV); migration 0058 | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand |
 | Next | plan section 7: 4.7 CI + real-device test (intent-filter, QR scan, camera); 3.8 iOS after Apple account; real-device tests (tracking, offline, Push); load test; buy domain/VPS and deploy (3.3 last) |
 
 Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.

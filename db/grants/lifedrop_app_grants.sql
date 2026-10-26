@@ -39,3 +39,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON product_photos TO lifedrop_app;
 GRANT UPDATE ON regions TO lifedrop_app;
 -- Managers change a user e-mail, password, active flag and city (PUT /users/{id}/...); tenant RLS still applies.
 GRANT UPDATE ON users TO lifedrop_app;
+-- Step 5.5: sales targets (set and cleared by managers; read for the targets report).
+GRANT SELECT, INSERT, UPDATE, DELETE ON sales_targets TO lifedrop_app;
