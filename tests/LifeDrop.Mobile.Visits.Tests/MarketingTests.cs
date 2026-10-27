@@ -71,9 +71,9 @@ public class MarketingTests
         Assert.Equal(VisitActionResult.Success, await Client(step).SkipAsync(message));
         Assert.Equal($"/marketing/messages/{message}/skip", step.Last!.RequestUri!.AbsolutePath);
 
-        var list = new Handler(_ => Json(HttpStatusCode.OK, $$$"""[{"id":"{{{campaign}}}","name":"Spring","queued":2,"sent":1,"skipped":0}]"""));
+        var list = new Handler(_ => Json(HttpStatusCode.OK, $$$"""[{"id":"{{{campaign}}}","name":"Spring","queued":2,"sent":1,"skipped":0,"delivery":"api","failed":0}]"""));
         var (_, campaigns) = await Client(list).GetCampaignsAsync();
-        Assert.Equal(("Spring", 2, 1), (campaigns[0].Name, campaigns[0].Queued, campaigns[0].Sent));
+        Assert.Equal(("Spring", 2, 1, "api"), (campaigns[0].Name, campaigns[0].Queued, campaigns[0].Sent, campaigns[0].Delivery));
         var templates = new Handler(_ => Json(HttpStatusCode.OK, $$$"""[{"id":"{{{template}}}","name":"Offer","body":"Hi {name}","isActive":true}]"""));
         Assert.Equal("Offer", (await Client(templates).GetTemplatesAsync()).Templates[0].Name);
     }

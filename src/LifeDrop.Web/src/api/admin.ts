@@ -366,6 +366,8 @@ export interface MarketingTemplate {
   name: string
   body: string
   isActive: boolean
+  whatsAppName: string | null
+  whatsAppLanguage: string | null
 }
 export interface MarketingCampaign {
   id: string
@@ -375,6 +377,8 @@ export interface MarketingCampaign {
   queued: number
   sent: number
   skipped: number
+  delivery: 'manual' | 'api'
+  failed: number
 }
 export interface MarketingMessage {
   id: string
@@ -382,7 +386,8 @@ export interface MarketingMessage {
   customerName: string
   phone: string
   message: string
-  status: 'queued' | 'sent' | 'skipped'
+  status: 'queued' | 'sent' | 'skipped' | 'failed'
+  error: string | null
 }
 export interface PlanTemplate {
   id: string
@@ -1172,11 +1177,16 @@ export class AdminApi {
   drivers = () => this.get<Driver[]>('/warehouse/drivers')
   // Marketing messages (step 5.7): nothing is sent by the server; the user opens each WhatsApp chat and presses "sent".
   marketingTemplates = (includeInactive = false) => this.get<MarketingTemplate[]>(`/marketing/templates${includeInactive ? '?includeInactive=true' : ''}`)
-  createMarketingTemplate = (name: string, body: string) => this.post('/marketing/templates', { name, body })
-  updateMarketingTemplate = (id: string, name: string, body: string, isActive: boolean) => this.send('PUT', `/marketing/templates/${id}`, { name, body, isActive })
+  createMarketingTemplate = (name: string, body: string, whatsAppName: string | null = null, whatsAppLanguage: string | null = null) =>
+    this.post('/marketing/templates', { name, body, whatsAppName, whatsAppLanguage })
+  updateMarketingTemplate = (t: MarketingTemplate, isActive: boolean) =>
+    this.send('PUT', `/marketing/templates/${t.id}`, { name: t.name, body: t.body, isActive, whatsAppName: t.whatsAppName, whatsAppLanguage: t.whatsAppLanguage })
+  marketingStatus = () => this.get<{ whatsAppApi: boolean }>('/marketing/status')
+  whatsAppConsent = (customerId: string) => this.get<{ optIn: boolean; at: string | null }>(`/customers/${customerId}/whatsapp-consent`)
+  setWhatsAppConsent = (customerId: string, optIn: boolean) => this.send('PUT', `/customers/${customerId}/whatsapp-consent`, { optIn })
   marketingCampaigns = () => this.get<MarketingCampaign[]>('/marketing/campaigns')
-  createMarketingCampaign = (name: string, templateId: string, customerTypes: string[]) =>
-    this.postJson<{ id: string; queued: number; skippedNoPhone: number }>('/marketing/campaigns', { name, templateId, customerTypes })
+  createMarketingCampaign = (name: string, templateId: string, customerTypes: string[], delivery: 'manual' | 'api' = 'manual') =>
+    this.postJson<{ id: string; queued: number; skippedNoPhone: number; skippedNoConsent: number }>('/marketing/campaigns', { name, templateId, customerTypes, delivery })
   marketingMessages = (campaignId: string) => this.get<MarketingMessage[]>(`/marketing/campaigns/${campaignId}/messages`)
   markMessageSent = (id: string) => this.post(`/marketing/messages/${id}/sent`)
   skipMessage = (id: string) => this.post(`/marketing/messages/${id}/skip`)

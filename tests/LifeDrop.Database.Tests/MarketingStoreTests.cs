@@ -66,15 +66,15 @@ public class MarketingStoreTests
             var own = new AccessScope(DataScope.Own, new UserId(rep), null);
             var wide = AccessScope.WholeTenant(new UserId(manager));
 
-            var template = await store.CreateTemplateAsync(t, new UserId(manager), "Offer", "Hello {name}, new prices", CancellationToken.None);
+            var template = await store.CreateTemplateAsync(t, new UserId(manager), "Offer", "Hello {name}, new prices", null, null, CancellationToken.None);
             Assert.Single(await store.ListTemplatesAsync(t, false, CancellationToken.None));
-            Assert.True(await store.UpdateTemplateAsync(t, new UserId(manager), template, "Offer 2", "Hi {name}", true, CancellationToken.None));
-            Assert.False(await store.UpdateTemplateAsync(t, new UserId(manager), Guid.NewGuid(), "x", "y", true, CancellationToken.None));
+            Assert.True(await store.UpdateTemplateAsync(t, new UserId(manager), template, "Offer 2", "Hi {name}", true, null, null, CancellationToken.None));
+            Assert.False(await store.UpdateTemplateAsync(t, new UserId(manager), Guid.NewGuid(), "x", "y", true, null, null, CancellationToken.None));
 
-            var (missing, _) = await store.CreateCampaignAsync(t, new UserId(rep), own, "A", Guid.NewGuid(), [], null, CancellationToken.None);
+            var (missing, _) = await store.CreateCampaignAsync(t, new UserId(rep), own, "A", Guid.NewGuid(), [], null, "manual", CancellationToken.None);
             Assert.Equal(MarketingResult.NotFound, missing);
 
-            var (result, campaign) = await store.CreateCampaignAsync(t, new UserId(rep), own, "Spring", template, ["pharmacy"], null, CancellationToken.None);
+            var (result, campaign) = await store.CreateCampaignAsync(t, new UserId(rep), own, "Spring", template, ["pharmacy"], null, "manual", CancellationToken.None);
             Assert.Equal(MarketingResult.Success, result);
             Assert.Equal((1, 2), (campaign!.Queued, campaign.SkippedNoPhone));   // Shifa only (Shifa Branch has the same phone); no phone and "12" are skipped; not the doctor, pending or others'
             var repScope = new AccessScope(DataScope.Own, new UserId(rep), null);
@@ -82,7 +82,7 @@ public class MarketingStoreTests
             var first = Assert.Single(messages);
             Assert.Equal(("Hi Shifa", "queued", "0750 111 2233"), (first.Message, first.Status, first.Phone));
 
-            var (_, withDoctors) = await store.CreateCampaignAsync(t, new UserId(rep), own, "All", template, [], null, CancellationToken.None);
+            var (_, withDoctors) = await store.CreateCampaignAsync(t, new UserId(rep), own, "All", template, [], null, "manual", CancellationToken.None);
             Assert.Equal(2, withDoctors!.Queued);   // the doctor joins when no type is chosen
 
             Assert.Equal(new[] { "All", "Spring" }, (await store.ListCampaignsAsync(t, repScope, CancellationToken.None)).Select(c => c.Name).Order(StringComparer.Ordinal).ToArray());

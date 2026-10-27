@@ -1,7 +1,8 @@
 namespace LifeDrop.Mobile.Visits;
 
 public sealed record MarketingTemplateItem(Guid Id, string Name);
-public sealed record MarketingCampaignItem(Guid Id, string Name, int Queued, int Sent, int Skipped);
+// Delivery "api": the server sends those messages (WhatsApp Business API); the app does not list them in its hand-worked queue.
+public sealed record MarketingCampaignItem(Guid Id, string Name, int Queued, int Sent, int Skipped, string Delivery = "manual");
 public sealed record MarketingMessageItem(Guid Id, string CustomerName, string Phone, string Message);
 public sealed record CampaignCreated(Guid Id, int Queued, int SkippedNoPhone);
 
@@ -48,7 +49,7 @@ public sealed class MarketingApiClient : IMarketingApiClient
         var (result, items) = await _http.CallAsync<List<CampaignDto>>(HttpMethod.Get, "/marketing/campaigns", null, cancellationToken);
         if (result != VisitActionResult.Success) return (result, Array.Empty<MarketingCampaignItem>());
         if (items is null || items.Any(c => c is null || c.Id == Guid.Empty)) return (VisitActionResult.ServerError, Array.Empty<MarketingCampaignItem>());
-        return (result, items.Select(c => new MarketingCampaignItem(c.Id, c.Name ?? "", c.Queued, c.Sent, c.Skipped)).ToList());
+        return (result, items.Select(c => new MarketingCampaignItem(c.Id, c.Name ?? "", c.Queued, c.Sent, c.Skipped, c.Delivery ?? "manual")).ToList());
     }
 
     public async Task<(VisitActionResult Result, CampaignCreated? Campaign)> CreateCampaignAsync(string name, Guid templateId, string? customerType, CancellationToken cancellationToken = default)
@@ -74,7 +75,7 @@ public sealed class MarketingApiClient : IMarketingApiClient
         (await _http.CallAsync<object>(HttpMethod.Post, $"/marketing/messages/{messageId}/skip", null, cancellationToken)).Result;
 
     private sealed record TemplateDto(Guid Id, string? Name);
-    private sealed record CampaignDto(Guid Id, string? Name, int Queued, int Sent, int Skipped);
+    private sealed record CampaignDto(Guid Id, string? Name, int Queued, int Sent, int Skipped, string? Delivery);
     private sealed record CreatedDto(Guid Id, int Queued, int SkippedNoPhone);
     private sealed record MessageDto(Guid Id, string? CustomerName, string? Phone, string? Message);
 }

@@ -497,6 +497,14 @@ Marketing messages (step 5.7, migration 0060, `docs/MARKETING.md`): permissions 
 | `GET /marketing/campaigns/{id}/messages?status=` | `marketing.use`; own campaign | Queued first; `status` queued, sent or skipped; 404 for another user's campaign | — |
 | `POST /marketing/messages/{id}/sent`, `POST /marketing/messages/{id}/skip` | same | `queued` → `sent` / `skipped`; 409 when already handled; 404 | — |
 
+WhatsApp Business API (follow-up of 5.7, migration 0062, `docs/WHATSAPP-API.md`): off unless `WhatsApp__Enabled`, `WhatsApp__PhoneNumberId` and `WhatsApp__AccessToken` are set (environment only). Templates get `whatsAppName` + `whatsAppLanguage` (both or none; name `[a-z0-9_]`, language like `ckb` or `en_US`). `POST /marketing/campaigns` accepts `delivery` `manual` (default) or `api`: `api` needs a template with a WhatsApp name (else 400), the API turned on (else 503) and queues only customers with `whatsapp_opt_in` (`skippedNoConsent` in the answer). The messages of an `api` campaign are sent by the background job (3 tries, then `failed` with the reason); `sent` / `skip` on them is 409; the campaign list shows `delivery` and `failed`.
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `GET /marketing/status` | `marketing.use` | `{whatsAppApi}`: whether the API is on | — |
+| `GET /customers/{customerId}/whatsapp-consent` | `customers.write` inside the data scope | `{optIn, at}`; 404 outside the scope | — |
+| `PUT /customers/{customerId}/whatsapp-consent` | same | `{optIn}`; 204; 404 | `customer.whatsapp_consent_given` / `customer.whatsapp_consent_withdrawn` |
+
 Plan templates (step 5.8, migration 0061, `docs/TRAINING-PLANNING.md`): a week of visits saved as weekday + customer for one field user, applied to the coming weeks through `PlanGenerator` (scope, accepted hours, "not twice on one day" still apply; past days are left out). Who: `visits.write` for users inside the scope, or `visits.plan` for oneself. `POST /visit-plan/generate` now also accepts `customerIds` as the only filter.
 
 | Endpoint | Permission / scope | Notes | Audit |

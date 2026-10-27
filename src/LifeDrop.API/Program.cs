@@ -82,6 +82,11 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Orders.WholesalerOrders>();
         builder.Services.AddScoped<LifeDrop.Application.Marketing.IMarketingStore, LifeDrop.Infrastructure.Marketing.PostgresMarketingStore>();
         builder.Services.AddScoped<LifeDrop.Application.Marketing.MarketingService>();
+        // WhatsApp Business API for marketing (docs/WHATSAPP-API.md): off by default; WhatsApp:Enabled=true plus WhatsApp:PhoneNumberId and WhatsApp:AccessToken turn it on.
+        builder.Services.AddSingleton<LifeDrop.Application.Marketing.IWhatsAppCloud>(_ => new LifeDrop.Infrastructure.Marketing.WhatsAppCloud(new HttpClient { Timeout = TimeSpan.FromSeconds(20) },
+            builder.Configuration.GetValue("WhatsApp:Enabled", false), builder.Configuration["WhatsApp:PhoneNumberId"], builder.Configuration["WhatsApp:AccessToken"], builder.Configuration["WhatsApp:GraphVersion"]));
+        builder.Services.AddScoped<LifeDrop.Application.Marketing.IWhatsAppStore, LifeDrop.Infrastructure.Marketing.PostgresWhatsAppStore>();
+        builder.Services.AddHostedService<LifeDrop.API.WhatsAppService>();
         builder.Services.AddScoped<LifeDrop.Application.Payments.IPaymentStore, LifeDrop.Infrastructure.Payments.PostgresPaymentStore>();
         builder.Services.AddScoped<LifeDrop.Application.Payments.PaymentService>();
         builder.Services.AddScoped<LifeDrop.Application.Samples.ISampleStore, LifeDrop.Infrastructure.Samples.PostgresSampleStore>();

@@ -297,6 +297,48 @@ describe('panel management screens', () => {
     expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
   })
 
+  it('marketing by the WhatsApp Business API: the delivery choice appears only when it is on, and an api campaign shows how each message went', async () => {
+    const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['marketing.use', 'marketing.manage', 'customers.read'] }
+    const template = { id: 't1', name: 'Offer', body: 'Hi {name}', isActive: true, whatsAppName: 'spring_offer', whatsAppLanguage: 'ckb' }
+    const campaign = { id: 'k1', name: 'Spring by API', createdAt: '2026-10-27T09:00:00Z', createdByEmail: 'sm@t1', queued: 0, sent: 1, skipped: 0, delivery: 'api', failed: 1 }
+    const { api, calls } = server(boss, {
+      '/marketing/templates': [template],
+      '/marketing/templates?includeInactive=true': [template],
+      '/marketing/status': { whatsAppApi: true },
+      '/marketing/campaigns': [campaign],
+      '/marketing/campaigns/k1/messages': [
+        { id: 'm1', customerId: 'c1', customerName: 'Shifa', phone: '0750', message: 'Hi Shifa', status: 'sent', error: null },
+        { id: 'm2', customerId: 'c2', customerName: 'Noor', phone: '0770', message: 'Hi Noor', status: 'failed', error: '400: 132001 Template name does not exist' },
+      ],
+    }, { '/marketing/campaigns': json({ id: 'k1', queued: 2, skippedNoPhone: 0, skippedNoConsent: 3 }, 201) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Marketing messages' }))
+    expect(await screen.findByText('[spring_offer / ckb]')).toBeInTheDocument()
+    await user.type(await screen.findByLabelText('Campaign name'), 'Spring by API')
+    await user.selectOptions(screen.getByLabelText('Choose a template…'), 't1')
+    await user.selectOptions(await screen.findByLabelText('How to send'), 'api')
+    await user.click(screen.getByRole('button', { name: 'Create the queue' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/marketing/campaigns', body: { name: 'Spring by API', templateId: 't1', customerTypes: [], delivery: 'api' } })
+    expect(await screen.findByText(/3 customers did not agree to WhatsApp messages/)).toBeInTheDocument()
+    expect(await screen.findByText('400: 132001 Template name does not exist')).toBeInTheDocument()   // the queue of an api campaign only shows how each message went
+    expect(screen.queryByRole('link', { name: 'Open WhatsApp for Noor' })).not.toBeInTheDocument()
+  })
+
+  it('customer profile: the WhatsApp consent is shown and can be given', async () => {
+    const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['customers.read', 'customers.write'] }
+    const { api, calls } = server(boss, { '/customers?limit=100': [customer], '/customers/c1/whatsapp-consent': { optIn: false, at: null } })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
+    expect(await screen.findByText('No agreement to WhatsApp messages yet.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'The customer agreed' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'PUT', path: '/customers/c1/whatsapp-consent', body: { optIn: true } })
+  })
+
   it('plan templates: saves a week for a field user and applies it to the coming weeks', async () => {
     const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
     const today = iraqToday()
@@ -928,7 +970,7 @@ describe('panel management screens', () => {
     await user.click(screen.getByLabelText('Pharmacy'))
     await user.click(screen.getByRole('button', { name: 'Create the queue' }))
     await waitFor(() => expect(posts(calls)).toHaveLength(1))
-    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/marketing/campaigns', body: { name: 'Spring', templateId: 't1', customerTypes: ['Pharmacy'] } })
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/marketing/campaigns', body: { name: 'Spring', templateId: 't1', customerTypes: ['Pharmacy'], delivery: 'manual' } })
     expect(await screen.findByText('1 messages are in the queue, 2 customers have no usable phone.')).toBeInTheDocument()
     const open = await screen.findByRole('link', { name: 'Open WhatsApp for Shifa' })
     expect(open).toHaveAttribute('href', 'https://wa.me/9647501112233?text=Hi%20Shifa')
