@@ -52,7 +52,9 @@ public sealed class DoctorImport(IDoctorImportStore store, IPermissionStore perm
         for (var i = 0; i < request.Rows.Count; i++) cleaned.Add(Clean(request.Rows[i], i + 1, errors));
 
         var emails = cleaned.Select(r => r.VisitorEmail).Where(e => e is not null).Select(e => e!).Distinct().ToList();
-        var users = emails.Count == 0 ? new Dictionary<string, (Guid, Guid?)>() : (await store.FindUsersAsync(tenantId, emails, cancellationToken)).ToDictionary(p => p.Key, p => p.Value);
+        IReadOnlyDictionary<string, (Guid UserId, Guid? RegionId)> users = emails.Count == 0
+            ? new Dictionary<string, (Guid UserId, Guid? RegionId)>()
+            : await store.FindUsersAsync(tenantId, emails, cancellationToken);
         var rows = new List<DoctorToImport>(cleaned.Count);
         for (var i = 0; i < cleaned.Count; i++)
         {
