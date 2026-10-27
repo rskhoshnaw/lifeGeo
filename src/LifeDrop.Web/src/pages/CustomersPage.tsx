@@ -6,6 +6,7 @@ import { Badge, type Tone } from '../components/Badge.tsx'
 const approvalText = (status: string) =>
   ['approved', 'pending', 'rejected'].includes(status) ? t(`web.approval.${status}` as TextKey) : status
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { DoctorImport } from '../components/DoctorImport.tsx'
 import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
 import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
@@ -14,10 +15,12 @@ import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 import { SortTh, useSort } from '../components/sort.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
+  const [reload, setReload] = useState(0)
   return (
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
-      {can(me, ...Permissions.customers) && <CustomerList admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
+      {can(me, ...Permissions.editCustomers) && <DoctorImport admin={admin} onImported={() => setReload((n) => n + 1)} />}
+      {can(me, ...Permissions.customers) && <CustomerList key={reload} admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
     </section>
   )
 }

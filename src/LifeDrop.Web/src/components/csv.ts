@@ -1,4 +1,4 @@
-import type { ImportRow, PlaceKind } from '../api/admin.ts'
+import type { DoctorImportRow, ImportRow, PlaceKind } from '../api/admin.ts'
 
 // Splits CSV text into records: comma separated, double quotes for fields with commas, quotes or line breaks
 // ("" is a quote inside a quoted field), a leading byte order mark and CRLF line breaks are accepted.
@@ -77,4 +77,42 @@ export function placesFromCsv(text: string): ImportRow[] {
     })
   }
   return rows
+}
+
+export const doctorsTemplateCsv =
+  'name,clinic_name,specialty,cooperates,dealer,class,phone,phone2,city,neighbourhood,street,address,latitude,longitude,notes,visitor_email\n' +
+  'Dr. Example One,Example Clinic,neurology,yes,no,A,07701234567,,Erbil,Ankawa,,Near the main road,36.2201,43.9924,Sample row - delete it,\n'
+
+// Rows of a doctor list (docs/doctors-import.md): the columns are found by their header, empty cells become null, yes/no become booleans and a leading
+// apostrophe before = + - @ is removed. A row without a name is kept (the server reports it by its number) so the row numbers match the file.
+export function doctorsFromCsv(text: string): DoctorImportRow[] {
+  const [header, ...records] = parseCsv(text)
+  if (!header) return []
+  const names = header.map((h) => h.trim().toLowerCase())
+  const cell = (record: string[], name: string): string | null => {
+    const at = names.indexOf(name)
+    const raw = at < 0 ? '' : (record[at] ?? '').trim()
+    const value = /^'[=+\-@]/.test(raw) ? raw.slice(1) : raw
+    return value === '' ? null : value
+  }
+  const yesNo = (value: string | null): boolean | null => (value === null ? null : ['yes', 'y', 'true', '1'].includes(value.toLowerCase()) ? true : ['no', 'n', 'false', '0'].includes(value.toLowerCase()) ? false : null)
+  const number = (value: string | null): number | null => (value === null || !Number.isFinite(Number(value)) ? null : Number(value))
+  return records.map((r) => ({
+    name: cell(r, 'name') ?? '',
+    clinicName: cell(r, 'clinic_name'),
+    specialty: cell(r, 'specialty'),
+    cooperates: yesNo(cell(r, 'cooperates')),
+    dealer: yesNo(cell(r, 'dealer')),
+    customerClass: cell(r, 'class'),
+    phone: cell(r, 'phone'),
+    phone2: cell(r, 'phone2'),
+    city: cell(r, 'city'),
+    neighbourhood: cell(r, 'neighbourhood'),
+    street: cell(r, 'street'),
+    address: cell(r, 'address'),
+    latitude: number(cell(r, 'latitude')),
+    longitude: number(cell(r, 'longitude')),
+    notes: cell(r, 'notes'),
+    visitorEmail: cell(r, 'visitor_email'),
+  }))
 }

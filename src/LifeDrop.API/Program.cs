@@ -129,6 +129,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Visits.ManageVisit>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanVisits>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanGenerationStore, LifeDrop.Infrastructure.Visits.PostgresPlanGenerationStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.IDoctorImportStore, LifeDrop.Infrastructure.Customers.PostgresDoctorImportStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.DoctorImport>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanGenerator>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanTemplateStore, LifeDrop.Infrastructure.Visits.PostgresPlanTemplateStore>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanTemplates>();
@@ -758,6 +760,7 @@ public partial class Program
         LifeDrop.API.Endpoints.WholesalerEndpoints.MapWholesalerEndpoints(app);
         LifeDrop.API.Endpoints.MarketingEndpoints.MapMarketingEndpoints(app);
         LifeDrop.API.Endpoints.PlanTemplateEndpoints.MapPlanTemplateEndpoints(app);
+        LifeDrop.API.Endpoints.DoctorImportEndpoints.MapDoctorImportEndpoints(app);
         LifeDrop.API.Endpoints.PaymentEndpoints.MapPaymentEndpoints(app);
         LifeDrop.API.Endpoints.SampleEndpoints.MapSampleEndpoints(app);
         LifeDrop.API.Endpoints.FollowUpEndpoints.MapFollowUpEndpoints(app);

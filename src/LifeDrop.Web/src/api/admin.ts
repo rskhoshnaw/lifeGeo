@@ -393,6 +393,30 @@ export interface PlanTemplate {
   days: number
   createdAt: string
 }
+export interface DoctorImportRow {
+  name: string
+  clinicName: string | null
+  specialty: string | null
+  cooperates: boolean | null
+  dealer: boolean | null
+  customerClass: string | null
+  phone: string | null
+  phone2: string | null
+  city: string | null
+  neighbourhood: string | null
+  street: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+  notes: string | null
+  visitorEmail: string | null
+}
+export interface DoctorImportResult {
+  created: number
+  duplicates: number
+  errors: { row: number; field: string; code: string }[]
+  dryRun: boolean
+}
 export interface OrderLine {
   lineNo: number
   productId: string
@@ -1180,6 +1204,8 @@ export class AdminApi {
   updatePlace = (id: string, names: PlaceNames, status: 'active' | 'inactive', parentId: string | null = null) =>
     this.send('PUT', `/places/${id}`, { ...names, status, parentId })
   mergePlace = (id: string, intoPlaceId: string) => this.post(`/places/${id}/merge`, { intoPlaceId })
+  // Doctor list import (step 5.9): dryRun only checks; any wrong row stops the whole import.
+  importDoctors = (rows: DoctorImportRow[], dryRun: boolean) => this.postJson<DoctorImportResult>('/customers/import-doctors', { rows, dryRun })
   importPlaces = async (rows: ImportRow[]): Promise<ImportSummary> => {
     const response = await this.api.request('/places/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) })
     if (!response.ok) throw await toError(response)

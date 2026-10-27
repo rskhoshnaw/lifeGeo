@@ -9118,5 +9118,65 @@
   "ckb": "{created} سەردان لە {days} ڕۆژدا پلان کرا، {skipped} کڕیار نەگیران.",
   "ar": "تم تخطيط {created} زيارة في {days} أيام، واستُثني {skipped} زبون.",
   "fa": "{created} ویزیت در {days} روز برنامه‌ریزی شد، {skipped} مشتری کنار گذاشته شد."
+ },
+ "web.doctorImport.title": {
+  "en": "Import a doctor list",
+  "ckb": "هێنانی لیستی دکتۆرەکان",
+  "ar": "استيراد قائمة الأطباء",
+  "fa": "ورود فهرست پزشکان"
+ },
+ "web.doctorImport.hint": {
+  "en": "Choose a CSV file with the columns of the template (only the name is required). The file is checked first; nothing is created until you press Import. Doctors that already exist (same name and phone) are skipped.",
+  "ckb": "فایلێکی CSV هەڵبژێرە بە ستوونەکانی نمونەکە (تەنها ناو پێویستە). فایلەکە سەرەتا پشکنین دەکرێت؛ هیچ دروست ناکرێت تا دوگمەی هێنان دەکەیت. ئەو دکتۆرانەی هەن (هەمان ناو و تەلەفۆن) بازدەدرێن.",
+  "ar": "اختر ملف CSV بأعمدة النموذج (الاسم فقط مطلوب). يُفحص الملف أولاً ولا يُنشأ شيء حتى تضغط استيراد. الأطباء الموجودون (نفس الاسم والهاتف) يُتخطَّون.",
+  "fa": "یک فایل CSV با ستون‌های نمونه انتخاب کنید (فقط نام لازم است). فایل اول بررسی می‌شود و تا «ورود» نزنید چیزی ساخته نمی‌شود. پزشکانی که از قبل هستند (همان نام و تلفن) رد می‌شوند."
+ },
+ "web.doctorImport.file": {
+  "en": "Doctor list file (CSV)",
+  "ckb": "فایلی لیستی دکتۆرەکان (CSV)",
+  "ar": "ملف قائمة الأطباء (CSV)",
+  "fa": "فایل فهرست پزشکان (CSV)"
+ },
+ "web.doctorImport.template": {
+  "en": "Download the template",
+  "ckb": "داگرتنی نمونە",
+  "ar": "تنزيل النموذج",
+  "fa": "دریافت نمونه"
+ },
+ "web.doctorImport.badFile": {
+  "en": "The file has no rows. Use the template.",
+  "ckb": "فایلەکە هیچ ڕیزێکی نییە. نمونەکە بەکاربهێنە.",
+  "ar": "الملف بلا صفوف. استخدم النموذج.",
+  "fa": "فایل ردیفی ندارد. از نمونه استفاده کنید."
+ },
+ "web.doctorImport.errors": {
+  "en": "{count} problems in the file. Fix them and choose the file again.",
+  "ckb": "{count} کێشە لە فایلەکەدا هەیە. چاکیان بکە و دووبارە فایلەکە هەڵبژێرە.",
+  "ar": "{count} مشكلة في الملف. صححها واختر الملف مجدداً.",
+  "fa": "{count} مشکل در فایل هست. آن‌ها را اصلاح کنید و دوباره فایل را انتخاب کنید."
+ },
+ "web.doctorImport.error": {
+  "en": "Row {row}: {field} ({code})",
+  "ckb": "ڕیزی {row}: {field} ({code})",
+  "ar": "الصف {row}: {field} ({code})",
+  "fa": "ردیف {row}: {field} ({code})"
+ },
+ "web.doctorImport.checked": {
+  "en": "The file is fine: {created} doctors will be added, {duplicates} already exist.",
+  "ckb": "فایلەکە دروستە: {created} دکتۆر زیاد دەکرێت، {duplicates} پێشتر هەن.",
+  "ar": "الملف سليم: سيُضاف {created} طبيباً، و{duplicates} موجودون مسبقاً.",
+  "fa": "فایل درست است: {created} پزشک اضافه می‌شود، {duplicates} از قبل هستند."
+ },
+ "web.doctorImport.import": {
+  "en": "Import",
+  "ckb": "هێنان",
+  "ar": "استيراد",
+  "fa": "ورود"
+ },
+ "web.doctorImport.done": {
+  "en": "{created} doctors were added, {duplicates} already existed.",
+  "ckb": "{created} دکتۆر زیاد کران، {duplicates} پێشتر هەبوون.",
+  "ar": "أُضيف {created} طبيباً، وكان {duplicates} موجودين.",
+  "fa": "{created} پزشک اضافه شد، {duplicates} از قبل بودند."
  }
 }

@@ -262,6 +262,41 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('imports a doctor list: checks the file first, shows the problems, imports only a clean file', async () => {
+    const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['customers.read', 'customers.write'] }
+    const { api, calls } = server(boss, { '/customers?limit=100': [] })
+    const original = api.request.bind(api)
+    api.request = async (path: string, init?: RequestInit) => {
+      const response = await original(path, init)   // records the call
+      return path === '/customers/import-doctors' ? json({ created: 1, duplicates: 0, errors: [], dryRun: JSON.parse(String(init?.body)).dryRun }) : response
+    }
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    const file = new File(['name,city\nDr. Ali,Erbil\n'], 'doctors.csv', { type: 'text/csv' })
+    await user.upload(await screen.findByLabelText('Doctor list file (CSV)'), file)
+    expect(await screen.findByText('The file is fine: 1 doctors will be added, 0 already exist.')).toBeInTheDocument()
+    expect(posts(calls)).toHaveLength(1)
+    expect(posts(calls)[0]).toMatchObject({ method: 'POST', path: '/customers/import-doctors', body: { dryRun: true } })
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toMatchObject({ body: { dryRun: false, rows: [{ name: 'Dr. Ali', city: 'Erbil' }] } })
+    expect(await screen.findByText('1 doctors were added, 0 already existed.')).toBeInTheDocument()
+  })
+
+  it('doctor import: a file with problems lists them and cannot be imported', async () => {
+    const boss: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['customers.read', 'customers.write'] }
+    const { api } = server(boss, { '/customers?limit=100': [] }, {
+      '/customers/import-doctors': json({ created: 0, duplicates: 0, errors: [{ row: 2, field: 'name', code: 'required' }], dryRun: true }),
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    await user.upload(await screen.findByLabelText('Doctor list file (CSV)'), new File(['name,city\n,Erbil\n'], 'x.csv', { type: 'text/csv' }))
+    expect(await screen.findByText('Row 2: name (required)')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
+  })
+
   it('plan templates: saves a week for a field user and applies it to the coming weeks', async () => {
     const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
     const today = iraqToday()
