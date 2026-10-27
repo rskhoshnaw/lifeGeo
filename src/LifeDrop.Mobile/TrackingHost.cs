@@ -30,6 +30,7 @@ public static class TrackingHost
     private static IWarehouseApiClient? _warehouse;
     private static IWholesalerApiClient? _wholesaler;
     private static IMarketingApiClient? _marketing;
+    private static IPlanTemplatesApiClient? _planTemplates;
     private static IDeliveryApiClient? _delivery;
     private static IPaymentsApiClient? _payments;
     private static ISamplesApiClient? _samples;
@@ -122,6 +123,11 @@ public static class TrackingHost
         get { lock (Gate) return _payments; }
     }
 
+    public static IPlanTemplatesApiClient? PlanTemplatesApi
+    {
+        get { lock (Gate) return _planTemplates; }
+    }
+
     public static IMarketingApiClient? MarketingApi
     {
         get { lock (Gate) return _marketing; }
@@ -187,6 +193,7 @@ public static class TrackingHost
             _warehouse = new WarehouseApiClient(http, session);
             _wholesaler = new WholesalerApiClient(http, session);
             _marketing = new MarketingApiClient(http, session);
+            _planTemplates = new PlanTemplatesApiClient(http, session);
             _delivery = new DeliveryApiClient(http, session);
             _payments = new PaymentsApiClient(http, session);
             _samples = new SamplesApiClient(http, session);
@@ -249,6 +256,7 @@ public static class TrackingHost
             _warehouse = null;
             _wholesaler = null;
             _marketing = null;
+            _planTemplates = null;
             _delivery = null;
             _workQueue = null;
             _workExecutor = null;

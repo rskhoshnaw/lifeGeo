@@ -262,6 +262,33 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('plan templates: saves a week for a field user and applies it to the coming weeks', async () => {
+    const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
+    const today = iraqToday()
+    const { api, calls } = server(
+      planner,
+      { [`/visit-plan?scheduleDate=${today}`]: [], '/users': [rep], '/visit-plan/templates?assignedUserId=u1': [{ id: 'pt1', userId: 'u1', userEmail: 'rep@t1', name: 'Erbil week', customers: 5, days: 3, createdAt: '2026-10-20T08:00:00Z' }] },
+      { '/visit-plan/templates/pt1/apply': json({ created: 12, skipped: 2, days: 6 }) },
+    )
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Visits' }))
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Choose a field user…' }), 'u1')
+    expect(await screen.findByText('Erbil week · 5 customers on 3 days')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Template name'), ' Next ')
+    fireEvent.change(screen.getByLabelText('Week starts on'), { target: { value: '2026-10-19' } })
+    await user.click(screen.getByRole('button', { name: 'Save the week as a template' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/visit-plan/templates', body: { name: 'Next', weekStart: '2026-10-19', assignedUserId: 'u1' } })
+
+    fireEvent.change(screen.getByLabelText('Apply from'), { target: { value: '2099-01-04' } })
+    fireEvent.change(screen.getByLabelText('Weeks'), { target: { value: '3' } })
+    await user.click(screen.getByRole('button', { name: 'Apply Erbil week' }))
+    expect(await screen.findByText('12 visits planned on 6 days, 2 customers left out.')).toBeInTheDocument()
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/visit-plan/templates/pt1/apply', body: { startDate: '2099-01-04', weeks: 3 } })
+  })
+
   it('plans from a place: shows the list first, skips what the server marks and creates only the ticked customers', async () => {
     const planner: Me = { id: 'm', email: 'sv@t1', roles: ['Supervisor'], permissions: ['visits.write'] }
     const today = iraqToday()

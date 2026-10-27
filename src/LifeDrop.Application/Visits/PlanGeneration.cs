@@ -17,7 +17,7 @@ namespace LifeDrop.Application.Visits;
 // preview); Count is ignored then. Query (plan step 1.25): only customers whose code or name contains the text (max 60 characters). A field
 // user without visits.write plans for themselves only: the same routes, AssignedUserId empty = the caller, customers limited to what the
 // caller can read. Area (plan step 1.27): corners of an area drawn on a map (3-100 points, closed by the server, at most 0.5 degrees
-// wide and high): only located customers inside it. PlaceId, RegionId, Query and Area are filters; at least one is needed.
+// wide and high): only located customers inside it. PlaceId, RegionId, Query, Area and CustomerIds (plan step 5.8: applying a plan template) are filters; at least one is needed.
 public sealed record GeneratePlanRequest(Guid? AssignedUserId, DateOnly ScheduleDate, Guid? PlaceId = null, Guid? RegionId = null, int? Count = null,
     string? Order = null, bool? RespectWindows = null, string? VisitType = null, string? Priority = null, IReadOnlyList<Guid>? CustomerIds = null, string? Query = null, IReadOnlyList<GeoPoint>? Area = null);
 
@@ -44,7 +44,7 @@ public interface IPlanGenerationStore
     // Approved customers inside scope and the filters that have no visit (other than cancelled or failed) on that day, in the
     // wanted order, at most MaxMatching rows.
     Task<IReadOnlyList<PlanCandidateRow>> FindCandidatesAsync(TenantId tenantId, AccessScope scope, Guid? placeId, Guid? regionId, DateOnly scheduleDate,
-        string order, string? query, IReadOnlyList<GeoPoint>? area, CancellationToken cancellationToken);
+        string order, string? query, IReadOnlyList<GeoPoint>? area, CancellationToken cancellationToken, IReadOnlyList<Guid>? customerIds = null);
     // Creates the visits for the assignee on that day, after the visits that are already in the plan, in one transaction with one
     // audit row per visit and one for the whole generation. Returns the new ids.
     Task<IReadOnlyList<Guid>> CreateAsync(TenantId tenantId, UserId actorId, UserId assigneeId, DateOnly scheduleDate, string priority,
@@ -112,7 +112,7 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
         if (tenantId.IsEmpty || actorId.IsEmpty) return (PlanGenerationResult.Forbidden, null);
         var order = request.Order ?? "least_recent";
         if (request.AssignedUserId == Guid.Empty || request.ScheduleDate == default || request.ScheduleDate < IraqCalendar.Today(clock) ||
-            (request.PlaceId is null && request.RegionId is null && string.IsNullOrWhiteSpace(request.Query) && request.Area is null) || !IsValidArea(request.Area) || request.Query?.Trim().Length > 60 || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
+            (request.PlaceId is null && request.RegionId is null && string.IsNullOrWhiteSpace(request.Query) && request.Area is null && request.CustomerIds is null) || !IsValidArea(request.Area) || request.Query?.Trim().Length > 60 || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
             request.Count is < 1 or > MaxCount || !Orders.Contains(order) ||
             !VisitPlanningContract.TryParseType(request.VisitType, out _) || !VisitPlanningContract.TryParsePriority(request.Priority, out _) ||
             (request.CustomerIds is { } ids && (ids.Count == 0 || ids.Count > MaxCount || ids.Any(i => i == Guid.Empty))))
@@ -135,7 +135,7 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
             if (scope is null) return (PlanGenerationResult.Forbidden, null);
         }
 
-        var rows = await store.FindCandidatesAsync(tenantId, scope, request.PlaceId, request.RegionId, request.ScheduleDate, order, request.Query?.Trim(), request.Area, cancellationToken);
+        var rows = await store.FindCandidatesAsync(tenantId, scope, request.PlaceId, request.RegionId, request.ScheduleDate, order, request.Query?.Trim(), request.Area, cancellationToken, request.CustomerIds);
         var respect = request.RespectWindows ?? true;
         var wanted = request.CustomerIds?.ToHashSet();
         var remaining = request.Count ?? int.MaxValue;
