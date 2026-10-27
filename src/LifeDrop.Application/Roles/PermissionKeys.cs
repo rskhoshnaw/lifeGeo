@@ -53,6 +53,9 @@ public static class PermissionKeys
     public const string DeliveryWork = "delivery.work";
     // Plan step 5.6: the officer of the wholesalers sees the orders of the wholesalers they work with and marks them dispatched.
     public const string WholesalerWork = "wholesaler.work";
+    // Plan step 5.7: marketing messages. use = build a campaign from the customers inside one's scope and work its queue; manage = the message templates.
+    public const string MarketingUse = "marketing.use";
+    public const string MarketingManage = "marketing.manage";
 
     // Payments (plan step 2.5): record (finance manager, rep), manage (finance manager: confirm, void, correct), read.
     public const string PaymentsRecord = "payments.record";

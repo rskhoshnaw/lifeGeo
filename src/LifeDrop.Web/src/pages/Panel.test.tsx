@@ -850,6 +850,31 @@ describe('panel management screens', () => {
     expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/wholesaler/orders/o1/dispatch', body: { note: null } })
   })
 
+  it('marketing: creates a campaign from a template and works the queue with WhatsApp links', async () => {
+    const rep: Me = { id: 'r', email: 'rep@t1', roles: ['SalesRep'], permissions: ['marketing.use', 'customers.read'] }
+    const message = { id: 'm1', customerId: 'c1', customerName: 'Shifa', phone: '0750 111 2233', message: 'Hi Shifa', status: 'queued' }
+    const { api, calls } = server(rep, {
+      '/marketing/templates': [{ id: 't1', name: 'Offer', body: 'Hi {name}', isActive: true }],
+      '/marketing/campaigns': [{ id: 'k1', name: 'Spring', createdAt: '2026-10-26T09:00:00Z', createdByEmail: 'rep@t1', queued: 1, sent: 0, skipped: 0 }],
+      '/marketing/campaigns/k1/messages': [message],
+    }, { '/marketing/campaigns': json({ id: 'k1', queued: 1, skippedNoPhone: 2 }, 201) })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Marketing messages' }))
+    await user.type(await screen.findByLabelText('Campaign name'), ' Spring ')
+    await user.selectOptions(screen.getByLabelText('Choose a template…'), 't1')
+    await user.click(screen.getByLabelText('Pharmacy'))
+    await user.click(screen.getByRole('button', { name: 'Create the queue' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/marketing/campaigns', body: { name: 'Spring', templateId: 't1', customerTypes: ['Pharmacy'] } })
+    expect(await screen.findByText('1 messages are in the queue, 2 customers have no usable phone.')).toBeInTheDocument()
+    const open = await screen.findByRole('link', { name: 'Open WhatsApp for Shifa' })
+    expect(open).toHaveAttribute('href', 'https://wa.me/9647501112233?text=Hi%20Shifa')
+    await user.click(screen.getByRole('button', { name: 'Shifa: message sent' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(2))
+    expect(posts(calls)[1]).toEqual({ method: 'POST', path: '/marketing/messages/m1/sent', body: undefined })
+  })
+
   it('assigns warehouse workers to a warehouse (only workers can be chosen)', async () => {
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'warehouses.manage', 'customers.read', 'user.manageroles'] }
     const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0, isActive: true })

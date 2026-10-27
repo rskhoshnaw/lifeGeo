@@ -8644,5 +8644,293 @@
   "ckb": "تەلەفۆن",
   "ar": "الهاتف",
   "fa": "تلفن"
+ },
+ "web.tab.marketing": {
+  "en": "Marketing messages",
+  "ckb": "نامەی بازاڕگەری",
+  "ar": "رسائل تسويقية",
+  "fa": "پیام‌های بازاریابی"
+ },
+ "web.marketing.title": {
+  "en": "Marketing messages",
+  "ckb": "نامەی بازاڕگەری",
+  "ar": "رسائل تسويقية",
+  "fa": "پیام‌های بازاریابی"
+ },
+ "web.marketing.templates": {
+  "en": "Message templates",
+  "ckb": "قاڵبی نامە",
+  "ar": "قوالب الرسائل",
+  "fa": "قالب‌های پیام"
+ },
+ "web.marketing.nameHint": {
+  "en": "Write {name} where the customer's name should go.",
+  "ckb": "لە شوێنی ناوی کڕیار {name} بنووسە.",
+  "ar": "اكتب {name} مكان اسم الزبون.",
+  "fa": "به‌جای نام مشتری {name} بنویسید."
+ },
+ "web.marketing.templateName": {
+  "en": "Template name",
+  "ckb": "ناوی قاڵب",
+  "ar": "اسم القالب",
+  "fa": "نام قالب"
+ },
+ "web.marketing.templateBody": {
+  "en": "Message text",
+  "ckb": "دەقی نامە",
+  "ar": "نص الرسالة",
+  "fa": "متن پیام"
+ },
+ "web.marketing.addTemplate": {
+  "en": "Add template",
+  "ckb": "زیادکردنی قاڵب",
+  "ar": "إضافة قالب",
+  "fa": "افزودن قالب"
+ },
+ "web.marketing.newCampaign": {
+  "en": "New campaign",
+  "ckb": "کەمپینی نوێ",
+  "ar": "حملة جديدة",
+  "fa": "کمپین جدید"
+ },
+ "web.marketing.campaignName": {
+  "en": "Campaign name",
+  "ckb": "ناوی کەمپین",
+  "ar": "اسم الحملة",
+  "fa": "نام کمپین"
+ },
+ "web.marketing.chooseTemplate": {
+  "en": "Choose a template…",
+  "ckb": "قاڵبێک هەڵبژێرە…",
+  "ar": "اختر قالباً…",
+  "fa": "یک قالب انتخاب کنید…"
+ },
+ "web.marketing.allTypes": {
+  "en": "Without a ticked type, every customer you can see (with a phone) is included.",
+  "ckb": "ئەگەر جۆرێک نەنیشان بکرێت، هەموو ئەو کڕیارانەی دەیانبینیت (کە تەلەفۆنیان هەیە) دەگرێتەوە.",
+  "ar": "بدون تحديد نوع تُضاف كل الزبائن الذين تراهم (ولديهم هاتف).",
+  "fa": "اگر نوعی انتخاب نشود، همهٔ مشتریانی که می‌بینید (و تلفن دارند) شامل می‌شوند."
+ },
+ "web.marketing.create": {
+  "en": "Create the queue",
+  "ckb": "دروستکردنی ڕیز",
+  "ar": "إنشاء الطابور",
+  "fa": "ساخت صف"
+ },
+ "web.marketing.created": {
+  "en": "{queued} messages are in the queue, {skipped} customers have no usable phone.",
+  "ckb": "{queued} نامە لە ڕیزدایە، {skipped} کڕیار تەلەفۆنی بەکارهاتوویان نییە.",
+  "ar": "{queued} رسالة في الطابور، و{skipped} زبون بلا هاتف صالح.",
+  "fa": "{queued} پیام در صف است، {skipped} مشتری تلفن قابل‌استفاده ندارد."
+ },
+ "web.marketing.noCampaigns": {
+  "en": "No campaigns yet.",
+  "ckb": "هێشتا هیچ کەمپینێک نییە.",
+  "ar": "لا توجد حملات بعد.",
+  "fa": "هنوز کمپینی نیست."
+ },
+ "web.marketing.campaign": {
+  "en": "Campaign",
+  "ckb": "کەمپین",
+  "ar": "الحملة",
+  "fa": "کمپین"
+ },
+ "web.marketing.waiting": {
+  "en": "Waiting",
+  "ckb": "چاوەڕوان",
+  "ar": "بالانتظار",
+  "fa": "در انتظار"
+ },
+ "web.marketing.sent": {
+  "en": "Sent",
+  "ckb": "نێردراو",
+  "ar": "مُرسَلة",
+  "fa": "ارسال‌شده"
+ },
+ "web.marketing.skipped": {
+  "en": "Skipped",
+  "ckb": "بازدراو",
+  "ar": "متخطاة",
+  "fa": "ردشده"
+ },
+ "web.marketing.queue": {
+  "en": "Queue",
+  "ckb": "ڕیز",
+  "ar": "الطابور",
+  "fa": "صف"
+ },
+ "web.marketing.queueOf": {
+  "en": "Queue of {name}",
+  "ckb": "ڕیزی {name}",
+  "ar": "طابور {name}",
+  "fa": "صف {name}"
+ },
+ "web.marketing.pause": {
+  "en": "Open the chats one by one and wait 2 to 5 minutes between messages; sending many at once can get your WhatsApp number banned.",
+  "ckb": "چاتەکان یەک بە یەک بکەرەوە و لە نێوان نامەکاندا ٢ بۆ ٥ خولەک بوەستە؛ ناردنی زۆر پێکەوە ڕەنگە ژمارەی واتسئاپەکەت دابخرێت.",
+  "ar": "افتح المحادثات واحدة واحدة وانتظر 2 إلى 5 دقائق بين الرسائل؛ الإرسال الكثيف قد يؤدي إلى حظر رقمك على واتساب.",
+  "fa": "گفت‌وگوها را یکی‌یکی باز کنید و بین پیام‌ها ۲ تا ۵ دقیقه صبر کنید؛ ارسال انبوه ممکن است شمارهٔ واتساپ شما را مسدود کند."
+ },
+ "web.marketing.allDone": {
+  "en": "Nothing is waiting in this queue.",
+  "ckb": "هیچ شتێک لەم ڕیزەدا چاوەڕوان نییە.",
+  "ar": "لا شيء بالانتظار في هذا الطابور.",
+  "fa": "چیزی در این صف منتظر نیست."
+ },
+ "web.marketing.open": {
+  "en": "Open WhatsApp",
+  "ckb": "کردنەوەی واتسئاپ",
+  "ar": "فتح واتساب",
+  "fa": "باز کردن واتساپ"
+ },
+ "web.marketing.openOf": {
+  "en": "Open WhatsApp for {name}",
+  "ckb": "کردنەوەی واتسئاپ بۆ {name}",
+  "ar": "فتح واتساب لـ {name}",
+  "fa": "باز کردن واتساپ برای {name}"
+ },
+ "web.marketing.markSent": {
+  "en": "Sent",
+  "ckb": "نێردرا",
+  "ar": "أُرسلت",
+  "fa": "ارسال شد"
+ },
+ "web.marketing.sentOf": {
+  "en": "{name}: message sent",
+  "ckb": "{name}: نامە نێردرا",
+  "ar": "{name}: تم إرسال الرسالة",
+  "fa": "{name}: پیام ارسال شد"
+ },
+ "web.marketing.skip": {
+  "en": "Skip",
+  "ckb": "بازدان",
+  "ar": "تخطي",
+  "fa": "رد کردن"
+ },
+ "web.marketing.skipOf": {
+  "en": "Skip {name}",
+  "ckb": "بازدان لە {name}",
+  "ar": "تخطي {name}",
+  "fa": "رد کردن {name}"
+ },
+ "app.home.marketing": {
+  "en": "Marketing messages",
+  "ckb": "نامەی بازاڕگەری",
+  "ar": "رسائل تسويقية",
+  "fa": "پیام‌های بازاریابی"
+ },
+ "app.marketing.title": {
+  "en": "Marketing messages",
+  "ckb": "نامەی بازاڕگەری",
+  "ar": "رسائل تسويقية",
+  "fa": "پیام‌های بازاریابی"
+ },
+ "app.marketing.name": {
+  "en": "Campaign name",
+  "ckb": "ناوی کەمپین",
+  "ar": "اسم الحملة",
+  "fa": "نام کمپین"
+ },
+ "app.marketing.template": {
+  "en": "Message template",
+  "ckb": "قاڵبی نامە",
+  "ar": "قالب الرسالة",
+  "fa": "قالب پیام"
+ },
+ "app.marketing.allTypes": {
+  "en": "All customer types",
+  "ckb": "هەموو جۆرەکانی کڕیار",
+  "ar": "كل أنواع الزبائن",
+  "fa": "همهٔ انواع مشتری"
+ },
+ "app.marketing.create": {
+  "en": "Create the queue",
+  "ckb": "دروستکردنی ڕیز",
+  "ar": "إنشاء الطابور",
+  "fa": "ساخت صف"
+ },
+ "app.marketing.created": {
+  "en": "{queued} messages are in the queue, {skipped} customers have no usable phone.",
+  "ckb": "{queued} نامە لە ڕیزدایە، {skipped} کڕیار تەلەفۆنی بەکارهاتوویان نییە.",
+  "ar": "{queued} رسالة في الطابور، و{skipped} زبون بلا هاتف صالح.",
+  "fa": "{queued} پیام در صف است، {skipped} مشتری تلفن قابل‌استفاده ندارد."
+ },
+ "app.marketing.counts": {
+  "en": "Waiting {queued} · sent {sent} · skipped {skipped}",
+  "ckb": "چاوەڕوان {queued} · نێردراو {sent} · بازدراو {skipped}",
+  "ar": "بالانتظار {queued} · مُرسَلة {sent} · متخطاة {skipped}",
+  "fa": "در انتظار {queued} · ارسال‌شده {sent} · ردشده {skipped}"
+ },
+ "app.marketing.noTemplates": {
+  "en": "No message template yet. Ask the sales manager to add one.",
+  "ckb": "هێشتا هیچ قاڵبی نامە نییە. داوا لە بەڕێوەبەری فرۆشتن بکە یەکێک زیاد بکات.",
+  "ar": "لا يوجد قالب رسالة بعد. اطلب من مدير المبيعات إضافة قالب.",
+  "fa": "هنوز قالب پیامی نیست. از مدیر فروش بخواهید یکی اضافه کند."
+ },
+ "app.marketing.noCampaigns": {
+  "en": "No campaigns yet.",
+  "ckb": "هێشتا هیچ کەمپینێک نییە.",
+  "ar": "لا توجد حملات بعد.",
+  "fa": "هنوز کمپینی نیست."
+ },
+ "app.marketing.needNameAndTemplate": {
+  "en": "Write a name and choose a template.",
+  "ckb": "ناوێک بنووسە و قاڵبێک هەڵبژێرە.",
+  "ar": "اكتب اسماً واختر قالباً.",
+  "fa": "یک نام بنویسید و قالبی انتخاب کنید."
+ },
+ "app.marketing.queue": {
+  "en": "Queue",
+  "ckb": "ڕیز",
+  "ar": "الطابور",
+  "fa": "صف"
+ },
+ "app.marketing.pause": {
+  "en": "Open the chats one by one. After each message wait 2 minutes before the next; many messages in a row can get your WhatsApp number banned.",
+  "ckb": "چاتەکان یەک بە یەک بکەرەوە. دوای هەر نامەیەک ٢ خولەک بوەستە؛ ناردنی زۆر لە دوای یەک ڕەنگە ژمارەی واتسئاپەکەت دابخرێت.",
+  "ar": "افتح المحادثات واحدة واحدة. انتظر دقيقتين بعد كل رسالة؛ الإرسال المتتابع قد يؤدي إلى حظر رقمك على واتساب.",
+  "fa": "گفت‌وگوها را یکی‌یکی باز کنید. پس از هر پیام ۲ دقیقه صبر کنید؛ ارسال پشت‌سرهم ممکن است شمارهٔ واتساپ شما را مسدود کند."
+ },
+ "app.marketing.left": {
+  "en": "{count} left",
+  "ckb": "{count} ماوە",
+  "ar": "المتبقي {count}",
+  "fa": "{count} باقی مانده"
+ },
+ "app.marketing.done": {
+  "en": "Nothing is waiting in this queue.",
+  "ckb": "هیچ شتێک لەم ڕیزەدا چاوەڕوان نییە.",
+  "ar": "لا شيء بالانتظار في هذا الطابور.",
+  "fa": "چیزی در این صف منتظر نیست."
+ },
+ "app.marketing.wait": {
+  "en": "Wait {seconds} s before the next chat.",
+  "ckb": "{seconds} چرکە بوەستە پێش چاتی دواتر.",
+  "ar": "انتظر {seconds} ثانية قبل المحادثة التالية.",
+  "fa": "{seconds} ثانیه تا گفت‌وگوی بعدی صبر کنید."
+ },
+ "app.marketing.open": {
+  "en": "Open WhatsApp",
+  "ckb": "کردنەوەی واتسئاپ",
+  "ar": "فتح واتساب",
+  "fa": "باز کردن واتساپ"
+ },
+ "app.marketing.sent": {
+  "en": "Sent",
+  "ckb": "نێردرا",
+  "ar": "أُرسلت",
+  "fa": "ارسال شد"
+ },
+ "app.marketing.skip": {
+  "en": "Skip",
+  "ckb": "بازدان",
+  "ar": "تخطي",
+  "fa": "رد کردن"
+ },
+ "app.marketing.noPhone": {
+  "en": "This phone number cannot be opened in WhatsApp.",
+  "ckb": "ئەم ژمارە تەلەفۆنە ناکرێتەوە لە واتسئاپ.",
+  "ar": "لا يمكن فتح هذا الرقم في واتساب.",
+  "fa": "این شمارهٔ تلفن در واتساپ باز نمی‌شود."
  }
 }
