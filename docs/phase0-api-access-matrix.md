@@ -506,6 +506,12 @@ Plan templates (step 5.8, migration 0061, `docs/TRAINING-PLANNING.md`): a week o
 | `DELETE /visit-plan/templates/{id}` | as above | 204; 404 | `plan_template.deleted` |
 | `POST /visit-plan/templates/{id}/apply` | as above | `startDate`, `weeks` (1-8). Plans each matching day from today on; 200 `{created, skipped, days}`; 400; 404 | `visit.created` per visit, `visit.plan_generated` per day |
 
+Doctor list import (step 5.9, `docs/doctors-import.md`): no migration.
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `POST /customers/import-doctors` | `customers.write` with whole-company scope and without the doctor restriction (sales manager); others 403 | Body `{rows[1-500], dryRun?}` with the columns of the template (`name` required; `specialty`, `customerClass` and lengths checked; `latitude`+`longitude` both or none; places need city before neighbourhood before street; `visitorEmail` an active user). 200 `{created, duplicates, errors[{row, field, code}], dryRun}`: any error means nothing is created. Existing doctors (same name and phone) are skipped. Codes `D-0001`...; places found or added; 400 for an empty or too large file | `customer.created` per doctor, `customers.doctors_imported` |
+
 Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
 
 Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).

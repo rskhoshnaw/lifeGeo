@@ -1,4 +1,4 @@
-import { parseCsv, placesFromCsv } from './csv.ts'
+import { doctorsFromCsv, parseCsv, placesFromCsv } from './csv.ts'
 import starter from '../../../../docs/places-starter.csv?raw'
 
 describe('CSV', () => {
@@ -58,5 +58,22 @@ describe('CSV', () => {
     expect(hoods.length).toBe(6)
     expect(hoods.every((r) => r.city === 'Erbil' && r.nameCkb && r.nameAr)).toBe(true)
     expect(rows.length).toBe(13)   // no row of the file is dropped as invalid
+  })
+})
+
+describe('doctorsFromCsv', () => {
+  it('maps the columns, turns empty cells into null and yes/no into booleans', () => {
+    const text = [
+      'name,clinic_name,specialty,cooperates,dealer,class,phone,city,neighbourhood,latitude,longitude,notes,visitor_email',
+      'Dr. Ali,Noor,neurology,yes,no,A,0750,Erbil,Ankawa,36.2201,43.9924,"a, b",rep@t.test',
+      "Dr. Zana,,,,,,,,,,,'=cmd,",
+      ',,,,,,,,,,,,',
+    ].join('\n')
+    const rows = doctorsFromCsv(text)
+    expect(rows).toHaveLength(2)   // a completely empty line is dropped by the parser
+    expect(rows[0]).toMatchObject({ name: 'Dr. Ali', clinicName: 'Noor', specialty: 'neurology', cooperates: true, dealer: false, customerClass: 'A', city: 'Erbil', latitude: 36.2201, longitude: 43.9924, notes: 'a, b', visitorEmail: 'rep@t.test' })
+    expect(rows[1]).toMatchObject({ name: 'Dr. Zana', clinicName: null, cooperates: null, latitude: null, notes: '=cmd', visitorEmail: null })
+    expect(doctorsFromCsv('')).toEqual([])
+    expect(doctorsFromCsv('name,latitude\nDr. X,abc')[0]?.latitude).toBeNull()
   })
 })

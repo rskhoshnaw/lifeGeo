@@ -18,4 +18,12 @@ One row per doctor, UTF-8 CSV (Excel: Save as "CSV UTF-8"). Only `name` is requi
 | visitor_email | The visitor who owns the doctor (must be an existing user) | e-mail or empty |
 
 Doctors without a location are imported as customers without a position; the visitor can set it in the app when visiting.
-The importer itself is plan step 5.9; this file fixes the columns so the list can be prepared now.
+
+## How to import
+Panel → Customers → "Import a doctor list": choose the CSV file. The file is checked first and nothing is created; problems are listed by row number (row 1 = the first row after the header). Fix them and choose the file again. When the check is clean, press **Import**.
+- Only a user who may edit all customers of the company (the sales manager) can import.
+- Doctors get the codes `D-0001`, `D-0002`, ... (the next free number).
+- A doctor that already exists (same name and phone) is skipped, so the same file can be sent again.
+- Places are matched by name (spelling variants of the same name are the same place); a city, neighbourhood or street that does not exist yet is added.
+- `visitor_email` must be the e-mail of an active user; that user owns the doctor and the doctor takes the region of the user's team. Without it the importer owns the doctor.
+- Doctors are approved at once. At most 500 rows per file.
