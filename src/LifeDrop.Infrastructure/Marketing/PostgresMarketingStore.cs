@@ -124,7 +124,7 @@ public sealed class PostgresMarketingStore(NpgsqlDataSource dataSource) : IMarke
                   {(customerTypes.Count > 0 ? "AND lower(c.type) = ANY(@types)" : "")}
                   {(placeId is not null ? "AND c.place_id IN (WITH RECURSIVE below AS (SELECT id FROM places WHERE id = @place UNION ALL SELECT p.id FROM places p JOIN below b ON p.parent_id = b.id) SELECT id FROM below)" : "")}
             ), usable AS (
-                SELECT DISTINCT ON (right(digits, 9)) id, name, phone FROM eligible WHERE length(digits) BETWEEN 8 AND 15 ORDER BY right(digits, 9), id
+                SELECT DISTINCT ON (right(digits, 9)) id, name, phone FROM eligible WHERE length(digits) BETWEEN 8 AND 15 ORDER BY right(digits, 9), name COLLATE "C", id
             ), written AS (
                 INSERT INTO marketing_messages (tenant_id, campaign_id, customer_id, phone, message)
                 SELECT @tenant, @campaign, u.id, u.phone, replace(@body, @placeholder, u.name) FROM usable u

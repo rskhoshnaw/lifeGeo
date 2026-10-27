@@ -78,7 +78,7 @@ public class PlanTemplateStoreTests
             var (applied, result) = await service.ApplyAsync(t, me, id, new ApplyPlanTemplateRequest(new DateOnly(2026, 10, 26), 2), CancellationToken.None);
             Assert.Equal(PlanTemplateResult.Success, applied);
             Assert.Equal((5, 1, 3), (result!.Created, result.Skipped, result.Days));   // A, B / A / A, B created; A on 4 Nov skipped; 4 Nov had nothing new
-            Assert.Equal("8", await InTenant(connection, tenant, rep, $"SELECT count(*) FROM visits WHERE user_id = '{rep}' AND status = 'Planned'"));   // 3 before (19th B, 21st A, 4 Nov A) + 5 new
+            Assert.Equal("9", await InTenant(connection, tenant, rep, $"SELECT count(*) FROM visits WHERE user_id = '{rep}' AND status = 'Planned'"));   // 4 before (19th A and B, 21st A, 4 Nov A) + 5 new
             Assert.Equal("1", await InTenant(connection, tenant, rep, $"SELECT count(*) FROM visits WHERE user_id = '{rep}' AND schedule_date = '2026-11-04'"));
 
             // Again: everything is planned already, nothing new.
