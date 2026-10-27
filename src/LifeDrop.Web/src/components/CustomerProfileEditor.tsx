@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AdminApi, type Customer } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { PlaceCascade } from './PlaceCascade.tsx'
+import { WhatsAppConsent } from './WhatsAppConsent.tsx'
 import { whatsappUrl } from './whatsapp.ts'
 import { useAction } from './useLoad.ts'
 
@@ -32,6 +33,7 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
     <div className="my-3 rounded border p-3 text-sm">
       <h3 className="mb-2 font-semibold">{t('web.customers.profileTitle', { customer: `${customer.code} · ${customer.name}` })}</h3>
       {action.error && <p role="alert" className="mb-2 text-red-700">{action.error}</p>}
+      {canEdit && <WhatsAppConsent admin={admin} customerId={customer.id} />}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <input aria-label={t('web.customers.phone')} placeholder={t('web.customers.phone')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={40} value={phone} onChange={(e) => setPhone(e.target.value)} />
         <WhatsAppLink phone={phone} />

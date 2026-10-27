@@ -1,6 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, customerTypes, Permissions, type Me, type MarketingMessage } from '../api/admin.ts'
-import { t } from '../i18n.ts'
+import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { whatsappUrl } from '../components/whatsapp.ts'
 
@@ -28,6 +28,7 @@ export function MarketingPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <th>{t('web.marketing.waiting')}</th>
               <th>{t('web.marketing.sent')}</th>
               <th>{t('web.marketing.skipped')}</th>
+              <th>{t('web.marketing.failed')}</th>
               <th />
             </tr>
           </thead>
@@ -36,12 +37,14 @@ export function MarketingPage({ admin, me }: { admin: AdminApi; me: Me }) {
               <tr key={c.id} className="border-b">
                 <td className="py-2">
                   {c.name}
+                  {c.delivery === 'api' && <span className="text-green-700"> · {t('web.marketing.byApi')}</span>}
                   {c.createdByEmail && <span className="text-slate-500"> · {c.createdByEmail}</span>}
                 </td>
                 <td>{c.createdAt.slice(0, 10)}</td>
                 <td>{c.queued}</td>
                 <td>{c.sent}</td>
                 <td>{c.skipped}</td>
+                <td>{c.delivery === 'api' ? c.failed : '—'}</td>
                 <td className="text-end">
                   <button className="rounded border px-2 py-1" aria-label={t('web.marketing.queueOf', { name: c.name })} onClick={() => setOpen(open === c.id ? null : c.id)}>
                     {t('web.marketing.queue')}
@@ -52,7 +55,7 @@ export function MarketingPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </tbody>
         </table>
       )}
-      {open && <Queue key={open} admin={admin} campaignId={open} onChanged={campaigns.reload} />}
+      {open && <Queue key={open} admin={admin} campaignId={open} api={campaigns.data?.find((c) => c.id === open)?.delivery === 'api'} onChanged={campaigns.reload} />}
     </section>
   )
 }
@@ -62,13 +65,17 @@ function Templates({ admin }: { admin: AdminApi }) {
   const action = useAction(list.reload)
   const [name, setName] = useState('')
   const [body, setBody] = useState('')
+  const [waName, setWaName] = useState('')
+  const [waLanguage, setWaLanguage] = useState('')
 
   function add(e: FormEvent) {
     e.preventDefault()
     void action.run(async () => {
-      await admin.createMarketingTemplate(name.trim(), body.trim())
+      await admin.createMarketingTemplate(name.trim(), body.trim(), waName.trim() || null, waLanguage.trim() || null)
       setName('')
       setBody('')
+      setWaName('')
+      setWaLanguage('')
     })
   }
 
@@ -80,8 +87,8 @@ function Templates({ admin }: { admin: AdminApi }) {
       {list.data?.map((m) => (
         <div key={m.id} className="flex items-start gap-3 border-b py-1">
           <span className="min-w-32 font-medium">{m.name}</span>
-          <span className="flex-1 whitespace-pre-wrap">{m.body}{!m.isActive && <em> ({t('web.orders.inactive')})</em>}</span>
-          <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.updateMarketingTemplate(m.id, m.name, m.body, !m.isActive))}>
+          <span className="flex-1 whitespace-pre-wrap">{m.body}{m.whatsAppName && <em className="text-green-700"> [{m.whatsAppName} / {m.whatsAppLanguage}]</em>}{!m.isActive && <em> ({t('web.orders.inactive')})</em>}</span>
+          <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.updateMarketingTemplate(m, !m.isActive))}>
             {t(m.isActive ? 'web.orders.deactivate' : 'web.orders.activate')}
           </button>
         </div>
@@ -89,7 +96,9 @@ function Templates({ admin }: { admin: AdminApi }) {
       <form onSubmit={add} className="flex flex-wrap items-start gap-2">
         <input aria-label={t('web.marketing.templateName')} placeholder={t('web.marketing.templateName')} maxLength={100} className="rounded border px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
         <textarea aria-label={t('web.marketing.templateBody')} placeholder={t('web.marketing.templateBody')} maxLength={1000} rows={3} className="min-w-64 flex-1 rounded border px-2 py-1" value={body} onChange={(e) => setBody(e.target.value)} />
-        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !body.trim()}>
+        <input aria-label={t('web.marketing.waName')} placeholder={t('web.marketing.waName')} maxLength={100} className="rounded border px-2 py-1" value={waName} onChange={(e) => setWaName(e.target.value)} />
+        <input aria-label={t('web.marketing.waLanguage')} placeholder={t('web.marketing.waLanguage')} maxLength={10} className="w-24 rounded border px-2 py-1" value={waLanguage} onChange={(e) => setWaLanguage(e.target.value)} />
+        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !body.trim() || Boolean(waName.trim()) !== Boolean(waLanguage.trim())}>
           {t('web.marketing.addTemplate')}
         </button>
       </form>
@@ -99,10 +108,12 @@ function Templates({ admin }: { admin: AdminApi }) {
 
 function NewCampaign({ admin, onCreated }: { admin: AdminApi; onCreated: (id: string) => void }) {
   const templates = useLoad(useCallback(() => admin.marketingTemplates(), [admin]))
+  const status = useLoad(useCallback(() => admin.marketingStatus(), [admin]))
+  const [delivery, setDelivery] = useState<'manual' | 'api'>('manual')
   const [name, setName] = useState('')
   const [template, setTemplate] = useState('')
   const [types, setTypes] = useState<string[]>([])
-  const [result, setResult] = useState<{ queued: number; skippedNoPhone: number } | null>(null)
+  const [result, setResult] = useState<{ queued: number; skippedNoPhone: number; skippedNoConsent: number } | null>(null)
   const action = useAction()
 
   const toggle = (type: string) => setTypes(types.includes(type) ? types.filter((x) => x !== type) : [...types, type])
@@ -110,7 +121,7 @@ function NewCampaign({ admin, onCreated }: { admin: AdminApi; onCreated: (id: st
   function create(e: FormEvent) {
     e.preventDefault()
     void action.run(async () => {
-      const created = await admin.createMarketingCampaign(name.trim(), template, types)
+      const created = await admin.createMarketingCampaign(name.trim(), template, types, delivery)
       setResult(created)
       setName('')
       onCreated(created.id)
@@ -137,24 +148,31 @@ function NewCampaign({ admin, onCreated }: { admin: AdminApi; onCreated: (id: st
             {type}
           </label>
         ))}
+        {status.data?.whatsAppApi && (
+          <select aria-label={t('web.marketing.delivery')} className="rounded border px-2 py-1" value={delivery} onChange={(e) => setDelivery(e.target.value as 'manual' | 'api')}>
+            <option value="manual">{t('web.marketing.deliveryManual')}</option>
+            <option value="api">{t('web.marketing.deliveryApi')}</option>
+          </select>
+        )}
         <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !template}>
           {t('web.marketing.create')}
         </button>
       </div>
       <p className="text-slate-600">{t('web.marketing.allTypes')}</p>
-      {result && <p>{t('web.marketing.created', { queued: String(result.queued), skipped: String(result.skippedNoPhone) })}</p>}
+      {result && <p>{t('web.marketing.created', { queued: String(result.queued), skipped: String(result.skippedNoPhone) })}{result.skippedNoConsent > 0 && ` ${t('web.marketing.noConsent', { count: String(result.skippedNoConsent) })}`}</p>}
     </form>
   )
 }
 
 // The queue of one campaign: the chat opens in a new tab, then the user presses "sent" (or "skip"). A pause between messages is advised, not forced.
-function Queue({ admin, campaignId, onChanged }: { admin: AdminApi; campaignId: string; onChanged: () => void }) {
+function Queue({ admin, campaignId, api, onChanged }: { admin: AdminApi; campaignId: string; api: boolean; onChanged: () => void }) {
   const messages = useLoad(useCallback(() => admin.marketingMessages(campaignId), [admin, campaignId]))
   const action = useAction(() => {
     messages.reload()
     onChanged()
   })
   const waiting = (messages.data ?? []).filter((m: MarketingMessage) => m.status === 'queued')
+  if (api) return <ApiMessages messages={messages.data ?? []} error={messages.error} />
 
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
@@ -175,6 +193,24 @@ function Queue({ admin, campaignId, onChanged }: { admin: AdminApi; campaignId: 
           <button className="rounded border px-2 py-1" disabled={action.busy} aria-label={t('web.marketing.skipOf', { name: m.customerName })} onClick={() => void action.run(() => admin.skipMessage(m.id))}>
             {t('web.marketing.skip')}
           </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// A campaign sent by the WhatsApp Business API is not worked by hand: the server sends the messages one by one; here the user only sees how each one went.
+function ApiMessages({ messages, error }: { messages: MarketingMessage[]; error: string | null }) {
+  return (
+    <div className="space-y-2 rounded border p-3 text-sm">
+      <p className="text-slate-600">{t('web.marketing.apiHint')}</p>
+      {error && <p role="alert" className="text-red-700">{error}</p>}
+      {messages.map((m) => (
+        <div key={m.id} className="flex flex-wrap items-start gap-3 border-b py-1">
+          <span className="min-w-32 font-medium">{m.customerName}</span>
+          <span className="min-w-28">{m.phone}</span>
+          <span className="min-w-20">{t(`web.marketing.status.${m.status}` as TextKey)}</span>
+          {m.error && <span className="flex-1 text-red-700">{m.error}</span>}
         </div>
       ))}
     </div>

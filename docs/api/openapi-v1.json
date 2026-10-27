@@ -6960,6 +6960,249 @@
         }
       }
     },
+    "/marketing/status": {
+      "get": {
+        "tags": [
+          "Marketing"
+        ],
+        "operationId": "GetMarketingStatus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingStatusDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers/{customerId}/whatsapp-consent": {
+      "get": {
+        "tags": [
+          "Marketing"
+        ],
+        "operationId": "GetWhatsAppConsent",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppConsentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Marketing"
+        ],
+        "operationId": "SetWhatsAppConsent",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetWhatsAppConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/marketing/messages/{id}/sent": {
       "post": {
         "tags": [
@@ -18701,6 +18944,15 @@
               "string"
             ],
             "format": "int32"
+          },
+          "skippedNoConsent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
           }
         }
       },
@@ -18756,6 +19008,19 @@
               "string"
             ],
             "format": "int32"
+          },
+          "delivery": {
+            "type": "string",
+            "default": "manual"
+          },
+          "failed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
           }
         }
       },
@@ -19091,6 +19356,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "delivery": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -22026,6 +22297,23 @@
           },
           "status": {
             "type": "string"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MarketingStatusDto": {
+        "required": [
+          "whatsAppApi"
+        ],
+        "type": "object",
+        "properties": {
+          "whatsAppApi": {
+            "type": "boolean"
           }
         }
       },
@@ -24606,6 +24894,18 @@
               "null",
               "boolean"
             ]
+          },
+          "whatsAppName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "whatsAppLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -25162,6 +25462,17 @@
           }
         }
       },
+      "SetWhatsAppConsentRequest": {
+        "required": [
+          "optIn"
+        ],
+        "type": "object",
+        "properties": {
+          "optIn": {
+            "type": "boolean"
+          }
+        }
+      },
       "ShiftAlertSettingsDto": {
         "required": [
           "shiftWindowHours",
@@ -25426,6 +25737,18 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "whatsAppName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "whatsAppLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -26351,6 +26674,25 @@
           "kind": {
             "type": "string",
             "default": "company"
+          }
+        }
+      },
+      "WhatsAppConsentDto": {
+        "required": [
+          "optIn",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "optIn": {
+            "type": "boolean"
+          },
+          "at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

@@ -77,6 +77,7 @@
     <None Include="../../db/migrations/0059_wholesaler_orders.sql" Link="0059_wholesaler_orders.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0060_marketing.sql" Link="0060_marketing.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0061_plan_templates.sql" Link="0061_plan_templates.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0062_whatsapp_api.sql" Link="0062_whatsapp_api.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

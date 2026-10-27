@@ -54,7 +54,7 @@ public sealed class MarketingPage : ContentPage
         if (status != VisitActionResult.Success) return;
         _template.Items = _templates.Select(t => t.Name).ToList();
         _list.Children.Clear();
-        foreach (var campaign in _campaigns)
+        foreach (var campaign in _campaigns.Where(c => c.Delivery != "api"))   // the server sends the api campaigns; they are followed in the panel
         {
             var open = new Button { Text = Texts.Get("app.marketing.queue") };
             var id = campaign.Id;

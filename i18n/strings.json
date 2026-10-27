@@ -9178,5 +9178,113 @@
   "ckb": "{created} دکتۆر زیاد کران، {duplicates} پێشتر هەبوون.",
   "ar": "أُضيف {created} طبيباً، وكان {duplicates} موجودين.",
   "fa": "{created} پزشک اضافه شد، {duplicates} از قبل بودند."
+ },
+ "web.marketing.failed": {
+  "en": "Failed",
+  "ckb": "سەرنەکەوتوو",
+  "ar": "فاشلة",
+  "fa": "ناموفق"
+ },
+ "web.marketing.byApi": {
+  "en": "WhatsApp API",
+  "ckb": "API ی واتسئاپ",
+  "ar": "واجهة واتساب",
+  "fa": "API واتساپ"
+ },
+ "web.marketing.waName": {
+  "en": "WhatsApp template name (optional)",
+  "ckb": "ناوی قاڵبی واتسئاپ (ئارەزوومەندانە)",
+  "ar": "اسم قالب واتساب (اختياري)",
+  "fa": "نام قالب واتساپ (اختیاری)"
+ },
+ "web.marketing.waLanguage": {
+  "en": "Language code",
+  "ckb": "کۆدی زمان",
+  "ar": "رمز اللغة",
+  "fa": "کد زبان"
+ },
+ "web.marketing.delivery": {
+  "en": "How to send",
+  "ckb": "چۆن بنێردرێت",
+  "ar": "طريقة الإرسال",
+  "fa": "روش ارسال"
+ },
+ "web.marketing.deliveryManual": {
+  "en": "By hand (I open each chat)",
+  "ckb": "بە دەست (خۆم هەر چاتێک دەکەمەوە)",
+  "ar": "يدوياً (أفتح كل محادثة)",
+  "fa": "دستی (خودم هر گفت‌وگو را باز می‌کنم)"
+ },
+ "web.marketing.deliveryApi": {
+  "en": "By the WhatsApp Business API (the server sends)",
+  "ckb": "بە API ی واتسئاپ (سێرڤەر دەینێرێت)",
+  "ar": "عبر واجهة واتساب للأعمال (الخادم يرسل)",
+  "fa": "با API واتساپ بیزینس (سرور می‌فرستد)"
+ },
+ "web.marketing.noConsent": {
+  "en": "{count} customers did not agree to WhatsApp messages and were left out.",
+  "ckb": "{count} کڕیار ڕەزامەندییان بۆ نامەی واتسئاپ نەداوە و نەگیران.",
+  "ar": "{count} زبون لم يوافقوا على رسائل واتساب فاستُثنوا.",
+  "fa": "{count} مشتری با پیام واتساپ موافقت نکرده‌اند و کنار گذاشته شدند."
+ },
+ "web.marketing.apiHint": {
+  "en": "The server sends these messages one by one; nothing to do here. A failed message shows the reason from WhatsApp.",
+  "ckb": "سێرڤەر ئەم نامانە یەک بە یەک دەنێرێت؛ لێرە هیچ نییە بکرێت. نامەی سەرنەکەوتوو هۆکارەکەی لە واتسئاپەوە پیشان دەدرێت.",
+  "ar": "يرسل الخادم هذه الرسائل واحدة واحدة؛ لا شيء مطلوب هنا. الرسالة الفاشلة تُظهر السبب من واتساب.",
+  "fa": "سرور این پیام‌ها را یکی‌یکی می‌فرستد؛ اینجا کاری نیست. پیام ناموفق دلیل را از واتساپ نشان می‌دهد."
+ },
+ "web.marketing.status.queued": {
+  "en": "waiting",
+  "ckb": "چاوەڕوان",
+  "ar": "بالانتظار",
+  "fa": "در انتظار"
+ },
+ "web.marketing.status.sent": {
+  "en": "sent",
+  "ckb": "نێردرا",
+  "ar": "أُرسلت",
+  "fa": "ارسال شد"
+ },
+ "web.marketing.status.skipped": {
+  "en": "skipped",
+  "ckb": "بازدرا",
+  "ar": "متخطاة",
+  "fa": "ردشده"
+ },
+ "web.marketing.status.failed": {
+  "en": "failed",
+  "ckb": "سەرنەکەوت",
+  "ar": "فشلت",
+  "fa": "ناموفق"
+ },
+ "web.whatsappConsent.yes": {
+  "en": "The customer agreed to WhatsApp messages.",
+  "ckb": "کڕیار ڕەزامەندی بۆ نامەی واتسئاپ داوە.",
+  "ar": "وافق الزبون على رسائل واتساب.",
+  "fa": "مشتری با پیام واتساپ موافق است."
+ },
+ "web.whatsappConsent.no": {
+  "en": "No agreement to WhatsApp messages yet.",
+  "ckb": "هێشتا ڕەزامەندی بۆ نامەی واتسئاپ نییە.",
+  "ar": "لا توجد موافقة على رسائل واتساب بعد.",
+  "fa": "هنوز موافقتی برای پیام واتساپ نیست."
+ },
+ "web.whatsappConsent.give": {
+  "en": "The customer agreed",
+  "ckb": "کڕیار ڕازی بوو",
+  "ar": "الزبون وافق",
+  "fa": "مشتری موافقت کرد"
+ },
+ "web.whatsappConsent.withdraw": {
+  "en": "Withdraw the agreement",
+  "ckb": "هەڵوەشاندنەوەی ڕەزامەندی",
+  "ar": "سحب الموافقة",
+  "fa": "لغو موافقت"
+ },
+ "web.whatsappConsent.hint": {
+  "en": "Needed for campaigns sent by the WhatsApp Business API. Only mark it when the customer really agreed.",
+  "ckb": "بۆ کەمپینەکانی ناردن بە API ی واتسئاپ پێویستە. تەنها کاتێک نیشانی بکە کە کڕیار بەڕاستی ڕازی بووە.",
+  "ar": "مطلوبة للحملات المرسلة عبر واجهة واتساب. علّمها فقط إن وافق الزبون فعلاً.",
+  "fa": "برای کمپین‌های ارسال با API واتساپ لازم است. فقط وقتی علامت بزنید که مشتری واقعاً موافقت کرده."
  }
 }

@@ -9,8 +9,8 @@
 ## Why nothing is sent automatically
 Automatic sending from a personal WhatsApp number (unofficial tools, bots) is against WhatsApp's rules; the number can be closed without warning, and no source gives a "safe" speed. Here the user sends every message himself, which is normal use. Telegram: a bot cannot start a chat with a phone number; only customers who started the company bot can be written to (see `docs/CHANNELS.md`), so Telegram is not part of the queue.
 
-## Not built yet (optional, needs the owner)
-**WhatsApp Business API** (official): approved templates, opted-in recipients, a cost per marketing message, a company token set in the panel. It needs a Meta Business account, a verified number and a token; it will be a separate step when those exist.
+## WhatsApp Business API (optional)
+Built, off by default: the server sends an approved Meta template to customers who agreed. Setup, consent, limits and cost: `docs/WHATSAPP-API.md`.
 
 ## API
 See `docs/phase0-api-access-matrix.md` (section "Marketing messages"). Audit: `marketing.template_saved`, `marketing.campaign_created`.
