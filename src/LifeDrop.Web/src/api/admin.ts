@@ -361,6 +361,29 @@ export interface WholesalerOrder {
   note: string | null
   lines: { productCode: string; productName: string; unit: string; quantity: number; unitPrice: number; lineTotal: number }[]
 }
+export interface MarketingTemplate {
+  id: string
+  name: string
+  body: string
+  isActive: boolean
+}
+export interface MarketingCampaign {
+  id: string
+  name: string
+  createdAt: string
+  createdByEmail: string | null
+  queued: number
+  sent: number
+  skipped: number
+}
+export interface MarketingMessage {
+  id: string
+  customerId: string
+  customerName: string
+  phone: string
+  message: string
+  status: 'queued' | 'sent' | 'skipped'
+}
 export interface OrderLine {
   lineNo: number
   productId: string
@@ -912,6 +935,9 @@ export const Permissions = {
   manageWarehouses: ['warehouses.manage'],
   warehouseWork: ['warehouse.work'],
   wholesalerWork: ['wholesaler.work'],
+  marketing: ['marketing.use', 'marketing.manage'],
+  useMarketing: ['marketing.use'],
+  manageMarketing: ['marketing.manage'],
   manageCatalog: ['catalog.manage'],
   approveCustomers: ['customers.approve'],
   planVisits: ['visits.write'],
@@ -1105,6 +1131,16 @@ export class AdminApi {
   markReady = (id: string, lines: { lineNo: number; quantity: number; reason?: string | null }[]) => this.post(`/warehouse/orders/${id}/ready`, { lines })
   handOver = (id: string, driverId: string) => this.post(`/warehouse/orders/${id}/handover`, { driverId })
   drivers = () => this.get<Driver[]>('/warehouse/drivers')
+  // Marketing messages (step 5.7): nothing is sent by the server; the user opens each WhatsApp chat and presses "sent".
+  marketingTemplates = (includeInactive = false) => this.get<MarketingTemplate[]>(`/marketing/templates${includeInactive ? '?includeInactive=true' : ''}`)
+  createMarketingTemplate = (name: string, body: string) => this.post('/marketing/templates', { name, body })
+  updateMarketingTemplate = (id: string, name: string, body: string, isActive: boolean) => this.send('PUT', `/marketing/templates/${id}`, { name, body, isActive })
+  marketingCampaigns = () => this.get<MarketingCampaign[]>('/marketing/campaigns')
+  createMarketingCampaign = (name: string, templateId: string, customerTypes: string[]) =>
+    this.postJson<{ id: string; queued: number; skippedNoPhone: number }>('/marketing/campaigns', { name, templateId, customerTypes })
+  marketingMessages = (campaignId: string) => this.get<MarketingMessage[]>(`/marketing/campaigns/${campaignId}/messages`)
+  markMessageSent = (id: string) => this.post(`/marketing/messages/${id}/sent`)
+  skipMessage = (id: string) => this.post(`/marketing/messages/${id}/skip`)
   // Orders of the wholesalers (step 5.6): no preparation and no driver, only "dispatched".
   wholesalers = () => this.get<Wholesaler[]>('/wholesaler/warehouses')
   wholesalerOrders = (warehouseId: string, status: string) =>

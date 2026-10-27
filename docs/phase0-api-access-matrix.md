@@ -485,6 +485,18 @@ Wholesaler orders (step 5.6, migration 0059): a warehouse has a `kind` (`company
 | `GET /wholesaler/orders?warehouseId=&status=&limit=` | same | Newest first; without `status` the open ones (`placed`); `status=dispatched` for the sent ones; lines with product, quantity, price, plus customer name, address, phone | — |
 | `POST /wholesaler/orders/{orderId}/dispatch` | same | Body `{note?}`; `placed` → `dispatched`; 409 in another status; 404 for an order of another wholesaler | `order.dispatched` |
 
+Marketing messages (step 5.7, migration 0060, `docs/MARKETING.md`): permissions `marketing.use` (SalesManager, Supervisor, SalesRep, ScientificRep) and `marketing.manage` (SalesManager). The server sends nothing: a campaign is a queue the user works through in WhatsApp.
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `GET /marketing/templates?includeInactive=` | `marketing.use` or `marketing.manage` | Active templates by name; the switched-off ones only for `marketing.manage` | — |
+| `POST /marketing/templates` | `marketing.manage` | `name` (1-100), `body` (1-1000, `{name}` = customer name); 201 `{id}`; 400 | `marketing.template_saved` |
+| `PUT /marketing/templates/{id}` | `marketing.manage` | Same body plus `isActive`; 204; 404 | `marketing.template_saved` |
+| `POST /marketing/campaigns` | `marketing.use`; customers inside the caller's `customers.read` scope | `name`, `templateId` (active), optional `customerTypes` (up to 10), `placeId` (the place and everything below). Approved, not archived customers with a usable phone, the same phone once. 201 `{id, queued, skippedNoPhone}`; 400; 404 template or place | `marketing.campaign_created` |
+| `GET /marketing/campaigns` | `marketing.use` | Own campaigns (tenant-wide scope: all), newest first, with queued/sent/skipped counts | — |
+| `GET /marketing/campaigns/{id}/messages?status=` | `marketing.use`; own campaign | Queued first; `status` queued, sent or skipped; 404 for another user's campaign | — |
+| `POST /marketing/messages/{id}/sent`, `POST /marketing/messages/{id}/skip` | same | `queued` → `sent` / `skipped`; 409 when already handled; 404 | — |
+
 Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
 
 Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).

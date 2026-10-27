@@ -41,3 +41,7 @@ GRANT UPDATE ON regions TO lifedrop_app;
 GRANT UPDATE ON users TO lifedrop_app;
 -- Step 5.5: sales targets (set and cleared by managers; read for the targets report).
 GRANT SELECT, INSERT, UPDATE, DELETE ON sales_targets TO lifedrop_app;
+-- Step 5.7: marketing templates, campaigns and the message queue.
+GRANT SELECT, INSERT, UPDATE ON marketing_templates TO lifedrop_app;
+GRANT SELECT, INSERT ON marketing_campaigns TO lifedrop_app;
+GRANT SELECT, INSERT, UPDATE ON marketing_messages TO lifedrop_app;
