@@ -497,6 +497,15 @@ Marketing messages (step 5.7, migration 0060, `docs/MARKETING.md`): permissions 
 | `GET /marketing/campaigns/{id}/messages?status=` | `marketing.use`; own campaign | Queued first; `status` queued, sent or skipped; 404 for another user's campaign | — |
 | `POST /marketing/messages/{id}/sent`, `POST /marketing/messages/{id}/skip` | same | `queued` → `sent` / `skipped`; 409 when already handled; 404 | — |
 
+Plan templates (step 5.8, migration 0061, `docs/TRAINING-PLANNING.md`): a week of visits saved as weekday + customer for one field user, applied to the coming weeks through `PlanGenerator` (scope, accepted hours, "not twice on one day" still apply; past days are left out). Who: `visits.write` for users inside the scope, or `visits.plan` for oneself. `POST /visit-plan/generate` now also accepts `customerIds` as the only filter.
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `POST /visit-plan/templates` | as above | `name` (1-100), `weekStart` (the 7 days from it), optional `assignedUserId` (default the caller). Takes the user's visits of that week that are not cancelled or failed; 201 `{id}`; 400 (no visits, bad name, 50 templates already); 404 user outside the scope | `plan_template.created` |
+| `GET /visit-plan/templates?assignedUserId=` | as above | Templates of that user (default the caller) with customer and day counts | — |
+| `DELETE /visit-plan/templates/{id}` | as above | 204; 404 | `plan_template.deleted` |
+| `POST /visit-plan/templates/{id}/apply` | as above | `startDate`, `weeks` (1-8). Plans each matching day from today on; 200 `{created, skipped, days}`; 400; 404 | `visit.created` per visit, `visit.plan_generated` per day |
+
 Cancelling (step 2.2) changes: the creator cancels while the order is `placed`; `orders.cancel` holders (sales manager, supervisor) cancel until the order is handed to a driver (`placed`, `preparing`, `ready`); a cancelled order cannot be worked on any more. The sellers' `GET /orders/{id}` now shows the prepared quantities, the driver and the steps too.
 
 Tests: `WarehouseWork_StaffSeeOnlyTheirWarehouseOrdersAndMoveThemThroughPreparationToTheDriver`; app: `WarehouseTests`; panel: the Warehouse tab and the staff list in the Orders tab (`Panel.test.tsx`).

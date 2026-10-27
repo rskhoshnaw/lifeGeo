@@ -13,7 +13,7 @@ namespace LifeDrop.Infrastructure.Visits;
 public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : IPlanGenerationStore
 {
     public async Task<IReadOnlyList<PlanCandidateRow>> FindCandidatesAsync(TenantId tenantId, AccessScope scope, Guid? placeId, Guid? regionId,
-        DateOnly scheduleDate, string order, string? query, IReadOnlyList<GeoPoint>? area, CancellationToken cancellationToken)
+        DateOnly scheduleDate, string order, string? query, IReadOnlyList<GeoPoint>? area, CancellationToken cancellationToken, IReadOnlyList<Guid>? customerIds = null)
     {
         // The order comes from a whitelist (PlanGenerator.Orders), never from the caller's text.
         var orderBy = order switch
@@ -55,6 +55,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
                     ST_SetSRID(ST_MakePolygon(ST_MakeLine(ARRAY(SELECT ST_MakePoint(t.lon, t.lat) FROM unnest(@lons::float8[], @lats::float8[]) WITH ORDINALITY AS t(lon, lat, n) ORDER BY t.n))), 4326),
                     c.geom::geometry)))
               AND (@region::uuid IS NULL OR c.region_id = @region)
+              AND (@ids::uuid[] IS NULL OR c.id = ANY(@ids::uuid[]))
               AND (@query::text IS NULL OR c.name ILIKE @query ESCAPE '\' OR c.code ILIKE @query ESCAPE '\')
               AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.tenant_id = c.tenant_id AND v.customer_id = c.id AND v.schedule_date = @day
                               AND v.status NOT IN ('Cancelled', 'Failed'))
@@ -82,6 +83,7 @@ public sealed class PostgresPlanGenerationStore(NpgsqlDataSource dataSource) : I
         var ring = area is null ? null : area.Append(area[0]).ToList();
         command.Parameters.Add(new NpgsqlParameter("lons", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Double) { Value = (object?)ring?.Select(p => p.Longitude).ToArray() ?? DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter("lats", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Double) { Value = (object?)ring?.Select(p => p.Latitude).ToArray() ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("ids", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)customerIds?.ToArray() ?? DBNull.Value });
         command.Parameters.AddWithValue("day", scheduleDate);
         command.Parameters.AddWithValue("max", PlanGenerator.MaxMatching);
 

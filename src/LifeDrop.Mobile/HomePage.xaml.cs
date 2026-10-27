@@ -33,6 +33,7 @@ public partial class HomePage : ContentPage
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         WholesalerBtn.Text = Texts.Get("app.home.wholesaler");
         MarketingBtn.Text = Texts.Get("app.home.marketing");
+        PlanTemplatesBtn.Text = Texts.Get("app.home.planTemplates");
         DeliveriesBtn.Text = Texts.Get("app.home.deliveries");
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
@@ -53,6 +54,7 @@ public partial class HomePage : ContentPage
         ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
         ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
         ShowButton(WholesalerBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("wholesaler.work"));
+        ShowButton(PlanTemplatesBtn, MyPermissions.Has("visits.plan"));
         ShowButton(MarketingBtn, MyPermissions.Has("marketing.use"));
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
@@ -97,6 +99,7 @@ public partial class HomePage : ContentPage
         WarehouseBtn.IsEnabled = !isBusy;
         WholesalerBtn.IsEnabled = !isBusy;
         MarketingBtn.IsEnabled = !isBusy;
+        PlanTemplatesBtn.IsEnabled = !isBusy;
         DeliveriesBtn.IsEnabled = !isBusy;
         PaymentsBtn.IsEnabled = !isBusy;
         FollowUpsBtn.IsEnabled = !isBusy;
@@ -246,6 +249,8 @@ public partial class HomePage : ContentPage
     private async void OnWarehouseClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WarehouseOrdersPage());
 
     private async void OnWholesalerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WholesalerOrdersPage());
+
+    private async void OnPlanTemplatesClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new PlanTemplatesPage());
 
     private async void OnMarketingClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MarketingPage());
 

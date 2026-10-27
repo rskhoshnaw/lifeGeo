@@ -160,7 +160,8 @@ public class CustomerApiIntegrationTests
                 var m58 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0058_sales_targets.sql"));
                 var m59 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0059_wholesaler_orders.sql"));
                 var m60 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0060_marketing.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60;
+                var m61 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0061_plan_templates.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))

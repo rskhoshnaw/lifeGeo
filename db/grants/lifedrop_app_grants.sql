@@ -45,3 +45,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON sales_targets TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON marketing_templates TO lifedrop_app;
 GRANT SELECT, INSERT ON marketing_campaigns TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON marketing_messages TO lifedrop_app;
+-- Step 5.8: plan templates (a week of visits saved as a pattern).
+GRANT SELECT, INSERT, DELETE ON plan_templates TO lifedrop_app;
+GRANT SELECT, INSERT, DELETE ON plan_template_items TO lifedrop_app;

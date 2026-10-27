@@ -8932,5 +8932,191 @@
   "ckb": "ئەم ژمارە تەلەفۆنە ناکرێتەوە لە واتسئاپ.",
   "ar": "لا يمكن فتح هذا الرقم في واتساب.",
   "fa": "این شمارهٔ تلفن در واتساپ باز نمی‌شود."
+ },
+ "web.planTemplates.title": {
+  "en": "Plan templates",
+  "ckb": "قاڵبی پلان",
+  "ar": "قوالب الخطة",
+  "fa": "الگوهای برنامه"
+ },
+ "web.planTemplates.hint": {
+  "en": "Plan one week, save it as a template, then apply it to the coming weeks. Days that are already planned or outside the customer's hours are left out.",
+  "ckb": "یەک هەفتە پلان دابنێ، وەک قاڵب هەڵیبگرە، پاشان بیخە سەر هەفتەکانی داهاتوو. ڕۆژە پلانکراوەکان یان ئەوانەی لە دەرەوەی کاتی کڕیارن ناگیرێن.",
+  "ar": "خطط أسبوعاً واحداً واحفظه كقالب ثم طبّقه على الأسابيع القادمة. الأيام المخططة أصلاً أو خارج ساعات الزبون تُستثنى.",
+  "fa": "یک هفته را برنامه‌ریزی کنید، به‌عنوان الگو ذخیره کنید و روی هفته‌های بعد اعمال کنید. روزهای برنامه‌ریزی‌شده یا خارج از ساعت مشتری کنار گذاشته می‌شوند."
+ },
+ "web.planTemplates.user": {
+  "en": "Choose a field user…",
+  "ckb": "بەکارهێنەرێکی مەیدانی هەڵبژێرە…",
+  "ar": "اختر مستخدماً ميدانياً…",
+  "fa": "یک کاربر میدانی انتخاب کنید…"
+ },
+ "web.planTemplates.name": {
+  "en": "Template name",
+  "ckb": "ناوی قاڵب",
+  "ar": "اسم القالب",
+  "fa": "نام الگو"
+ },
+ "web.planTemplates.weekStart": {
+  "en": "Week starts on",
+  "ckb": "هەفتە دەستپێدەکات لە",
+  "ar": "يبدأ الأسبوع في",
+  "fa": "هفته از"
+ },
+ "web.planTemplates.save": {
+  "en": "Save the week as a template",
+  "ckb": "هەفتەکە وەک قاڵب هەڵبگرە",
+  "ar": "احفظ الأسبوع كقالب",
+  "fa": "ذخیرهٔ هفته به‌عنوان الگو"
+ },
+ "web.planTemplates.none": {
+  "en": "No template for this user yet.",
+  "ckb": "هێشتا هیچ قاڵبێک بۆ ئەم بەکارهێنەرە نییە.",
+  "ar": "لا يوجد قالب لهذا المستخدم بعد.",
+  "fa": "هنوز الگویی برای این کاربر نیست."
+ },
+ "web.planTemplates.startDate": {
+  "en": "Apply from",
+  "ckb": "جێبەجێکردن لە",
+  "ar": "التطبيق من",
+  "fa": "اعمال از"
+ },
+ "web.planTemplates.weeks": {
+  "en": "Weeks",
+  "ckb": "هەفتە",
+  "ar": "أسابيع",
+  "fa": "هفته"
+ },
+ "web.planTemplates.counts": {
+  "en": "{customers} customers on {days} days",
+  "ckb": "{customers} کڕیار لە {days} ڕۆژدا",
+  "ar": "{customers} زبون في {days} أيام",
+  "fa": "{customers} مشتری در {days} روز"
+ },
+ "web.planTemplates.apply": {
+  "en": "Apply",
+  "ckb": "جێبەجێکردن",
+  "ar": "تطبيق",
+  "fa": "اعمال"
+ },
+ "web.planTemplates.applyOf": {
+  "en": "Apply {name}",
+  "ckb": "جێبەجێکردنی {name}",
+  "ar": "تطبيق {name}",
+  "fa": "اعمال {name}"
+ },
+ "web.planTemplates.deleteOf": {
+  "en": "Delete {name}",
+  "ckb": "سڕینەوەی {name}",
+  "ar": "حذف {name}",
+  "fa": "حذف {name}"
+ },
+ "web.planTemplates.applied": {
+  "en": "{created} visits planned on {days} days, {skipped} customers left out.",
+  "ckb": "{created} سەردان لە {days} ڕۆژدا پلان کرا، {skipped} کڕیار نەگیران.",
+  "ar": "تم تخطيط {created} زيارة في {days} أيام، واستُثني {skipped} زبون.",
+  "fa": "{created} ویزیت در {days} روز برنامه‌ریزی شد، {skipped} مشتری کنار گذاشته شد."
+ },
+ "app.home.planTemplates": {
+  "en": "Plan templates",
+  "ckb": "قاڵبی پلان",
+  "ar": "قوالب الخطة",
+  "fa": "الگوهای برنامه"
+ },
+ "app.planTemplates.title": {
+  "en": "Plan templates",
+  "ckb": "قاڵبی پلان",
+  "ar": "قوالب الخطة",
+  "fa": "الگوهای برنامه"
+ },
+ "app.planTemplates.hint": {
+  "en": "Plan one week, save it as a template, then apply it to the coming weeks. Customers already planned on a day or outside their hours are left out.",
+  "ckb": "یەک هەفتە پلان دابنێ، وەک قاڵب هەڵیبگرە، پاشان بیخە سەر هەفتەکانی داهاتوو. کڕیارە پلانکراوەکان یان ئەوانەی لە دەرەوەی کاتی خۆیانن ناگیرێن.",
+  "ar": "خطط أسبوعاً واحداً واحفظه كقالب ثم طبّقه على الأسابيع القادمة. الزبائن المخططون أصلاً أو خارج ساعاتهم يُستثنون.",
+  "fa": "یک هفته را برنامه‌ریزی کنید، به‌عنوان الگو ذخیره کنید و روی هفته‌های بعد اعمال کنید. مشتریان برنامه‌ریزی‌شده یا خارج از ساعتشان کنار گذاشته می‌شوند."
+ },
+ "app.planTemplates.name": {
+  "en": "Template name",
+  "ckb": "ناوی قاڵب",
+  "ar": "اسم القالب",
+  "fa": "نام الگو"
+ },
+ "app.planTemplates.week": {
+  "en": "Which week to save",
+  "ckb": "کام هەفتە هەڵبگیرێت",
+  "ar": "أي أسبوع يُحفظ",
+  "fa": "کدام هفته ذخیره شود"
+ },
+ "app.planTemplates.thisWeek": {
+  "en": "This week",
+  "ckb": "ئەم هەفتەیە",
+  "ar": "هذا الأسبوع",
+  "fa": "این هفته"
+ },
+ "app.planTemplates.lastWeek": {
+  "en": "Last week",
+  "ckb": "هەفتەی ڕابردوو",
+  "ar": "الأسبوع الماضي",
+  "fa": "هفتهٔ گذشته"
+ },
+ "app.planTemplates.nextWeek": {
+  "en": "Next week",
+  "ckb": "هەفتەی داهاتوو",
+  "ar": "الأسبوع القادم",
+  "fa": "هفتهٔ آینده"
+ },
+ "app.planTemplates.save": {
+  "en": "Save the week as a template",
+  "ckb": "هەفتەکە وەک قاڵب هەڵبگرە",
+  "ar": "احفظ الأسبوع كقالب",
+  "fa": "ذخیرهٔ هفته به‌عنوان الگو"
+ },
+ "app.planTemplates.saved": {
+  "en": "The template is saved.",
+  "ckb": "قاڵبەکە هەڵگیرا.",
+  "ar": "تم حفظ القالب.",
+  "fa": "الگو ذخیره شد."
+ },
+ "app.planTemplates.needName": {
+  "en": "Write a name for the template.",
+  "ckb": "ناوێک بۆ قاڵبەکە بنووسە.",
+  "ar": "اكتب اسماً للقالب.",
+  "fa": "برای الگو یک نام بنویسید."
+ },
+ "app.planTemplates.weeks": {
+  "en": "Apply to how many weeks",
+  "ckb": "بۆ چەند هەفتە جێبەجێ بکرێت",
+  "ar": "تطبيق على كم أسبوع",
+  "fa": "اعمال روی چند هفته"
+ },
+ "app.planTemplates.none": {
+  "en": "No template yet.",
+  "ckb": "هێشتا هیچ قاڵبێک نییە.",
+  "ar": "لا يوجد قالب بعد.",
+  "fa": "هنوز الگویی نیست."
+ },
+ "app.planTemplates.counts": {
+  "en": "{customers} customers on {days} days",
+  "ckb": "{customers} کڕیار لە {days} ڕۆژدا",
+  "ar": "{customers} زبون في {days} أيام",
+  "fa": "{customers} مشتری در {days} روز"
+ },
+ "app.planTemplates.apply": {
+  "en": "Apply from today",
+  "ckb": "جێبەجێکردن لە ئەمڕۆوە",
+  "ar": "تطبيق من اليوم",
+  "fa": "اعمال از امروز"
+ },
+ "app.planTemplates.delete": {
+  "en": "Delete",
+  "ckb": "سڕینەوە",
+  "ar": "حذف",
+  "fa": "حذف"
+ },
+ "app.planTemplates.applied": {
+  "en": "{created} visits planned on {days} days, {skipped} customers left out.",
+  "ckb": "{created} سەردان لە {days} ڕۆژدا پلان کرا، {skipped} کڕیار نەگیران.",
+  "ar": "تم تخطيط {created} زيارة في {days} أيام، واستُثني {skipped} زبون.",
+  "fa": "{created} ویزیت در {days} روز برنامه‌ریزی شد، {skipped} مشتری کنار گذاشته شد."
  }
 }

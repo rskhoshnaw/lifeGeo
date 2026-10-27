@@ -384,6 +384,15 @@ export interface MarketingMessage {
   message: string
   status: 'queued' | 'sent' | 'skipped'
 }
+export interface PlanTemplate {
+  id: string
+  userId: string
+  userEmail: string | null
+  name: string
+  customers: number
+  days: number
+  createdAt: string
+}
 export interface OrderLine {
   lineNo: number
   productId: string
@@ -1047,6 +1056,12 @@ export class AdminApi {
     this.get<PlannedVisit[]>(`/visit-plan?scheduleDate=${date}${assignedUserId ? `&assignedUserId=${assignedUserId}` : ''}`)
   // Plan from places (step 1.24): the list first, then the visits for the customers that were chosen.
   previewPlan = (request: PlanRequest) => this.postJson<PlanPreview>('/visit-plan/preview', request)
+  // Plan templates (step 5.8): save a week of visits as a pattern and apply it to the coming weeks.
+  planTemplates = (assignedUserId: string) => this.get<PlanTemplate[]>(`/visit-plan/templates?assignedUserId=${assignedUserId}`)
+  savePlanTemplate = (name: string, weekStart: string, assignedUserId: string) => this.post('/visit-plan/templates', { name, weekStart, assignedUserId })
+  deletePlanTemplate = (id: string) => this.send('DELETE', `/visit-plan/templates/${id}`)
+  applyPlanTemplate = (id: string, startDate: string, weeks: number) =>
+    this.postJson<{ created: number; skipped: number; days: number }>(`/visit-plan/templates/${id}/apply`, { startDate, weeks })
   generatePlan = (request: PlanRequest) => this.postJson<PlanGenerated>('/visit-plan/generate', request)
   // Priority a manager gives customers: by ids or every customer under a place (step 1.26). Returns how many changed.
   setCustomerPriority = async (request: PriorityRequest): Promise<{ updated: number }> => {
