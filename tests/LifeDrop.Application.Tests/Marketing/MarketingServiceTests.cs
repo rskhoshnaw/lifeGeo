@@ -61,7 +61,8 @@ public class MarketingServiceTests
 
         var service = new MarketingService(store, new Permissions(PermissionKeys.MarketingUse, PermissionKeys.CustomersRead));
         Assert.Equal(MarketingResult.Success, (await service.CreateCampaignAsync(Tenant, User, new CreateCampaignRequest(" Spring ", Guid.NewGuid(), [" Pharmacy ", "pharmacy", "Doctor"]), CancellationToken.None)).Result);
-        Assert.Equal(("Spring", new[] { "pharmacy", "doctor" }), (store.Name, store.Types.ToArray()));
+        Assert.Equal("Spring", store.Name);
+        Assert.Equal(new[] { "pharmacy", "doctor" }, store.Types.ToArray());
         var calls = store.Calls.Count;
         foreach (var bad in new[]
                  {
