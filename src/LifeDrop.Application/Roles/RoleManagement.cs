@@ -24,7 +24,7 @@ public interface IRoleDefinitionStore
 
 public static class RoleDefaults
 {
-    public static readonly IReadOnlyList<string> Names = ["CompanyManager", "SalesManager", "Supervisor", "FinanceManager", "SalesRep", "ScientificRep", "WarehouseManager", "Driver"];
+    public static readonly IReadOnlyList<string> Names = ["CompanyManager", "SalesManager", "Supervisor", "FinanceManager", "SalesRep", "ScientificRep", "WarehouseManager", "Driver", "WholesalerOfficer"];
     public static readonly IReadOnlyList<string> Scopes = ["tenant", "region", "own"];
 }
 

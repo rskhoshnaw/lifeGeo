@@ -8458,5 +8458,191 @@
   "ckb": "گەیەندراو = ئەوەی بە ڕاستی لە داواکارییەکانت گەیەندراوە، لە مانگی گەیاندن دەژمێردرێت.",
   "ar": "المسلَّم = ما سُلِّم فعلاً من طلباتك، ويُحسب في شهر التسليم.",
   "fa": "تحویل‌شده = آنچه واقعاً از سفارش‌های شما تحویل شده و در ماه تحویل شمرده می‌شود."
+ },
+ "web.tab.wholesaler": {
+  "en": "Wholesaler orders",
+  "ckb": "داواکاری مەزەخەکان",
+  "ar": "طلبات المذاخر",
+  "fa": "سفارش‌های مذخر"
+ },
+ "web.orders.status.dispatched": {
+  "en": "dispatched",
+  "ckb": "نێردرا",
+  "ar": "أُرسل",
+  "fa": "ارسال شد"
+ },
+ "web.orders.kind": {
+  "en": "Warehouse type",
+  "ckb": "جۆری کۆگا",
+  "ar": "نوع المستودع",
+  "fa": "نوع انبار"
+ },
+ "web.orders.kind.company": {
+  "en": "Company warehouse",
+  "ckb": "کۆگای کۆمپانیا",
+  "ar": "مستودع الشركة",
+  "fa": "انبار شرکت"
+ },
+ "web.orders.kind.wholesaler": {
+  "en": "Wholesaler",
+  "ckb": "مەزەخە (کۆگای دەرمان)",
+  "ar": "مذخر",
+  "fa": "مذخر"
+ },
+ "web.wholesaler.title": {
+  "en": "Wholesaler orders",
+  "ckb": "داواکاری مەزەخەکان",
+  "ar": "طلبات المذاخر",
+  "fa": "سفارش‌های مذخر"
+ },
+ "web.wholesaler.choose": {
+  "en": "Choose the wholesaler",
+  "ckb": "مەزەخە هەڵبژێرە",
+  "ar": "اختر المذخر",
+  "fa": "مذخر را انتخاب کنید"
+ },
+ "web.wholesaler.all": {
+  "en": "All my wholesalers",
+  "ckb": "هەموو مەزەخەکانم",
+  "ar": "كل مذاخري",
+  "fa": "همهٔ مذخرهای من"
+ },
+ "web.wholesaler.showSent": {
+  "en": "Show the sent ones",
+  "ckb": "نێردراوەکان پیشان بدە",
+  "ar": "اعرض المُرسَلة",
+  "fa": "نمایش ارسال‌شده‌ها"
+ },
+ "web.wholesaler.print": {
+  "en": "Print / save as PDF",
+  "ckb": "چاپ / هەڵگرتن وەک PDF",
+  "ar": "طباعة / حفظ كـ PDF",
+  "fa": "چاپ / ذخیره PDF"
+ },
+ "web.wholesaler.none": {
+  "en": "No orders for your wholesalers.",
+  "ckb": "هیچ داواکارییەک بۆ مەزەخەکانت نییە.",
+  "ar": "لا توجد طلبات لمذاخرك.",
+  "fa": "سفارشی برای مذخرهای شما نیست."
+ },
+ "web.wholesaler.address": {
+  "en": "Address",
+  "ckb": "ناونیشان",
+  "ar": "العنوان",
+  "fa": "نشانی"
+ },
+ "web.wholesaler.price": {
+  "en": "Price",
+  "ckb": "نرخ",
+  "ar": "السعر",
+  "fa": "قیمت"
+ },
+ "web.wholesaler.phone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "web.wholesaler.dispatch": {
+  "en": "Sent",
+  "ckb": "نێردرا",
+  "ar": "أُرسل",
+  "fa": "ارسال شد"
+ },
+ "web.wholesaler.dispatchOf": {
+  "en": "Mark {number} as sent",
+  "ckb": "نیشانکردنی {number} وەک نێردراو",
+  "ar": "تعليم {number} كمُرسَل",
+  "fa": "علامت‌گذاری {number} به‌عنوان ارسال‌شده"
+ },
+ "app.history.order.dispatched": {
+  "en": "Sent by the wholesaler",
+  "ckb": "لە مەزەخەوە نێردرا",
+  "ar": "أُرسل من المذخر",
+  "fa": "از مذخر ارسال شد"
+ },
+ "app.home.wholesaler": {
+  "en": "Wholesaler orders",
+  "ckb": "داواکاری مەزەخەکان",
+  "ar": "طلبات المذاخر",
+  "fa": "سفارش‌های مذخر"
+ },
+ "app.wholesaler.title": {
+  "en": "Wholesaler orders",
+  "ckb": "داواکاری مەزەخەکان",
+  "ar": "طلبات المذاخر",
+  "fa": "سفارش‌های مذخر"
+ },
+ "app.wholesaler.all": {
+  "en": "All my wholesalers",
+  "ckb": "هەموو مەزەخەکانم",
+  "ar": "كل مذاخري",
+  "fa": "همهٔ مذخرهای من"
+ },
+ "app.wholesaler.none": {
+  "en": "No open orders for your wholesalers.",
+  "ckb": "هیچ داواکارییەکی کراوە بۆ مەزەخەکانت نییە.",
+  "ar": "لا توجد طلبات مفتوحة لمذاخرك.",
+  "fa": "سفارش بازی برای مذخرهای شما نیست."
+ },
+ "app.wholesaler.dispatch": {
+  "en": "Sent",
+  "ckb": "نێردرا",
+  "ar": "أُرسل",
+  "fa": "ارسال شد"
+ },
+ "app.wholesaler.print": {
+  "en": "Save as PDF / print",
+  "ckb": "هەڵگرتن وەک PDF / چاپ",
+  "ar": "حفظ كـ PDF / طباعة",
+  "fa": "ذخیره PDF / چاپ"
+ },
+ "app.wholesaler.dispatched": {
+  "en": "The order is marked as sent.",
+  "ckb": "داواکارییەکە وەک نێردراو نیشان کرا.",
+  "ar": "تم تعليم الطلب كمُرسَل.",
+  "fa": "سفارش ارسال‌شده علامت خورد."
+ },
+ "app.wholesaler.report.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "الزبون",
+  "fa": "مشتری"
+ },
+ "app.wholesaler.report.address": {
+  "en": "Address",
+  "ckb": "ناونیشان",
+  "ar": "العنوان",
+  "fa": "نشانی"
+ },
+ "app.wholesaler.report.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "app.wholesaler.report.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "app.wholesaler.report.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "app.wholesaler.report.price": {
+  "en": "Price",
+  "ckb": "نرخ",
+  "ar": "السعر",
+  "fa": "قیمت"
+ },
+ "app.wholesaler.report.phone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
  }
 }

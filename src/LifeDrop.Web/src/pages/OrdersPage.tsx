@@ -307,12 +307,13 @@ function Warehouses({ admin }: { admin: AdminApi }) {
   const action = useAction(list.reload)
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
+  const [kind, setKind] = useState<'company' | 'wholesaler'>('company')
   const [staffFor, setStaffFor] = useState<Warehouse | null>(null)
 
   function add(e: FormEvent) {
     e.preventDefault()
     void action.run(async () => {
-      await admin.createWarehouse(code.trim(), name.trim())
+      await admin.createWarehouse(code.trim(), name.trim(), kind)
       setCode('')
       setName('')
     })
@@ -328,7 +329,7 @@ function Warehouses({ admin }: { admin: AdminApi }) {
         <div key={w.id} className="flex items-center gap-3 border-b py-1">
           <span className="min-w-20">{w.code}</span>
           <span className="flex-1">
-            {w.name} {w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
+            {w.name} {w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
           </span>
           <button className="rounded border px-2 py-1" aria-label={t('web.orders.staffOf', { name: w.name })} onClick={() => setStaffFor(staffFor?.id === w.id ? null : w)}>
             {t('web.orders.staff')}
@@ -342,6 +343,10 @@ function Warehouses({ admin }: { admin: AdminApi }) {
       <form onSubmit={add} className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.orders.warehouseCode')} placeholder={t('web.orders.warehouseCode')} maxLength={40} className="rounded border px-2 py-1" value={code} onChange={(e) => setCode(e.target.value)} />
         <input aria-label={t('web.orders.warehouseName')} placeholder={t('web.orders.warehouseName')} maxLength={160} className="rounded border px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
+        <select aria-label={t('web.orders.kind')} className="rounded border px-2 py-1" value={kind} onChange={(e) => setKind(e.target.value as 'company' | 'wholesaler')}>
+          <option value="company">{t('web.orders.kind.company')}</option>
+          <option value="wholesaler">{t('web.orders.kind.wholesaler')}</option>
+        </select>
         <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !code.trim() || !name.trim()}>
           {t('web.orders.addWarehouse')}
         </button>
@@ -357,7 +362,7 @@ function WarehouseStaff({ admin, warehouse }: { admin: AdminApi; warehouse: Ware
   const action = useAction(staff.reload)
   const [user, setUser] = useState('')
   const inside = new Set((staff.data ?? []).map((s) => s.userId))
-  const candidates = (users.data ?? []).filter((u) => u.roles.includes('WarehouseManager') && !inside.has(u.id))
+  const candidates = (users.data ?? []).filter((u) => u.roles.includes(warehouse.kind === 'wholesaler' ? 'WholesalerOfficer' : 'WarehouseManager') && !inside.has(u.id))
 
   return (
     <div className="space-y-2 rounded border bg-slate-50 p-2">

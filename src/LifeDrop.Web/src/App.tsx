@@ -24,13 +24,14 @@ import { SamplesPage } from './pages/SamplesPage.tsx'
 import { TargetsPage } from './pages/TargetsPage.tsx'
 import { PaymentsPage } from './pages/PaymentsPage.tsx'
 import { WarehousePage } from './pages/WarehousePage.tsx'
+import { WholesalerPage } from './pages/WholesalerPage.tsx'
 import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -115,6 +116,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'reports', label: t('web.tab.reports'), visible: can(me, ...Permissions.reports) },
     { id: 'targets', label: t('web.tab.targets'), visible: can(me, ...Permissions.targets) },
     { id: 'warehouse', label: t('web.tab.warehouse'), visible: shows('warehouse') && can(me, ...Permissions.warehouseWork) },
+    { id: 'wholesaler', label: t('web.tab.wholesaler'), visible: shows('warehouse') && can(me, ...Permissions.wholesalerWork) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
     { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
@@ -153,6 +155,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'reports' && <ReportsPage admin={admin} />}
       {me && tab === 'targets' && <TargetsPage admin={admin} me={me} />}
       {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
+      {me && tab === 'wholesaler' && <WholesalerPage admin={admin} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
       {me && tab === 'tv' && <TvPage admin={admin} me={me} />}

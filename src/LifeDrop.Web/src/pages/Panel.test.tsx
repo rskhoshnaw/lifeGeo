@@ -829,6 +829,27 @@ describe('panel management screens', () => {
     expect(posts(calls)[2]).toEqual({ method: 'POST', path: '/warehouse/orders/o1/handover', body: { driverId: 'd1' } })
   })
 
+  it('wholesaler officer: sees the open orders of the wholesalers and marks one as sent', async () => {
+    const officer: Me = { id: 'o', email: 'officer@t1', roles: ['WholesalerOfficer'], permissions: ['wholesaler.work'] }
+    const order = { id: 'o1', number: 'O-000001', createdAt: '2026-10-26T09:00:00Z', status: 'placed', warehouseId: 'w1', wholesalerName: 'Al-Noor', customerId: 'c1', customerCode: 'P-1', customerName: 'Shifa', contactName: null, phone: '0750', phone2: null, address: 'Ankawa', place: 'Erbil', currency: 'IQD', total: 15000, note: null, lines: [{ productCode: 'PAR-500', productName: 'Paracetamol', unit: 'box', quantity: 10, unitPrice: 1500, lineTotal: 15000 }] }
+    const { api, calls } = server(officer, {
+      '/wholesaler/warehouses': [{ id: 'w1', code: 'W1', name: 'Al-Noor', openOrders: 1 }],
+      '/wholesaler/orders?limit=200': [order],
+      '/wholesaler/orders?limit=200&warehouseId=w1': [order],
+    })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Wholesaler orders' }))
+    expect(await screen.findByText('Paracetamol')).toBeInTheDocument()
+    expect(screen.getByText('0750')).toBeInTheDocument()
+    expect(screen.getByText('Ankawa', { exact: false })).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Choose the wholesaler'), 'w1')
+    await waitFor(() => expect(calls.some((c) => c.path === '/wholesaler/orders?limit=200&warehouseId=w1')).toBe(true))
+    await user.click(await screen.findByRole('button', { name: 'Mark O-000001 as sent' }))
+    await waitFor(() => expect(posts(calls)).toHaveLength(1))
+    expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/wholesaler/orders/o1/dispatch', body: { note: null } })
+  })
+
   it('assigns warehouse workers to a warehouse (only workers can be chosen)', async () => {
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'warehouses.manage', 'customers.read', 'user.manageroles'] }
     const wh = (id: string, email: string, roles: string[]): UserSummary => ({ id, email, roles, teamId: null, teamName: null, regionId: null, activeSessions: 0, isActive: true })

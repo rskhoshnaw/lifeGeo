@@ -51,6 +51,8 @@ public static class PermissionKeys
     public const string WarehouseWork = "warehouse.work";
     // Plan step 2.4: a driver picks up, delivers or fails the orders assigned to them.
     public const string DeliveryWork = "delivery.work";
+    // Plan step 5.6: the officer of the wholesalers sees the orders of the wholesalers they work with and marks them dispatched.
+    public const string WholesalerWork = "wholesaler.work";
 
     // Payments (plan step 2.5): record (finance manager, rep), manage (finance manager: confirm, void, correct), read.
     public const string PaymentsRecord = "payments.record";
