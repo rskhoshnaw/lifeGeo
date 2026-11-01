@@ -18,3 +18,6 @@ Package name: `com.pixelo.geotrack`. Build: Actions > **Android release** > Run 
 - **Foreground service permission declaration**: `FOREGROUND_SERVICE_LOCATION` (shift tracking while a shift is on, with a visible notification). Describe it as work-visit tracking started by the user.
 - A personal developer account must run a closed test with at least 12 testers for 14 days before production access (check the current rule in Play Console).
 - No background-location permission is used (foreground service only), which keeps the review simpler.
+
+## Mapping file and native symbols (Play warnings)
+Play warns "no deobfuscation file" and "no debug symbols" for an upload; neither blocks a release. The workflow also keeps a second download, **lifedrop-android-symbols** (one day): `mapping.txt` (R8) and `native-debug-symbols.zip` (native libraries by ABI). Upload them by hand for the same version code: Play Console > Test and release > App bundle explorer > choose the version > Downloads > upload the deobfuscation file and the native debug symbols. If the run shows a warning that a file was not produced (for example R8 is off), that file does not exist for this build.
