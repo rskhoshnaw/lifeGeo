@@ -43,7 +43,7 @@ public class ClientErrorReportsTests
     public async Task LongTextIsCutAndFutureOrAncientTimesBecomeNow()
     {
         var store = new Store();
-        var request = new ReportClientErrorsRequest("acme", [Item(new string('x', 1000), at: Now.AddDays(3)), Item(at: Now.AddDays(-90)), Item(at: Now.AddHours(-2))]);
+        var request = new ReportClientErrorsRequest("acme", [Item(string.Join(" ", Enumerable.Repeat("word", 200)), at: Now.AddDays(3)), Item(at: Now.AddDays(-90)), Item(at: Now.AddHours(-2))]);
         Assert.Equal(ClientErrorResult.Success, (await Service(store).ReportAsync(request, CancellationToken.None)).Result);
         Assert.Equal(ClientErrorText.MaxMessage, store.Added[0].Message.Length);
         Assert.Equal(Now, store.Added[0].OccurredAt);
