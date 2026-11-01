@@ -77,6 +77,9 @@ public static class PermissionKeys
     public const string TargetsManage = "targets.manage";
     public const string TargetsRead = "targets.read";
 
+    // Connection errors reported by the mobile app (plan step 5.10): listed in the panel.
+    public const string ClientErrorsRead = "client_errors.read";
+
     // Live map (plan step 1.19, decision D3): exact positions, or status without coordinates.
     public const string TrackingRead = "tracking.read";
     public const string TrackingSummary = "tracking.summary";

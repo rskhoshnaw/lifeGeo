@@ -27,6 +27,8 @@ public sealed class AlertScanService(IServiceScopeFactory scopes, IConfiguration
                         await service.ScanTenantAsync(tenant, stoppingToken);
                         // Old exact points go (after their summary is kept): the 90-day retention of decision D6.
                         await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.Tracking.TrackingRetention>().PurgeAsync(tenant, stoppingToken);
+                        // App connection-error reports are kept 40 days (plan step 5.10).
+                        await scope.ServiceProvider.GetRequiredService<LifeDrop.Application.ClientErrors.ClientErrorRetention>().PurgeAsync(tenant, stoppingToken);
                     }
                     catch (Exception e) when (e is not OperationCanceledException)
                     {

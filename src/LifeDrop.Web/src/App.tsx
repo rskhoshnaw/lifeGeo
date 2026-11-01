@@ -11,6 +11,7 @@ import { VisitsPage } from './pages/VisitsPage.tsx'
 import { RegionsPage } from './pages/RegionsPage.tsx'
 import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
+import { ClientErrorsPage } from './pages/ClientErrorsPage.tsx'
 import { CatalogPage } from './pages/CatalogPage.tsx'
 import { OrdersPage } from './pages/OrdersPage.tsx'
 import { ReportsPage } from './pages/ReportsPage.tsx'
@@ -32,7 +33,7 @@ import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -121,6 +122,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'marketing', label: t('web.tab.marketing'), visible: can(me, ...Permissions.marketing) },
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
+    { id: 'clientErrors', label: t('web.tab.clientErrors'), visible: can(me, ...Permissions.clientErrors) },
     { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
     { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
     { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
@@ -161,6 +163,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'marketing' && <MarketingPage admin={admin} me={me} />}
       {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
       {me && tab === 'audit' && <AuditPage admin={admin} />}
+      {me && tab === 'clientErrors' && <ClientErrorsPage admin={admin} />}
       {me && tab === 'tv' && <TvPage admin={admin} me={me} />}
       {me && tab === 'forms' && <FormsPage admin={admin} />}
       {me && tab === 'platform' && <PlatformPage admin={admin} />}

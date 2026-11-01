@@ -816,6 +816,35 @@ export function auditQuery(filter: AuditFilter, after?: AuditEntry): string {
   return `/audit-logs?${params.toString()}`
 }
 
+// Connection errors reported by the mobile app (plan step 5.10): errors that never reached the server, sent later by the app. The password is never part of one.
+export interface ClientError {
+  id: string
+  reportedAt: string
+  occurredAt: string
+  stage: 'company_lookup' | 'device_register' | 'login' | 'other'
+  errorKind: 'dns' | 'timeout' | 'tls' | 'http' | 'other'
+  errorType: string
+  message: string
+  enteredCompanyCode: string | null
+  enteredEmail: string | null
+  deviceId: string | null
+  appVersion: string | null
+  platform: string | null
+}
+
+export const clientErrorStages = ['company_lookup', 'device_register', 'login', 'other'] as const
+export const clientErrorPageSize = 50
+
+export function clientErrorsQuery(stage?: string, after?: ClientError): string {
+  const params = new URLSearchParams({ limit: String(clientErrorPageSize) })
+  if (stage) params.set('stage', stage)
+  if (after) {
+    params.set('cursorReportedAt', after.reportedAt)
+    params.set('cursorId', after.id)
+  }
+  return `/client-errors?${params.toString()}`
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly code: string | null
@@ -992,6 +1021,7 @@ export const Permissions = {
   forms: ['forms.manage'],
   platform: ['platform.tenants.manage'],
   audit: ['audit.read'],
+  clientErrors: ['client_errors.read'],
 } as const
 
 // Iraq local date (Asia/Baghdad) as YYYY-MM-DD, the server's "today" for visit plans.
@@ -1274,6 +1304,7 @@ export class AdminApi {
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)
   mapCustomers = () => this.get<MapCustomer[]>('/customers/map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))
+  clientErrors = (stage?: string, after?: ClientError) => this.get<ClientError[]>(clientErrorsQuery(stage, after))
   regions = () => this.get<Region[]>('/regions')
   teams = () => this.get<Team[]>('/teams')
   createRegion = (name: string) => this.post('/regions', { name })
