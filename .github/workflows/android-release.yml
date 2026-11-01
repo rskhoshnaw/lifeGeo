@@ -92,17 +92,14 @@ jobs:
         mkdir -p "$out/native"
         map=$(find src/LifeDrop.Mobile -name 'mapping.txt' -type f | head -1)
         if [ -n "$map" ]; then cp "$map" "$out/mapping.txt"; echo "Mapping file: $map ($(du -h "$map" | cut -f1))"
-        else echo "::warning::No R8 mapping.txt was produced (R8 shrinking may be off in this build)."; fi
-        find src/LifeDrop.Mobile/obj/Release -type f -name '*.so' -path '*/lib/*' | while read -r lib; do
-          abi=$(basename "$(dirname "$lib")")
-          case "$abi" in
-            arm64-v8a|armeabi-v7a|x86|x86_64) mkdir -p "$out/native/$abi"; cp -n "$lib" "$out/native/$abi/" ;;
-          esac
-        done
-        if [ -n "$(find "$out/native" -name '*.so' | head -1)" ]; then
+        else echo "::warning::No R8 mapping.txt was produced (R8 shrinking is probably off, then there is nothing to deobfuscate and the Play warning can be ignored)."; fi
+        # The native libraries are inside the bundle (base/lib/<abi>/*.so); Play wants them as a zip with one folder per ABI.
+        unzip -q -o "${{ steps.aab.outputs.path }}" 'base/lib/*' -d "$RUNNER_TEMP/aab-libs" || true
+        if [ -d "$RUNNER_TEMP/aab-libs/base/lib" ]; then
+          cp -r "$RUNNER_TEMP/aab-libs/base/lib/." "$out/native/"
           (cd "$out/native" && zip -qr ../native-debug-symbols.zip .)
-          echo "Native symbols: $(find "$out/native" -name '*.so' | wc -l) libraries"
-        else echo "::warning::No native libraries found for debug symbols."; fi
+          echo "Native libraries: $(find "$out/native" -name '*.so' | wc -l)"
+        else echo "::warning::No native libraries found in the bundle."; fi
         ls -la "$out"
 
     - name: Keep mapping and symbols for one day
