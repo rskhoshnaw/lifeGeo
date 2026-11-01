@@ -39,7 +39,7 @@ public static partial class CompanyDirectory
     }
 
     /// <summary>Spellings people commonly type for a company, mapped to its real code.</summary>
-    private static readonly Dictionary<string, string> Aliases = new(StringComparer.Ordinal) { ["lifedrops"] = "lifedrop" };
+    private static readonly Dictionary<string, string> Aliases = new(StringComparer.Ordinal) { ["lifedrop"] = "lifedrops" };
 
     /// <summary>Trimmed, lower-case company code with known alternative spellings (for example "Lifedrops") replaced by the real code.</summary>
     public static string Normalize(string? code)
