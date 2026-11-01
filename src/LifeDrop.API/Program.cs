@@ -137,6 +137,9 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Customers.IDoctorImportStore, LifeDrop.Infrastructure.Customers.PostgresDoctorImportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.DoctorImport>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanGenerator>();
+        builder.Services.AddScoped<LifeDrop.Application.ClientErrors.IClientErrorStore, LifeDrop.Infrastructure.ClientErrors.PostgresClientErrorStore>();
+        builder.Services.AddScoped<LifeDrop.Application.ClientErrors.ClientErrorReports>();
+        builder.Services.AddScoped<LifeDrop.Application.ClientErrors.ClientErrorRetention>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.IPlanTemplateStore, LifeDrop.Infrastructure.Visits.PostgresPlanTemplateStore>();
         builder.Services.AddScoped<LifeDrop.Application.Visits.PlanTemplates>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerVisitWindows>();
@@ -780,6 +783,7 @@ public partial class Program
         LifeDrop.API.Endpoints.TargetEndpoints.MapTargetEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
+        LifeDrop.API.Endpoints.ClientErrorEndpoints.MapClientErrorEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);
         LifeDrop.API.Endpoints.RoleEndpoints.MapRoleEndpoints(app);
         LifeDrop.API.Endpoints.PriceVisibilityEndpoints.MapPriceVisibilityEndpoints(app);

@@ -154,7 +154,8 @@ public sealed record AuthResult<T>(
     T? Data = default,
     string? ErrorCode = null,
     string? ErrorMessage = null,
-    int? HttpStatusCode = null)
+    int? HttpStatusCode = null,
+    NetworkFailure? Failure = null)   // plan step 5.10: why a network error happened, for the admin's connection-error list
 {
     public bool IsSuccess => Status == AuthStatus.Success;
 
@@ -179,8 +180,8 @@ public sealed record AuthResult<T>(
     public static AuthResult<T> Forbidden(string? message = "Forbidden.") =>
         new(AuthStatus.Forbidden, ErrorMessage: message, HttpStatusCode: 403);
 
-    public static AuthResult<T> NetworkOrServerError(string message, int? statusCode = null) =>
-        new(AuthStatus.NetworkOrServerError, ErrorMessage: message, HttpStatusCode: statusCode);
+    public static AuthResult<T> NetworkOrServerError(string message, int? statusCode = null, NetworkFailure? failure = null) =>
+        new(AuthStatus.NetworkOrServerError, ErrorMessage: message, HttpStatusCode: statusCode, Failure: failure);
 
     public static AuthResult<T> LocalStateError(string message) =>
         new(AuthStatus.LocalStateError, ErrorMessage: message);

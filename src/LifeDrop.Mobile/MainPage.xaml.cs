@@ -127,6 +127,39 @@ public partial class MainPage : ContentPage
         LoginBtn.IsEnabled = !isBusy;
     }
 
+    // Connection errors (plan step 5.10): DNS, timeout and similar failures never reach the server, so they are kept on the phone and sent to the company's server when a later lookup works.
+    // The report holds the typed company code and e-mail, the device and app version; never the password.
+    private static ClientErrorOutbox ErrorOutbox { get; } = new(Path.Combine(FileSystem.AppDataDirectory, "client-errors.json"));
+
+    private void RecordError(string stage, NetworkFailure failure)
+    {
+        try
+        {
+            ErrorOutbox.Add(new PendingClientError(DateTimeOffset.UtcNow, stage, failure.Kind, failure.Type, failure.Message,
+                (TenantEntry.Text ?? "").Trim(), (EmailEntry.Text ?? "").Trim(), GetInstallId(), AppInfo.VersionString,
+                DeviceInfo.Platform == DevicePlatform.iOS ? "ios" : "android"));
+        }
+        catch (Exception)
+        {
+            // Reporting must never break sign-in.
+        }
+    }
+
+    private static async Task FlushErrorsAsync(string apiBaseUrl, string companyCode)
+    {
+        try
+        {
+            if (ErrorOutbox.Pending().Count == 0) return;
+            using var http = new HttpClient { BaseAddress = new Uri(apiBaseUrl), Timeout = TimeSpan.FromSeconds(8) };
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await ClientErrorSender.FlushAsync(http, ErrorOutbox, companyCode, cts.Token);
+        }
+        catch (Exception)
+        {
+            // Try again at the next sign-in.
+        }
+    }
+
     // Company code -> the company's own API address (plan step 4.2). Nothing about a company is built into the app: the bootstrap server
     // answers for the code, and the answer is kept on the phone. Changing to another company wipes the old company's session and offline data first.
     private async Task<(AuthApiClient? Client, ISecureCredentialStore? Store)> SetupServicesAsync(CancellationToken cancellationToken)
@@ -150,6 +183,7 @@ public partial class MainPage : ContentPage
         var lookup = await CompanyDirectory.ResolveAsync(lookupHttp, bootstrap, TenantEntry.Text, allowInsecure, cancellationToken);
         if (lookup.Status != CompanyLookupStatus.Found || lookup.Config is null)
         {
+            if (lookup.Status == CompanyLookupStatus.Unavailable && lookup.Failure is { } lookupFailure) RecordError("company_lookup", lookupFailure);
             StatusLabel.Text = lookup.Status switch
             {
                 CompanyLookupStatus.InvalidCode => Texts.Get("app.login.companyInvalid"),
@@ -162,6 +196,7 @@ public partial class MainPage : ContentPage
         }
 
         var config = lookup.Config;
+        await FlushErrorsAsync(config.ApiBaseUrl, config.TenantCode);
         if (CompanyDirectory.IsCompanyChange(Preferences.Get("CompanyCode", (string?)null), config.TenantCode))
         {
             await store.ClearAllAsync(cancellationToken);
@@ -225,15 +260,18 @@ public partial class MainPage : ContentPage
             }
             else
             {
+                if (result.Failure is { } failure) RecordError("device_register", failure);
                 StatusLabel.Text = Describe(result.Status);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
+            RecordError("device_register", NetworkFailure.Timeout(timeout));
             StatusLabel.Text = Texts.Get("app.timeout");
         }
-        catch
+        catch (Exception ex)
         {
+            RecordError("device_register", NetworkFailure.From(ex));
             StatusLabel.Text = Texts.Get("app.unexpected");
         }
         finally
@@ -273,15 +311,18 @@ public partial class MainPage : ContentPage
             }
             else
             {
+                if (result.Failure is { } failure) RecordError("login", failure);
                 StatusLabel.Text = Describe(result.Status);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
+            RecordError("login", NetworkFailure.Timeout(timeout));
             StatusLabel.Text = Texts.Get("app.timeout");
         }
-        catch
+        catch (Exception ex)
         {
+            RecordError("login", NetworkFailure.From(ex));
             StatusLabel.Text = Texts.Get("app.unexpected");
         }
         finally
