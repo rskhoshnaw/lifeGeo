@@ -32,13 +32,23 @@ public static partial class CompanyDirectory
     /// </summary>
     public static string? ServerFor(string? code, string? baseDomain, string? fallbackUrl)
     {
-        var c = (code ?? "").Trim().ToLowerInvariant();
+        var c = Normalize(code);
         var domain = (baseDomain ?? "").Trim().Trim('.').ToLowerInvariant();
         if (domain.Length > 0 && IsValidCode(c) && !c.Contains('_')) return "https://" + c + "." + domain;
         return fallbackUrl;
     }
 
-    public static bool IsValidCode(string? code) => code is not null && CodePattern().IsMatch(code.Trim().ToLowerInvariant());
+    /// <summary>Spellings people commonly type for a company, mapped to its real code.</summary>
+    private static readonly Dictionary<string, string> Aliases = new(StringComparer.Ordinal) { ["lifedrops"] = "lifedrop" };
+
+    /// <summary>Trimmed, lower-case company code with known alternative spellings (for example "Lifedrops") replaced by the real code.</summary>
+    public static string Normalize(string? code)
+    {
+        var c = (code ?? "").Trim().ToLowerInvariant();
+        return Aliases.TryGetValue(c, out var real) ? real : c;
+    }
+
+    public static bool IsValidCode(string? code) => code is not null && CodePattern().IsMatch(Normalize(code));
 
     public static async Task<CompanyLookup> ResolveAsync(HttpClient http, string? bootstrapUrl, string? code, bool allowInsecure, CancellationToken cancellationToken = default)
     {
@@ -49,7 +59,7 @@ public static partial class CompanyDirectory
 
         try
         {
-            var normalized = code!.Trim().ToLowerInvariant();
+            var normalized = Normalize(code);
             var address = new Uri(bootstrap, "/company-config/" + Uri.EscapeDataString(normalized));
             using var response = await http.GetAsync(address, cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound) return new CompanyLookup(CompanyLookupStatus.NotFound);

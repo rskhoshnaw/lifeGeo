@@ -122,4 +122,15 @@ public class CompanyDirectoryTests
     [InlineData("acme", "beta", true)]
     public void Company_change_is_detected_only_when_old_data_belongs_to_another_company(string? previous, string? next, bool expected) =>
         Assert.Equal(expected, CompanyDirectory.IsCompanyChange(previous, next));
+
+    [Theory]
+    [InlineData("lifedrop")]
+    [InlineData("Lifedrop")]
+    [InlineData("Lifedrops")]
+    [InlineData(" Lifedrop ")]
+    public void Normalize_AcceptsCommonSpellingsOfLifedrop(string typed)
+    {
+        Assert.Equal("lifedrop", CompanyDirectory.Normalize(typed));
+        Assert.Equal("https://lifedrop.example.com", CompanyDirectory.ServerFor(typed, "example.com", null));
+    }
 }
