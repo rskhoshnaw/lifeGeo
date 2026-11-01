@@ -768,7 +768,6 @@ public partial class Program
         LifeDrop.API.Endpoints.WholesalerEndpoints.MapWholesalerEndpoints(app);
         LifeDrop.API.Endpoints.MarketingEndpoints.MapMarketingEndpoints(app);
         LifeDrop.API.Endpoints.PlanTemplateEndpoints.MapPlanTemplateEndpoints(app);
-        LifeDrop.API.Endpoints.ClientErrorEndpoints.MapClientErrorEndpoints(app);
         LifeDrop.API.Endpoints.DoctorImportEndpoints.MapDoctorImportEndpoints(app);
         LifeDrop.API.Endpoints.PaymentEndpoints.MapPaymentEndpoints(app);
         LifeDrop.API.Endpoints.SampleEndpoints.MapSampleEndpoints(app);
@@ -784,6 +783,7 @@ public partial class Program
         LifeDrop.API.Endpoints.TargetEndpoints.MapTargetEndpoints(app);
         LifeDrop.API.Endpoints.SessionEndpoints.MapSessionEndpoints(app);
         LifeDrop.API.Endpoints.AuditEndpoints.MapAuditEndpoints(app);
+        LifeDrop.API.Endpoints.ClientErrorEndpoints.MapClientErrorEndpoints(app);
         LifeDrop.API.Endpoints.UserEndpoints.MapUserEndpoints(app);
         LifeDrop.API.Endpoints.RoleEndpoints.MapRoleEndpoints(app);
         LifeDrop.API.Endpoints.PriceVisibilityEndpoints.MapPriceVisibilityEndpoints(app);

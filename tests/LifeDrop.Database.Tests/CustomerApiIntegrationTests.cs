@@ -4412,7 +4412,9 @@ public class CustomerApiIntegrationTests
             // Company directory for the app (plan step 4.2): public facts only (name, API address, support phone).
             "GET /company-config/{code}",
             // Product pictures (plan step 4.40): fetched by an unguessable random key; a product picture is not private.
-            "GET /product-photos/{key}"
+            "GET /product-photos/{key}",
+            // App connection errors (plan step 5.10): the error happened before sign-in; rate limited, cleaned, stored only for an existing company.
+            "POST /client-errors"
         };
 
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
