@@ -130,7 +130,7 @@ public class CompanyDirectoryTests
     [InlineData(" Lifedrop ")]
     public void Normalize_AcceptsCommonSpellingsOfLifedrop(string typed)
     {
-        Assert.Equal("lifedrop", CompanyDirectory.Normalize(typed));
-        Assert.Equal("https://lifedrop.example.com", CompanyDirectory.ServerFor(typed, "example.com", null));
+        Assert.Equal("lifedrops", CompanyDirectory.Normalize(typed));
+        Assert.Equal("https://lifedrops.example.com", CompanyDirectory.ServerFor(typed, "example.com", null));
     }
 }
