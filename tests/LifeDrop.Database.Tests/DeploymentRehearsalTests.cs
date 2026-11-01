@@ -247,10 +247,14 @@ public class DeploymentRehearsalTests
                 }
                 var shiftStart = await AsDevice(HttpMethod.Post, "/shifts");
                 Assert.Equal(HttpStatusCode.Created, shiftStart.StatusCode);
-                var shiftId = (await shiftStart.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
+                var shiftJson = await shiftStart.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                var shiftId = shiftJson.GetProperty("id").GetGuid();
+                // The shift start is stamped by the database clock; take the point time from it (as the other shift tests do),
+                // not from this machine's clock, which can differ by tens of milliseconds (Docker/WSL) and make the point "older" than the shift.
+                var shiftStartedAt = shiftJson.GetProperty("startedAt").GetDateTimeOffset();
                 var uploaded = await AsDevice(HttpMethod.Post, $"/shifts/{shiftId}/points", new
                 {
-                    Points = new[] { new { ClientPointId = Guid.NewGuid(), Latitude = 36.19005, Longitude = 44.01005, AccuracyMeters = 9, CapturedAt = DateTimeOffset.UtcNow } }
+                    Points = new[] { new { ClientPointId = Guid.NewGuid(), Latitude = 36.19005, Longitude = 44.01005, AccuracyMeters = 9, CapturedAt = shiftStartedAt.AddSeconds(1) } }
                 });
                 Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
                 Assert.Equal(1, (await uploaded.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("accepted").GetInt32());

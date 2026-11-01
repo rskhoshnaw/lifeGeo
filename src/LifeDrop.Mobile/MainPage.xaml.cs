@@ -60,6 +60,14 @@ public partial class MainPage : ContentPage
     private static string Describe(AuthStatus status) =>
         status == AuthStatus.Success ? "" : Texts.Get("app.auth." + status);
 
+    // Technical reason (exception type/message) is shown in debug builds only; release users get the plain message.
+    private static string TechnicalDetail(string? detail) =>
+#if DEBUG
+        string.IsNullOrEmpty(detail) ? "" : "\n(" + detail + ")";
+#else
+        "";
+#endif
+
     // Called by MainActivity when the app is opened via a lifedrop:// deep link (plan step 4.7).
     public void ApplyJoinCode(string code) => TenantEntry.Text = code;
 
@@ -182,7 +190,7 @@ public partial class MainPage : ContentPage
                 CompanyLookupStatus.NotFound => Texts.Get("app.login.companyNotFound"),
                 CompanyLookupStatus.NotConfigured => Texts.Get("app.login.notConfigured"),
                 CompanyLookupStatus.InsecureAddress => Texts.Get("app.login.httpNotAllowed"),
-                _ => Texts.Get("app.login.companyUnavailable") + (string.IsNullOrEmpty(lookup.Detail) ? "" : "\n(" + lookup.Detail + ")"),
+                _ => Texts.Get("app.login.companyUnavailable") + TechnicalDetail(lookup.Detail),
             };
             return (null, null);
         }
@@ -232,7 +240,7 @@ public partial class MainPage : ContentPage
 
             var installId = GetInstallId();
             var req = new RegisterDeviceRequest(
-                TenantEntry.Text ?? "",
+                CompanyDirectory.Normalize(TenantEntry.Text),
                 EmailEntry.Text ?? "",
                 PasswordEntry.Text ?? "",
                 DeviceLabelEntry.Text ?? "",
@@ -288,7 +296,7 @@ public partial class MainPage : ContentPage
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
             var result = await coord.LoginAsync(
-                TenantEntry.Text ?? "",
+                CompanyDirectory.Normalize(TenantEntry.Text),
                 EmailEntry.Text ?? "",
                 PasswordEntry.Text ?? "",
                 cts.Token);
