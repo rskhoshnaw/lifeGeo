@@ -60,6 +60,6 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(screen.getByRole('button', { name: 'Signing in…' })).toBeDisabled()
     release(new Response(null, { status: 403 }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('This account can sign in only from its approved phone.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/approved phone\. Any field role on the account .* ask your manager to remove it\./)
   })
 })
