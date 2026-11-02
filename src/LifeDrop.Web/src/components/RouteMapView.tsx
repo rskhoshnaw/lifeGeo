@@ -3,20 +3,19 @@ import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type { RoutePoint, RouteStop, RouteVisitEvent } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 
-// Same OSM raster style as the live map (decision D12/D13).
-const style = {
-  version: 8 as const,
-  sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
-  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' }],
-}
+import { style } from './mapStyle.ts'
 
 type MapLibre = typeof import('maplibre-gl')
 
 // The route of one day (plan step 2.11): the line, the stops, the check-ins and check-outs, fake positions in red, and a marker at the point being played.
 // Popups use plain text only.
-export function RouteMapView({ points, stops, events, index }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number }) {
+// `focus` (a click on a stop or a visit in the lists below the map; seq changes at every click) flies to it, zooms in and opens its name. The + and − buttons zoom the map.
+export type RouteFocus = { kind: 'stop' | 'event'; index: number; seq: number }
+export function RouteMapView({ points, stops, events, index, focus = null }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number; focus?: RouteFocus | null }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
+  const stopMarkers = useRef<Marker[]>([])
+  const eventMarkers = useRef<Marker[]>([])
   const current = useRef<Marker | null>(null)
   const [loaded, setLoaded] = useState<{ lib: MapLibre; map: MapLibreMap } | null>(null)
 
@@ -26,6 +25,7 @@ export function RouteMapView({ points, stops, events, index }: { points: RoutePo
     void Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]).then(([lib]) => {
       if (disposed || !container.current) return
       map = new lib.Map({ container: container.current, style, center: [44.0, 36.19], zoom: 6 })
+      map.addControl(new lib.NavigationControl({ showCompass: false }), 'top-right')
       setLoaded({ lib, map })
     })
     return () => {
@@ -50,30 +50,50 @@ export function RouteMapView({ points, stops, events, index }: { points: RoutePo
       } else {
         map.addSource('route', { type: 'geojson', data: line })
         map.addSource('mocked', { type: 'geojson', data: mocked })
-        map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#2563eb', 'line-width': 3 } })
+        map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 8 } })
+        map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 5 } })
         map.addLayer({ id: 'mocked-points', type: 'circle', source: 'mocked', paint: { 'circle-color': '#dc2626', 'circle-radius': 6 } })
       }
     }
     if (map.loaded()) apply()
     else map.once('load', apply)
     const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
-    stops.forEach((s) =>
-      markers.current.push(new lib.Marker({ color: '#f59e0b' }).setLngLat([s.longitude, s.latitude]).setPopup(new lib.Popup().setText(`${time(s.from)}–${time(s.to)} ${s.customerName ?? ''}`)).addTo(map)),
-    )
-    events.forEach((e) =>
-      markers.current.push(
-        new lib.Marker({ color: e.accepted ? '#16a34a' : '#dc2626' })
-          .setLngLat([e.longitude, e.latitude])
-          .setPopup(new lib.Popup().setText(`${t(`web.route.event.${e.kind}`)} ${time(e.capturedAt)} ${e.customerName ?? ''}`))
-          .addTo(map),
-      ),
-    )
+    stopMarkers.current = stops.map((s) => {
+      const marker = new lib.Marker({ color: '#f59e0b' }).setLngLat([s.longitude, s.latitude]).setPopup(new lib.Popup().setText(`${time(s.from)}–${time(s.to)} ${s.customerName ?? ''}`)).addTo(map)
+      markers.current.push(marker)
+      return marker
+    })
+    eventMarkers.current = events.map((e) => {
+      const marker = new lib.Marker({ color: e.accepted ? '#16a34a' : '#dc2626' })
+        .setLngLat([e.longitude, e.latitude])
+        .setPopup(new lib.Popup().setText(`${t(`web.route.event.${e.kind}`)} ${time(e.capturedAt)} ${e.customerName ?? ''}`))
+        .addTo(map)
+      markers.current.push(marker)
+      return marker
+    })
+    // Where the day began and where it ended.
+    const first = points[0]
+    const last = points[points.length - 1]
+    if (first && last) {
+      markers.current.push(new lib.Marker({ color: '#0f766e', scale: 0.9 }).setLngLat([first.longitude, first.latitude]).setPopup(new lib.Popup().setText(`${t('web.route.start')} ${time(first.capturedAt)}`)).addTo(map))
+      markers.current.push(new lib.Marker({ color: '#111827', scale: 0.9 }).setLngLat([last.longitude, last.latitude]).setPopup(new lib.Popup().setText(`${t('web.route.end')} ${time(last.capturedAt)}`)).addTo(map))
+    }
     if (points.length > 0) {
       const bounds = new lib.LngLatBounds()
       points.forEach((p) => bounds.extend([p.longitude, p.latitude]))
       map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 })
     }
   }, [loaded, points, stops, events])
+
+  // A click on a stop or a visit in the lists: fly there and show its name.
+  useEffect(() => {
+    if (!loaded || !focus) return
+    const marker = (focus.kind === 'stop' ? stopMarkers.current : eventMarkers.current)[focus.index]
+    if (!marker) return
+    loaded.map.flyTo({ center: marker.getLngLat(), zoom: Math.max(loaded.map.getZoom(), 17) })
+    if (!marker.getPopup()?.isOpen()) marker.togglePopup()
+    container.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [loaded, focus])
 
   // The marker of the point being played.
   useEffect(() => {

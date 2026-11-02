@@ -6,6 +6,8 @@
 	<!-- Check-in / check-out position (plan step 1.12); foreground only. -->
 	<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+	<!-- Tracking while the app is closed or the system restarted the service (plan step 5.15): "Allow all the time". The app explains why before it asks. -->
+	<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 	<uses-feature android:name="android.hardware.location.gps" android:required="false" />
 	<!-- Shift tracking in a foreground service with a visible notification (plan step 1.13). -->
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

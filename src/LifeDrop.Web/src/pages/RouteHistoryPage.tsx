@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AdminApi, iraqToday, type TrackableUser } from '../api/admin.ts'
 import { formatDuration, nextIndex } from '../api/geo.ts'
 import { useLoad } from '../components/useLoad.ts'
-import { RouteMapView } from '../components/RouteMapView.tsx'
+import { RouteMapView, type RouteFocus } from '../components/RouteMapView.tsx'
 import { RouteCalendar } from '../components/RouteCalendar.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { errorMessage, type RouteDay, type RouteHistory } from '../api/admin.ts'
@@ -17,6 +17,7 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
   const users = useLoad(useCallback(() => admin.trackingUsers(), [admin]))
   const [user, setUser] = useState('')
   const [date, setDate] = useState(iraqToday())
+  const [focus, setFocus] = useState<RouteFocus | null>(null)
   const [month, setMonth] = useState(`${iraqToday().slice(0, 7)}-01`)
   const [days, setDays] = useState<RouteDay[]>([])
   const [route, setRoute] = useState<RouteHistory | null>(null)
@@ -90,7 +91,8 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
       {route && count === 0 && <p className="text-slate-600">{t('web.route.nopoints')}</p>}
       {route && count > 0 && (
         <>
-          <RouteMapView points={route.points} stops={route.stops} events={route.events} index={index} />
+          <RouteMapView points={route.points} stops={route.stops} events={route.events} index={index} focus={focus} />
+          <p className="text-xs text-slate-600">{t('web.route.legend')}</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <button className="rounded border px-3 py-1" onClick={() => (index >= count - 1 ? (setIndex(0), setPlaying(true)) : setPlaying(!playing))}>
               {playing ? t('web.route.pause') : t('web.route.play')}
@@ -106,10 +108,12 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
             <div>
               <h3 className="font-medium">{t('web.route.stops')}</h3>
               <ul className="text-sm">
-                {route.stops.map((s) => (
+                {route.stops.map((s, i) => (
                   <li key={s.from}>
-                    {t('web.route.stop', { from: minutes.format(new Date(s.from)), to: minutes.format(new Date(s.to)), duration: formatDuration(s.seconds) })}
-                    {s.customerName ? ` · ${t('web.route.nearCustomer', { customer: s.customerName, meters: s.customerDistanceMeters ?? 0 })}` : ''}
+                    <button className="text-start underline" title={t('web.route.showOnMap')} onClick={() => setFocus({ kind: 'stop', index: i, seq: (focus?.seq ?? 0) + 1 })}>
+                      {t('web.route.stop', { from: minutes.format(new Date(s.from)), to: minutes.format(new Date(s.to)), duration: formatDuration(s.seconds) })}
+                      {s.customerName ? ` · ${t('web.route.nearCustomer', { customer: s.customerName, meters: s.customerDistanceMeters ?? 0 })}` : ''}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -117,10 +121,12 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
             <div>
               <h3 className="font-medium">{t('web.route.events')}</h3>
               <ul className="text-sm">
-                {route.events.map((e) => (
+                {route.events.map((e, i) => (
                   <li key={`${e.kind}-${e.capturedAt}`}>
-                    {minutes.format(new Date(e.capturedAt))} · {t(`web.route.event.${e.kind}` as TextKey)} · {e.customerName ?? ''}
-                    {!e.accepted ? ` · ${t('web.route.refused', { reason: e.rejectionReason ?? '' })}` : ''}
+                    <button className="text-start underline" title={t('web.route.showOnMap')} onClick={() => setFocus({ kind: 'event', index: i, seq: (focus?.seq ?? 0) + 1 })}>
+                      {minutes.format(new Date(e.capturedAt))} · {t(`web.route.event.${e.kind}` as TextKey)} · {e.customerName ?? ''}
+                      {!e.accepted ? ` · ${t('web.route.refused', { reason: e.rejectionReason ?? '' })}` : ''}
+                    </button>
                   </li>
                 ))}
               </ul>

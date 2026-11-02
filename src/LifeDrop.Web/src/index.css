@@ -311,3 +311,21 @@
 .tv-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   background-size: 160%;
 }
+
+/* Visible scroll bars: a TV or kiosk browser hides the thin overlay bars, and the page looked as if it could not scroll. */
+html {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 3px solid #e2e8f0;
+  border-radius: 8px;
+}

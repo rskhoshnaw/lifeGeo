@@ -6,8 +6,11 @@ import { iraqToday, type Me, type RouteHistory, type RoutePoint } from '../api/a
 
 // WebGL is not available in jsdom; the map views are replaced by a list of what they would draw.
 vi.mock('../components/RouteMapView.tsx', () => ({
-  RouteMapView: ({ points, stops, events, index }: { points: RoutePoint[]; stops: unknown[]; events: unknown[]; index: number }) => (
-    <p aria-label="Route map">{`${points.length} points, ${stops.length} stops, ${events.length} events, at ${index}`}</p>
+  RouteMapView: ({ points, stops, events, index, focus }: { points: RoutePoint[]; stops: unknown[]; events: unknown[]; index: number; focus?: { kind: string; index: number; seq: number } | null }) => (
+    <>
+      <p aria-label="Route map">{`${points.length} points, ${stops.length} stops, ${events.length} events, at ${index}`}</p>
+      <p aria-label="Route focus">{focus ? `${focus.kind} ${focus.index} #${focus.seq}` : 'none'}</p>
+    </>
   ),
 }))
 vi.mock('../components/LiveMapView.tsx', () => ({ LiveMapView: () => <p /> }))
@@ -58,6 +61,19 @@ describe('route history', () => {
     expect(await screen.findByText(/Point 3 of 4/)).toBeInTheDocument()
     expect(screen.getByText('fake position')).toBeInTheDocument()
     expect(screen.getByLabelText('Route map')).toHaveTextContent('at 2')
+  })
+
+  it('a click on a stop or a visit asks the map to show it', async () => {
+    const { api } = serve(manager, route())
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Route history' }))
+    await user.selectOptions(await screen.findByLabelText('User'), 'u1')
+    expect(await screen.findByLabelText('Route focus')).toHaveTextContent('none')
+    await user.click(screen.getByText(/near Shifa \(12 m\)/))
+    expect(screen.getByLabelText('Route focus')).toHaveTextContent('stop 0 #1')
+    await user.click(screen.getByText(/Check-in · Shifa/))
+    expect(screen.getByLabelText('Route focus')).toHaveTextContent('event 0 #2')
   })
 
   it('plays the route point by point and stops at the end', async () => {

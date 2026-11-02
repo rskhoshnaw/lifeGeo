@@ -35,8 +35,9 @@ export function TvPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const showMap = can(me, ...Permissions.liveMap)
   const [view, setView] = useState<'totals' | 'map'>(showTotals ? 'totals' : 'map')
   useStayAwake()
+  // The map view fills the screen under the title, so a TV (whose browser often shows no scroll bar) needs no scrolling; the totals view scrolls with a visible bar (index.css).
   return (
-    <section className="space-y-6 p-8">
+    <section className={view === 'map' ? 'flex h-[calc(100vh-3.5rem)] flex-col gap-3 p-4' : 'space-y-6 p-8'}>
       <div className="flex flex-wrap items-center gap-4">
         <h2 className="text-3xl font-semibold">{t(view === 'map' ? 'web.tv.viewMap' : 'web.tv.title')}</h2>
         {showTotals && showMap && (
@@ -81,14 +82,14 @@ function TvMap({ admin }: { admin: AdminApi }) {
   const list = entries ?? []
   const anyPrecise = list.some((e) => e.precise)
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-4 text-lg text-slate-700">
         <span>{t('web.tv.mapNote')}</span>
         <span>{t('web.tv.liveOf', { live: list.filter((e) => e.isLive).length, total: list.length })}</span>
         {updated && <span>{t('web.tv.updated', { time: updated.toLocaleTimeString('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' }) })}</span>}
       </div>
       {failed && <p role="alert" className="text-lg text-red-700">{t('web.error.network')}</p>}
-      {entries && anyPrecise && <div className="h-[70vh]"><LiveMapView entries={list} large /></div>}
+      {entries && anyPrecise && <div className="min-h-0 flex-1"><LiveMapView entries={list} large /></div>}
       {entries && !anyPrecise && list.length === 0 && <p className="text-xl text-slate-600">{t('web.map.nobody')}</p>}
       {entries && !anyPrecise && list.length > 0 && <p className="text-xl text-slate-600">{t('web.map.statusOnly')}</p>}
     </div>

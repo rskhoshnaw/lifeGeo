@@ -215,11 +215,31 @@ public partial class HomePage : ContentPage
         ShiftDetailLabel.IsVisible = true;
     }
 
-    private static async Task<bool> EnsureTrackingPermissionsAsync()
+    // "Allow all the time" (plan step 5.15): without it the system gives no position to a tracking service it restarted in the background (Android) or to an app it closed (iPhone),
+    // and the map turns grey. The user is told why first, at most once a day; saying no does not stop the shift.
+    private async Task AskAlwaysLocationAsync()
+    {
+        try
+        {
+            if (await Permissions.CheckStatusAsync<Permissions.LocationAlways>() == PermissionStatus.Granted) return;
+            var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            if (Preferences.Get("AlwaysAskedOn", "") == today) return;
+            Preferences.Set("AlwaysAskedOn", today);
+            if (!await DisplayAlertAsync(Texts.Get("app.always.title"), Texts.Get("app.always.text"), Texts.Get("app.always.allow"), Texts.Get("app.cancel"))) return;
+            await Permissions.RequestAsync<Permissions.LocationAlways>();
+        }
+        catch (Exception)
+        {
+            // The permission is an improvement; tracking works without it while the app is open.
+        }
+    }
+
+    private async Task<bool> EnsureTrackingPermissionsAsync()
     {
         var location = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
         if (location != PermissionStatus.Granted) location = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
         if (location != PermissionStatus.Granted) return false;
+        await AskAlwaysLocationAsync();
 #if ANDROID
         // Android 13+: the tracking notification needs this; tracking itself works without it.
         if (OperatingSystem.IsAndroidVersionAtLeast(33) &&

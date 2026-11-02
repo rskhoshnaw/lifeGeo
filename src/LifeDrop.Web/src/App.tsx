@@ -142,6 +142,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       email={account.email}
       company={account.tenantCode}
       onSignOut={() => void api.logout()}
+      kiosk={me ? isTvOnly(me) : false}
     >
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
       {tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}

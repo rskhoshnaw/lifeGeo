@@ -44,5 +44,6 @@ describe('TV screen account', () => {
     expect(await screen.findByRole('list', { name: 'Map markers' })).toHaveTextContent('rep-a@t1')
     expect(screen.queryByRole('button', { name: 'Totals' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Full screen' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'LifeDrop' })).not.toBeInTheDocument()   // a screen account has no side menu
   })
 })
