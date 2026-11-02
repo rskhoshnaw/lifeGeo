@@ -59,3 +59,22 @@ export function registerMapProtocol(lib: { addProtocol: (name: string, handler: 
   protocol = new Protocol()
   lib.addProtocol('pmtiles', protocol.tile as never)
 }
+
+let prepared = false
+
+// Loads MapLibre for a map (plan step 5.16) and gives it its worker. MapLibre 6 asks for `maplibre-gl-worker.mjs` next to the page; the build does not put the file there, the
+// server answered with the home page and the browser refused it ("blocked"), so vector maps (and any map layer drawn from data) could not work. The worker is built with the app
+// instead (`?worker&url`, which also brings the files it imports) and handed over here, once.
+export async function loadMapLibre() {
+  const [lib, worker] = await Promise.all([
+    import('maplibre-gl'),
+    import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
+    import('maplibre-gl/dist/maplibre-gl.css'),
+  ])
+  if (!prepared) {
+    prepared = true
+    lib.setWorkerUrl(worker.default)
+    registerMapProtocol(lib)
+  }
+  return lib
+}
