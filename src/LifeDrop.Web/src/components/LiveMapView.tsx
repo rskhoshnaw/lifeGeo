@@ -23,9 +23,12 @@ type MapLibre = typeof import('maplibre-gl')
 
 // Markers for entries with a position: green when live, grey when the last point is older than 5 minutes.
 // Popups use plain text only (no HTML from the server).
-export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry[]; customers?: MapCustomer[] }) {
+// Zoom buttons (+ and −) are on the map; with `large` (the TV screen) the map fills its parent and the buttons are big enough for a remote or a touch screen.
+// The map frames all people only until someone moves or zooms it: the 30-second refresh must not undo the zoom the user chose.
+export function LiveMapView({ entries, customers = [], large = false }: { entries: LiveMapEntry[]; customers?: MapCustomer[]; large?: boolean }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
+  const userMoved = useRef(false)
   const [loaded, setLoaded] = useState<{ lib: MapLibre; map: MapLibreMap } | null>(null)
 
   useEffect(() => {
@@ -34,6 +37,10 @@ export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry
     void Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]).then(([lib]) => {
       if (disposed || !container.current) return
       map = new lib.Map({ container: container.current, style, center: [44.0, 36.19], zoom: 6 })
+      map.addControl(new lib.NavigationControl({ showCompass: false }), 'top-right')
+      map.on('movestart', (e) => {
+        if ((e as { originalEvent?: unknown }).originalEvent) userMoved.current = true   // a drag, wheel, touch or the + / − buttons (not our own fitBounds)
+      })
       setLoaded({ lib, map })
     })
     return () => {
@@ -53,10 +60,10 @@ export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry
         .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.deviceLabel ? ` · ${e.deviceLabel}` : ''}${e.isLive ? '' : t('web.map.notLive')}`))
         .addTo(map),
     )
-    if (located.length > 0) {
+    if (located.length > 0 && !userMoved.current) {
       const bounds = new lib.LngLatBounds()
       located.forEach((e) => bounds.extend([e.longitude!, e.latitude!]))
-      map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 })
+      map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 })
     }
   }, [loaded, entries])
 
@@ -101,5 +108,5 @@ export function LiveMapView({ entries, customers = [] }: { entries: LiveMapEntry
     else map.once('load', apply)
   }, [loaded, customers])
 
-  return <div ref={container} className="h-96 w-full rounded border" aria-label={t('web.map.title')} />
+  return <div ref={container} className={`${large ? 'h-full min-h-96 tv-map' : 'h-96'} w-full rounded border`} aria-label={t('web.map.title')} />
 }

@@ -12,25 +12,34 @@ using System.Threading.Tasks;
 
 namespace LifeDrop.Mobile;
 
-// Foreground service that records the position about every 3 minutes while a shift is on (plan step 1.13, PRD §6.2,
-// decision D1). A visible notification says tracking is active. Points are queued in the shared ShiftTracker and
-// uploaded every 3 minutes. The service stops itself when no shift is on.
+// Foreground service that records the position about every minute while a shift is on (plan step 1.13, PRD §6.2,
+// decision D1; every minute since step 5.12). A visible notification says tracking is active. Points are queued in the shared ShiftTracker and
+// uploaded every minute. The service stops itself when no shift is on.
 [Service(Exported = false, ForegroundServiceType = ForegroundService.TypeLocation)]
 public sealed class TrackingService : Service, ILocationListener
 {
-    public const long IntervalMilliseconds = 180_000;   // owner decision 2026-10-07: fewer fixes, less battery
+    public const long IntervalMilliseconds = 60_000;   // owner request 2026-11-02: a fresher map (was 180 s, decision 2026-10-07)
     private const int NotificationId = 1013;
     private const string ChannelId = "lifedrop_tracking";
-    private static readonly TimeSpan UploadEvery = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan UploadEvery = TimeSpan.FromMinutes(1);
 
     private LocationManager? _locations;
     private Timer? _uploadTimer;
+    private readonly FixQuality _quality = new();   // drops rough fixes while a good one is recent (step 5.12)
 
+    // Android 12+ refuses to start a foreground service from the background, and refuses a location service without the location permission; both used to close the app.
     public static void Start(Context context)
     {
-        var intent = new Intent(context, typeof(TrackingService));
-        if (OperatingSystem.IsAndroidVersionAtLeast(26)) context.StartForegroundService(intent);
-        else context.StartService(intent);
+        try
+        {
+            var intent = new Intent(context, typeof(TrackingService));
+            if (OperatingSystem.IsAndroidVersionAtLeast(26)) context.StartForegroundService(intent);
+            else context.StartService(intent);
+        }
+        catch (Exception e) when (e is Java.Lang.SecurityException or Java.Lang.IllegalStateException)
+        {
+            CrashGuard.Record(e);   // tracking could not start now; the home page tries again when it opens
+        }
     }
 
     public static void Stop(Context context) => context.StopService(new Intent(context, typeof(TrackingService)));
@@ -40,10 +49,21 @@ public sealed class TrackingService : Service, ILocationListener
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
         AppLanguage.Load(); // the service can start before the app screen
-        var notification = BuildNotification();
-        if (OperatingSystem.IsAndroidVersionAtLeast(29)) StartForeground(NotificationId, notification, ForegroundService.TypeLocation);
-        else StartForeground(NotificationId, notification);
+        try
+        {
+            var notification = BuildNotification();
+            if (OperatingSystem.IsAndroidVersionAtLeast(29)) StartForeground(NotificationId, notification, ForegroundService.TypeLocation);
+            else StartForeground(NotificationId, notification);
+        }
+        catch (Exception e) when (e is Java.Lang.SecurityException or Java.Lang.IllegalStateException)
+        {
+            // No location permission, or the system does not allow a foreground service right now: stop quietly instead of closing the app.
+            CrashGuard.Record(e);
+            StopSelf();
+            return StartCommandResult.NotSticky;
+        }
 
+        _quality.Reset();
         var tracker = TrackingHost.GetOrCreate();
         if (tracker is null)
         {
@@ -77,8 +97,10 @@ public sealed class TrackingService : Service, ILocationListener
 #pragma warning disable CA1422 // IsFromMockProvider is the only flag before Android 12
         var mocked = OperatingSystem.IsAndroidVersionAtLeast(31) ? location.Mock : location.IsFromMockProvider;
 #pragma warning restore CA1422
-        TrackingHost.Tracker?.AddFix(location.Latitude, location.Longitude, location.HasAccuracy ? location.Accuracy : 9999,
-            DateTimeOffset.FromUnixTimeMilliseconds(location.Time), mocked);
+        var accuracy = location.HasAccuracy ? location.Accuracy : 9999;
+        var capturedAt = DateTimeOffset.FromUnixTimeMilliseconds(location.Time);
+        if (!_quality.Keep(accuracy, capturedAt)) return;
+        TrackingHost.Tracker?.AddFix(location.Latitude, location.Longitude, accuracy, capturedAt, mocked);
     }
 
     public void OnProviderDisabled(string provider) { }

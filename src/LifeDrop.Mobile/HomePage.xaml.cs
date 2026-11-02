@@ -110,6 +110,7 @@ public partial class HomePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _ = CrashGuard.FlushAsync();   // crash reports of an earlier run go to the company's server
         RenderPending();
         _ = RefreshPermissionsAsync();
         // Continue a shift that is still open on the server (app restarted).

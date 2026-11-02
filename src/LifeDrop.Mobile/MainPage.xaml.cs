@@ -131,7 +131,7 @@ public partial class MainPage : ContentPage
 
     // Connection errors (plan step 5.10): DNS, timeout and similar failures never reach the server, so they are kept on the phone and sent to the company's server when a later lookup works.
     // The report holds the typed company code and e-mail, the device and app version; never the password.
-    private static ClientErrorOutbox ErrorOutbox { get; } = new(Path.Combine(FileSystem.AppDataDirectory, "client-errors.json"));
+    private static ClientErrorOutbox ErrorOutbox => CrashGuard.Outbox;   // shared with the crash reports (step 5.12)
 
     private void RecordError(string stage, NetworkFailure failure)
     {
@@ -192,7 +192,12 @@ public partial class MainPage : ContentPage
                 CompanyLookupStatus.NotFound => Texts.Get("app.login.companyNotFound"),
                 CompanyLookupStatus.NotConfigured => Texts.Get("app.login.notConfigured"),
                 CompanyLookupStatus.InsecureAddress => Texts.Get("app.login.httpNotAllowed"),
-                _ => Texts.Get("app.login.companyUnavailable") + TechnicalDetail(lookup.Detail),
+                _ => Texts.Get(lookup.Failure?.Kind switch
+                {
+                    "dns" => "app.login.companyDns",
+                    "timeout" => "app.login.companyTimeout",
+                    _ => "app.login.companyUnavailable",
+                }) + TechnicalDetail(lookup.Detail),
             };
             return (null, null);
         }
