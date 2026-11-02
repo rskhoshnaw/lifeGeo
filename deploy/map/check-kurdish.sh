@@ -25,4 +25,6 @@ PY
   count=$(pm tile "$path" "$zoom" "$x" "$y" 2>/dev/null | { gunzip -c 2>/dev/null || cat; } | grep -a -c 'name:ckb' || true)
   echo "$1 (tile $zoom/$x/$y): lines with name:ckb = $count"
 done
-echo "0 everywhere means the map has no Kurdish names: labels fall back to English. Then fix the names in OpenStreetMap (name:ckb) or choose another build."
+echo "name:ckb = 0 everywhere is normal for the Protomaps build (it keeps the names of a fixed list of languages, Kurdish is not on it). The panel then shows the local name (the OpenStreetMap name tag): Kurdish in Kurdistan, Arabic elsewhere."
+echo "Languages that are in the map (Erbil tile):"
+pm tile "$path" "$zoom" 637 401 2>/dev/null | { gunzip -c 2>/dev/null || cat; } | grep -a -o 'name:[A-Za-z_-]*' | sort | uniq -c | sort -rn | head -40 || true

@@ -1,4 +1,4 @@
-import type { StyleSpecification } from 'maplibre-gl'
+import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { currentLang } from '../i18n.ts'
@@ -35,8 +35,20 @@ export function mapStyle(): StyleSpecification {
     glyphs: import.meta.env.VITE_MAP_GLYPHS_URL || glyphs,
     sprite: import.meta.env.VITE_MAP_SPRITE_URL || sprite,
     sources: { protomaps: { type: 'vector', url: `pmtiles://${address}`, attribution: '© OpenStreetMap contributors' } },
-    layers: layers('protomaps', namedFlavor('light'), { lang: currentLang() }),
+    layers: labelLayers(currentLang()),
   }
+}
+
+// Central Kurdish: the Protomaps build keeps the names of a fixed list of languages and Kurdish is not on it, so the English name would show. In Kurdistan the local name (the OpenStreetMap
+// `name` tag) is Kurdish, in the rest of Iraq Arabic: the label is name:ckb when the tile has it, else the local name, else the English one. Other languages use the library's own rules.
+function labelLayers(lang: string): LayerSpecification[] {
+  if (lang !== 'ckb') return layers('protomaps', namedFlavor('light'), { lang })
+  const field = ['coalesce', ['get', 'name:ckb'], ['get', 'name'], ['get', 'name:en']]
+  return layers('protomaps', namedFlavor('light'), { lang: 'en' }).map((layer) =>
+    layer.type === 'symbol' && layer.layout?.['text-field'] !== undefined && JSON.stringify(layer.layout['text-field']).includes('"name')
+      ? { ...layer, layout: { ...layer.layout, 'text-field': field } }
+      : layer,
+  ) as LayerSpecification[]
 }
 
 let protocol: Protocol | null = null

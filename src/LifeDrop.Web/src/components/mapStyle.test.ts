@@ -28,6 +28,9 @@ describe('map style', () => {
     expect(style.glyphs).toContain('{fontstack}')
     const text = JSON.stringify(style.layers)
     expect(text).toContain('name:ckb')
+    // Kurdish falls back to the local name (Kurdish in Kurdistan), then English, never straight to English.
+    const place = (style.layers as { id: string; layout?: Record<string, unknown> }[]).find((l) => l.id === 'places_locality')
+    expect(place?.layout?.['text-field']).toEqual(['coalesce', ['get', 'name:ckb'], ['get', 'name'], ['get', 'name:en']])
   })
 
   it('follows another language too', async () => {
