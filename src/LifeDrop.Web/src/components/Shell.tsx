@@ -17,7 +17,8 @@ export function Logo({ className = 'size-7' }: { className?: string }) {
 }
 
 // The frame of the signed-in panel: a grouped menu on the side (a drawer on phones), a quiet top bar with notifications, language and the user, and the page.
-export function Shell({ items, current, onSelect, notifications, email, company, onSignOut, children }: {
+// `kiosk` (an account that is only a TV screen): no side menu, the page gets the whole width.
+export function Shell({ items, current, onSelect, notifications, email, company, onSignOut, kiosk = false, children }: {
   items: NavItem[]
   current: string
   onSelect: (id: string) => void
@@ -25,6 +26,7 @@ export function Shell({ items, current, onSelect, notifications, email, company,
   email: string
   company: string
   onSignOut: () => void
+  kiosk?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -44,9 +46,9 @@ export function Shell({ items, current, onSelect, notifications, email, company,
   }
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
-      {open && <div className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" onClick={() => setOpen(false)} aria-hidden="true" />}
-      <aside
+    <div className={`min-h-screen ${kiosk ? '' : 'lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]'}`}>
+      {open && !kiosk && <div className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" onClick={() => setOpen(false)} aria-hidden="true" />}
+      {!kiosk && <aside
         className={`fixed inset-y-0 start-0 z-40 flex w-[15.5rem] flex-col border-e bg-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen ${
           open ? 'translate-x-0' : 'max-lg:ltr:-translate-x-full max-lg:rtl:translate-x-full'
         }`}
@@ -87,11 +89,11 @@ export function Shell({ items, current, onSelect, notifications, email, company,
           <p className="truncate">{company}</p>
           <Credit className="mt-2 leading-relaxed" />
         </div>
-      </aside>
+      </aside>}
 
       <div className="min-w-0">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-slate-50/90 px-4 backdrop-blur lg:px-6">
-          <button className="rounded p-1.5 text-slate-700 hover:bg-slate-100 lg:hidden" aria-label={t('web.nav.open')} onClick={() => setOpen(true)}>
+          <button className={`rounded p-1.5 text-slate-700 hover:bg-slate-100 lg:hidden ${kiosk ? 'hidden' : ''}`} aria-label={t('web.nav.open')} onClick={() => setOpen(true)}>
             <Menu className="size-5" aria-hidden="true" />
           </button>
           <div className="ms-auto flex items-center gap-2">

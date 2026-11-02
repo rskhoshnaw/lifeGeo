@@ -43,9 +43,28 @@ public static class IosTrackingService
                 _lastAccepted = DateTimeOffset.MinValue;
                 Quality.Reset();
                 _manager.StartUpdatingLocation();
+                // With "Always" permission iOS starts the app again after it was closed (by the system or by swiping it away) when the phone moves a few hundred metres; the app
+                // then continues the shift (AppDelegate -> ResumeAfterRelaunchAsync). Without the permission this does nothing (plan step 5.15).
+                if (CLLocationManager.SignificantLocationChangeMonitoringAvailable) _manager.StartMonitoringSignificantLocationChanges();
                 _uploadTimer ??= new Timer(_ => _ = TrackingHost.SyncQuietlyAsync(), null, UploadEvery, UploadEvery);
             }
         });
+    }
+
+    // The system started the app again because the phone moved (see Start): continue the open shift without waiting for the user to open the app.
+    public static async Task ResumeAfterRelaunchAsync()
+    {
+        try
+        {
+            var tracker = TrackingHost.GetOrCreate();
+            if (tracker is null) return;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            if (await tracker.ResumeAsync(cts.Token) == ShiftCallStatus.Success && tracker.State == ShiftState.On) Start();
+        }
+        catch (Exception)
+        {
+            // The home page tries again when the user opens the app.
+        }
     }
 
     public static void Stop()
@@ -55,6 +74,7 @@ public static class IosTrackingService
             lock (Gate)
             {
                 _manager?.StopUpdatingLocation();
+                _manager?.StopMonitoringSignificantLocationChanges();
                 _uploadTimer?.Dispose();
                 _uploadTimer = null;
             }
