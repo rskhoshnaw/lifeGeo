@@ -57,8 +57,10 @@ public partial class MainPage : ContentPage
     private async void OnLanguageClicked(object? sender, EventArgs e) => await AppLanguage.ChooseAsync(this, () => new MainPage());
 
     // Login and registration results in the user's language.
-    private static string Describe(AuthStatus status) =>
-        status == AuthStatus.Success ? "" : Texts.Get("app.auth." + status);
+    // For the local-state error a short reason code (no personal data) is added so a failure can be told apart without a debugger.
+    private static string Describe(AuthStatus status, string? errorCode = null) =>
+        status == AuthStatus.Success ? "" :
+        Texts.Get("app.auth." + status) + (status == AuthStatus.LocalStateError && !string.IsNullOrEmpty(errorCode) ? "\n[" + errorCode + "]" : "");
 
     // Technical reason (exception type/message) is shown in debug builds only; release users get the plain message.
     private static string TechnicalDetail(string? detail) =>
@@ -261,7 +263,7 @@ public partial class MainPage : ContentPage
             else
             {
                 if (result.Failure is { } failure) RecordError("device_register", failure);
-                StatusLabel.Text = Describe(result.Status);
+                StatusLabel.Text = Describe(result.Status, result.ErrorCode);
             }
         }
         catch (OperationCanceledException timeout)
@@ -312,7 +314,7 @@ public partial class MainPage : ContentPage
             else
             {
                 if (result.Failure is { } failure) RecordError("login", failure);
-                StatusLabel.Text = Describe(result.Status);
+                StatusLabel.Text = Describe(result.Status, result.ErrorCode);
             }
         }
         catch (OperationCanceledException timeout)

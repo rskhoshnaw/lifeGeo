@@ -78,6 +78,30 @@ public class LoginCoordinatorTests
     }
 
     [Fact]
+    public async Task LoginAsync_DeviceRegisteredUnderAnAliasSpelling_StillMatchesTheCompany()
+    {
+        var apiClient = new MockAuthApiClient();
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "Lifedrops", "user@test.com") };
+        var coordinator = new LoginCoordinator(apiClient, store);
+
+        var result = await coordinator.LoginAsync("lifedrop", "user@test.com", "password");
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+    }
+
+    [Fact]
+    public async Task LoginAsync_DeviceRegisteredForAnotherCompany_IsALocalStateError()
+    {
+        var apiClient = new MockAuthApiClient();
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "othercompany", "user@test.com") };
+        var coordinator = new LoginCoordinator(apiClient, store);
+
+        var result = await coordinator.LoginAsync("lifedrop", "user@test.com", "password");
+
+        Assert.Equal(AuthStatus.LocalStateError, result.Status);
+    }
+
+    [Fact]
     public async Task LoginAsync_BoundSuccess_WhenValidDeviceRegistered()
     {
         var apiClient = new MockAuthApiClient();
