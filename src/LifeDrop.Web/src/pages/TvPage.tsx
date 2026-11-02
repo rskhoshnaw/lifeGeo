@@ -88,7 +88,7 @@ function TvMap({ admin }: { admin: AdminApi }) {
         {updated && <span>{t('web.tv.updated', { time: updated.toLocaleTimeString('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' }) })}</span>}
       </div>
       {failed && <p role="alert" className="text-lg text-red-700">{t('web.error.network')}</p>}
-      {entries && anyPrecise && <div className="h-[70vh]"><LiveMapView entries={list} /></div>}
+      {entries && anyPrecise && <div className="h-[70vh]"><LiveMapView entries={list} large /></div>}
       {entries && !anyPrecise && list.length === 0 && <p className="text-xl text-slate-600">{t('web.map.nobody')}</p>}
       {entries && !anyPrecise && list.length > 0 && <p className="text-xl text-slate-600">{t('web.map.statusOnly')}</p>}
     </div>

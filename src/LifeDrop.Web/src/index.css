@@ -302,3 +302,12 @@
 @media print {
   nav, aside, header { display: none !important; }
 }
+
+/* Zoom buttons of the TV map: large enough for a remote or a touch screen. */
+.tv-map .maplibregl-ctrl-group button {
+  width: 56px;
+  height: 56px;
+}
+.tv-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  background-size: 160%;
+}

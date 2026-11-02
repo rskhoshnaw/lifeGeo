@@ -1,6 +1,6 @@
 # Real-device tracking test (plan step 1.13)
 
-Target (decision D1 as changed by the owner on 2026-10-07): while moving, at least **90 %** of the expected points (one per 3 minutes) arrive and
+Target (decision D1 as changed by the owner on 2026-10-07): while moving, at least **90 %** of the expected points (one per minute since step 5.12; the server still counts coverage against one per 3 minutes, so coverage cannot fall below the old figure) arrive and
 no gap is longer than **15 minutes**. Battery use is measured on the same run.
 
 ## Setup
