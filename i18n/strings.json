@@ -102,10 +102,10 @@
   "fa": "کد شرکت، ایمیل یا رمز عبور اشتباه است."
  },
  "web.login.error.device_only": {
-  "en": "This account can sign in only from its approved phone.",
-  "ckb": "ئەم هەژمارە تەنها لە مۆبایلە پەسەندکراوەکەیەوە دەتوانێت بچێتە ژوورەوە.",
-  "ar": "لا يمكن لهذا الحساب تسجيل الدخول إلا من هاتفه المعتمد.",
-  "fa": "این حساب فقط از گوشی تأییدشدهٔ خودش می‌تواند وارد شود."
+  "en": "This account can sign in only from its approved phone. Any field role on the account (sales rep, scientific rep, driver, wholesaler officer) causes this: to use the web panel, ask your manager to remove it.",
+  "ckb": "ئەم هەژمارە تەنها لە مۆبایلە پەسەندکراوەکەیەوە دەتوانێت بچێتە ژوورەوە. هەر ڕۆڵێکی کێڵگە لەسەر هەژمارەکە (نوێنەری فرۆشتن، نوێنەری زانستی، شوفێر، بەرپرسی کۆگای فرۆشیار) ئەمە دروست دەکات: بۆ بەکارهێنانی پانێڵی وێب، داوا لە بەڕێوەبەرەکەت بکە لایبدات.",
+  "ar": "لا يمكن لهذا الحساب تسجيل الدخول إلا من هاتفه المعتمد. أي دور ميداني على الحساب (مندوب مبيعات، مندوب علمي، سائق، مسؤول الجملة) يسبب ذلك: لاستخدام لوحة الويب اطلب من مديرك إزالته.",
+  "fa": "این حساب فقط از گوشی تأییدشدهٔ خودش می‌تواند وارد شود. هر نقش میدانی روی حساب (نمایندهٔ فروش، نمایندهٔ علمی، راننده، مسئول عمده‌فروشی) این را ایجاد می‌کند: برای استفاده از پنل وب از مدیرتان بخواهید آن را حذف کند."
  },
  "web.login.error.too_many_attempts": {
   "en": "Too many attempts. Wait a minute and try again.",
@@ -9286,5 +9286,143 @@
   "ckb": "بۆ کەمپینەکانی ناردن بە API ی واتسئاپ پێویستە. تەنها کاتێک نیشانی بکە کە کڕیار بەڕاستی ڕازی بووە.",
   "ar": "مطلوبة للحملات المرسلة عبر واجهة واتساب. علّمها فقط إن وافق الزبون فعلاً.",
   "fa": "برای کمپین‌های ارسال با API واتساپ لازم است. فقط وقتی علامت بزنید که مشتری واقعاً موافقت کرده."
+ },
+ "web.tab.clientErrors": {
+  "en": "Connection errors",
+  "ckb": "هەڵەکانی پەیوەندی",
+  "ar": "أخطاء الاتصال",
+  "fa": "خطاهای اتصال"
+ },
+ "web.clientErrors.title": {
+  "en": "Connection errors of the app",
+  "ckb": "هەڵەکانی پەیوەندیی ئەپەکە",
+  "ar": "أخطاء اتصال التطبيق",
+  "fa": "خطاهای اتصال برنامه"
+ },
+ "web.clientErrors.note": {
+  "en": "Errors that never reached the server (wrong company code, no internet). The app sends them when the connection works again. Kept for 40 days; no password is ever sent.",
+  "ckb": "ئەو هەڵانەی هەرگیز نەگەیشتنە سێرڤەر (کۆدی کۆمپانیای هەڵە، نەبوونی ئینتەرنێت). ئەپەکە کاتێک پەیوەندی گەڕایەوە دەیاننێرێت. ٤٠ ڕۆژ دەمێننەوە؛ هەرگیز وشەی نهێنی نانێردرێت.",
+  "ar": "أخطاء لم تصل إلى الخادم (رمز شركة خاطئ، لا يوجد إنترنت). يرسلها التطبيق عند عودة الاتصال. تُحفظ 40 يومًا ولا تُرسل كلمة المرور أبدًا.",
+  "fa": "خطاهایی که هرگز به سرور نرسیدند (کد شرکت اشتباه، نبودن اینترنت). برنامه هنگام برگشتن اتصال آن‌ها را می‌فرستد. ۴۰ روز نگهداری می‌شوند و رمز عبور هرگز فرستاده نمی‌شود."
+ },
+ "web.clientErrors.none": {
+  "en": "No connection errors in the last 40 days.",
+  "ckb": "لە ٤٠ ڕۆژی ڕابردوودا هیچ هەڵەیەکی پەیوەندی نییە.",
+  "ar": "لا توجد أخطاء اتصال خلال آخر 40 يومًا.",
+  "fa": "در ۴۰ روز گذشته خطای اتصالی نبوده است."
+ },
+ "web.clientErrors.received": {
+  "en": "Received",
+  "ckb": "وەرگیراوە",
+  "ar": "وقت الاستلام",
+  "fa": "زمان دریافت"
+ },
+ "web.clientErrors.occurred": {
+  "en": "Happened",
+  "ckb": "ڕووداوەکە",
+  "ar": "وقت الحدوث",
+  "fa": "زمان رخداد"
+ },
+ "web.clientErrors.stage": {
+  "en": "Step",
+  "ckb": "هەنگاو",
+  "ar": "المرحلة",
+  "fa": "مرحله"
+ },
+ "web.clientErrors.allStages": {
+  "en": "All steps",
+  "ckb": "هەموو هەنگاوەکان",
+  "ar": "كل المراحل",
+  "fa": "همهٔ مرحله‌ها"
+ },
+ "web.clientErrors.kind": {
+  "en": "Error",
+  "ckb": "هەڵە",
+  "ar": "الخطأ",
+  "fa": "خطا"
+ },
+ "web.clientErrors.enteredCode": {
+  "en": "Typed company code",
+  "ckb": "کۆدی کۆمپانیای نووسراو",
+  "ar": "رمز الشركة المكتوب",
+  "fa": "کد شرکت واردشده"
+ },
+ "web.clientErrors.enteredEmail": {
+  "en": "Typed e-mail",
+  "ckb": "ئیمەیڵی نووسراو",
+  "ar": "البريد المكتوب",
+  "fa": "ایمیل واردشده"
+ },
+ "web.clientErrors.device": {
+  "en": "Device",
+  "ckb": "ئامێر",
+  "ar": "الجهاز",
+  "fa": "دستگاه"
+ },
+ "web.clientErrors.version": {
+  "en": "App version",
+  "ckb": "وەشانی ئەپ",
+  "ar": "إصدار التطبيق",
+  "fa": "نسخهٔ برنامه"
+ },
+ "web.clientErrors.message": {
+  "en": "Details",
+  "ckb": "وردەکاری",
+  "ar": "التفاصيل",
+  "fa": "جزئیات"
+ },
+ "web.clientErrors.stage.company_lookup": {
+  "en": "Finding the company",
+  "ckb": "دۆزینەوەی کۆمپانیا",
+  "ar": "البحث عن الشركة",
+  "fa": "یافتن شرکت"
+ },
+ "web.clientErrors.stage.device_register": {
+  "en": "Registering the device",
+  "ckb": "تۆمارکردنی ئامێر",
+  "ar": "تسجيل الجهاز",
+  "fa": "ثبت دستگاه"
+ },
+ "web.clientErrors.stage.login": {
+  "en": "Signing in",
+  "ckb": "چوونەژوورەوە",
+  "ar": "تسجيل الدخول",
+  "fa": "ورود"
+ },
+ "web.clientErrors.stage.other": {
+  "en": "Other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
+ },
+ "web.clientErrors.kind.dns": {
+  "en": "DNS (address not found)",
+  "ckb": "DNS (ناونیشان نەدۆزرایەوە)",
+  "ar": "DNS (العنوان غير موجود)",
+  "fa": "DNS (آدرس پیدا نشد)"
+ },
+ "web.clientErrors.kind.timeout": {
+  "en": "Timed out",
+  "ckb": "کات تەواو بوو",
+  "ar": "انتهت المهلة",
+  "fa": "زمان تمام شد"
+ },
+ "web.clientErrors.kind.tls": {
+  "en": "Secure connection (TLS)",
+  "ckb": "پەیوەندیی پارێزراو (TLS)",
+  "ar": "اتصال آمن (TLS)",
+  "fa": "اتصال امن (TLS)"
+ },
+ "web.clientErrors.kind.http": {
+  "en": "Server answered with an error",
+  "ckb": "سێرڤەر وەڵامی هەڵەی دایەوە",
+  "ar": "أجاب الخادم بخطأ",
+  "fa": "سرور با خطا پاسخ داد"
+ },
+ "web.clientErrors.kind.other": {
+  "en": "Other",
+  "ckb": "هی تر",
+  "ar": "أخرى",
+  "fa": "سایر"
  }
 }

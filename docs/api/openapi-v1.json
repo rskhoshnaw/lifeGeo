@@ -13553,6 +13553,200 @@
         }
       }
     },
+    "/client-errors": {
+      "post": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "ReportClientErrors",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportClientErrorsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientErrorsStoredResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "ListClientErrors",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "cursorReportedAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursorId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientErrorDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -19236,6 +19430,173 @@
           }
         }
       },
+      "ClientErrorDto": {
+        "required": [
+          "id",
+          "reportedAt",
+          "occurredAt",
+          "stage",
+          "errorKind",
+          "errorType",
+          "message",
+          "enteredCompanyCode",
+          "enteredEmail",
+          "deviceId",
+          "appVersion",
+          "platform"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "errorKind": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "enteredCompanyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enteredEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "appVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientErrorItem": {
+        "required": [
+          "occurredAt",
+          "stage",
+          "errorKind",
+          "errorType",
+          "message",
+          "enteredCompanyCode",
+          "enteredEmail",
+          "deviceId",
+          "appVersion",
+          "platform"
+        ],
+        "type": "object",
+        "properties": {
+          "occurredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "stage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errorKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errorType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enteredCompanyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enteredEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "appVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientErrorsStoredResponse": {
+        "required": [
+          "stored"
+        ],
+        "type": "object",
+        "properties": {
+          "stored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ClosePaymentRequest": {
         "required": [
           "reason"
@@ -24019,6 +24380,30 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "ReportClientErrorsRequest": {
+        "required": [
+          "companyCode",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "companyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "items": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ClientErrorItem"
+            }
           }
         }
       },

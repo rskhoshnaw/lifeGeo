@@ -68,20 +68,20 @@ public sealed class AuthApiClient : IAuthApiClient
                 HttpStatusCode.Unauthorized => AuthResult<RegisteredDevice>.InvalidCredentials(401),
                 HttpStatusCode.Conflict => AuthResult<RegisteredDevice>.Conflict("Device already registered or conflict occurred."),
                 HttpStatusCode.BadRequest => AuthResult<RegisteredDevice>.BadRequest("Invalid device registration request."),
-                _ => AuthResult<RegisteredDevice>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode)
+                _ => AuthResult<RegisteredDevice>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode, NetworkFailure.Http((int)response.StatusCode))
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
-            return AuthResult<RegisteredDevice>.NetworkOrServerError(GenericNetworkErrorMessage);
+            return AuthResult<RegisteredDevice>.NetworkOrServerError(GenericNetworkErrorMessage, null, NetworkFailure.Timeout(timeout));
         }
         catch (HttpRequestException ex)
         {
-            return AuthResult<RegisteredDevice>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode);
+            return AuthResult<RegisteredDevice>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode, NetworkFailure.From(ex));
         }
     }
 
@@ -133,20 +133,20 @@ public sealed class AuthApiClient : IAuthApiClient
             {
                 HttpStatusCode.Unauthorized => AuthResult<AuthTokens>.InvalidCredentials(401),
                 HttpStatusCode.BadRequest => AuthResult<AuthTokens>.BadRequest("Invalid login request."),
-                _ => AuthResult<AuthTokens>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode)
+                _ => AuthResult<AuthTokens>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode, NetworkFailure.Http((int)response.StatusCode))
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
-            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage);
+            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, null, NetworkFailure.Timeout(timeout));
         }
         catch (HttpRequestException ex)
         {
-            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode);
+            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode, NetworkFailure.From(ex));
         }
     }
 
@@ -188,20 +188,20 @@ public sealed class AuthApiClient : IAuthApiClient
             {
                 HttpStatusCode.Unauthorized => AuthResult<AuthTokens>.Unauthorized("Session refresh token expired or revoked."),
                 HttpStatusCode.BadRequest => AuthResult<AuthTokens>.BadRequest("Invalid refresh request."),
-                _ => AuthResult<AuthTokens>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode)
+                _ => AuthResult<AuthTokens>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode, NetworkFailure.Http((int)response.StatusCode))
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
-            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage);
+            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, null, NetworkFailure.Timeout(timeout));
         }
         catch (HttpRequestException ex)
         {
-            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode);
+            return AuthResult<AuthTokens>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode, NetworkFailure.From(ex));
         }
     }
 
@@ -235,13 +235,13 @@ public sealed class AuthApiClient : IAuthApiClient
         {
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException timeout)
         {
-            return AuthResult<bool>.NetworkOrServerError(GenericNetworkErrorMessage);
+            return AuthResult<bool>.NetworkOrServerError(GenericNetworkErrorMessage, null, NetworkFailure.Timeout(timeout));
         }
         catch (HttpRequestException ex)
         {
-            return AuthResult<bool>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode);
+            return AuthResult<bool>.NetworkOrServerError(GenericNetworkErrorMessage, (int?)ex.StatusCode, NetworkFailure.From(ex));
         }
     }
 

@@ -13,7 +13,7 @@ public sealed record CompanyConfig(string TenantCode, string Name, string ApiBas
 public enum CompanyLookupStatus { Found, NotFound, InvalidCode, NotConfigured, InsecureAddress, Unavailable }
 
 /// <summary>Detail is a short technical reason for an Unavailable answer (exception type and message, or the HTTP status); the sign-in screen shows it under the message so a failure can be told apart without a debugger.</summary>
-public sealed record CompanyLookup(CompanyLookupStatus Status, CompanyConfig? Config = null, string? Detail = null);
+public sealed record CompanyLookup(CompanyLookupStatus Status, CompanyConfig? Config = null, string? Detail = null, NetworkFailure? Failure = null);
 
 /// <summary>
 /// Turns a company code into the company's API address by asking the bootstrap server, so no company address is built into the app.
@@ -63,7 +63,7 @@ public static partial class CompanyDirectory
             var address = new Uri(bootstrap, "/company-config/" + Uri.EscapeDataString(normalized));
             using var response = await http.GetAsync(address, cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound) return new CompanyLookup(CompanyLookupStatus.NotFound);
-            if (!response.IsSuccessStatusCode) return new CompanyLookup(CompanyLookupStatus.Unavailable, null, "HTTP " + (int)response.StatusCode);
+            if (!response.IsSuccessStatusCode) return new CompanyLookup(CompanyLookupStatus.Unavailable, null, "HTTP " + (int)response.StatusCode, NetworkFailure.Http((int)response.StatusCode));
 
             var body = await response.Content.ReadFromJsonAsync<Body>(Json, cancellationToken);
             // The answer must be about the company that was asked for; anything else is not trusted.
@@ -89,7 +89,7 @@ public static partial class CompanyDirectory
         }
         catch (Exception e) when (e is HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or OperationCanceledException)
         {
-            return new CompanyLookup(CompanyLookupStatus.Unavailable, null, Describe(e));
+            return new CompanyLookup(CompanyLookupStatus.Unavailable, null, Describe(e), NetworkFailure.From(e));
         }
     }
 
