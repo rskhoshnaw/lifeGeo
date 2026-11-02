@@ -39,7 +39,7 @@ public class DeviceRegistrationCoordinator : IDeviceRegistrationCoordinator
 
             if (existingDevice.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(existingDevice.DeviceSecret))
             {
-                return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorMessage: "Stored device registration is malformed.");
+                return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorCode: "reg_stored_malformed", ErrorMessage: "Stored device registration is malformed.");
             }
 
             return new AuthResult<RegisteredDevice>(AuthStatus.Success, existingDevice);
@@ -73,7 +73,7 @@ public class DeviceRegistrationCoordinator : IDeviceRegistrationCoordinator
         }
         catch
         {
-            return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorMessage: "Failed to save device registration securely.");
+            return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorCode: "reg_save_failed", ErrorMessage: "Failed to save device registration securely.");
         }
 
         return new AuthResult<RegisteredDevice>(AuthStatus.Success, deviceToSave);

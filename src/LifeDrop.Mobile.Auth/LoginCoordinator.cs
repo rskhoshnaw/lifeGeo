@@ -34,12 +34,12 @@ public class LoginCoordinator : ILoginCoordinator
             if (!string.Equals(CompanyDirectory.Normalize(device.TenantCode), CompanyDirectory.Normalize(tenantCode), StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(device.Email, email, StringComparison.OrdinalIgnoreCase))
             {
-                return new AuthResult<StoredSession>(AuthStatus.LocalStateError);
+                return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "device_mismatch");
             }
 
             if (device.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(device.DeviceSecret))
             {
-                return new AuthResult<StoredSession>(AuthStatus.LocalStateError);
+                return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "device_malformed");
             }
 
             isDeviceBound = true;
@@ -77,12 +77,12 @@ public class LoginCoordinator : ILoginCoordinator
         }
         catch (ArgumentException)
         {
-            return new AuthResult<StoredSession>(AuthStatus.LocalStateError);
+            return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "session_build");
         }
 
         if (!session.IsValid())
         {
-            return new AuthResult<StoredSession>(AuthStatus.LocalStateError);
+            return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "session_invalid");
         }
 
         try
@@ -95,7 +95,7 @@ public class LoginCoordinator : ILoginCoordinator
         }
         catch
         {
-            return new AuthResult<StoredSession>(AuthStatus.LocalStateError);
+            return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "save_failed");
         }
 
         return new AuthResult<StoredSession>(AuthStatus.Success, session);
