@@ -4,20 +4,7 @@ import type { LiveMapEntry, MapCustomer } from '../api/admin.ts'
 import { circlePolygon } from '../api/geo.ts'
 import { t } from '../i18n.ts'
 
-// OpenStreetMap raster tiles (decision D12/D13 stack: MapLibre + OSM). The public OSM tile server is for light use;
-// a production tile provider can replace this URL without other changes.
-const style = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' }],
-}
+import { style } from './mapStyle.ts'
 
 type MapLibre = typeof import('maplibre-gl')
 
@@ -25,10 +12,12 @@ type MapLibre = typeof import('maplibre-gl')
 // Popups use plain text only (no HTML from the server).
 // Zoom buttons (+ and −) are on the map; with `large` (the TV screen) the map fills its parent and the buttons are big enough for a remote or a touch screen.
 // The map frames all people only until someone moves or zooms it: the 30-second refresh must not undo the zoom the user chose.
-export function LiveMapView({ entries, customers = [], large = false }: { entries: LiveMapEntry[]; customers?: MapCustomer[]; large?: boolean }) {
+// `focus` (a user id and a counter that changes at every click) flies to that person, zooms in and opens the name; the person stays in view through the refreshes.
+export function LiveMapView({ entries, customers = [], large = false, focus = null }: { entries: LiveMapEntry[]; customers?: MapCustomer[]; large?: boolean; focus?: { userId: string; seq: number } | null }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
   const userMoved = useRef(false)
+  const byUser = useRef(new Map<string, { marker: Marker; lng: number; lat: number }>())
   const [loaded, setLoaded] = useState<{ lib: MapLibre; map: MapLibreMap } | null>(null)
 
   useEffect(() => {
@@ -53,19 +42,33 @@ export function LiveMapView({ entries, customers = [], large = false }: { entrie
     if (!loaded) return
     const { lib, map } = loaded
     markers.current.forEach((m) => m.remove())
+    byUser.current.clear()
     const located = entries.filter((e) => e.latitude !== null && e.longitude !== null)
-    markers.current = located.map((e) =>
-      new lib.Marker({ color: e.isLive ? '#16a34a' : '#94a3b8' })
+    markers.current = located.map((e) => {
+      const marker = new lib.Marker({ color: e.isLive ? '#16a34a' : '#94a3b8' })
         .setLngLat([e.longitude!, e.latitude!])
         .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.deviceLabel ? ` · ${e.deviceLabel}` : ''}${e.isLive ? '' : t('web.map.notLive')}`))
-        .addTo(map),
-    )
+        .addTo(map)
+      byUser.current.set(e.userId, { marker, lng: e.longitude!, lat: e.latitude! })
+      return marker
+    })
     if (located.length > 0 && !userMoved.current) {
       const bounds = new lib.LngLatBounds()
       located.forEach((e) => bounds.extend([e.longitude!, e.latitude!]))
       map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 })
     }
   }, [loaded, entries])
+
+  // A click on a name in the table: fly to that person, zoom in and show the name.
+  useEffect(() => {
+    if (!loaded || !focus) return
+    const found = byUser.current.get(focus.userId)
+    if (!found) return
+    userMoved.current = true   // the refresh must not pull the map away from the person
+    loaded.map.flyTo({ center: [found.lng, found.lat], zoom: Math.max(loaded.map.getZoom(), 16) })
+    if (!found.marker.getPopup()?.isOpen()) found.marker.togglePopup()
+    container.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [loaded, focus])
 
   // Customers (plan step 2.11): grouped into clusters when far apart, the check-in circle of each one when zoomed in (zoom 14 and closer).
   useEffect(() => {
