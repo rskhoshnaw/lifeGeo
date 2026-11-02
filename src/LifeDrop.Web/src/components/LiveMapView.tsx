@@ -7,6 +7,7 @@ import { t } from '../i18n.ts'
 import { style } from './mapStyle.ts'
 
 type MapLibre = typeof import('maplibre-gl')
+const updateTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
 
 // Markers for entries with a position: green when live, grey when the last point is older than 5 minutes.
 // Popups use plain text only (no HTML from the server).
@@ -47,7 +48,7 @@ export function LiveMapView({ entries, customers = [], large = false, focus = nu
     markers.current = located.map((e) => {
       const marker = new lib.Marker({ color: e.isLive ? '#16a34a' : '#94a3b8' })
         .setLngLat([e.longitude!, e.latitude!])
-        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.deviceLabel ? ` · ${e.deviceLabel}` : ''}${e.isLive ? '' : t('web.map.notLive')}`))
+        .setPopup(new lib.Popup().setText(`${e.email ?? e.userId}${e.deviceLabel ? ` · ${e.deviceLabel}` : ''}${e.isLive ? '' : t('web.map.notLive')}${e.accuracyMeters !== null ? ` · ±${Math.round(e.accuracyMeters)} m` : ''}${e.lastUpdateAt ? ` · ${updateTime.format(new Date(e.lastUpdateAt))}` : ''}`))
         .addTo(map)
       byUser.current.set(e.userId, { marker, lng: e.longitude!, lat: e.latitude! })
       return marker

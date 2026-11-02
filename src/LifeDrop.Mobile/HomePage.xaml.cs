@@ -155,7 +155,11 @@ public partial class HomePage : ContentPage
                     return;
                 }
                 var status = await tracker.StartAsync(cts.Token);
-                if (status == ShiftCallStatus.Success) StartTrackingService();
+                if (status == ShiftCallStatus.Success)
+                {
+                    StartTrackingService();
+                    await AskBatteryExemptionAsync();
+                }
                 else ShowShiftError(status);
             }
             else
@@ -223,6 +227,22 @@ public partial class HomePage : ContentPage
             await Permissions.RequestAsync<Permissions.PostNotifications>();
 #endif
         return true;
+    }
+
+    // Android: battery saving stops a phone that lies still from sending its position. Once a day at most, while a shift starts, the user is asked to leave the app out of it (step 5.14).
+    private async Task AskBatteryExemptionAsync()
+    {
+#if ANDROID
+        var context = Android.App.Application.Context;
+        if (BatteryOptimization.IsExempt(context)) return;
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        if (Preferences.Get("BatteryAskedOn", "") == today) return;
+        Preferences.Set("BatteryAskedOn", today);
+        if (await DisplayAlertAsync(Texts.Get("app.battery.title"), Texts.Get("app.battery.text"), Texts.Get("app.battery.allow"), Texts.Get("app.cancel")))
+            BatteryOptimization.RequestExemption(context);
+#else
+        await Task.CompletedTask;
+#endif
     }
 
     private static void StartTrackingService()

@@ -74,7 +74,7 @@ public static class IosTrackingService
             if (capturedAt - _lastAccepted < MinGap) continue;
             if (!Quality.Keep(location.HorizontalAccuracy, capturedAt)) continue;
             var mocked = location.SourceInformation?.IsSimulatedBySoftware == true;
-            tracker.AddFix(location.Coordinate.Latitude, location.Coordinate.Longitude, location.HorizontalAccuracy, capturedAt, mocked);
+            tracker.AddFix(location.Coordinate.Latitude, location.Coordinate.Longitude, location.HorizontalAccuracy, ServerClock.Shared.ToServerTime(capturedAt), mocked);   // a phone with a wrong clock is moved to the server's time (step 5.14)
             _lastAccepted = capturedAt;
         }
     }

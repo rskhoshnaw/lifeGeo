@@ -25,6 +25,7 @@ public sealed class TrackingService : Service, ILocationListener
 
     private LocationManager? _locations;
     private Timer? _uploadTimer;
+    private PowerManager.WakeLock? _wakeLock;   // keeps the processor awake between fixes, so the phone in a pocket or on a desk keeps sending (step 5.14)
     private readonly FixQuality _quality = new();   // drops rough fixes while a good one is recent (step 5.12)
 
     // Android 12+ refuses to start a foreground service from the background, and refuses a location service without the location permission; both used to close the app.
@@ -88,6 +89,7 @@ public sealed class TrackingService : Service, ILocationListener
             return StartCommandResult.NotSticky;
         }
 
+        HoldWakeLock();
         _uploadTimer ??= new Timer(_ => _ = FlushQuietlyAsync(), null, UploadEvery, UploadEvery);
         return StartCommandResult.Sticky;
     }
@@ -99,7 +101,13 @@ public sealed class TrackingService : Service, ILocationListener
 #pragma warning restore CA1422
         var accuracy = location.HasAccuracy ? location.Accuracy : 9999;
         var capturedAt = DateTimeOffset.FromUnixTimeMilliseconds(location.Time);
-        if (!_quality.Keep(accuracy, capturedAt)) return;
+        // A phone with a wrong clock: the age of the fix (from the monotonic clock, which a wrong wall clock does not touch) is taken from the server's time instead (step 5.14).
+        if (ServerClock.Shared.IsSkewed)
+        {
+            var age = TimeSpan.FromMilliseconds(Math.Max(0, (SystemClock.ElapsedRealtimeNanos() - location.ElapsedRealtimeNanos) / 1_000_000.0));
+            capturedAt = ServerClock.Shared.ToServerTime(DateTimeOffset.UtcNow) - age;
+        }
+        if (!_quality.Keep(accuracy, capturedAt, fromNetwork: location.Provider == LocationManager.NetworkProvider)) return;
         TrackingHost.Tracker?.AddFix(location.Latitude, location.Longitude, accuracy, capturedAt, mocked);
     }
 
@@ -111,11 +119,37 @@ public sealed class TrackingService : Service, ILocationListener
 
     public override void OnDestroy()
     {
+        ReleaseWakeLock();
         _locations?.RemoveUpdates(this);
         _uploadTimer?.Dispose();
         _uploadTimer = null;
         _ = FlushQuietlyAsync();
         base.OnDestroy();
+    }
+
+    private void HoldWakeLock()
+    {
+        try
+        {
+            _wakeLock ??= (GetSystemService(PowerService) as PowerManager)?.NewWakeLock(WakeLockFlags.Partial, "lifedrop:tracking");
+            if (_wakeLock is { IsHeld: false }) _wakeLock.Acquire(12 * 60 * 60 * 1000L);   // a shift is shorter than 12 hours; the service renews it at every start
+        }
+        catch (Exception)
+        {
+            // Without it tracking still works, only less steadily when the phone sleeps.
+        }
+    }
+
+    private void ReleaseWakeLock()
+    {
+        try
+        {
+            if (_wakeLock is { IsHeld: true }) _wakeLock.Release();
+        }
+        catch (Exception)
+        {
+        }
+        _wakeLock = null;
     }
 
     private async Task ResumeOrStopAsync(ShiftTracker tracker)
