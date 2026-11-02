@@ -45,6 +45,8 @@ export function setCurrentLang(lang: Lang) {
   current = lang
 }
 
+export const currentLang = (): Lang => current
+
 export const storageKey = 'lifedrop.lang'
 
 export function storedLang(): Lang {

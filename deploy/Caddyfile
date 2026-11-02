@@ -1,19 +1,38 @@
 # HTTPS for the API with a certificate from Let's Encrypt, renewed by Caddy itself. The domain must point to this server (A record) before the first start.
 {$API_DOMAIN} {
-	encode zstd gzip
-
-	# Metrics are for the monitor on this server only (docker compose exec), never for the internet.
-	@internal path /metrics
-	respond @internal 404
-
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
 		-Server
 	}
 
-	reverse_proxy api:8080 {
-		health_uri /health/live
-		health_interval 15s
+	# The own map (plan step 5.16): the PMTiles file made by deploy/map/build-map.sh. The panel (another address) reads parts of it with Range requests, so CORS lets
+	# the panel's address send Range and read Content-Range. No compression here: a compressed answer would break the byte ranges.
+	handle /maps/* {
+		@preflight method OPTIONS
+		header {
+			Access-Control-Allow-Origin "{$PANEL_ORIGIN}"
+			Access-Control-Allow-Headers "Range, If-Match, If-None-Match"
+			Access-Control-Expose-Headers "Content-Range, Content-Length, ETag"
+			Access-Control-Max-Age "86400"
+			Cache-Control "public, max-age=3600"
+		}
+		respond @preflight 204
+		uri strip_prefix /maps
+		root * /srv/maps
+		file_server
+	}
+
+	handle {
+		encode zstd gzip
+
+		# Metrics are for the monitor on this server only (docker compose exec), never for the internet.
+		@internal path /metrics
+		respond @internal 404
+
+		reverse_proxy api:8080 {
+			health_uri /health/live
+			health_interval 15s
+		}
 	}
 }

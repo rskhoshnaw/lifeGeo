@@ -3,7 +3,7 @@ import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type { RoutePoint, RouteStop, RouteVisitEvent } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 
-import { style } from './mapStyle.ts'
+import { mapStyle, registerMapProtocol } from './mapStyle.ts'
 
 type MapLibre = typeof import('maplibre-gl')
 
@@ -24,7 +24,8 @@ export function RouteMapView({ points, stops, events, index, focus = null }: { p
     let map: MapLibreMap | null = null
     void Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]).then(([lib]) => {
       if (disposed || !container.current) return
-      map = new lib.Map({ container: container.current, style, center: [44.0, 36.19], zoom: 6 })
+      registerMapProtocol(lib)
+      map = new lib.Map({ container: container.current, style: mapStyle(), center: [44.0, 36.19], zoom: 6 })
       map.addControl(new lib.NavigationControl({ showCompass: false }), 'top-right')
       setLoaded({ lib, map })
     })
