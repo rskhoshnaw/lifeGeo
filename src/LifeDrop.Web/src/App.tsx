@@ -16,7 +16,7 @@ import { CatalogPage } from './pages/CatalogPage.tsx'
 import { OrdersPage } from './pages/OrdersPage.tsx'
 import { ReportsPage } from './pages/ReportsPage.tsx'
 import { FormsPage } from './pages/FormsPage.tsx'
-import { TvPage } from './pages/TvPage.tsx'
+import { isTvOnly, TvPage } from './pages/TvPage.tsx'
 import { PlatformPage } from './pages/PlatformPage.tsx'
 import { RouteHistoryPage } from './pages/RouteHistoryPage.tsx'
 import { AlertsPage } from './pages/AlertsPage.tsx'
@@ -95,7 +95,10 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   }, [refreshUnread])
 
   useEffect(() => {
-    admin.me().then(setMe, (e: unknown) => setError(errorMessage(e)))
+    admin.me().then((m) => {
+      setMe(m)
+      if (isTvOnly(m)) setTab('tv')   // a screen account opens on the wall screen
+    }, (e: unknown) => setError(errorMessage(e)))
   }, [admin])
 
   // Tabs follow the user's permissions and the parts the company switched off; hiding is for convenience only, the server checks every request.
@@ -123,7 +126,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'regions', label: t('web.tab.regions'), visible: can(me, ...Permissions.regions) },
     { id: 'audit', label: t('web.tab.audit'), visible: can(me, ...Permissions.audit) },
     { id: 'clientErrors', label: t('web.tab.clientErrors'), visible: can(me, ...Permissions.clientErrors) },
-    { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports) },
+    { id: 'tv', label: t('web.tab.tv'), visible: can(me, ...Permissions.reports, ...Permissions.liveMap) },
     { id: 'forms', label: t('web.tab.forms'), visible: can(me, ...Permissions.forms) },
     { id: 'platform', label: t('web.tab.platform'), visible: can(me, ...Permissions.platform) },
     { id: 'account', label: t('web.tab.account'), visible: true },

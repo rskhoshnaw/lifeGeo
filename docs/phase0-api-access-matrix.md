@@ -674,3 +674,5 @@ App connection errors (step 5.10, migration 0063): errors such as a DNS failure 
 | `GET /client-errors?stage=&from=&to=&limit=&cursorReportedAt=&cursorId=` | `client_errors.read` (company manager, sales manager), whole company | Newest first, up to 200 per page (default 50); 400 for a bad stage, limit or half a cursor; 403 without the permission | — |
 
 Tests: `ClientErrorReportsTests` (cleaning, validation, permission, retention cutoff), `ClientErrorStoreTests` (tenant, audit, RLS, purge, database checks), `ClientErrorTests` (app outbox, flush, classification), panel `ClientErrors.test.tsx`.
+
+TV role (step 5.11, migration 0064): the default role `TvDisplay` (whole company, no device binding) has only `tracking.read`. It opens `GET /live-map` with positions and, like any holder of `tracking.read`, the other tracking reads; it cannot open customers, orders, reports or any write. No new route and no API change. A wall-screen account should have this role only: the panel opens it straight on the TV screen.
