@@ -7979,7 +7979,7 @@ public class CustomerApiIntegrationTests
             cmd.Parameters.AddWithValue("t", acme.Id); cmd.Parameters.AddWithValue("u", acme.ManagerId);
             await using var reader = await cmd.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
-            Assert.Equal(9L, reader.GetInt64(0));
+            Assert.Equal(10L, reader.GetInt64(0));   // the default roles, including TvDisplay (5.11)
             Assert.Equal("CompanyManager,SalesManager", reader.GetString(1));   // the first account can set the company up (live map, devices, users, roles)
             Assert.StartsWith("pbkdf2-sha256$", reader.GetString(2));   // the password is stored hashed
         }
