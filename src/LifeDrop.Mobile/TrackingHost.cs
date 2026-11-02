@@ -225,16 +225,24 @@ public static class TrackingHost
     // Sends waiting visit steps and tracking points; failures stay on the phone for the next attempt.
     public static async Task SyncQuietlyAsync()
     {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        // Tracking points go first and on their own: the map depends on them, and a problem with a waiting visit step or order used to stop them (plan step 5.14).
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            if (Tracker is { } tracker) await tracker.FlushAsync(cts.Token);
+        }
+        catch (Exception)
+        {
+            // Retried on the next connection change, page visit or service tick.
+        }
+        try
+        {
             if (Outbox is { } outbox) await outbox.SyncAsync(cts.Token);
             // Kept work goes after the visit steps, so a visit form never arrives before its check-in.
             WorkQueue? queue;
             WorkExecutor? executor;
             lock (Gate) (queue, executor) = (_workQueue, _workExecutor);
             if (queue is not null && executor is not null) await queue.SyncAsync(executor, id => Outbox?.HasPending(id) == true, cts.Token);
-            if (Tracker is { } tracker) await tracker.FlushAsync(cts.Token);
         }
         catch (Exception)
         {

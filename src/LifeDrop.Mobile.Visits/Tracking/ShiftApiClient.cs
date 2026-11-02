@@ -85,6 +85,7 @@ public sealed class ShiftApiClient : IShiftApiClient
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
             if (body is not null) request.Content = JsonContent.Create(body);
             using var response = await _httpClient.SendAsync(request, cancellationToken);
+            ServerClock.Shared.Observe(response.Headers.Date, DateTimeOffset.UtcNow);   // a phone with a wrong clock still sends points the server accepts (step 5.14)
             if (response.IsSuccessStatusCode)
             {
                 if (typeof(T) == typeof(object) || response.StatusCode == HttpStatusCode.NoContent) return (ShiftCallStatus.Success, null);
