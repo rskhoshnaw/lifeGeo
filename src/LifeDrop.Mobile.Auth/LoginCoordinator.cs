@@ -31,7 +31,7 @@ public class LoginCoordinator : ILoginCoordinator
 
         if (device != null)
         {
-            if (!string.Equals(device.TenantCode, tenantCode, StringComparison.OrdinalIgnoreCase) ||
+            if (!string.Equals(CompanyDirectory.Normalize(device.TenantCode), CompanyDirectory.Normalize(tenantCode), StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(device.Email, email, StringComparison.OrdinalIgnoreCase))
             {
                 return new AuthResult<StoredSession>(AuthStatus.LocalStateError);

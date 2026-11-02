@@ -31,7 +31,7 @@ public class DeviceRegistrationCoordinator : IDeviceRegistrationCoordinator
         var existingDevice = await _store.LoadDeviceAsync(cancellationToken);
         if (existingDevice != null)
         {
-            if (!string.Equals(existingDevice.TenantCode, request.TenantCode, StringComparison.OrdinalIgnoreCase) ||
+            if (!string.Equals(CompanyDirectory.Normalize(existingDevice.TenantCode), CompanyDirectory.Normalize(request.TenantCode), StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(existingDevice.Email, request.Email, StringComparison.OrdinalIgnoreCase))
             {
                 return new AuthResult<RegisteredDevice>(AuthStatus.Conflict, ErrorMessage: "A device registration for a different account already exists on this device.");
