@@ -24,6 +24,7 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
     admin.mapCustomers().then(setCustomers, () => setCustomers([]))
   }, [admin])
 
+  const [focus, setFocus] = useState<{ userId: string; seq: number } | null>(null)
   const entries = live.data ?? []
   const anyPrecise = entries.some((e) => e.precise)
   return (
@@ -31,7 +32,7 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
       <h2 className="text-xl font-semibold">{t('web.map.title')}</h2>
       {live.error && <p role="alert" className="text-sm text-red-700">{live.error}</p>}
       {customers.length > 0 && anyPrecise && <p className="text-xs text-slate-600">{t('web.map.customers')}</p>}
-      {live.data && anyPrecise && <LiveMapView entries={entries} customers={customers} />}
+      {live.data && anyPrecise && <LiveMapView entries={entries} customers={customers} focus={focus} />}
       {live.data && !anyPrecise && entries.length > 0 && <p className="text-sm text-slate-600">{t('web.map.statusOnly')}</p>}
       {live.data?.length === 0 && <p className="text-slate-600">{t('web.map.nobody')}</p>}
       {entries.length > 0 && (
@@ -49,7 +50,15 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
           <tbody>
             {entries.map((e) => (
               <tr key={e.userId} className="border-b">
-                <td className="py-2">{e.email ?? e.userId}</td>
+                <td className="py-2">
+                  {e.latitude !== null && e.longitude !== null ? (
+                    <button className="text-start text-brand-700 underline" title={t('web.map.find')} aria-label={t('web.map.findUser', { user: e.email ?? e.userId })} onClick={() => setFocus({ userId: e.userId, seq: (focus?.seq ?? 0) + 1 })}>
+                      {e.email ?? e.userId}
+                    </button>
+                  ) : (
+                    e.email ?? e.userId
+                  )}
+                </td>
                 <td>{e.teamName ?? '—'}</td>
                 <td className={e.isLive ? 'text-green-700' : 'text-slate-500'}>
                   {status(e)}

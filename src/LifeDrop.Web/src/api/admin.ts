@@ -982,6 +982,7 @@ export const Permissions = {
   devices: ['device.approve', 'devices.manage', 'system.admin'],
   customers: ['customers.read'],
   editCustomers: ['customers.write'],
+  moveCustomers: ['customers.location.write'],
   places: ['places.manage'],
   catalog: ['catalog.read'],
   orders: ['orders.read', 'orders.create'],
@@ -1105,6 +1106,8 @@ export class AdminApi {
   setCustomerDoctor = (id: string, doctor: CustomerDoctor) => this.send('PUT', `/customers/${id}/doctor`, doctor)
   setCustomerContact = (id: string, contact: { contactName: string | null; phone2: string | null; notes: string | null }) => this.send('PUT', `/customers/${id}/contact`, contact)
   editCustomer = (id: string, details: { type: string; code: string; name: string }) => this.send('PUT', `/customers/${id}`, details)
+  // A position placed by a person on the map (source "manual"); the server checks customers.location.write and the customer's area, and audits it.
+  setCustomerLocation = (id: string, latitude: number, longitude: number) => this.send('PUT', `/customers/${id}/location`, { latitude, longitude, source: 'manual' })
   archiveCustomer = (id: string) => this.post(`/customers/${id}/archive`)
   restoreCustomer = (id: string) => this.post(`/customers/${id}/restore`)
   customerApprovals = () => this.get<Customer[]>('/customer-approvals')

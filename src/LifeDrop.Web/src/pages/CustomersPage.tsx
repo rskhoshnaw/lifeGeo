@@ -11,6 +11,7 @@ import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
 import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
 import { CustomerHistoryPanel } from '../components/CustomerHistoryPanel.tsx'
+import { CustomerCard } from '../components/CustomerCard.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 import { SortTh, useSort } from '../components/sort.tsx'
 
@@ -20,7 +21,7 @@ export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
       {can(me, ...Permissions.editCustomers) && <DoctorImport admin={admin} onImported={() => setReload((n) => n + 1)} />}
-      {can(me, ...Permissions.customers) && <CustomerList key={reload} admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
+      {can(me, ...Permissions.customers) && <CustomerList key={reload} admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canMove={can(me, ...Permissions.moveCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
     </section>
   )
 }
@@ -72,13 +73,14 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   )
 }
 
-function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: AdminApi; canEdit: boolean; canArchive: boolean; canPrioritise: boolean }) {
+function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { admin: AdminApi; canEdit: boolean; canMove: boolean; canArchive: boolean; canPrioritise: boolean }) {
   const [archived, setArchived] = useState(false)
   const [search, setSearch] = useState('')
   const term = search.trim().length >= 2 ? search.trim() : ''
   const first = useLoad(useCallback(() => admin.customers(undefined, archived, term), [admin, archived, term]))
   const action = useAction(() => reload())
   const [editFor, setEditFor] = useState<Customer | null>(null)
+  const [openFor, setOpenFor] = useState<Customer | null>(null)
   const [more, setMore] = useState<Customer[]>([])
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -179,7 +181,9 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
                   </td>
                 )}
                 <td className="py-2">{customer.code}</td>
-                <td>{customer.name}</td>
+                <td>
+                  <button className="text-start text-brand-700 underline" aria-label={t('web.customers.open', { customer: customer.name })} onClick={() => setOpenFor(customer)}>{customer.name}</button>
+                </td>
                 <td>{customer.type}</td>
                 <td><Badge tone={({ approved: 'good', pending: 'warn', rejected: 'bad' } as Record<string, Tone>)[customer.approvalStatus] ?? 'neutral'}>{approvalText(customer.approvalStatus)}</Badge></td>
                 <td>{t(`web.priority.${customer.priority}`)}</td>
@@ -213,6 +217,20 @@ function CustomerList({ admin, canEdit, canArchive, canPrioritise }: { admin: Ad
             ))}
           </tbody>
         </table>
+      )}
+      {openFor && (
+        <CustomerCard
+          key={openFor.id}
+          admin={admin}
+          customer={openFor}
+          canEdit={canEdit && !archived}
+          canMove={canMove && !archived}
+          onEdit={() => setEditFor(openFor)}
+          onProfile={() => setProfileFor(openFor)}
+          onHours={() => setHoursFor(openFor)}
+          onHistory={() => setHistoryFor(openFor)}
+          onClose={() => setOpenFor(null)}
+        />
       )}
       {editFor && <CustomerDetailsEditor key={editFor.id} admin={admin} customer={editFor} onClose={() => setEditFor(null)} onSaved={reload} />}
       {historyFor && <CustomerHistoryPanel key={historyFor.id} admin={admin} customer={historyFor} onClose={() => setHistoryFor(null)} />}

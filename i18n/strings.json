@@ -9454,5 +9454,71 @@
   "ckb": "پەیوەندییەکە زۆر هێواشە. بڕۆ شوێنێک کە سیگناڵی باشتر بێت و دووبارە هەوڵ بدەرەوە.",
   "ar": "الاتصال بطيء جداً. انتقل إلى مكان فيه إشارة أفضل وحاول مرة أخرى.",
   "fa": "اتصال خیلی کند است. به جایی با آنتن بهتر بروید و دوباره تلاش کنید."
+ },
+ "web.map.find": {
+  "en": "Show on the map",
+  "ckb": "لەسەر نەخشە نیشانی بدە",
+  "ar": "اعرضه على الخريطة",
+  "fa": "نمایش روی نقشه"
+ },
+ "web.map.findUser": {
+  "en": "Show {user} on the map",
+  "ckb": "نیشاندانی {user} لەسەر نەخشە",
+  "ar": "اعرض {user} على الخريطة",
+  "fa": "نمایش {user} روی نقشه"
+ },
+ "web.customers.open": {
+  "en": "Open {customer}",
+  "ckb": "کردنەوەی {customer}",
+  "ar": "افتح {customer}",
+  "fa": "باز کردن {customer}"
+ },
+ "web.customers.cardTitle": {
+  "en": "Customer {customer}",
+  "ckb": "کڕیار {customer}",
+  "ar": "العميل {customer}",
+  "fa": "مشتری {customer}"
+ },
+ "web.customers.closeCard": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "web.customers.place": {
+  "en": "Place",
+  "ckb": "شوێن",
+  "ar": "المكان",
+  "fa": "محل"
+ },
+ "web.customers.mapLabel": {
+  "en": "Customer position on the map",
+  "ckb": "شوێنی کڕیار لەسەر نەخشە",
+  "ar": "موقع العميل على الخريطة",
+  "fa": "موقعیت مشتری روی نقشه"
+ },
+ "web.customers.noLocation": {
+  "en": "This customer has no position yet.",
+  "ckb": "ئەم کڕیارە هێشتا شوێنی نییە.",
+  "ar": "ليس لهذا العميل موقع بعد.",
+  "fa": "این مشتری هنوز موقعیتی ندارد."
+ },
+ "web.customers.pickOnMap": {
+  "en": "Click the map to choose a new position, then press Save position.",
+  "ckb": "کلیک لەسەر نەخشە بکە بۆ هەڵبژاردنی شوێنی نوێ، پاشان «پاشەکەوتکردنی شوێن» دابگرە.",
+  "ar": "انقر على الخريطة لاختيار موقع جديد ثم اضغط «حفظ الموقع».",
+  "fa": "روی نقشه کلیک کنید تا موقعیت تازه را انتخاب کنید، سپس «ذخیرهٔ موقعیت» را بزنید."
+ },
+ "web.customers.saveLocation": {
+  "en": "Save position",
+  "ckb": "پاشەکەوتکردنی شوێن",
+  "ar": "حفظ الموقع",
+  "fa": "ذخیرهٔ موقعیت"
+ },
+ "web.customers.locationSaved": {
+  "en": "Position saved.",
+  "ckb": "شوێن پاشەکەوت کرا.",
+  "ar": "تم حفظ الموقع.",
+  "fa": "موقعیت ذخیره شد."
  }
 }
