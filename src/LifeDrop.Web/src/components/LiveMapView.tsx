@@ -4,7 +4,7 @@ import type { LiveMapEntry, MapCustomer } from '../api/admin.ts'
 import { circlePolygon } from '../api/geo.ts'
 import { t } from '../i18n.ts'
 
-import { mapStyle, registerMapProtocol } from './mapStyle.ts'
+import { loadMapLibre, mapStyle } from './mapStyle.ts'
 
 type MapLibre = typeof import('maplibre-gl')
 const updateTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
@@ -24,9 +24,8 @@ export function LiveMapView({ entries, customers = [], large = false, focus = nu
   useEffect(() => {
     let disposed = false
     let map: MapLibreMap | null = null
-    void Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]).then(([lib]) => {
+    void loadMapLibre().then((lib) => {
       if (disposed || !container.current) return
-      registerMapProtocol(lib)
       map = new lib.Map({ container: container.current, style: mapStyle(), center: [44.0, 36.19], zoom: 6 })
       map.addControl(new lib.NavigationControl({ showCompass: false }), 'top-right')
       map.on('movestart', (e) => {
