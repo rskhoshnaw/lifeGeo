@@ -44,9 +44,18 @@ VITE_MAP_PMTILES_URL=https://api.example.com/maps/iraq.pmtiles
 
 هر چند ماه یک بار `./deploy/map/build-map.sh` را دوباره اجرا کن (فایل جدید جای قبلی می‌نشیند). لازم نیست سرور یا پنل را دوباره بسازی.
 
-## متغیرهای اختیاری پنل
+## استقلال کامل: فونت و آیکون روی سرور خودمان (توصیه می‌شود)
 
-- `VITE_MAP_GLYPHS_URL`، `VITE_MAP_SPRITE_URL`: فونت‌ها و آیکون‌های نقشه. پیش‌فرض از `protomaps.github.io/basemaps-assets` می‌آید (فایل‌های ثابت). برای استقلال کامل می‌شود همان پوشه را روی سرور خودمان گذاشت.
+بدون این مرحله نقشه فقط دو چیز را از بیرون می‌گیرد: **فونت‌ها** و **آیکون‌ها** (از `protomaps.github.io`، فایل‌های ثابت Protomaps؛ ربطی به مخزن lifeGeo ما ندارد). اگر روزی Protomaps آن‌ها را جابه‌جا یا حذف کند، نام‌ها از نقشه می‌افتند. برای اینکه از هیچ جای بیرونی وابسته نباشیم:
+
+```bash
+cd /opt/lifedrop
+```
+```bash
+./deploy/map/fetch-assets.sh
+```
+
+در آخر دو خط `VITE_MAP_GLYPHS_URL=...` و `VITE_MAP_SPRITE_URL=...` چاپ می‌شود. هر دو را در Cloudflare (Settings ← Build ← Variables) بگذار و پنل را دوباره Deploy کن. اسکریپت یک بار از GitHub (مخزن عمومی Protomaps) کپی می‌کند؛ بعد از آن هیچ‌چیز از آنجا نمی‌آید.
 
 ## نکته
 
