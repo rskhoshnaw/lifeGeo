@@ -60,11 +60,13 @@ services:
       - api
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env, for example api.example.com}
+      PANEL_ORIGIN: ${PANEL_ORIGIN:?set PANEL_ORIGIN in deploy/.env, for example https://panel.example.com}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./maps:/srv/maps:ro   # the own map file (deploy/map/README.md); an empty folder is fine until it is built
       - caddy_data:/data
       - caddy_config:/config
 

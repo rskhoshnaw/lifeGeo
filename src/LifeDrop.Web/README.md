@@ -25,3 +25,6 @@ Cloudflare now builds this as a Worker with static assets: `wrangler.jsonc` here
 3. Environment variable `VITE_API_BASE_URL` = the API address (production and preview).
 4. Zero Trust → Access → add an application for the Pages domain (and `*.pages.dev` previews) so only staff can open it.
 5. Add the Pages domain to the API's `Cors:AllowedOrigins`.
+
+## Own map (plan step 5.16)
+Set `VITE_MAP_PMTILES_URL` (for example `https://api.example.com/maps/iraq.pmtiles`) to draw the maps from the PMTiles file made by `deploy/map/build-map.sh`; labels follow the panel language (`name:ckb` for Central Kurdish). Without it the screens use the public OpenStreetMap raster tiles. See `deploy/map/README.md`.
