@@ -92,6 +92,16 @@ public static class UserEndpoints
             .WithName("SetUserCity").WithTags("Users").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapPut("/users/{id:guid}/phone", async (Guid id, SetUserPhoneRequest request, HttpContext context, ManageUsers manage,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            return ToResult(await manage.SetPhoneAsync(tenantId, actorId, new UserId(id), request, cancellationToken));
+        }).RequireAuthorization()
+            .WithName("SetUserPhone").WithTags("Users").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapDelete("/users/{id:guid}/roles/{roleId:guid}", async (Guid id, Guid roleId, HttpContext context, ManageUsers manage,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

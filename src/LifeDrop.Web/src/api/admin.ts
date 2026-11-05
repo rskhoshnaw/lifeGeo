@@ -22,6 +22,8 @@ export interface UserSummary {
   isActive: boolean
   city?: string | null
   phoneType?: string | null
+  // Plan step 5.22: the mobile number of the staff member (WhatsApp link).
+  phone?: string | null
 }
 
 export interface Role {
@@ -782,6 +784,7 @@ export interface LiveMapEntry {
   deviceLabel?: string | null
   lastSeenAt?: string | null
   health?: LiveMapHealth | null
+  phone?: string | null
 }
 
 // State of the phone, reported with the heartbeat (plan step 5.17). null = unknown, never a problem by itself.
@@ -1110,6 +1113,7 @@ export class AdminApi {
   assignRole = (userId: string, roleId: string) => this.post(`/users/${userId}/roles/${roleId}`)
   createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
   setUserCity = (userId: string, city: string | null) => this.send('PUT', `/users/${userId}/city`, { city })
+  setUserPhone = (userId: string, phone: string | null) => this.send('PUT', `/users/${userId}/phone`, { phone })
   removeUserRole = (userId: string, roleId: string) => this.send('DELETE', `/users/${userId}/roles/${roleId}`)
   changeOwnPassword = (currentPassword: string, newPassword: string) => this.send('PUT', '/me/password', { currentPassword, newPassword })
   changeUserEmail = (userId: string, email: string) => this.send('PUT', `/users/${userId}/email`, { email })

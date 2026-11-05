@@ -9,6 +9,8 @@ public sealed record SetUserPasswordRequest(string? Password);
 
 public sealed record SetUserCityRequest(string? City);
 
+public sealed record SetUserPhoneRequest(string? Phone);
+
 public sealed record ChangeOwnPasswordRequest(string? CurrentPassword, string? NewPassword);
 
 // WrongPassword (plan step 4.46): the current password given for a change of one's own password is not the right one.
@@ -27,6 +29,8 @@ public interface IUserAccountStore
         throw new NotSupportedException();
     Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    // Plan step 5.22: the mobile number (null clears; audit user.phone_changed).
+    Task<ManageUserResult> SetPhoneAsync(TenantId tenantId, UserId actorId, UserId targetId, string? phone, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 // Changing, locking and unlocking accounts from the panel (plan step 4.10). Same permission as giving roles and adding accounts (user.manageroles or system.admin).
@@ -60,6 +64,7 @@ public sealed class ManageUsers(IUserAccountStore store, IPermissionStore permis
     }
 
     public const int MaxCityLength = 80;
+    public const int MaxPhoneLength = 40;
 
     // Anybody may change their own password; the current one must be known. The new one follows the rules of a new account and must differ.
     public async Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid sessionFamilyId, ChangeOwnPasswordRequest request, CancellationToken cancellationToken)
@@ -80,6 +85,29 @@ public sealed class ManageUsers(IUserAccountStore store, IPermissionStore permis
         var city = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
         if (targetId.IsEmpty || city?.Length > MaxCityLength) return ManageUserResult.InvalidData;
         return await store.SetCityAsync(tenantId, actorId, targetId, city, cancellationToken);
+    }
+
+    // A mobile number as people type it: digits with an optional leading +, spaces, dashes and brackets; 7 to 15 digits. Empty clears it.
+    public async Task<ManageUserResult> SetPhoneAsync(TenantId tenantId, UserId actorId, UserId targetId, SetUserPhoneRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!await AllowedAsync(tenantId, actorId, cancellationToken)) return ManageUserResult.Forbidden;
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        if (targetId.IsEmpty || (phone is not null && !IsPhoneNumber(phone))) return ManageUserResult.InvalidData;
+        return await store.SetPhoneAsync(tenantId, actorId, targetId, phone, cancellationToken);
+    }
+
+    public static bool IsPhoneNumber(string phone)
+    {
+        if (phone.Length > MaxPhoneLength) return false;
+        var digits = 0;
+        for (var i = 0; i < phone.Length; i++)
+        {
+            var c = phone[i];
+            if (char.IsAsciiDigit(c)) digits++;
+            else if (!(c == '+' && i == 0) && c is not (' ' or '-' or '(' or ')')) return false;
+        }
+        return digits is >= 7 and <= 15;
     }
 
     // Nobody takes a role away from themselves: a manager who removed the role that lets them manage roles could not undo it.
