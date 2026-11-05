@@ -82,4 +82,4 @@ Cloudflare ← **Workers & Pages** ← **Create application** ← **Import a rep
 
 ## ۱۰. پایش
 UptimeRobot (رایگان) روی `https://lifedrops.lifegeotracking.com/health/ready` با هشدار ایمیل.
-به‌روزرسانی بعدی: `cd /opt/lifedrop && git pull && cd deploy && ./backup.sh && ./setup-db.sh && docker compose up -d --build`
+به‌روزرسانی بعدی: `/opt/lifedrop/deploy/update.sh` (کد جدید، پشتیبان، مایگریشن، ساخت دوباره، و صبر تا سلامت API؛ هر مرحله خطا بدهد همان‌جا می‌ایستد). معادل دستی: `cd /opt/lifedrop && git pull && cd deploy && ./backup.sh && ./setup-db.sh && docker compose up -d --build`
