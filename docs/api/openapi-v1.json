@@ -20430,6 +20430,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

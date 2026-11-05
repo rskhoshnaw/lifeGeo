@@ -92,6 +92,20 @@ describe('panel management screens', () => {
     expect(posts(calls)).toEqual([{ method: 'POST', path: '/users', body: { email: 'new.rep@t1', password: 'a-long-password-1', roleId: 'r1' } }])
   })
 
+  it('sends the mobile number of the new account when it is typed', async () => {
+    const { api, calls } = server(manager, { '/users': [rep], '/roles': [{ id: 'r1', name: 'SalesRep', dataScope: 'own' }] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Users' }))
+    await user.type(await screen.findByLabelText('Email'), 'new.rep@t1')
+    await user.type(screen.getByLabelText('Password (at least 12 characters)'), 'a-long-password-1')
+    await user.selectOptions(screen.getByLabelText('Role'), 'r1')
+    await user.type(screen.getByLabelText('Mobile number'), ' 0770 123 4567 ')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Account created')
+    expect(posts(calls)).toEqual([{ method: 'POST', path: '/users', body: { email: 'new.rep@t1', password: 'a-long-password-1', roleId: 'r1', phone: '0770 123 4567' } }])
+  })
+
   it('changes e-mail and password, deactivates after confirmation and never offers it for oneself', async () => {
     vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
     vi.spyOn(window, 'prompt').mockReturnValueOnce(' new@t1 ').mockReturnValueOnce('a-long-password-2')

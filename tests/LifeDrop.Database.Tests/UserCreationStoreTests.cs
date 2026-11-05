@@ -31,7 +31,7 @@ public class UserCreationStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0068_user_phone.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
 
@@ -57,7 +57,7 @@ public class UserCreationStoreTests
             }
 
             var store = new PostgresUserCreationStore(dataSource);
-            var (created, userId) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "rep@example.test", "a-long-password-1", new RoleId(repRole), CancellationToken.None);
+            var (created, userId) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "rep@example.test", "a-long-password-1", new RoleId(repRole), null, CancellationToken.None);
             Assert.Equal(CreateUserResult.Created, created);
             Assert.NotNull(userId);
 
@@ -67,19 +67,25 @@ public class UserCreationStoreTests
             Assert.True(PasswordHash.Verify("a-long-password-1", await Row(connection, "SELECT password_hash FROM users WHERE id = @id", userId.Value, r => r.GetString(0))));
 
             // The same e-mail again (other letter case; the service lower-cases, the unique index is on lower(email) as well) in the same company is refused and writes nothing more.
-            var (taken, none) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "Rep@Example.Test", "another-long-password", new RoleId(repRole), CancellationToken.None);
+            var (taken, none) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "Rep@Example.Test", "another-long-password", new RoleId(repRole), null, CancellationToken.None);
             Assert.Equal((CreateUserResult.EmailTaken, (Guid?)null), (taken, none));
             Assert.Equal(2L, await Scalar(connection, "SELECT count(*) FROM users", tenant));   // the actor and the new rep
 
             // A role of another company is reported as missing; nothing is written.
-            var (missing, _) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "x@example.test", "a-long-password-1", new RoleId(foreignRole), CancellationToken.None);
+            var (missing, _) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "x@example.test", "a-long-password-1", new RoleId(foreignRole), null, CancellationToken.None);
             Assert.Equal(CreateUserResult.RoleNotFound, missing);
             Assert.Equal(2L, await Scalar(connection, "SELECT count(*) FROM users", tenant));
             Assert.Equal(1L, await Scalar(connection, "SELECT count(*) FROM audit_logs", tenant));
 
             // The same e-mail is free in another company, with that company's own role.
-            var (otherCompany, _) = await store.CreateAsync(new TenantId(other), new UserId(otherActor), "rep@example.test", "a-long-password-1", new RoleId(foreignRole), CancellationToken.None);
+            var (otherCompany, _) = await store.CreateAsync(new TenantId(other), new UserId(otherActor), "rep@example.test", "a-long-password-1", new RoleId(foreignRole), null, CancellationToken.None);
             Assert.Equal(CreateUserResult.Created, otherCompany);
+
+            // The optional mobile number is stored with the user (plan step 5.22).
+            var (withPhone, phoneUser) = await store.CreateAsync(new TenantId(tenant), new UserId(actor), "phone@example.test", "a-long-password-1", new RoleId(repRole), "0770 123 4567", CancellationToken.None);
+            Assert.Equal(CreateUserResult.Created, withPhone);
+            Assert.Equal("0770 123 4567", await Row(connection, "SELECT phone FROM users WHERE id = @id", phoneUser!.Value, r => r.GetString(0)));
+            Assert.Equal(3L, await Scalar(connection, "SELECT count(*) FROM users", tenant));   // the actor, the first rep and this one
         }
         finally
         {

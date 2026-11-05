@@ -3,7 +3,8 @@ using LifeDrop.Domain.Common;
 
 namespace LifeDrop.Application.Users;
 
-public sealed record CreateUserRequest(string? Email, string? Password, Guid? RoleId);
+// Phone (plan step 5.22) is the optional mobile number of the new user, checked like PUT /users/{id}/phone.
+public sealed record CreateUserRequest(string? Email, string? Password, Guid? RoleId, string? Phone = null);
 
 public sealed record CreatedUserDto(Guid Id);
 
@@ -12,7 +13,7 @@ public enum CreateUserResult { Created, Forbidden, InvalidData, EmailTaken, Role
 public interface IUserCreationStore
 {
     // One transaction: the user, its first role and the audit row (user.created), or nothing. The store hashes the password; it is never stored or logged in clear text.
-    Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, CancellationToken cancellationToken);
+    Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, string? phone, CancellationToken cancellationToken);
 }
 
 // A manager adds an account (for example a sales rep) from the panel (plan step 4.9). Needs the same permission as giving roles (user.manageroles or system.admin);
@@ -36,8 +37,10 @@ public sealed class CreateStaffUser(IUserCreationStore store, IPermissionStore p
             request.Password is null || request.Password.Length < MinPasswordLength || request.Password.Length > MaxPasswordLength ||
             request.RoleId is null || request.RoleId == Guid.Empty)
             return (CreateUserResult.InvalidData, null);
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        if (phone is not null && !ManageUsers.IsPhoneNumber(phone)) return (CreateUserResult.InvalidData, null);
 
-        var (result, userId) = await store.CreateAsync(tenantId, actorId, email, request.Password, new RoleId(request.RoleId.Value), cancellationToken);
+        var (result, userId) = await store.CreateAsync(tenantId, actorId, email, request.Password, new RoleId(request.RoleId.Value), phone, cancellationToken);
         return result == CreateUserResult.Created && userId is { } id ? (result, new CreatedUserDto(id)) : (result, null);
     }
 

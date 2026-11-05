@@ -1111,7 +1111,7 @@ export class AdminApi {
   blockDevice = (id: string) => this.post(`/devices/${id}/block`)
   killSessions = (userId: string) => this.post(`/users/${userId}/sessions/revoke`)
   assignRole = (userId: string, roleId: string) => this.post(`/users/${userId}/roles/${roleId}`)
-  createUser = (user: { email: string; password: string; roleId: string }) => this.post('/users', user)
+  createUser = (user: { email: string; password: string; roleId: string; phone?: string }) => this.post('/users', user)
   setUserCity = (userId: string, city: string | null) => this.send('PUT', `/users/${userId}/city`, { city })
   setUserPhone = (userId: string, phone: string | null) => this.send('PUT', `/users/${userId}/phone`, { phone })
   removeUserRole = (userId: string, roleId: string) => this.send('DELETE', `/users/${userId}/roles/${roleId}`)

@@ -23,11 +23,13 @@ public class CreateStaffUserTests
         public int Calls;
         public (TenantId Tenant, UserId Actor, string Email, string Password, RoleId Role)? Last;
         public Guid NewId = Guid.NewGuid();
+        public string? LastPhone;
 
-        public Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, CancellationToken cancellationToken)
+        public Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, string? phone, CancellationToken cancellationToken)
         {
             Calls++;
             Last = (tenantId, actorId, email, password, roleId);
+            LastPhone = phone;
             return Task.FromResult<(CreateUserResult, Guid?)>((result, result == CreateUserResult.Created ? NewId : null));
         }
     }
@@ -43,6 +45,19 @@ public class CreateStaffUserTests
         Assert.Equal(CreateUserResult.Created, result);
         Assert.Equal(store.NewId, created!.Id);
         Assert.Equal((Tenant, Actor, "rep@example.test", GoodPassword, new RoleId(Role)), store.Last);
+    }
+
+    [Fact]
+    public async Task The_phone_number_is_optional_trimmed_and_checked()
+    {
+        var store = new Store();
+        Assert.Equal(CreateUserResult.Created, (await Run(store, new Permissions(PermissionKeys.UserManageRoles), new CreateUserRequest("a@b.co", GoodPassword, Role, " 0770 123 4567 "))).Result);
+        Assert.Equal("0770 123 4567", store.LastPhone);
+        Assert.Equal(CreateUserResult.Created, (await Run(store, new Permissions(PermissionKeys.UserManageRoles), new CreateUserRequest("a@b.co", GoodPassword, Role, "  "))).Result);
+        Assert.Null(store.LastPhone);
+        var calls = store.Calls;
+        Assert.Equal(CreateUserResult.InvalidData, (await Run(store, new Permissions(PermissionKeys.UserManageRoles), new CreateUserRequest("a@b.co", GoodPassword, Role, "call me"))).Result);
+        Assert.Equal(calls, store.Calls);   // nothing reached the store
     }
 
     [Fact]
