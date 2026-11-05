@@ -112,6 +112,38 @@ public sealed class PostgresShiftStore(NpgsqlDataSource dataSource) : IShiftStor
         return added;
     }
 
+    public async Task RecordHealthAsync(TenantId tenantId, UserId userId, Guid shiftId, ShiftHealthRequest health, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            INSERT INTO shift_health (shift_id, tenant_id, user_id, seen_at, app_version, platform, os_version, device_model, location_permission,
+                precise_location, location_services, notifications, battery_exempt, background_refresh, battery_percent, low_power)
+            VALUES (@shift, @tenant, @user, now(), @app, @platform, @os, @model, @permission, @precise, @services, @notifications, @battery, @refresh, @percent, @low)
+            ON CONFLICT (shift_id) DO UPDATE SET seen_at = now(), app_version = EXCLUDED.app_version, platform = EXCLUDED.platform, os_version = EXCLUDED.os_version,
+                device_model = EXCLUDED.device_model, location_permission = EXCLUDED.location_permission, precise_location = EXCLUDED.precise_location,
+                location_services = EXCLUDED.location_services, notifications = EXCLUDED.notifications, battery_exempt = EXCLUDED.battery_exempt,
+                background_refresh = EXCLUDED.background_refresh, battery_percent = EXCLUDED.battery_percent, low_power = EXCLUDED.low_power
+            """, connection, transaction);
+        command.Parameters.AddWithValue("shift", shiftId);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId.Value);
+        command.Parameters.AddWithValue("app", (object?)health.AppVersion ?? DBNull.Value);
+        command.Parameters.AddWithValue("platform", (object?)health.Platform ?? DBNull.Value);
+        command.Parameters.AddWithValue("os", (object?)health.OsVersion ?? DBNull.Value);
+        command.Parameters.AddWithValue("model", (object?)health.DeviceModel ?? DBNull.Value);
+        command.Parameters.AddWithValue("permission", health.LocationPermission ?? "unknown");
+        command.Parameters.AddWithValue("precise", (object?)health.PreciseLocation ?? DBNull.Value);
+        command.Parameters.AddWithValue("services", (object?)health.LocationServices ?? DBNull.Value);
+        command.Parameters.AddWithValue("notifications", (object?)health.Notifications ?? DBNull.Value);
+        command.Parameters.AddWithValue("battery", (object?)health.BatteryExempt ?? DBNull.Value);
+        command.Parameters.AddWithValue("refresh", (object?)health.BackgroundRefresh ?? DBNull.Value);
+        command.Parameters.Add(new NpgsqlParameter("percent", NpgsqlTypes.NpgsqlDbType.Smallint) { Value = health.BatteryPercent is { } p ? (object)(short)p : DBNull.Value });
+        command.Parameters.AddWithValue("low", (object?)health.LowPower ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<DateTimeOffset>> ListPointTimesAsync(TenantId tenantId, Guid shiftId, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

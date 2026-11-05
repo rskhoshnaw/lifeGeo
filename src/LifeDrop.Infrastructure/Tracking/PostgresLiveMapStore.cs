@@ -24,8 +24,11 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
         const string sql = """
             SELECT s.user_id, u.email, t.name, t.region_id, s.started_at,
                 p.captured_at, ST_Y(p.geom::geometry), ST_X(p.geom::geometry), p.accuracy_m::float8, p.is_mocked,
-                lv.name, lv.occurred_at, COALESCE(dv.admin_label, dv.device_label)
+                lv.name, lv.occurred_at, COALESCE(dv.admin_label, dv.device_label),
+                h.seen_at, h.app_version, h.platform, h.os_version, h.device_model, h.location_permission, h.precise_location, h.location_services,
+                h.notifications, h.battery_exempt, h.background_refresh, h.battery_percent, h.low_power
             FROM shifts s
+            LEFT JOIN shift_health h ON h.tenant_id = s.tenant_id AND h.shift_id = s.id
             LEFT JOIN devices dv ON dv.tenant_id = s.tenant_id AND dv.id = s.device_id
             JOIN users u ON u.tenant_id = s.tenant_id AND u.id = s.user_id AND u.is_active
             LEFT JOIN team_members m ON m.user_id = s.user_id
@@ -66,7 +69,21 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
                 reader.IsDBNull(9) ? null : reader.GetBoolean(9),
                 reader.IsDBNull(10) ? null : reader.GetString(10),
                 reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11),
-                reader.IsDBNull(12) ? null : reader.GetString(12)));
+                reader.IsDBNull(12) ? null : reader.GetString(12),
+                reader.IsDBNull(13) ? null : reader.GetFieldValue<DateTimeOffset>(13),
+                reader.IsDBNull(13) ? null : new LiveMapHealthDto(
+                    reader.IsDBNull(14) ? null : reader.GetString(14),
+                    reader.IsDBNull(15) ? null : reader.GetString(15),
+                    reader.IsDBNull(16) ? null : reader.GetString(16),
+                    reader.IsDBNull(17) ? null : reader.GetString(17),
+                    reader.IsDBNull(18) ? null : reader.GetString(18),
+                    reader.IsDBNull(19) ? null : reader.GetBoolean(19),
+                    reader.IsDBNull(20) ? null : reader.GetBoolean(20),
+                    reader.IsDBNull(21) ? null : reader.GetBoolean(21),
+                    reader.IsDBNull(22) ? null : reader.GetBoolean(22),
+                    reader.IsDBNull(23) ? null : reader.GetString(23),
+                    reader.IsDBNull(24) ? null : (int)reader.GetInt16(24),
+                    reader.IsDBNull(25) ? null : reader.GetBoolean(25))));
         }
         return rows;
     }

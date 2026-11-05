@@ -780,6 +780,24 @@ export interface LiveMapEntry {
   lastCustomerName: string | null
   lastVisitAt: string | null
   deviceLabel?: string | null
+  lastSeenAt?: string | null
+  health?: LiveMapHealth | null
+}
+
+// State of the phone, reported with the heartbeat (plan step 5.17). null = unknown, never a problem by itself.
+export interface LiveMapHealth {
+  appVersion: string | null
+  platform: string | null
+  osVersion: string | null
+  deviceModel: string | null
+  locationPermission: string | null
+  preciseLocation: boolean | null
+  locationServices: boolean | null
+  notifications: boolean | null
+  batteryExempt: boolean | null
+  backgroundRefresh: string | null
+  batteryPercent: number | null
+  lowPower: boolean | null
 }
 
 export interface AuditEntry {

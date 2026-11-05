@@ -17,6 +17,85 @@ public class ShiftTrackerTests
         for (var i = 0; i < count; i++) tracker.AddFix(36.19, 44.01, 10, T0.AddSeconds(30 * i), false);
     }
 
+    private static ShiftHealth Health(string permission = "always") =>
+        new("1.0 (1141)", "android", "14", "Google Pixel 8", permission, true, true, true, true, null, 80, false);
+
+    private sealed class FakeTime(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    [Fact]
+    public async Task NoReportWithoutAHealthProvider()
+    {
+        var api = new FakeShiftApi();
+        var tracker = Create(api);
+        await tracker.StartAsync();
+        Assert.Equal(ShiftCallStatus.Success, await tracker.FlushAsync());
+        Assert.DoesNotContain("upload", api.Calls);
+    }
+
+    [Fact]
+    public async Task ReportsAboutOnceAMinuteWithoutNewPositions()
+    {
+        var api = new FakeShiftApi();
+        var time = new FakeTime(T0);
+        var tracker = new ShiftTracker(api, time) { HealthProvider = () => Task.FromResult<ShiftHealth?>(Health()) };
+        await tracker.StartAsync();
+
+        Assert.Equal(ShiftCallStatus.Success, await tracker.FlushAsync());
+        Assert.Equal(1, api.Calls.Count(c => c == "upload"));
+        Assert.Empty(api.Uploads[0]);                       // no positions: a report only
+        Assert.Equal("always", api.Healths[0]!.LocationPermission);
+
+        await tracker.FlushAsync();                          // the same minute: nothing more
+        Assert.Equal(1, api.Calls.Count(c => c == "upload"));
+
+        time.Now = T0.AddSeconds(61);
+        await tracker.FlushAsync();
+        Assert.Equal(2, api.Calls.Count(c => c == "upload"));
+    }
+
+    [Fact]
+    public async Task TheHealthGoesWithThePositionsInOneCall()
+    {
+        var api = new FakeShiftApi();
+        var tracker = new ShiftTracker(api, new FakeTime(T0)) { HealthProvider = () => Task.FromResult<ShiftHealth?>(Health("when_in_use")) };
+        await tracker.StartAsync();
+        AddFixes(tracker, 3);
+
+        Assert.Equal(ShiftCallStatus.Success, await tracker.FlushAsync());
+        Assert.Equal(1, api.Calls.Count(c => c == "upload"));   // one request, not a batch and a report
+        Assert.Equal(3, api.Uploads[0].Count);
+        Assert.Equal("when_in_use", api.Healths[0]!.LocationPermission);
+    }
+
+    [Fact]
+    public async Task APhoneThatCannotReadItsStateStillSendsItsPositions()
+    {
+        var api = new FakeShiftApi();
+        var tracker = new ShiftTracker(api, new FakeTime(T0)) { HealthProvider = () => throw new InvalidOperationException("no state") };
+        await tracker.StartAsync();
+        AddFixes(tracker, 2);
+
+        Assert.Equal(ShiftCallStatus.Success, await tracker.FlushAsync());
+        Assert.Equal(2, api.Uploads[0].Count);
+        Assert.Null(api.Healths[0]);
+    }
+
+    [Fact]
+    public async Task NoReportAfterTheShiftEnded()
+    {
+        var api = new FakeShiftApi();
+        var tracker = new ShiftTracker(api, new FakeTime(T0)) { HealthProvider = () => Task.FromResult<ShiftHealth?>(Health()) };
+        await tracker.StartAsync();
+        await tracker.EndAsync();
+        var before = api.Calls.Count(c => c == "upload");
+        await tracker.FlushAsync();
+        Assert.Equal(before, api.Calls.Count(c => c == "upload"));
+    }
+
     [Fact]
     public async Task NoPointsOutsideAShift()
     {
@@ -208,10 +287,13 @@ public class ShiftTrackerTests
             return Task.FromResult(EndResult);
         }
 
+        public List<ShiftHealth?> Healths { get; } = new();
+
         public async Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points,
-            CancellationToken cancellationToken = default)
+            ShiftHealth? health = null, CancellationToken cancellationToken = default)
         {
             if (UploadGate is not null) await UploadGate;
+            Healths.Add(health);
             Calls.Add("upload");
             Uploads.Add(points.ToList());
             UploadShiftIds.Add(shiftId);

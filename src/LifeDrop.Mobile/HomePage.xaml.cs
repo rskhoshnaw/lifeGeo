@@ -128,6 +128,7 @@ public partial class HomePage : ContentPage
             }
         }
         RenderShift();
+        await AppendGateWarningAsync();
         if (tracker is not null) await PushHost.EnsureAsync();   // push token (needs Firebase; does nothing without it)
     }
 
@@ -154,12 +155,11 @@ public partial class HomePage : ContentPage
                     ShiftDetailLabel.IsVisible = true;
                     return;
                 }
+                await AskBatteryExemptionAsync();
+                // A shift that could not be followed does not start (owner request 2026-11-05, plan step 5.17).
+                if (!await GateAllowsShiftAsync()) return;
                 var status = await tracker.StartAsync(cts.Token);
-                if (status == ShiftCallStatus.Success)
-                {
-                    StartTrackingService();
-                    await AskBatteryExemptionAsync();
-                }
+                if (status == ShiftCallStatus.Success) StartTrackingService();
                 else ShowShiftError(status);
             }
             else
@@ -213,6 +213,39 @@ public partial class HomePage : ContentPage
             _ => "app.shift.server"
         });
         ShiftDetailLabel.IsVisible = true;
+    }
+
+    private static string MissingList(IReadOnlyList<MissingPermission> missing) => string.Join("\n", missing.Select(m => "• " + Texts.Get("app.gate." + m)));
+
+    // Before a shift starts (plan step 5.17): everything tracking needs must be allowed. Otherwise the user sees what is missing and can open the phone's settings; the shift does not start.
+    private async Task<bool> GateAllowsShiftAsync()
+    {
+        var health = await DeviceHealthReader.ReadAsync();
+        if (health is null) return true;   // this phone cannot read its settings: do not block
+        var missing = PermissionGate.Missing(health);
+        if (missing.Count == 0) return true;
+        ShiftDetailLabel.Text = Texts.Get("app.gate.blocked") + "\n" + MissingList(missing);
+        ShiftDetailLabel.IsVisible = true;
+        if (await DisplayAlertAsync(Texts.Get("app.gate.title"), Texts.Get("app.gate.text") + "\n\n" + MissingList(missing), Texts.Get("app.gate.openSettings"), Texts.Get("app.gate.close")))
+            AppInfo.Current.ShowSettingsUI();
+        return false;
+    }
+
+    // During a shift: when the user took a permission away, the home page says so (the shift goes on; the manager sees it too, because the phone reports it).
+    private async Task AppendGateWarningAsync()
+    {
+        try
+        {
+            if (TrackingHost.Tracker?.State != ShiftState.On) return;
+            var health = await DeviceHealthReader.ReadAsync();
+            if (health is null || PermissionGate.Missing(health) is not { Count: > 0 } missing) return;
+            ShiftDetailLabel.Text = (ShiftDetailLabel.IsVisible ? ShiftDetailLabel.Text + "\n" : "") + Texts.Get("app.gate.banner") + "\n" + MissingList(missing);
+            ShiftDetailLabel.IsVisible = true;
+        }
+        catch (Exception)
+        {
+            // The warning is an extra.
+        }
     }
 
     // "Allow all the time" (plan step 5.15): without it the system gives no position to a tracking service it restarted in the background (Android) or to an app it closed (iPhone),

@@ -9574,5 +9574,137 @@
   "ckb": "لەسەر نەخشە نیشانی بدە",
   "ar": "اعرضه على الخريطة",
   "fa": "نمایش روی نقشه"
+ },
+ "app.gate.title": {
+  "en": "Allow what tracking needs",
+  "ckb": "ئەوەی بەدواداچوون پێویستی پێیەتی ڕێگە بدە",
+  "ar": "اسمح بما يحتاجه التتبع",
+  "fa": "آنچه ردیابی لازم دارد را مجاز کنید"
+ },
+ "app.gate.text": {
+  "en": "The shift cannot start until these are allowed. Press “Open settings”, allow them, then press Start shift again.",
+  "ckb": "شیفت دەستپێناکات تا ئەمانە ڕێگەپێدراو نەبن. «کردنەوەی ڕێکخستنەکان» دابگرە، ڕێگەیان پێبدە، پاشان دووبارە «دەستپێکردنی شیفت» دابگرە.",
+  "ar": "لا يمكن بدء الوردية حتى يتم السماح بما يلي. اضغط «فتح الإعدادات» وامنح الأذونات ثم اضغط «بدء الوردية» مرة أخرى.",
+  "fa": "تا این‌ها مجاز نشوند شیفت شروع نمی‌شود. «باز کردن تنظیمات» را بزنید، مجازشان کنید و دوباره «شروع شیفت» را بزنید."
+ },
+ "app.gate.openSettings": {
+  "en": "Open settings",
+  "ckb": "کردنەوەی ڕێکخستنەکان",
+  "ar": "فتح الإعدادات",
+  "fa": "باز کردن تنظیمات"
+ },
+ "app.gate.close": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "app.gate.blocked": {
+  "en": "The shift did not start. Allow:",
+  "ckb": "شیفت دەستی پێنەکرد. ڕێگە بدە بە:",
+  "ar": "لم تبدأ الوردية. اسمح بـ:",
+  "fa": "شیفت شروع نشد. مجاز کنید:"
+ },
+ "app.gate.banner": {
+  "en": "Tracking is not complete. Allow:",
+  "ckb": "بەدواداچوون تەواو نییە. ڕێگە بدە بە:",
+  "ar": "التتبع غير مكتمل. اسمح بـ:",
+  "fa": "ردیابی کامل نیست. مجاز کنید:"
+ },
+ "app.gate.LocationServices": {
+  "en": "Turn on Location (GPS) in the phone",
+  "ckb": "شوێن (GPS) لە مۆبایلەکەدا بکەرەوە",
+  "ar": "شغّل الموقع (GPS) في الهاتف",
+  "fa": "موقعیت مکانی (GPS) را در گوشی روشن کنید"
+ },
+ "app.gate.LocationAlways": {
+  "en": "Location: choose “Allow all the time” (iPhone: “Always”)",
+  "ckb": "شوێن: «هەموو کات ڕێگەپێدان» هەڵبژێرە (ئایفۆن: «Always»)",
+  "ar": "الموقع: اختر «السماح طوال الوقت» (آيفون: «Always»)",
+  "fa": "موقعیت: «اجازه در همهٔ زمان‌ها» را انتخاب کنید (آیفون: «Always»)"
+ },
+ "app.gate.PreciseLocation": {
+  "en": "Location: turn on “Precise location”",
+  "ckb": "شوێن: «شوێنی ورد» بکەرەوە",
+  "ar": "الموقع: فعّل «الموقع الدقيق»",
+  "fa": "موقعیت: «موقعیت دقیق» را روشن کنید"
+ },
+ "app.gate.Notifications": {
+  "en": "Allow notifications",
+  "ckb": "ئاگادارکردنەوەکان ڕێگەپێبدە",
+  "ar": "اسمح بالإشعارات",
+  "fa": "اعلان‌ها را مجاز کنید"
+ },
+ "app.gate.BatteryOptimization": {
+  "en": "Battery: choose “Not optimized” or “Unrestricted” for GeoTrack",
+  "ckb": "باتری: بۆ GeoTrack «بێ سنوور» یان «Not optimized» هەڵبژێرە",
+  "ar": "البطارية: اختر «غير مقيّد» أو «Not optimized» لتطبيق GeoTrack",
+  "fa": "باتری: برای GeoTrack «بدون محدودیت» یا «Not optimized» را انتخاب کنید"
+ },
+ "app.gate.BackgroundRefresh": {
+  "en": "Turn on “Background App Refresh” for GeoTrack",
+  "ckb": "«Background App Refresh» بۆ GeoTrack بکەرەوە",
+  "ar": "فعّل «تحديث التطبيق في الخلفية» لتطبيق GeoTrack",
+  "fa": "«Background App Refresh» را برای GeoTrack روشن کنید"
+ },
+ "web.map.phone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "web.map.leftOpen": {
+  "en": "(shift left open)",
+  "ckb": "(شیفت کراوە ماوەتەوە)",
+  "ar": "(الوردية مفتوحة)",
+  "fa": "(شیفت باز مانده)"
+ },
+ "web.map.oldApp": {
+  "en": "Old app or nothing reported yet",
+  "ckb": "وەشانی کۆن یان هێشتا هیچ نەنێردراوە",
+  "ar": "نسخة قديمة أو لم يُرسل شيء",
+  "fa": "نسخه قدیمی یا هنوز چیزی نفرستاده"
+ },
+ "web.map.problem.services": {
+  "en": "Location services are off",
+  "ckb": "شوێنپێدان لە تەلەفۆن کوژاوەتەوە",
+  "ar": "خدمة الموقع متوقفة",
+  "fa": "سرویس مکان گوشی خاموش است"
+ },
+ "web.map.problem.denied": {
+  "en": "Location permission denied",
+  "ckb": "ڕێگەی شوێن نەدراوە",
+  "ar": "إذن الموقع مرفوض",
+  "fa": "اجازه مکان داده نشده"
+ },
+ "web.map.problem.notAlways": {
+  "en": "Location only while using (not “Always”)",
+  "ckb": "شوێن تەنها لە کاتی بەکارهێنان (نەک «هەمیشە»)",
+  "ar": "الموقع أثناء الاستخدام فقط (وليس «دائمًا»)",
+  "fa": "مکان فقط هنگام استفاده (نه «همیشه»)"
+ },
+ "web.map.problem.approx": {
+  "en": "Approximate location, not precise",
+  "ckb": "شوێنی نزیکەیی، نەک ورد",
+  "ar": "موقع تقريبي وليس دقيقًا",
+  "fa": "مکان تقریبی، نه دقیق"
+ },
+ "web.map.problem.notifications": {
+  "en": "Notifications are off",
+  "ckb": "ئاگادارکردنەوەکان داخراون",
+  "ar": "الإشعارات متوقفة",
+  "fa": "اعلان‌ها خاموش است"
+ },
+ "web.map.problem.battery": {
+  "en": "Battery optimisation limits the app",
+  "ckb": "پاتری ئەپەکە سنووردار دەکات",
+  "ar": "تحسين البطارية يقيّد التطبيق",
+  "fa": "بهینه‌سازی باتری برنامه را محدود می‌کند"
+ },
+ "web.map.problem.refresh": {
+  "en": "Background App Refresh is off",
+  "ckb": "نوێکردنەوەی پاشبنەما داخراوە",
+  "ar": "تحديث التطبيق في الخلفية متوقف",
+  "fa": "به‌روزرسانی پس‌زمینه خاموش است"
  }
 }

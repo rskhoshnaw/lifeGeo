@@ -3,7 +3,7 @@ import type { AdminApi, MapCustomer } from '../api/admin.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { LiveMapView } from '../components/LiveMapView.tsx'
 import { t } from '../i18n.ts'
-import { status } from './liveStatus.ts'
+import { contactAt, leftOpen, problems, status } from './liveStatus.ts'
 
 const refreshMs = 30_000
 const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
@@ -44,6 +44,7 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
               <th>{t('web.map.status')}</th>
               <th>{t('web.map.lastUpdate')}</th>
               <th>{t('web.map.shiftStarted')}</th>
+              <th>{t('web.map.phone')}</th>
               <th>{t('web.map.lastCustomer')}</th>
             </tr>
           </thead>
@@ -64,8 +65,23 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
                   {status(e)}
                   {e.isMocked && <span className="ms-2 text-red-700">{t('web.map.mock')}</span>}
                 </td>
-                <td>{e.lastUpdateAt ? time.format(new Date(e.lastUpdateAt)) : '—'}</td>
-                <td>{time.format(new Date(e.shiftStartedAt))}</td>
+                <td>{contactAt(e) ? time.format(new Date(contactAt(e)!)) : '—'}</td>
+                <td>
+                  {time.format(new Date(e.shiftStartedAt))}
+                  {leftOpen(e) && <span className="ms-2 text-amber-700">{t('web.map.leftOpen')}</span>}
+                </td>
+                <td className="text-xs">
+                  {e.health ? (
+                    <>
+                      <div>{[e.health.platform, e.health.appVersion, e.health.batteryPercent !== null ? `${e.health.batteryPercent}%` : null].filter(Boolean).join(' · ')}</div>
+                      {problems(e).map((k) => (
+                        <div key={k} className="text-red-700">{t(k)}</div>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="text-slate-500">{t('web.map.oldApp')}</span>
+                  )}
+                </td>
                 <td>{e.lastCustomerName ? `${e.lastCustomerName} (${time.format(new Date(e.lastVisitAt!))})` : '—'}</td>
               </tr>
             ))}

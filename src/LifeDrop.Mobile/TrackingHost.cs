@@ -205,7 +205,7 @@ public static class TrackingHost
             _workQueue = new WorkQueue(TimeProvider.System, _store);
             _workExecutor = new WorkExecutor(_orders, _payments, _samples, _followUps, _visitDetails);
             _cache = new ReferenceCache(_store);
-            _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store));
+            _tracker = new ShiftTracker(new ShiftApiClient(http, session), TimeProvider.System, new PointQueue(_store)) { HealthProvider = DeviceHealthReader.ReadAsync };   // reports once a minute (step 5.17)
             if (!_listening)
             {
                 // Send what waits on the phone as soon as the internet is back.

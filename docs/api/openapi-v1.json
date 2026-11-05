@@ -22542,6 +22542,117 @@
               "null",
               "string"
             ]
+          },
+          "lastSeenAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "health": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LiveMapHealthDto"
+              }
+            ]
+          }
+        }
+      },
+      "LiveMapHealthDto": {
+        "required": [
+          "appVersion",
+          "platform",
+          "osVersion",
+          "deviceModel",
+          "locationPermission",
+          "preciseLocation",
+          "locationServices",
+          "notifications",
+          "batteryExempt",
+          "backgroundRefresh",
+          "batteryPercent",
+          "lowPower"
+        ],
+        "type": "object",
+        "properties": {
+          "appVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "osVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deviceModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "locationPermission": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preciseLocation": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "locationServices": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "notifications": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "batteryExempt": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "backgroundRefresh": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "batteryPercent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lowPower": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -25913,6 +26024,86 @@
           }
         }
       },
+      "ShiftHealthRequest": {
+        "type": "object",
+        "properties": {
+          "appVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platform": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "osVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deviceModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "locationPermission": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preciseLocation": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "locationServices": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "notifications": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "batteryExempt": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "backgroundRefresh": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "batteryPercent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lowPower": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
       "ShiftSummaryDto": {
         "required": [
           "shiftId",
@@ -26560,6 +26751,16 @@
             "items": {
               "$ref": "#/components/schemas/TrackingPointRequest"
             }
+          },
+          "health": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ShiftHealthRequest"
+              }
+            ]
           }
         }
       },
