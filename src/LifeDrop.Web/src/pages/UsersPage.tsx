@@ -16,15 +16,15 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const sorted = useSort(users.data, { email: (u) => u.email ?? u.id, roles: (u) => u.roles.join(', '), team: (u) => u.teamName, city: (u) => u.city, phone: (u) => u.phoneType, sessions: (u) => u.activeSessions, status: (u) => u.isActive })
 
   const [editing, setEditing] = useState<string | null>(null)
-  const [form, setForm] = useState({ email: '', password: '', roleId: '' })
+  const [form, setForm] = useState({ email: '', password: '', roleId: '', phone: '' })
   const [created, setCreated] = useState(false)
 
   async function add(event: FormEvent) {
     event.preventDefault()
     setCreated(false)
-    const done = await action.run(async () => (await admin.createUser({ email: form.email.trim(), password: form.password, roleId: form.roleId }), true))
+    const done = await action.run(async () => (await admin.createUser({ email: form.email.trim(), password: form.password, roleId: form.roleId, phone: form.phone.trim() || undefined }), true))
     if (done) {
-      setForm({ email: '', password: '', roleId: '' })
+      setForm({ email: '', password: '', roleId: '', phone: '' })
       setCreated(true)
     }
   }
@@ -74,6 +74,10 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="text-sm">
+            {t('web.users.mobile')}
+            <input type="tel" dir="ltr" autoComplete="off" className="mt-1 block w-full rounded border px-2 py-1" value={form.phone} maxLength={40} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </label>
           <div className="self-end text-end">
             <button className="rounded bg-brand-700 px-3 py-1 text-white disabled:opacity-50" disabled={action.busy}>

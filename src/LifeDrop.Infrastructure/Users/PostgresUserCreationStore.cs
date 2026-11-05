@@ -9,7 +9,7 @@ namespace LifeDrop.Infrastructure.Users;
 // managers adding the same e-mail at once cannot both win. A role of another company is reported like a missing one.
 public sealed class PostgresUserCreationStore(NpgsqlDataSource dataSource) : IUserCreationStore
 {
-    public async Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, CancellationToken cancellationToken)
+    public async Task<(CreateUserResult Result, Guid? UserId)> CreateAsync(TenantId tenantId, UserId actorId, string email, string password, RoleId roleId, string? phone, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -25,7 +25,7 @@ public sealed class PostgresUserCreationStore(NpgsqlDataSource dataSource) : IUs
         try
         {
             await using var insert = new NpgsqlCommand("""
-                INSERT INTO users (id, tenant_id, email, password_hash) VALUES (@user, @tenant, @email, @hash);
+                INSERT INTO users (id, tenant_id, email, password_hash, phone) VALUES (@user, @tenant, @email, @hash, @phone);
                 INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES (@tenant, @user, @role);
                 INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at) VALUES (gen_random_uuid(), @tenant, @actor, 'user.created', @user::text, now());
                 """, connection, transaction);
@@ -34,6 +34,7 @@ public sealed class PostgresUserCreationStore(NpgsqlDataSource dataSource) : IUs
             insert.Parameters.AddWithValue("email", email);
             insert.Parameters.AddWithValue("hash", PasswordHash.Create(password));
             insert.Parameters.AddWithValue("role", roleId.Value);
+            insert.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)phone ?? DBNull.Value });
             insert.Parameters.AddWithValue("actor", actorId.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
