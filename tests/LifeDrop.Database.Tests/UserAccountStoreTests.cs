@@ -31,7 +31,7 @@ public class UserAccountStoreTests
             builder.SearchPath = $"{schema},public";
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await using var connection = await dataSource.OpenConnectionAsync();
-            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0052_user_city.sql" })
+            foreach (var file in new[] { "0001_role_assignment.sql", "0002_login.sql", "0003_sessions_devices.sql", "0052_user_city.sql", "0068_user_phone.sql" })
                 await using (var migrate = new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, file)), connection))
                     await migrate.ExecuteNonQueryAsync();
 
@@ -95,6 +95,13 @@ public class UserAccountStoreTests
             Assert.Equal(ManageUserResult.Done, await store.SetCityAsync(t, a, new UserId(rep), null, CancellationToken.None));
             Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM users WHERE id = @id AND city IS NOT NULL", rep));
 
+            // Phone (plan step 5.22): set and cleared; another company's user is not reachable.
+            Assert.Equal(ManageUserResult.Done, await store.SetPhoneAsync(t, a, new UserId(rep), "0770 123 4567", CancellationToken.None));
+            Assert.Equal("0770 123 4567", await Text(connection, "SELECT phone FROM users WHERE id = @id", rep));
+            Assert.Equal(ManageUserResult.NotFound, await store.SetPhoneAsync(t, a, new UserId(otherActor), "0770 123 4567", CancellationToken.None));
+            Assert.Equal(ManageUserResult.Done, await store.SetPhoneAsync(t, a, new UserId(rep), null, CancellationToken.None));
+            Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM users WHERE id = @id AND phone IS NOT NULL", rep));
+
             // Taking a role away removes only that role; a role the user does not have, or a foreign user, is not found.
             Assert.Equal(ManageUserResult.Done, await store.RemoveRoleAsync(t, a, new UserId(rep), roleA, CancellationToken.None));
             Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM user_roles WHERE user_id = @id", rep));
@@ -123,7 +130,7 @@ public class UserAccountStoreTests
             Assert.Equal(1L, await Count(connection, "SELECT count(*) FROM refresh_tokens WHERE user_id = @id AND revoked_at IS NULL", otherActor));   // another company's sessions untouched
 
             // One audit row per success and none for refusals.
-            Assert.Equal(new[] { "user.activated", "user.city_changed", "user.city_changed", "user.deactivated", "user.email_changed", "user.password_changed", "user.password_changed_self", "user.role_removed" }, await Actions(connection, rep));
+            Assert.Equal(new[] { "user.activated", "user.city_changed", "user.city_changed", "user.deactivated", "user.email_changed", "user.password_changed", "user.password_changed_self", "user.phone_changed", "user.phone_changed", "user.role_removed" }, await Actions(connection, rep));
             Assert.Equal(0L, await Count(connection, "SELECT count(*) FROM audit_logs WHERE entity_id = @id::text", otherActor));
         }
         finally

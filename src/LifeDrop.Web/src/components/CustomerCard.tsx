@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { AdminApi, errorMessage, type Customer } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { CustomerLocationMap } from './CustomerLocationMap.tsx'
+import { WhatsAppButton } from './WhatsAppButton.tsx'
 import { useLoad } from './useLoad.ts'
 
 type Position = { latitude: number; longitude: number }
@@ -72,7 +73,10 @@ export function CustomerCard({ admin, customer, canEdit, canMove, onEdit, onProf
           {rows.filter((r) => r.value).map((r) => (
             <div key={r.label} className="flex gap-2">
               <dt className="min-w-32 text-slate-600">{t(r.label)}</dt>
-              <dd>{r.value}</dd>
+              <dd>
+                {r.value}
+                {(r.label === 'web.customers.phone' || r.label === 'web.customers.phone2') && <WhatsAppButton phone={r.value} who={customer.name} />}
+              </dd>
             </div>
           ))}
         </dl>

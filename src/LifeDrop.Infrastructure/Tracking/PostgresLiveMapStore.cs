@@ -26,7 +26,7 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
                 p.captured_at, ST_Y(p.geom::geometry), ST_X(p.geom::geometry), p.accuracy_m::float8, p.is_mocked,
                 lv.name, lv.occurred_at, COALESCE(dv.admin_label, dv.device_label),
                 h.seen_at, h.app_version, h.platform, h.os_version, h.device_model, h.location_permission, h.precise_location, h.location_services,
-                h.notifications, h.battery_exempt, h.background_refresh, h.battery_percent, h.low_power
+                h.notifications, h.battery_exempt, h.background_refresh, h.battery_percent, h.low_power, u.phone
             FROM shifts s
             LEFT JOIN shift_health h ON h.tenant_id = s.tenant_id AND h.shift_id = s.id
             LEFT JOIN devices dv ON dv.tenant_id = s.tenant_id AND dv.id = s.device_id
@@ -83,7 +83,8 @@ public sealed class PostgresLiveMapStore(NpgsqlDataSource dataSource) : ILiveMap
                     reader.IsDBNull(22) ? null : reader.GetBoolean(22),
                     reader.IsDBNull(23) ? null : reader.GetString(23),
                     reader.IsDBNull(24) ? null : (int)reader.GetInt16(24),
-                    reader.IsDBNull(25) ? null : reader.GetBoolean(25))));
+                    reader.IsDBNull(25) ? null : reader.GetBoolean(25)),
+                reader.IsDBNull(26) ? null : reader.GetString(26)));
         }
         return rows;
     }

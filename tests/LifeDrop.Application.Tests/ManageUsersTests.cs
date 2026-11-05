@@ -27,6 +27,7 @@ public class ManageUsersTests
         public Task<ManageUserResult> SetActiveAsync(TenantId tenantId, UserId actorId, UserId targetId, bool active, CancellationToken cancellationToken) => Record("active:" + active);
         public Task<ManageUserResult> ChangeOwnPasswordAsync(TenantId tenantId, UserId userId, Guid keepFamilyId, string currentPassword, string newPassword, CancellationToken cancellationToken) => Record("own:" + currentPassword + ">" + newPassword);
         public Task<ManageUserResult> SetCityAsync(TenantId tenantId, UserId actorId, UserId targetId, string? city, CancellationToken cancellationToken) => Record("city:" + city);
+        public Task<ManageUserResult> SetPhoneAsync(TenantId tenantId, UserId actorId, UserId targetId, string? phone, CancellationToken cancellationToken) => Record("phone:" + phone);
         public Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) => Record("removeRole");
         private Task<ManageUserResult> Record(string call) { Calls.Add(call); return Task.FromResult(Result); }
     }
@@ -89,6 +90,20 @@ public class ManageUsersTests
     {
         var store = new Store { Result = ManageUserResult.NotFound };
         Assert.Equal(ManageUserResult.NotFound, await Service(store, PermissionKeys.UserManageRoles).SetPasswordAsync(Tenant, Actor, Target, new SetUserPasswordRequest("a-long-password-1"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The_phone_number_is_trimmed_checked_and_an_empty_one_clears_it()
+    {
+        var store = new Store();
+        var service = Service(store, PermissionKeys.UserManageRoles);
+        Assert.Equal(ManageUserResult.Done, await service.SetPhoneAsync(Tenant, Actor, Target, new SetUserPhoneRequest("  0770 123 4567 "), CancellationToken.None));
+        Assert.Equal(ManageUserResult.Done, await service.SetPhoneAsync(Tenant, Actor, Target, new SetUserPhoneRequest("+964 (770) 123-4567"), CancellationToken.None));
+        Assert.Equal(ManageUserResult.Done, await service.SetPhoneAsync(Tenant, Actor, Target, new SetUserPhoneRequest(" "), CancellationToken.None));
+        foreach (var bad in new[] { "abc", "12345", "0770<script>", "07701234567890123456", "+++9647701234567", "077-0123-4567-x" })
+            Assert.Equal(ManageUserResult.InvalidData, await service.SetPhoneAsync(Tenant, Actor, Target, new SetUserPhoneRequest(bad), CancellationToken.None));
+        Assert.Equal(ManageUserResult.Forbidden, await Service(store, "customers.read").SetPhoneAsync(Tenant, Actor, Target, new SetUserPhoneRequest("07701234567"), CancellationToken.None));
+        Assert.Equal(new[] { "phone:0770 123 4567", "phone:+964 (770) 123-4567", "phone:" }, store.Calls.ToArray());
     }
 
     [Fact]

@@ -4,6 +4,7 @@ import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { RolesPanel } from '../components/RolesPanel.tsx'
 import { SortTh, useSort } from '../components/sort.tsx'
+import { WhatsAppButton } from '../components/WhatsAppButton.tsx'
 
 export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [showInactive, setShowInactive] = useState(false)
@@ -115,6 +116,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   ) : (
                     (user.email ?? user.id)
                   )}
+                  <WhatsAppButton phone={user.phone} who={user.email ?? user.id} />
                 </td>
                 <td>{user.roles.join(', ') || '—'}</td>
                 <td>{user.teamName ?? '—'}</td>
@@ -168,6 +170,7 @@ export function UsersPage({ admin, me }: { admin: AdminApi; me: Me }) {
 // One user in detail (plan step 4.37): city, and the roles with a button to take each away.
 export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { user: UserSummary; roles: Role[]; self: boolean; admin: AdminApi; onClose: () => void; onChanged: () => void }) {
   const [city, setCity] = useState(user.city ?? '')
+  const [mobile, setMobile] = useState(user.phone ?? '')
   const [email, setEmail] = useState(user.email ?? '')
   const [password, setPassword] = useState('')
   const action = useAction(onChanged)
@@ -201,6 +204,13 @@ export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { u
         <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.setUserCity(user.id, city.trim() || null))}>
           {t('web.places.save')}
         </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="tel" dir="ltr" aria-label={t('web.users.mobile')} placeholder={t('web.users.mobile')} className="rounded border px-2 py-1" maxLength={40} value={mobile} onChange={(e) => setMobile(e.target.value)} />
+        <button className="rounded border px-2 py-1" disabled={action.busy || mobile.trim() === (user.phone ?? '')} onClick={() => void action.run(() => admin.setUserPhone(user.id, mobile.trim() || null))}>
+          {t('web.users.saveMobile')}
+        </button>
+        <WhatsAppButton phone={mobile} who={user.email ?? user.id} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{t('web.users.roles')}:</span>

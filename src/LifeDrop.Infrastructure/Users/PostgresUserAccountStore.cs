@@ -63,6 +63,10 @@ public sealed class PostgresUserAccountStore(NpgsqlDataSource dataSource) : IUse
         ChangeAsync(tenantId, actorId, targetId, "user.city_changed", "UPDATE users SET city = @city WHERE tenant_id = @tenant AND id = @target",
             command => command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)city ?? DBNull.Value }), endSessions: false, cancellationToken);
 
+    public Task<ManageUserResult> SetPhoneAsync(TenantId tenantId, UserId actorId, UserId targetId, string? phone, CancellationToken cancellationToken) =>
+        ChangeAsync(tenantId, actorId, targetId, "user.phone_changed", "UPDATE users SET phone = @phone WHERE tenant_id = @tenant AND id = @target",
+            command => command.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)phone ?? DBNull.Value }), endSessions: false, cancellationToken);
+
     public Task<ManageUserResult> RemoveRoleAsync(TenantId tenantId, UserId actorId, UserId targetId, Guid roleId, CancellationToken cancellationToken) =>
         ChangeAsync(tenantId, actorId, targetId, "user.role_removed", "DELETE FROM user_roles WHERE tenant_id = @tenant AND user_id = @target AND role_id = @role",
             command => command.Parameters.AddWithValue("role", roleId), endSessions: false, cancellationToken);

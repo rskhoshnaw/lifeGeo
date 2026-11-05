@@ -11,7 +11,9 @@ public sealed record CurrentUserDto(Guid Id, string? Email, IReadOnlyList<string
 public sealed record UserSummaryDto(Guid Id, string? Email, IReadOnlyList<string> Roles, Guid? TeamId, string? TeamName,
     Guid? RegionId, int ActiveSessions, bool IsActive,
     // Plan step 4.37: city and the platform (android | ios) of the newest phone the user registered.
-    string? City = null, string? PhoneType = null);
+    string? City = null, string? PhoneType = null,
+    // Plan step 5.22: the mobile number of the staff member (WhatsApp link in the panel).
+    string? Phone = null);
 
 // Plan step 4.38: the permissions of the role, how many users have it, whether it is one of the default roles, and whether it needs a registered phone.
 public sealed record RoleDto(Guid Id, string Name, string DataScope, IReadOnlyList<string>? Permissions = null, int UserCount = 0, bool IsDefault = false, bool RequiresDeviceBinding = false);

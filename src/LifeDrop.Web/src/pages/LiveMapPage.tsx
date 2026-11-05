@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AdminApi, MapCustomer } from '../api/admin.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { LiveMapView } from '../components/LiveMapView.tsx'
+import { WhatsAppButton } from '../components/WhatsAppButton.tsx'
 import { t } from '../i18n.ts'
 import { contactAt, leftOpen, problems, status } from './liveStatus.ts'
 
@@ -59,6 +60,7 @@ export function LiveMapPage({ admin }: { admin: AdminApi }) {
                   ) : (
                     e.email ?? e.userId
                   )}
+                  <WhatsAppButton phone={e.phone} who={e.email ?? e.userId} />
                 </td>
                 <td>{e.teamName ?? '—'}</td>
                 <td className={e.isLive ? 'text-green-700' : 'text-slate-500'}>

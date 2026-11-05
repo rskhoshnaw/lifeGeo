@@ -15,12 +15,14 @@ public sealed record LiveMapHealthDto(string? AppVersion, string? Platform, stri
 public sealed record LiveMapEntryDto(Guid UserId, string? Email, string? TeamName, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastUpdateAt, bool IsLive, bool Precise, double? Latitude, double? Longitude, double? AccuracyMeters,
     bool? IsMocked, string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null,
-    DateTimeOffset? LastSeenAt = null, LiveMapHealthDto? Health = null);
+    DateTimeOffset? LastSeenAt = null, LiveMapHealthDto? Health = null,
+    // Plan step 5.22: the mobile number of the user, only for readers of exact positions (tracking.read).
+    string? Phone = null);
 
 public sealed record LiveMapRow(Guid UserId, string? Email, string? TeamName, Guid? RegionId, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastPointAt, double? Latitude, double? Longitude, double? AccuracyMeters, bool? IsMocked,
     string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null,
-    DateTimeOffset? SeenAt = null, LiveMapHealthDto? Health = null);
+    DateTimeOffset? SeenAt = null, LiveMapHealthDto? Health = null, string? Phone = null);
 
 public interface ILiveMapStore
 {
@@ -54,6 +56,6 @@ public sealed class LiveMap(ILiveMapStore store, IPermissionStore permissions, T
         var hasPoint = precise && row.LastPointAt is not null;
         return new LiveMapEntryDto(row.UserId, row.Email, row.TeamName, row.ShiftStartedAt, row.LastPointAt, isLive, precise,
             hasPoint ? row.Latitude : null, hasPoint ? row.Longitude : null, hasPoint ? row.AccuracyMeters : null,
-            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt, row.DeviceLabel, row.SeenAt, row.Health);
+            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt, row.DeviceLabel, row.SeenAt, row.Health, precise ? row.Phone : null);
     }
 }
