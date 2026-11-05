@@ -50,3 +50,5 @@ GRANT SELECT, INSERT, DELETE ON plan_templates TO lifedrop_app;
 GRANT SELECT, INSERT, DELETE ON plan_template_items TO lifedrop_app;
 -- Step 5.10: connection-error reports from the mobile app (listed by managers, deleted after 40 days).
 GRANT SELECT, INSERT, DELETE ON client_error_reports TO lifedrop_app;
+-- Step 5.17: the state of the phone during a shift (one row per shift, replaced at every report).
+GRANT SELECT, INSERT, UPDATE ON shift_health TO lifedrop_app;

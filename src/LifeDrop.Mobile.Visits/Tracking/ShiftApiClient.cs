@@ -22,7 +22,8 @@ public interface IShiftApiClient
     Task<(ShiftCallStatus Status, ShiftInfo? Shift)> StartShiftAsync(CancellationToken cancellationToken = default);
     Task<(ShiftCallStatus Status, ShiftInfo? Shift)> GetCurrentShiftAsync(CancellationToken cancellationToken = default);
     Task<ShiftCallStatus> EndShiftAsync(Guid shiftId, CancellationToken cancellationToken = default);
-    Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points,
+    // With the state of the phone (step 5.17) the call is also a report: it may carry no points at all.
+    Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, ShiftHealth? health = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -54,7 +55,7 @@ public sealed class ShiftApiClient : IShiftApiClient
     public async Task<ShiftCallStatus> EndShiftAsync(Guid shiftId, CancellationToken cancellationToken = default) =>
         (await SendAsync<object>(HttpMethod.Post, $"/shifts/{shiftId}/end", null, cancellationToken)).Status;
 
-    public async Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points,
+    public async Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, ShiftHealth? health = null,
         CancellationToken cancellationToken = default)
     {
         var body = new
@@ -67,7 +68,22 @@ public sealed class ShiftApiClient : IShiftApiClient
                 accuracyMeters = p.AccuracyMeters,
                 capturedAt = p.CapturedAt,
                 isMocked = p.IsMocked
-            })
+            }),
+            health = health is null ? null : new
+            {
+                appVersion = health.AppVersion,
+                platform = health.Platform,
+                osVersion = health.OsVersion,
+                deviceModel = health.DeviceModel,
+                locationPermission = health.LocationPermission,
+                preciseLocation = health.PreciseLocation,
+                locationServices = health.LocationServices,
+                notifications = health.Notifications,
+                batteryExempt = health.BatteryExempt,
+                backgroundRefresh = health.BackgroundRefresh,
+                batteryPercent = health.BatteryPercent,
+                lowPower = health.LowPower
+            }
         };
         var (status, result) = await SendAsync<UploadResult>(HttpMethod.Post, $"/shifts/{shiftId}/points", body, cancellationToken);
         return status == ShiftCallStatus.Success && result is null ? (ShiftCallStatus.ServerError, null) : (status, result);

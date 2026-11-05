@@ -14,7 +14,13 @@ public sealed record ShiftDto(Guid Id, Guid DeviceId, DateTimeOffset StartedAt, 
 // upload is recognised and not stored twice.
 public sealed record TrackingPointRequest(Guid ClientPointId, double Latitude, double Longitude, double AccuracyMeters,
     DateTimeOffset CapturedAt, bool IsMocked = false);
-public sealed record UploadPointsRequest(List<TrackingPointRequest>? Points);
+// What the phone says about itself (plan step 5.17): permissions and settings that decide whether tracking can keep running, the app and phone, the battery. Every part is optional:
+// an old app sends none. Values outside the allowed ones are dropped by the server, never trusted for anything but showing to a manager.
+public sealed record ShiftHealthRequest(string? AppVersion = null, string? Platform = null, string? OsVersion = null, string? DeviceModel = null,
+    string? LocationPermission = null, bool? PreciseLocation = null, bool? LocationServices = null, bool? Notifications = null, bool? BatteryExempt = null,
+    string? BackgroundRefresh = null, int? BatteryPercent = null, bool? LowPower = null);
+// A report may have no points (a phone that stands still, or has no fix yet) when it carries the health.
+public sealed record UploadPointsRequest(List<TrackingPointRequest>? Points, ShiftHealthRequest? Health = null);
 public sealed record UploadPointsResponse(int Accepted, int Duplicates, int Rejected);
 
 // Coverage of a shift for the real-device acceptance test (plan step 1.13): points received against one point
@@ -33,6 +39,8 @@ public interface IShiftStore
     Task<int> AddPointsAsync(TenantId tenantId, UserId userId, Guid deviceId, Guid shiftId, IReadOnlyList<TrackingPointRequest> points,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<DateTimeOffset>> ListPointTimesAsync(TenantId tenantId, Guid shiftId, CancellationToken cancellationToken);
+    // Replaces the state of the phone of this shift and sets the time it was last heard from (the server clock).
+    Task RecordHealthAsync(TenantId tenantId, UserId userId, Guid shiftId, ShiftHealthRequest health, CancellationToken cancellationToken);
 }
 
 public enum ShiftResult { Success, Created, NotFound, DeviceRequired, DeviceMismatch, InvalidData, Conflict }
@@ -84,12 +92,17 @@ public sealed class ShiftTracking(IShiftStore store, TimeProvider clock)
         Guid shiftId, UploadPointsRequest request, CancellationToken cancellationToken)
     {
         if (deviceId is null || deviceId == Guid.Empty) return (ShiftResult.DeviceRequired, null);
-        var points = request.Points;
-        if (points is null || points.Count == 0 || points.Count > MaxPointsPerUpload) return (ShiftResult.InvalidData, null);
+        var points = request.Points ?? [];
+        if (points.Count > MaxPointsPerUpload || (points.Count == 0 && request.Health is null)) return (ShiftResult.InvalidData, null);
 
         var shift = await LoadOwnAsync(tenantId, actorId, shiftId, cancellationToken);
         if (shift is null) return (ShiftResult.NotFound, null);
         if (shift.DeviceId != deviceId) return (ShiftResult.DeviceMismatch, null);
+
+        // The phone is alive and says how it is, also when there is no new position.
+        if (SanitizeHealth(request.Health) is { } health && shift.EndedAt is null)
+            await store.RecordHealthAsync(tenantId, actorId, shiftId, health, cancellationToken);
+        if (points.Count == 0) return (ShiftResult.Success, new UploadPointsResponse(0, 0, 0));
 
         var latest = shift.EndedAt ?? clock.GetUtcNow() + MaxFutureSkew;
         var valid = points
@@ -101,6 +114,28 @@ public sealed class ShiftTracking(IShiftStore store, TimeProvider clock)
         var distinct = valid.GroupBy(p => p.ClientPointId).Select(g => g.First()).ToList();
         var accepted = distinct.Count == 0 ? 0 : await store.AddPointsAsync(tenantId, actorId, deviceId.Value, shiftId, distinct, cancellationToken);
         return (ShiftResult.Success, new UploadPointsResponse(accepted, valid.Count - accepted, points.Count - valid.Count));
+    }
+
+    // Only known values are kept; text is cut to the size the table accepts.
+    public static ShiftHealthRequest? SanitizeHealth(ShiftHealthRequest? health)
+    {
+        if (health is null) return null;
+        static string? Clip(string? value, int max)
+        {
+            value = value?.Trim();
+            return string.IsNullOrEmpty(value) ? null : value.Length <= max ? value : value[..max];
+        }
+        static string? OneOf(string? value, params string[] allowed)
+        {
+            value = value?.Trim().ToLowerInvariant();
+            return value is not null && allowed.Contains(value) ? value : null;
+        }
+        return new ShiftHealthRequest(
+            Clip(health.AppVersion, 40), OneOf(health.Platform, "android", "ios"), Clip(health.OsVersion, 40), Clip(health.DeviceModel, 80),
+            OneOf(health.LocationPermission, "always", "when_in_use", "denied") ?? "unknown",
+            health.PreciseLocation, health.LocationServices, health.Notifications, health.BatteryExempt,
+            OneOf(health.BackgroundRefresh, "available", "denied", "restricted"),
+            health.BatteryPercent is >= 0 and <= 100 ? health.BatteryPercent : null, health.LowPower);
     }
 
     public async Task<(ShiftResult Result, ShiftSummaryDto? Summary)> SummarizeAsync(TenantId tenantId, UserId actorId, Guid shiftId,

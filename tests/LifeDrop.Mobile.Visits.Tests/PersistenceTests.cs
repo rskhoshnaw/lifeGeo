@@ -103,7 +103,7 @@ public sealed class PersistenceTests : IDisposable
         public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> StartShiftAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> GetCurrentShiftAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ShiftCallStatus> EndShiftAsync(Guid shiftId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, CancellationToken cancellationToken = default)
+        public Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, ShiftHealth? health = null, CancellationToken cancellationToken = default)
         {
             ShiftId = shiftId;
             Sent += points.Count;

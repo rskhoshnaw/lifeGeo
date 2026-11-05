@@ -10,6 +10,9 @@ public enum ShiftState { Off, On }
 public sealed class ShiftTracker
 {
     public const int BatchSize = 200;
+    // While a shift is on the phone reports about once a minute even when it has no new position (it stands still, or has no fix yet), so the manager can tell
+    // "the app is running" from "the app stopped" (plan step 5.17). A little under a minute, so a timer tick that comes early still reports.
+    public static readonly TimeSpan ReportEvery = TimeSpan.FromSeconds(50);
     public const int MaxQueuedPoints = PointQueue.MaxPoints;
 
     private readonly IShiftApiClient _api;
@@ -24,6 +27,10 @@ public sealed class ShiftTracker
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _queue = queue ?? new PointQueue();
     }
+
+    // Reads the state of the phone for the report; set by the app (platform code). Without it no report is made.
+    public Func<Task<ShiftHealth?>>? HealthProvider { get; set; }
+    private DateTimeOffset _lastReport = DateTimeOffset.MinValue;
 
     public ShiftState State { get; private set; } = ShiftState.Off;
     public ShiftInfo? Shift { get; private set; }
@@ -90,13 +97,16 @@ public sealed class ShiftTracker
         await _uploading.WaitAsync(cancellationToken);
         try
         {
+            var health = await ReadHealthAsync();
+            var sentBatch = false;
             while (_queue.ShiftId is { } shiftId && _queue.Count > 0)
             {
                 var batch = _queue.TakeBatch(BatchSize);
                 (ShiftCallStatus Status, UploadResult? Result) answer;
                 try
                 {
-                    answer = await _api.UploadPointsAsync(shiftId, batch, cancellationToken);
+                    answer = await _api.UploadPointsAsync(shiftId, batch, sentBatch ? null : health, cancellationToken);
+                    sentBatch = true;
                 }
                 catch
                 {
@@ -110,6 +120,7 @@ public sealed class ShiftTracker
                         // Accepted, duplicates (already stored) and rejected (never acceptable) all leave the queue.
                         _queue.AnswerReceived(batch, answer.Result!.Accepted, answer.Result.Rejected);
                         LastUploadAt = _clock.GetUtcNow();
+                        if (health is not null) _lastReport = LastUploadAt.Value;
                         break;
                     case ShiftCallStatus.NotFound:
                     case ShiftCallStatus.DeviceMismatch:
@@ -122,11 +133,32 @@ public sealed class ShiftTracker
                         return answer.Status;
                 }
             }
+            // No position to send: the phone still says it is alive, once about every minute while the shift is on.
+            if (health is not null && !sentBatch && State == ShiftState.On && Shift is { } current && _clock.GetUtcNow() - _lastReport >= ReportEvery)
+            {
+                var answer = await _api.UploadPointsAsync(current.Id, Array.Empty<TrackedPoint>(), health, cancellationToken);
+                Remember(answer.Status);
+                if (answer.Status == ShiftCallStatus.Success) _lastReport = _clock.GetUtcNow();
+                else if (answer.Status is not (ShiftCallStatus.NotFound or ShiftCallStatus.DeviceMismatch or ShiftCallStatus.InvalidData)) return answer.Status;
+            }
             return ShiftCallStatus.Success;
         }
         finally
         {
             _uploading.Release();
+        }
+    }
+
+    private async Task<ShiftHealth?> ReadHealthAsync()
+    {
+        if (HealthProvider is null) return null;
+        try
+        {
+            return await HealthProvider();
+        }
+        catch (Exception)
+        {
+            return null;   // the report is an extra; a phone that cannot read its own state still sends its positions
         }
     }
 

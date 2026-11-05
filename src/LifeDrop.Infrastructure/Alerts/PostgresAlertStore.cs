@@ -257,7 +257,8 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             SELECT sh.tenant_id, 'tracking_gap', 'operational', 'warning', sh.user_id, {string.Format(RegionOf, "sh.user_id")}, sh.id::text, 'tracking_gap:' || sh.id, @now
             FROM shifts sh
             WHERE sh.tenant_id = @tenant AND sh.ended_at IS NULL
-              AND coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = sh.id), sh.started_at) + @gap < @now
+              AND greatest(coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = sh.id), sh.started_at),
+                           coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = sh.id), sh.started_at)) + @gap < @now
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
         // Security: a phone that waits for approval.

@@ -6,13 +6,21 @@ namespace LifeDrop.Application.Tracking;
 // Basic live map (plan step 1.19, PRD §6.2, decision D3): users with an open shift, the time of their last point
 // and, with tracking.read, that point. tracking.summary shows status only and never coordinates. A point older
 // than LiveWindow is returned with IsLive = false so the panel never shows it as live.
+// The state of the phone as it last reported (plan step 5.17); no position in it, so it is also shown to users who only have tracking.summary.
+public sealed record LiveMapHealthDto(string? AppVersion, string? Platform, string? OsVersion, string? DeviceModel, string? LocationPermission,
+    bool? PreciseLocation, bool? LocationServices, bool? Notifications, bool? BatteryExempt, string? BackgroundRefresh, int? BatteryPercent, bool? LowPower);
+
+// LastUpdateAt is the time of the last position; LastSeenAt the last time the phone reported at all (it reports every minute while the app runs, also without a new position).
+// A user is live while either is recent.
 public sealed record LiveMapEntryDto(Guid UserId, string? Email, string? TeamName, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastUpdateAt, bool IsLive, bool Precise, double? Latitude, double? Longitude, double? AccuracyMeters,
-    bool? IsMocked, string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null);
+    bool? IsMocked, string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null,
+    DateTimeOffset? LastSeenAt = null, LiveMapHealthDto? Health = null);
 
 public sealed record LiveMapRow(Guid UserId, string? Email, string? TeamName, Guid? RegionId, DateTimeOffset ShiftStartedAt,
     DateTimeOffset? LastPointAt, double? Latitude, double? Longitude, double? AccuracyMeters, bool? IsMocked,
-    string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null);
+    string? LastCustomerName, DateTimeOffset? LastVisitAt, string? DeviceLabel = null,
+    DateTimeOffset? SeenAt = null, LiveMapHealthDto? Health = null);
 
 public interface ILiveMapStore
 {
@@ -23,7 +31,7 @@ public interface ILiveMapStore
 
 public sealed class LiveMap(ILiveMapStore store, IPermissionStore permissions, TimeProvider clock)
 {
-    // Points arrive about every 3 minutes (owner decision 2026-10-07), so a user is "live" while the last point is at most 10 minutes old.
+    // The phone reports about once a minute (3 minutes before step 5.12), so a user is "live" while the last position or report is at most 10 minutes old.
     public static readonly TimeSpan LiveWindow = TimeSpan.FromMinutes(10);
 
     public async Task<IReadOnlyList<LiveMapEntryDto>?> ListAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
@@ -41,10 +49,11 @@ public sealed class LiveMap(ILiveMapStore store, IPermissionStore permissions, T
 
     public static LiveMapEntryDto ToEntry(LiveMapRow row, bool precise, DateTimeOffset now)
     {
-        var isLive = row.LastPointAt is { } at && now - at <= LiveWindow;
+        DateTimeOffset? contact = row.LastPointAt is { } p ? (row.SeenAt is { } s && s > p ? s : p) : row.SeenAt;
+        var isLive = contact is { } at && now - at <= LiveWindow;
         var hasPoint = precise && row.LastPointAt is not null;
         return new LiveMapEntryDto(row.UserId, row.Email, row.TeamName, row.ShiftStartedAt, row.LastPointAt, isLive, precise,
             hasPoint ? row.Latitude : null, hasPoint ? row.Longitude : null, hasPoint ? row.AccuracyMeters : null,
-            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt, row.DeviceLabel);
+            hasPoint ? row.IsMocked : null, row.LastCustomerName, row.LastVisitAt, row.DeviceLabel, row.SeenAt, row.Health);
     }
 }
