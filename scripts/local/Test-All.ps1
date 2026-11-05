@@ -13,6 +13,7 @@ function Step([string]$Name, [scriptblock]$Command) {
 }
 
 $env:TEST_DATABASE_URL = "Host=127.0.0.1;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=test_user;Password=test_pass;Include Error Detail=true"
+$env:Auth__RefreshReplayGraceSeconds = "0"   # older tests replay a refresh token at once (grace window has its own test)
 $env:TEST_SUPERUSER_DATABASE_URL = "Host=127.0.0.1;Port=$LocalDbPort;Database=lifedrop_test_ci;Username=postgres;Password=temp_root;Include Error Detail=true"
 
 Step 'Database tests' { dotnet test tests\LifeDrop.Database.Tests }

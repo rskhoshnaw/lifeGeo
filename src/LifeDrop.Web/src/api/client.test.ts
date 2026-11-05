@@ -70,6 +70,18 @@ describe('ApiClient', () => {
     expect(api.account).toBeNull()
   })
 
+  it('keeps the sign-in when the server is restarting or busy (502, 503, 429, 500)', async () => {
+    for (const status of [502, 503, 429, 500]) {
+      const { api } = setup((url) => (url.endsWith('/auth/login') ? json(200, tokens(1)) : url.endsWith('/auth/refresh') ? json(status) : json(401)))
+      await api.login('T1', 'a@b.c', 'x')
+      const signedOut = vi.fn()
+      api.onSignedOut(signedOut)
+      await expect(api.request('/teams')).rejects.toBeInstanceOf(SessionExpired)
+      expect(signedOut).not.toHaveBeenCalled()
+      expect(sessionStorage.getItem('lifedrop.refresh')).toBe('refresh-1')
+    }
+  })
+
   it('after a page reload uses the stored refresh token before the first request', async () => {
     const { api, calls } = setup((url) => (url.endsWith('/auth/refresh') ? json(200, tokens(2)) : json(200, {})))
     sessionStorage.setItem('lifedrop.refresh', 'refresh-1')

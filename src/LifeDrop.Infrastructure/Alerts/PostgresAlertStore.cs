@@ -494,7 +494,7 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
                                       'requiredHours', extract(epoch FROM @shiftWindow) / 3600),
                    'short_shift:' || sh.id, sh.ended_at
             FROM shifts sh
-            WHERE sh.tenant_id = @tenant AND sh.ended_at IS NOT NULL AND sh.ended_at > @now - @window AND sh.ended_at - sh.started_at < @shiftWindow
+            WHERE sh.tenant_id = @tenant AND sh.ended_at IS NOT NULL AND sh.ended_at > @now - @window AND sh.ended_at - sh.started_at < @shiftWindow AND sh.auto_closed_at IS NULL
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
         await transaction.CommitAsync(cancellationToken);

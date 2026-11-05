@@ -171,7 +171,14 @@ export class ApiClient {
     return this.refreshing
   }
 
-  private async doRefresh(): Promise<boolean> {
+  // One refresh at a time across all tabs of this browser (Web Locks): two tabs using the same refresh token would make the server see a replay. The token is read inside the lock,
+  // so a tab that waited uses the token the other tab just stored.
+  private doRefresh(): Promise<boolean> {
+    const locks = (globalThis.navigator as { locks?: { request<T>(name: string, callback: () => Promise<T>): Promise<T> } } | undefined)?.locks
+    return locks ? locks.request('lifedrop-refresh', () => this.refreshOnce()) : this.refreshOnce()
+  }
+
+  private async refreshOnce(): Promise<boolean> {
     const refreshToken = this.storage.getItem(RefreshKey)
     if (!refreshToken) return false
     let response: Response
@@ -185,7 +192,9 @@ export class ApiClient {
       return false // offline: keep the refresh token for the next try
     }
     if (!response.ok) {
-      this.clear()
+      // Only an answer that says the token is no good ends the session. A server that is restarting (502/503), a busy one (429) or a hiccup (5xx) must not sign out a screen
+      // that stays on for days (the TV): the refresh token is kept and the next poll tries again.
+      if (response.status === 400 || response.status === 401 || response.status === 403) this.clear()
       return false
     }
     this.store((await response.json()) as TokenResponse)

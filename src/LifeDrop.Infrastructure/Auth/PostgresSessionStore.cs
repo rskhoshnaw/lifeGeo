@@ -7,9 +7,13 @@ using NpgsqlTypes;
 
 namespace LifeDrop.Infrastructure.Auth;
 
-public sealed class PostgresSessionStore(NpgsqlDataSource dataSource) : ISessionStore
+public sealed class PostgresSessionStore(NpgsqlDataSource dataSource, TimeSpan? replayGrace = null) : ISessionStore
 {
     private static readonly TimeSpan RefreshLifetime = TimeSpan.FromDays(30);
+    // A refresh token that was rotated less than this ago and is sent again is a retry (the answer was lost on a bad network, two tabs, a page reload during the call), not theft:
+    // it gets a new token of the same session instead of ending the session. Later replays still end the whole session (plan step 5.21).
+    public static readonly TimeSpan DefaultReplayGrace = TimeSpan.FromMinutes(2);
+    private readonly TimeSpan ReplayGrace = replayGrace ?? DefaultReplayGrace;
 
     public async Task<SessionTokens> IssueAsync(LoginIdentity identity, Guid? deviceId,
         CancellationToken cancellationToken)
@@ -61,7 +65,8 @@ public sealed class PostgresSessionStore(NpgsqlDataSource dataSource) : ISession
             revoked = reader.IsDBNull(6) ? null : reader.GetDateTime(6);
             replacedBy = reader.IsDBNull(7) ? null : reader.GetGuid(7);
         }
-        if (revoked.HasValue)
+        var graceReplay = revoked.HasValue && replacedBy.HasValue && DateTime.UtcNow - revoked.Value.ToUniversalTime() <= ReplayGrace;
+        if (revoked.HasValue && !graceReplay)
         {
             if (replacedBy.HasValue)
             {
@@ -84,11 +89,12 @@ public sealed class PostgresSessionStore(NpgsqlDataSource dataSource) : ISession
         var nextExpires = DateTime.UtcNow.Add(RefreshLifetime);
         await InsertAsync(connection, transaction, nextId, familyId, tenantId, userId,
             deviceId, nextRaw, nextExpires, cancellationToken);
-        await using (var rotate = new NpgsqlCommand("""
-            UPDATE refresh_tokens SET revoked_at=now(),replaced_by_id=@next
-            WHERE id=@old AND revoked_at IS NULL
-            """, connection, transaction))
+        if (!graceReplay)
         {
+            await using var rotate = new NpgsqlCommand("""
+                UPDATE refresh_tokens SET revoked_at=now(),replaced_by_id=@next
+                WHERE id=@old AND revoked_at IS NULL
+                """, connection, transaction);
             rotate.Parameters.AddWithValue("next", nextId);
             rotate.Parameters.AddWithValue("old", tokenId);
             if (await rotate.ExecuteNonQueryAsync(cancellationToken) != 1)

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LifeDrop.Mobile.Auth.Models;
 
 namespace LifeDrop.Mobile.Auth;
@@ -8,6 +9,9 @@ public sealed class AuthSession : IAuthSession
     private readonly IAuthApiClient _apiClient;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    // Refresh attempts running right now in this process (any AuthSession instance). A pending session whose attempt is not in this set is the leftover of an attempt that
+    // died (no network, app killed): its refresh token is tried again, because the server answers a token it has not used yet, or one it rotated a moment ago (grace window).
+    private static readonly ConcurrentDictionary<Guid, byte> InFlight = new();
 
     public AuthSession(
         ISecureCredentialStore store,
@@ -60,19 +64,28 @@ public sealed class AuthSession : IAuthSession
                 return AuthResult<string>.Unauthorized("Tokens were cleared by another operation.");
             }
 
+            var retryPending = false;
             if (!session.IsValid())
             {
-                if (session.Status == SessionStatus.RefreshPending)
+                var usable = session.Tokens != null && !string.IsNullOrWhiteSpace(session.Tokens.RefreshToken) &&
+                             session.Tokens.RefreshExpiresAt > _timeProvider.GetUtcNow().UtcDateTime;
+                if (session.Status == SessionStatus.RefreshPending && usable && !InFlight.ContainsKey(session.AttemptId))
+                    retryPending = true;
+                else if (session.Status == SessionStatus.RefreshPending)
                     return AuthResult<string>.LocalStateError("Session refresh is currently pending. Please try again or re-authenticate.");
-                return AuthResult<string>.LocalStateError("Stored session metadata is invalid or corrupted.");
+                else
+                    return AuthResult<string>.LocalStateError("Stored session metadata is invalid or corrupted.");
             }
 
-            var now = _timeProvider.GetUtcNow().UtcDateTime;
-            var timeRemaining = session.Tokens.ExpiresAt - now;
-
-            if (timeRemaining.TotalSeconds > 30)
+            if (!retryPending)
             {
-                return AuthResult<string>.Ok(session.Tokens.AccessToken);
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
+                var timeRemaining = session.Tokens.ExpiresAt - now;
+
+                if (timeRemaining.TotalSeconds > 30)
+                {
+                    return AuthResult<string>.Ok(session.Tokens.AccessToken);
+                }
             }
 
             Guid? refreshDeviceId = null;
@@ -99,22 +112,35 @@ public sealed class AuthSession : IAuthSession
                 refreshDeviceSecret = device.DeviceSecret;
             }
 
-            var pendingSession = session with 
+            // A leftover pending session is tried again as it is (same attempt); otherwise the session is marked pending first.
+            var pendingSession = retryPending ? session : session with 
             { 
                 Status = SessionStatus.RefreshPending,
                 AttemptId = Guid.NewGuid()
             };
 
-            // Pre-flight mark pending
-            var marked = await _store.MarkSessionRefreshingAsync(session, pendingSession, cancellationToken);
-            if (!marked)
+            if (!retryPending)
             {
-                // Concurrently modified, fail locally.
-                return AuthResult<string>.LocalStateError("Failed to lock the session for refresh. Please try again.");
+                // Pre-flight mark pending
+                var marked = await _store.MarkSessionRefreshingAsync(session, pendingSession, cancellationToken);
+                if (!marked)
+                {
+                    // Concurrently modified, fail locally.
+                    return AuthResult<string>.LocalStateError("Failed to lock the session for refresh. Please try again.");
+                }
             }
 
             var request = new RefreshRequest(pendingSession.Tokens.RefreshToken, refreshDeviceId, refreshDeviceSecret);
-            var refreshResult = await _apiClient.RefreshAsync(request, cancellationToken);
+            AuthResult<AuthTokens> refreshResult;
+            InFlight[pendingSession.AttemptId] = 0;
+            try
+            {
+                refreshResult = await _apiClient.RefreshAsync(request, cancellationToken);
+            }
+            finally
+            {
+                InFlight.TryRemove(pendingSession.AttemptId, out _);
+            }
 
             if (refreshResult.IsSuccess && refreshResult.Data != null)
             {
