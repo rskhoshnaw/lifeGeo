@@ -40,6 +40,8 @@ public interface IShiftStore
         CancellationToken cancellationToken);
     Task<IReadOnlyList<DateTimeOffset>> ListPointTimesAsync(TenantId tenantId, Guid shiftId, CancellationToken cancellationToken);
     // Replaces the state of the phone of this shift and sets the time it was last heard from (the server clock).
+    // Opens a shift again that the alert scan closed (auto_closed_at) less than ReopenWindow ago; false when it was ended by the user, closed longer ago, or the user has another open shift.
+    Task<bool> TryReopenAsync(TenantId tenantId, UserId userId, Guid shiftId, TimeSpan window, CancellationToken cancellationToken);
     Task RecordHealthAsync(TenantId tenantId, UserId userId, Guid shiftId, ShiftHealthRequest health, CancellationToken cancellationToken);
 }
 
@@ -56,6 +58,8 @@ public sealed class ShiftTracking(IShiftStore store, TimeProvider clock)
     public const double TargetCoveragePercent = 90;
     public static readonly TimeSpan TargetMaxGap = TimeSpan.FromMinutes(15);
     // A point may be up to this far ahead of the server clock (phone clock drift).
+    // A shift closed for silence is opened again when the phone reports within this time (plan step 5.20).
+    public static readonly TimeSpan ReopenWindow = TimeSpan.FromHours(2);
     public static readonly TimeSpan MaxFutureSkew = TimeSpan.FromSeconds(30);
 
     // Starts a shift, or returns the open one (a repeated tap or a retry does not open a second shift).
@@ -98,6 +102,10 @@ public sealed class ShiftTracking(IShiftStore store, TimeProvider clock)
         var shift = await LoadOwnAsync(tenantId, actorId, shiftId, cancellationToken);
         if (shift is null) return (ShiftResult.NotFound, null);
         if (shift.DeviceId != deviceId) return (ShiftResult.DeviceMismatch, null);
+
+        // A phone that reports (health) on a shift the scan closed for silence is back: the same shift goes on and the points queued during the gap are accepted.
+        if (shift.EndedAt is not null && request.Health is not null && await store.TryReopenAsync(tenantId, actorId, shiftId, ReopenWindow, cancellationToken))
+            shift = shift with { EndedAt = null };
 
         // The phone is alive and says how it is, also when there is no new position.
         if (SanitizeHealth(request.Health) is { } health && shift.EndedAt is null)

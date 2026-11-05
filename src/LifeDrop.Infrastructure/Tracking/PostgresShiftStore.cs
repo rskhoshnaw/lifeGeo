@@ -112,6 +112,30 @@ public sealed class PostgresShiftStore(NpgsqlDataSource dataSource) : IShiftStor
         return added;
     }
 
+    public async Task<bool> TryReopenAsync(TenantId tenantId, UserId userId, Guid shiftId, TimeSpan window, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantAsync(connection, tenantId, cancellationToken);
+        try
+        {
+            await using var command = new NpgsqlCommand("""
+                UPDATE shifts SET ended_at = NULL, auto_closed_at = NULL
+                WHERE id = @id AND user_id = @user AND ended_at IS NOT NULL AND auto_closed_at IS NOT NULL AND auto_closed_at > now() - @window
+                  AND NOT EXISTS (SELECT 1 FROM shifts o WHERE o.user_id = @user AND o.ended_at IS NULL)
+                """, connection, transaction);
+            command.Parameters.AddWithValue("id", shiftId);
+            command.Parameters.AddWithValue("user", userId.Value);
+            command.Parameters.AddWithValue("window", window);
+            if (await command.ExecuteNonQueryAsync(cancellationToken) == 0) return false;
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            return false;   // the user started another shift at the same moment
+        }
+    }
+
     public async Task RecordHealthAsync(TenantId tenantId, UserId userId, Guid shiftId, ShiftHealthRequest health, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

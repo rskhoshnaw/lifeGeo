@@ -5,11 +5,11 @@ using Xunit;
 
 namespace LifeDrop.Database.Tests;
 
-// Plan step 5.18: a shift with no contact at all (no position, no heartbeat) for 4 hours is closed by the scan, at the time of the last contact; a shift that still reports, or was silent less than 4 hours, stays open.
+// Plan step 5.18: a shift with no contact at all (no position, no heartbeat) for 30 minutes is closed by the scan, at the time of the last contact; a shift that still reports, or was silent less than 30 minutes, stays open.
 public class AutoCloseShiftTests
 {
     [Fact]
-    public async Task Scan_closes_only_shifts_silent_for_four_hours()
+    public async Task Scan_closes_only_shifts_silent_for_thirty_minutes_and_a_returning_phone_reopens_them()
     {
         var url = Environment.GetEnvironmentVariable("TEST_DATABASE_URL")
             ?? throw new InvalidOperationException("TEST_DATABASE_URL must name an isolated lifedrop_test_* database.");
@@ -48,7 +48,7 @@ public class AutoCloseShiftTests
                 INSERT INTO shifts (id, tenant_id, user_id, device_id, started_at) VALUES
                   (@s1, @t, @u1, @d1, now() - interval '6 hours'),
                   (@s2, @t, @u2, @d2, now() - interval '6 hours'),
-                  (@s3, @t, @u3, @d3, now() - interval '3 hours');
+                  (@s3, @t, @u3, @d3, now() - interval '20 minutes');
                 INSERT INTO shift_health (shift_id, tenant_id, user_id, seen_at) VALUES (@s2, @t, @u2, now() - interval '1 minute');
                 """, connection))
             {
@@ -65,11 +65,20 @@ public class AutoCloseShiftTests
             Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM shifts WHERE id = '{sSilent}' AND ended_at = started_at"));
             Assert.Equal(2L, await ScalarAsync(connection, $"SELECT count(*) FROM shifts WHERE id IN ('{sBeating}', '{sRecent}') AND ended_at IS NULL"));
 
-            // Plan step 5.19: the user of the shift that is quiet for 3 hours (but not closed yet) gets one push message; the one that reports, and the one just closed, get none. A second scan adds none.
+            // Plan step 5.19: the user of the shift that is quiet for 20 minutes (but not closed yet) gets one push message; the one that reports, and the one just closed, get none. A second scan adds none.
             Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped' AND user_id = '{u3}' AND entity_id = '{sRecent}'"));
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
             await new PostgresAlertStore(dataSource).ScanAsync(new TenantId(t), now, DateOnly.FromDateTime(now.UtcDateTime), TimeOnly.FromDateTime(now.UtcDateTime), CancellationToken.None);
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
+
+            // Plan step 5.20: a phone that is heard from again opens the shift the scan closed (points of the gap are then accepted); a shift ended by the user, or closed long ago, stays closed.
+            var shifts = new LifeDrop.Infrastructure.Tracking.PostgresShiftStore(dataSource);
+            Assert.False(await shifts.TryReopenAsync(new TenantId(t), new UserId(u2), sBeating, TimeSpan.FromHours(2), CancellationToken.None));   // open already
+            await using (var user = new NpgsqlCommand($"UPDATE shifts SET ended_at = started_at + interval '1 hour' WHERE id = '{sBeating}'", connection))
+                await user.ExecuteNonQueryAsync();
+            Assert.False(await shifts.TryReopenAsync(new TenantId(t), new UserId(u2), sBeating, TimeSpan.FromHours(2), CancellationToken.None));   // ended by the user
+            Assert.True(await shifts.TryReopenAsync(new TenantId(t), new UserId(u1), sSilent, TimeSpan.FromHours(2), CancellationToken.None));
+            Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM shifts WHERE id = '{sSilent}' AND ended_at IS NULL AND auto_closed_at IS NULL"));
         }
         finally
         {

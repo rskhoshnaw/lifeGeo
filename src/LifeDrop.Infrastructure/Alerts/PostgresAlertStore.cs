@@ -263,7 +263,7 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             """);
         // A shift nobody ended and nobody heard from for hours (forgotten, phone off) is closed at the time of the last contact.
         await using (var close = new NpgsqlCommand("""
-            UPDATE shifts sh SET ended_at = c.last_contact
+            UPDATE shifts sh SET ended_at = c.last_contact, auto_closed_at = @now
             FROM (
                 SELECT s.id, greatest(coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = s.id), s.started_at),
                                       coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = s.id), s.started_at)) AS last_contact
@@ -277,7 +277,7 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             close.Parameters.Add(P("silence", NpgsqlDbType.Interval, AlertRules.AutoCloseSilence));
             await close.ExecuteNonQueryAsync(cancellationToken);
         }
-        // The user whose open shift has gone quiet gets a push ("tracking stopped, open the app"), at most every 30 minutes.
+        // The user whose open shift has gone quiet gets a push ("tracking stopped, open the app"), at most every 7 minutes.
         await using (var nudge = new NpgsqlCommand("""
             INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
             SELECT sh.tenant_id, sh.user_id, 'tracking.stopped', sh.id::text, sh.user_id
