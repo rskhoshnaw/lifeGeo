@@ -51,7 +51,8 @@ public partial class Program
         builder.Services.AddScoped<AssignRole>();
         builder.Services.AddScoped<ILoginStore, PostgresLoginStore>();
         builder.Services.AddScoped<Login>();
-        builder.Services.AddScoped<ISessionStore, PostgresSessionStore>();
+        builder.Services.AddScoped<ISessionStore>(services => new PostgresSessionStore(services.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+            TimeSpan.FromSeconds(Math.Clamp(builder.Configuration.GetValue("Auth:RefreshReplayGraceSeconds", 120), 0, 600))));
         builder.Services.AddScoped<IDeviceAccessStore, PostgresDeviceAccessStore>();
         
         // Customers

@@ -18,6 +18,7 @@ try {
     $portLine = docker port $container '5432/tcp'
     $port = [int](($portLine | Select-Object -First 1) -split ':')[-1]
     $env:TEST_DATABASE_URL = "Host=127.0.0.1;Port=$port;Database=lifedrop_test_role;Username=postgres;Password=$env:POSTGRES_PASSWORD"
+    $env:Auth__RefreshReplayGraceSeconds = "0"   # older tests replay a refresh token at once (grace window has its own test)
     $root = Split-Path -Parent $PSScriptRoot
     dotnet test (Join-Path $root 'tests/LifeDrop.Database.Tests/LifeDrop.Database.Tests.csproj') -c Release -m:1 -v:minimal
     if ($LASTEXITCODE -ne 0) { throw 'Role-assignment integration test failed.' }

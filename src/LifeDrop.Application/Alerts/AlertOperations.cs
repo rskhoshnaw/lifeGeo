@@ -34,11 +34,11 @@ public static class AlertRules
     public static readonly TimeSpan VisitDelay = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan LongStay = TimeSpan.FromMinutes(90);
     public static readonly TimeSpan TrackingGap = TimeSpan.FromMinutes(15);
-    // An open shift with no contact at all (no position and no heartbeat) for this long is closed by the scan (plan step 5.18); its end is the last contact.
-    // No contact for this long: the user gets a push (plan step 5.19), at most once per NudgeEvery.
+    // An open shift with no contact at all (no position and no heartbeat) for this long is closed by the scan (plan steps 5.18 and 5.20); its end is the last contact.
+    // No contact for this long: the user gets a push (plan step 5.19), at most once per NudgeEvery (every 7 minutes).
     public static readonly TimeSpan NudgeAfter = TimeSpan.FromMinutes(5);
-    public static readonly TimeSpan NudgeEvery = TimeSpan.FromMinutes(30);
-    public static readonly TimeSpan AutoCloseSilence = TimeSpan.FromHours(4);
+    public static readonly TimeSpan NudgeEvery = TimeSpan.FromMinutes(7);
+    public static readonly TimeSpan AutoCloseSilence = TimeSpan.FromMinutes(30);
     public static readonly string[] Categories = ["operational", "security"];
     public static readonly string[] Statuses = ["new", "seen", "handled"];
     public static readonly string[] Outcomes = ["valid", "suspicious", "fraud"];

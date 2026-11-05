@@ -520,22 +520,62 @@ public class AuthSessionTests
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_FailsPreflight_ReturnsDistinctFailure()
+    public async Task GetAccessTokenAsync_LeftoverPendingSession_IsTriedAgainAndRecovers()
     {
+        // A refresh that died (no network, app killed) must not lock the user out for good: the same refresh token is tried again.
         var store = new FakeCredentialStore();
         var api = new FakeAuthApiClient();
         var time = new FakeTimeProvider { CurrentTime = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero) };
 
         var tokens = new AuthTokens("old_access", "old_refresh", "Bearer", time.CurrentTime.UtcDateTime.AddSeconds(20), time.CurrentTime.UtcDateTime.AddDays(7));
         store.Session = new StoredSession(tokens, "TENANT", "user@domain.com", false, null, SessionStatus.RefreshPending);
-        
-        var session = new AuthSession(store, api, time);
+        api.RefreshAsyncHandler = (req, ct) =>
+        {
+            Assert.Equal("old_refresh", req.RefreshToken);
+            return Task.FromResult(AuthResult<AuthTokens>.Ok(
+                new AuthTokens("new_access", "new_refresh", "Bearer", time.CurrentTime.UtcDateTime.AddMinutes(15), time.CurrentTime.UtcDateTime.AddDays(7))));
+        };
 
-        var result = await session.GetAccessTokenAsync();
+        var result = await new AuthSession(store, api, time).GetAccessTokenAsync();
 
-        Assert.False(result.IsSuccess);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("new_access", result.Data);
+        Assert.Equal(1, api.RefreshCallCount);
+        Assert.Equal(0, store.MarkCallCount);   // already pending: no second mark
+        Assert.Equal(SessionStatus.Active, store.Session!.Status);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_LeftoverPendingSession_NoNetwork_StaysPendingForTheNextTry()
+    {
+        var store = new FakeCredentialStore();
+        var api = new FakeAuthApiClient();   // not configured: a network error
+        var time = new FakeTimeProvider { CurrentTime = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero) };
+
+        var tokens = new AuthTokens("old_access", "old_refresh", "Bearer", time.CurrentTime.UtcDateTime.AddSeconds(20), time.CurrentTime.UtcDateTime.AddDays(7));
+        store.Session = new StoredSession(tokens, "TENANT", "user@domain.com", false, null, SessionStatus.RefreshPending);
+
+        var result = await new AuthSession(store, api, time).GetAccessTokenAsync();
+
+        Assert.Equal(AuthStatus.NetworkOrServerError, result.Status);
+        Assert.Equal(1, api.RefreshCallCount);
+        Assert.Equal(SessionStatus.RefreshPending, store.Session!.Status);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_LeftoverPendingSession_RefreshTokenExpired_IsNotTried()
+    {
+        var store = new FakeCredentialStore();
+        var api = new FakeAuthApiClient();
+        var time = new FakeTimeProvider { CurrentTime = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero) };
+
+        var tokens = new AuthTokens("old_access", "old_refresh", "Bearer", time.CurrentTime.UtcDateTime.AddSeconds(20), time.CurrentTime.UtcDateTime.AddSeconds(25));
+        store.Session = new StoredSession(tokens, "TENANT", "user@domain.com", false, null, SessionStatus.RefreshPending);
+        time.CurrentTime = time.CurrentTime.AddMinutes(1);
+
+        var result = await new AuthSession(store, api, time).GetAccessTokenAsync();
+
         Assert.Equal(AuthStatus.LocalStateError, result.Status);
-        Assert.Equal(0, store.MarkCallCount);
         Assert.Equal(0, api.RefreshCallCount);
     }
 

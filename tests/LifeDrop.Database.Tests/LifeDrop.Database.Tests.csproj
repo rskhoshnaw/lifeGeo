@@ -82,6 +82,7 @@
     <None Include="../../db/migrations/0064_tv_role.sql" Link="0064_tv_role.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0065_shift_health.sql" Link="0065_shift_health.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0066_tracking_stopped_notification.sql" Link="0066_tracking_stopped_notification.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0067_shift_auto_closed.sql" Link="0067_shift_auto_closed.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
