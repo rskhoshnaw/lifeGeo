@@ -93,7 +93,7 @@ export interface Customer {
 export interface Notification {
   id: string
   // manager.message (step 4.16): entityId is the text the manager wrote.
-  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message'
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped'
   entityId: string
   actorId: string
   actorEmail: string | null

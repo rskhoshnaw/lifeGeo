@@ -1,2 +1,3 @@
 "push_customer_profile_changed" = "A customer in your area was changed.";
 "push_customer_location_changed" = "The location of a customer in your area was changed.";
+"push_tracking_stopped" = "Location tracking has stopped. Open LifeDrop to continue your shift.";

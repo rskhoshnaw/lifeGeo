@@ -91,6 +91,7 @@ public class PushTokenSyncTests
     [Theory]
     [InlineData("customer.profile_changed", "app.push.customerProfileChanged")]
     [InlineData("customer.location_changed", "app.push.customerLocationChanged")]
+    [InlineData("tracking.stopped", "app.push.trackingStopped")]
     [InlineData("something.else", null)]
     [InlineData(null, null)]
     public void MessageKindsMapToTextKeysThatExistInEveryLanguage(string? kind, string? key)

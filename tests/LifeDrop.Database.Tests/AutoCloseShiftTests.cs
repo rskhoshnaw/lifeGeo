@@ -64,6 +64,12 @@ public class AutoCloseShiftTests
 
             Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM shifts WHERE id = '{sSilent}' AND ended_at = started_at"));
             Assert.Equal(2L, await ScalarAsync(connection, $"SELECT count(*) FROM shifts WHERE id IN ('{sBeating}', '{sRecent}') AND ended_at IS NULL"));
+
+            // Plan step 5.19: the user of the shift that is quiet for 3 hours (but not closed yet) gets one push message; the one that reports, and the one just closed, get none. A second scan adds none.
+            Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped' AND user_id = '{u3}' AND entity_id = '{sRecent}'"));
+            Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
+            await new PostgresAlertStore(dataSource).ScanAsync(new TenantId(t), now, DateOnly.FromDateTime(now.UtcDateTime), TimeOnly.FromDateTime(now.UtcDateTime), CancellationToken.None);
+            Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
         }
         finally
         {

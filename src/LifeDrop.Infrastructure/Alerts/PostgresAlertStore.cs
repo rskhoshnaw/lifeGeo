@@ -277,6 +277,23 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             close.Parameters.Add(P("silence", NpgsqlDbType.Interval, AlertRules.AutoCloseSilence));
             await close.ExecuteNonQueryAsync(cancellationToken);
         }
+        // The user whose open shift has gone quiet gets a push ("tracking stopped, open the app"), at most every 30 minutes.
+        await using (var nudge = new NpgsqlCommand("""
+            INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
+            SELECT sh.tenant_id, sh.user_id, 'tracking.stopped', sh.id::text, sh.user_id
+            FROM shifts sh
+            WHERE sh.tenant_id = @tenant AND sh.ended_at IS NULL
+              AND greatest(coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = sh.id), sh.started_at),
+                           coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = sh.id), sh.started_at)) + @after < @now
+              AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.tenant_id = sh.tenant_id AND n.user_id = sh.user_id AND n.kind = 'tracking.stopped' AND n.created_at > @now - @every)
+            """, connection, transaction))
+        {
+            nudge.Parameters.AddWithValue("tenant", tenantId.Value);
+            nudge.Parameters.Add(P("now", NpgsqlDbType.TimestampTz, now));
+            nudge.Parameters.Add(P("after", NpgsqlDbType.Interval, AlertRules.NudgeAfter));
+            nudge.Parameters.Add(P("every", NpgsqlDbType.Interval, AlertRules.NudgeEvery));
+            await nudge.ExecuteNonQueryAsync(cancellationToken);
+        }
         // Security: a phone that waits for approval.
         await RunAsync($"""
             INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, dedupe_key, occurred_at)
