@@ -261,6 +261,22 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
                            coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = sh.id), sh.started_at)) + @gap < @now
             ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
             """);
+        // A shift nobody ended and nobody heard from for hours (forgotten, phone off) is closed at the time of the last contact.
+        await using (var close = new NpgsqlCommand("""
+            UPDATE shifts sh SET ended_at = c.last_contact
+            FROM (
+                SELECT s.id, greatest(coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = s.id), s.started_at),
+                                      coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = s.id), s.started_at)) AS last_contact
+                FROM shifts s WHERE s.tenant_id = @tenant AND s.ended_at IS NULL
+            ) c
+            WHERE sh.id = c.id AND sh.tenant_id = @tenant AND sh.ended_at IS NULL AND c.last_contact + @silence < @now
+            """, connection, transaction))
+        {
+            close.Parameters.AddWithValue("tenant", tenantId.Value);
+            close.Parameters.Add(P("now", NpgsqlDbType.TimestampTz, now));
+            close.Parameters.Add(P("silence", NpgsqlDbType.Interval, AlertRules.AutoCloseSilence));
+            await close.ExecuteNonQueryAsync(cancellationToken);
+        }
         // Security: a phone that waits for approval.
         await RunAsync($"""
             INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, dedupe_key, occurred_at)
