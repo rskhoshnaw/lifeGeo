@@ -1,2 +1,3 @@
 "push_customer_profile_changed" = "اطلاعات یکی از مشتریان منطقهٔ شما تغییر کرد.";
 "push_customer_location_changed" = "موقعیت یکی از مشتریان منطقهٔ شما تغییر کرد.";
+"push_tracking_stopped" = "ردیابی مکان متوقف شده است. برای ادامهٔ شیفت، LifeDrop را باز کنید.";

@@ -18,7 +18,9 @@ export function NotificationsPage({ admin, me, onChanged }: { admin: AdminApi; m
   const items = list.data ?? []
   const unread = items.filter((n) => n.readAt === null).length
   const text = (n: Notification) =>
-    n.kind === 'manager.message'
+    n.kind === 'tracking.stopped'
+      ? t('app.push.trackingStopped')
+      : n.kind === 'manager.message'
       ? t('web.notifications.fromManager', { actor: n.actorEmail ?? t('web.notifications.someone'), text: n.entityId })
       : t(n.kind === 'customer.location_changed' ? 'web.notifications.locationChanged' : 'web.notifications.profileChanged', {
       actor: n.actorEmail ?? t('web.notifications.someone'),
