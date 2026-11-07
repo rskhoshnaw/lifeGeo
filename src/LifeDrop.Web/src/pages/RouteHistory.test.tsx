@@ -127,4 +127,32 @@ describe('route history', () => {
     expect(await screen.findByRole('button', { name: 'Customers' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Route history' })).not.toBeInTheDocument()
   })
+
+  it('a day with several shifts offers all together or one by one', async () => {
+    const two = route({
+      shifts: [
+        { shiftId: 's1', startedAt: '2026-10-05T04:00:00Z', endedAt: '2026-10-05T04:30:00Z', pointCount: 2, pointsPurged: false },
+        { shiftId: 's2', startedAt: '2026-10-05T05:00:00Z', endedAt: null, pointCount: 3, pointsPurged: false },
+      ],
+      points: [
+        { ...point(0), shiftId: 's1' }, { ...point(1), shiftId: 's1' },
+        { ...point(0), capturedAt: '2026-10-05T05:10:00Z', shiftId: 's2' }, { ...point(1), capturedAt: '2026-10-05T05:11:00Z', shiftId: 's2' }, { ...point(2), capturedAt: '2026-10-05T05:12:00Z', shiftId: 's2' },
+      ],
+      stops: [], events: [],
+    })
+    const { api } = serve(manager, two)
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Route history' }))
+    await user.selectOptions(await screen.findByLabelText('User'), 'u1')
+    expect(await screen.findByLabelText('Route map')).toHaveTextContent('5 points')
+    expect(screen.getByText(/2 shifts on this day/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Shift 2/ }))
+    expect(screen.getByLabelText('Route map')).toHaveTextContent('3 points')
+    await user.click(screen.getByRole('button', { name: /Shift 1/ }))
+    expect(screen.getByLabelText('Route map')).toHaveTextContent('2 points')
+    await user.click(screen.getByRole('button', { name: 'All shifts together' }))
+    expect(screen.getByLabelText('Route map')).toHaveTextContent('5 points')
+  })
 })

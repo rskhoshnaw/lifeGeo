@@ -24865,6 +24865,10 @@
           },
           "isMocked": {
             "type": "boolean"
+          },
+          "shiftId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -24964,6 +24968,10 @@
               "string"
             ],
             "format": "int32"
+          },
+          "shiftId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

@@ -104,7 +104,7 @@ public sealed class PostgresRouteHistoryStore(NpgsqlDataSource dataSource) : IRo
 
         var points = new List<RoutePointDto>();
         await using (var command = new NpgsqlCommand("""
-            SELECT ST_Y(p.geom::geometry), ST_X(p.geom::geometry), p.accuracy_m::float8, p.captured_at, p.is_mocked
+            SELECT ST_Y(p.geom::geometry), ST_X(p.geom::geometry), p.accuracy_m::float8, p.captured_at, p.is_mocked, p.shift_id
             FROM tracking_points p WHERE p.tenant_id = @tenant AND p.user_id = @user AND p.captured_at >= @from AND p.captured_at < @to
             ORDER BY p.captured_at, p.id LIMIT @limit
             """, connection, transaction))
@@ -116,7 +116,7 @@ public sealed class PostgresRouteHistoryStore(NpgsqlDataSource dataSource) : IRo
             command.Parameters.AddWithValue("limit", maxPoints + 1);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                points.Add(new RoutePointDto(reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetFieldValue<DateTimeOffset>(3), reader.GetBoolean(4)));
+                points.Add(new RoutePointDto(reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetFieldValue<DateTimeOffset>(3), reader.GetBoolean(4), reader.GetGuid(5)));
         }
         var truncated = points.Count > maxPoints;
         if (truncated) points.RemoveAt(points.Count - 1);

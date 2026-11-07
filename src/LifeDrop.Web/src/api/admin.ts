@@ -567,6 +567,8 @@ export interface RoutePoint {
   accuracyMeters: number
   capturedAt: string
   isMocked: boolean
+  // Plan step 5.24: the shift of the point (an older server sends none).
+  shiftId?: string
 }
 export interface RouteStop {
   from: string
@@ -576,6 +578,7 @@ export interface RouteStop {
   longitude: number
   customerName: string | null
   customerDistanceMeters: number | null
+  shiftId?: string
 }
 export interface RouteVisitEvent {
   kind: 'check_in' | 'check_out'

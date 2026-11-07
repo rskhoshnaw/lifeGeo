@@ -11,7 +11,9 @@ type MapLibre = typeof import('maplibre-gl')
 // Popups use plain text only.
 // `focus` (a click on a stop or a visit in the lists below the map; seq changes at every click) flies to it, zooms in and opens its name. The + and − buttons zoom the map.
 export type RouteFocus = { kind: 'stop' | 'event'; index: number; seq: number }
-export function RouteMapView({ points, stops, events, index, focus = null }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number; focus?: RouteFocus | null }) {
+// groups (plan step 5.24): the line of each shift of the day in its own colour; without it the points are one blue line.
+export type RouteGroup = { id: string; label: number; color: string; points: RoutePoint[] }
+export function RouteMapView({ points, stops, events, index, focus = null, groups }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number; focus?: RouteFocus | null; groups?: RouteGroup[] }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
   const stopMarkers = useRef<Marker[]>([])
@@ -40,18 +42,19 @@ export function RouteMapView({ points, stops, events, index, focus = null }: { p
     const { lib, map } = loaded
     markers.current.forEach((m) => m.remove())
     markers.current = []
+    const lineGroups: RouteGroup[] = groups ?? [{ id: 'day', label: 1, color: '#2563eb', points }]
     const apply = () => {
-      const line = { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: points.map((p) => [p.longitude, p.latitude]) } }
+      const lines = { type: 'FeatureCollection' as const, features: lineGroups.map((g) => ({ type: 'Feature' as const, properties: { color: g.color }, geometry: { type: 'LineString' as const, coordinates: g.points.map((p) => [p.longitude, p.latitude]) } })) }
       const mocked = { type: 'FeatureCollection' as const, features: points.filter((p) => p.isMocked).map((p) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Point' as const, coordinates: [p.longitude, p.latitude] } })) }
       const lineSource = map.getSource('route') as GeoJSONSource | undefined
       if (lineSource) {
-        lineSource.setData(line)
+        lineSource.setData(lines)
         ;(map.getSource('mocked') as GeoJSONSource).setData(mocked)
       } else {
-        map.addSource('route', { type: 'geojson', data: line })
+        map.addSource('route', { type: 'geojson', data: lines })
         map.addSource('mocked', { type: 'geojson', data: mocked })
         map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 8 } })
-        map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 5 } })
+        map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['coalesce', ['get', 'color'], '#2563eb'], 'line-width': 5 } })
         map.addLayer({ id: 'mocked-points', type: 'circle', source: 'mocked', paint: { 'circle-color': '#dc2626', 'circle-radius': 6 } })
       }
     }
@@ -71,19 +74,21 @@ export function RouteMapView({ points, stops, events, index, focus = null }: { p
       markers.current.push(marker)
       return marker
     })
-    // Where the day began and where it ended.
-    const first = points[0]
-    const last = points[points.length - 1]
-    if (first && last) {
-      markers.current.push(new lib.Marker({ color: '#0f766e', scale: 0.9 }).setLngLat([first.longitude, first.latitude]).setPopup(new lib.Popup().setText(`${t('web.route.start')} ${time(first.capturedAt)}`)).addTo(map))
-      markers.current.push(new lib.Marker({ color: '#111827', scale: 0.9 }).setLngLat([last.longitude, last.latitude]).setPopup(new lib.Popup().setText(`${t('web.route.end')} ${time(last.capturedAt)}`)).addTo(map))
-    }
+    // Where each shift began and where it ended (with several shifts the popup names the shift).
+    lineGroups.forEach((g) => {
+      const first = g.points[0]
+      const last = g.points[g.points.length - 1]
+      if (!first || !last) return
+      const label = lineGroups.length > 1 ? `#${g.label} ` : ''
+      markers.current.push(new lib.Marker({ color: '#0f766e', scale: 0.9 }).setLngLat([first.longitude, first.latitude]).setPopup(new lib.Popup().setText(`${label}${t('web.route.start')} ${time(first.capturedAt)}`)).addTo(map))
+      markers.current.push(new lib.Marker({ color: '#111827', scale: 0.9 }).setLngLat([last.longitude, last.latitude]).setPopup(new lib.Popup().setText(`${label}${t('web.route.end')} ${time(last.capturedAt)}`)).addTo(map))
+    })
     if (points.length > 0) {
       const bounds = new lib.LngLatBounds()
       points.forEach((p) => bounds.extend([p.longitude, p.latitude]))
       map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 })
     }
-  }, [loaded, points, stops, events])
+  }, [loaded, points, stops, events, groups])
 
   // A click on a stop or a visit in the lists: fly there and show its name.
   useEffect(() => {

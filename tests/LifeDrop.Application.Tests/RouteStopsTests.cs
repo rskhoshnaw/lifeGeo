@@ -73,4 +73,20 @@ public class TrackingRetentionSettingTests
             LifeDrop.Application.Tracking.RouteHistory.UseRetentionDays(90);
         }
     }
+
+    [Fact]
+    public void Stops_are_found_inside_each_shift_and_never_run_across_the_gap_between_two_shifts()
+    {
+        // One shift ends at a place after 4 minutes, the next starts there 2 hours later and stays 4 more minutes: together they would look like a 2-hour stop, apart they are none.
+        Guid first = Guid.NewGuid(), second = Guid.NewGuid();
+        var points = Enumerable.Range(0, 9).Select(i => P(i * 30) with { ShiftId = first })
+            .Concat(Enumerable.Range(0, 9).Select(i => P(7200 + i * 30) with { ShiftId = second })).ToList();
+        Assert.Single(RouteStops.Compute(points));   // merged, as before: one long stop
+        Assert.Empty(RouteStops.ComputePerShift(points));
+
+        // A real stop of 6 minutes in the second shift is found there, with its shift.
+        var longer = points.Concat(Enumerable.Range(9, 3).Select(i => P(7200 + i * 30) with { ShiftId = second })).ToList();
+        var stop = Assert.Single(RouteStops.ComputePerShift(longer));
+        Assert.Equal(second, stop.ShiftId);
+    }
 }

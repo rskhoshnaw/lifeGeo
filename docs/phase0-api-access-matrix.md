@@ -625,7 +625,7 @@ Retention: exact tracking points are kept 90 days. The background job (same loop
 | Route | Who | Rules | Audit |
 |---|---|---|---|
 | `GET /tracking/users` | `tracking.read` | Active users inside the caller's area that have had a shift | — |
-| `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) |
+| `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) Step 5.24: every point and every stop carries `shiftId`; stops are found inside each shift (never across the gap between two shifts of the day). |
 | `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — |
 
 ### Reports and KPIs (plan step 2.12)

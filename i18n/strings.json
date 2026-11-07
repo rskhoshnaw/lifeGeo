@@ -9730,5 +9730,35 @@
   "ckb": "کردنەوەی چاتی واتسئاپ لەگەڵ {who}",
   "ar": "فتح محادثة واتساب مع {who}",
   "fa": "باز کردن گفتگوی واتساپ با {who}"
+ },
+ "web.route.shifts": {
+  "en": "Shifts of the day",
+  "ckb": "شیفتەکانی ڕۆژ",
+  "ar": "ورديات اليوم",
+  "fa": "شیفت‌های روز"
+ },
+ "web.route.shiftsOfDay": {
+  "en": "{count} shifts on this day. Show them together (each in its own colour) or one by one:",
+  "ckb": "{count} شیفت لەم ڕۆژەدا. پێکەوە نیشانیان بدە (هەرکام بە ڕەنگی خۆی) یان یەک بە یەک:",
+  "ar": "{count} ورديات في هذا اليوم. اعرضها معًا (كل واحدة بلون) أو واحدة واحدة:",
+  "fa": "{count} شیفت در این روز. با هم (هر کدام با رنگ خودش) یا یکی‌یکی نشان بده:"
+ },
+ "web.route.allShifts": {
+  "en": "All shifts together",
+  "ckb": "هەموو شیفتەکان پێکەوە",
+  "ar": "كل الورديات معًا",
+  "fa": "همهٔ شیفت‌ها با هم"
+ },
+ "web.route.shiftLabel": {
+  "en": "Shift {number} · {from}–{to} · {points} points",
+  "ckb": "شیفتی {number} · {from}–{to} · {points} خاڵ",
+  "ar": "الوردية {number} · {from}–{to} · {points} نقطة",
+  "fa": "شیفت {number} · {from}–{to} · {points} نقطه"
+ },
+ "web.route.open": {
+  "en": "open",
+  "ckb": "کراوە",
+  "ar": "مفتوحة",
+  "fa": "باز"
  }
 }
