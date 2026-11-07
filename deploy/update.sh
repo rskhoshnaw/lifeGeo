@@ -25,5 +25,8 @@ for _ in $(seq 1 24); do
 done
 $COMPOSE ps
 [ "$status" = "healthy" ] || fail "the API is '$status', not healthy. Look at it with:  docker compose -f $DEPLOY_DIR/docker-compose.yml logs --tail 80 api"
+# Old images of earlier builds (no longer used by any container) fill the disk; only dangling ones are removed, never an image a container uses.
+step "Cleaning old images"
+docker image prune -f || echo "(cleaning old images failed; the update itself is done)"
 echo
 echo "UPDATE DONE: the API is healthy ($(git -C "$ROOT_DIR" log -1 --format='%h %s'))."

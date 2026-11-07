@@ -180,3 +180,4 @@ Open decisions: D4 only (Backup delete permission); API host is now per company 
 - 2026-11-05 5.22b: the new-account form and POST /users take an optional mobile number (CreateUserRequest.Phone; IUserCreationStore.CreateAsync got a phone argument).
 - 2026-11-05 5.23: deploy/update.sh (one-command server update with a health wait). Tested with stubbed docker/git (success, unhealthy, failing step); not run against the real server from the cloud session.
 - 2026-11-07 5.24: route history shows all shifts of a day together (own colour each) or one by one; RoutePointDto/RouteStopDto carry ShiftId; stops are computed per shift. Also found on the VPS: the FCM key file was root-only (push failed); fixed by chown 1654 + chmod 400 on deploy/secrets/service-account.json (docs note added).
+- 2026-11-07 5.25: update.sh runs 'docker image prune -f' after a healthy update (disk is 40 GB). Owner decided: no second project on this VPS.
