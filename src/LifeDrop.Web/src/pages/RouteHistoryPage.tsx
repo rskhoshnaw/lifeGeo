@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AdminApi, iraqToday, type TrackableUser } from '../api/admin.ts'
 import { formatDuration, nextIndex } from '../api/geo.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { RouteMapView, type RouteFocus } from '../components/RouteMapView.tsx'
 import { RouteCalendar } from '../components/RouteCalendar.tsx'
 import { t, type TextKey } from '../i18n.ts'
+import { routeView, shiftColor } from './routeShifts.ts'
 import { errorMessage, type RouteDay, type RouteHistory } from '../api/admin.ts'
 
 const playMs = 150
@@ -24,12 +25,15 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
   const [error, setError] = useState<string | null>(null)
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
+  // '' = all shifts of the day together, otherwise the id of one shift (plan step 5.24).
+  const [shiftId, setShiftId] = useState('')
 
   // Choosing another user or day clears the route and the playback; the route is then loaded for the new choice.
   const reset = () => {
     setRoute(null)
     setIndex(0)
     setPlaying(false)
+    setShiftId('')
   }
 
   useEffect(() => {
@@ -57,7 +61,8 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
     }
   }, [admin, user, month])
 
-  const count = route?.points.length ?? 0
+  const view = useMemo(() => (route ? routeView(route, shiftId) : null), [route, shiftId])
+  const count = view?.points.length ?? 0
   useEffect(() => {
     if (!playing || index >= count - 1) return
     const timer = setTimeout(() => {
@@ -68,7 +73,12 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
     return () => clearTimeout(timer)
   }, [playing, index, count])
 
-  const point = route?.points[index]
+  const point = view?.points[index]
+  const chooseShift = (id: string) => {
+    setShiftId(id)
+    setIndex(0)
+    setPlaying(false)
+  }
   return (
     <section className="space-y-4 p-6">
       <h2 className="text-xl font-semibold">{t('web.route.title')}</h2>
@@ -86,12 +96,28 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
         </select>
       </div>
       <RouteCalendar month={month} days={user ? days : []} selected={date} today={iraqToday()} onPick={(d) => (reset(), setDate(d))} onMonth={(m) => (setMonth(m), setDays([]))} />
+      {route && route.shifts.length > 1 && (
+        <div className="space-y-1 text-sm" role="group" aria-label={t('web.route.shifts')}>
+          <p className="font-medium">{t('web.route.shiftsOfDay', { count: route.shifts.length })}</p>
+          <div className="flex flex-wrap gap-2">
+            <button className={`rounded border px-2 py-1 ${shiftId === '' ? 'bg-slate-200 font-semibold' : ''}`} aria-pressed={shiftId === ''} onClick={() => chooseShift('')}>
+              {t('web.route.allShifts')}
+            </button>
+            {route.shifts.map((s, i) => (
+              <button key={s.shiftId} className={`rounded border px-2 py-1 ${shiftId === s.shiftId ? 'bg-slate-200 font-semibold' : ''}`} aria-pressed={shiftId === s.shiftId} onClick={() => chooseShift(s.shiftId)}>
+                <span aria-hidden className="me-1 inline-block h-2 w-4 rounded" style={{ backgroundColor: shiftColor(i) }} />
+                {t('web.route.shiftLabel', { number: i + 1, from: minutes.format(new Date(s.startedAt)), to: s.endedAt ? minutes.format(new Date(s.endedAt)) : t('web.route.open'), points: s.pointCount })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {route && route.shifts.some((s) => s.pointsPurged) && <p className="text-sm text-amber-700">{t('web.route.purged')}</p>}
       {route && route.truncated && <p className="text-sm text-amber-700">{t('web.route.truncated')}</p>}
       {route && count === 0 && <p className="text-slate-600">{t('web.route.nopoints')}</p>}
       {route && count > 0 && (
         <>
-          <RouteMapView points={route.points} stops={route.stops} events={route.events} index={index} focus={focus} />
+          <RouteMapView points={view!.points} stops={view!.stops} events={view!.events} index={index} focus={focus} groups={view!.groups} />
           <p className="text-xs text-slate-600">{t('web.route.legend')}</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <button className="rounded border px-3 py-1" onClick={() => (index >= count - 1 ? (setIndex(0), setPlaying(true)) : setPlaying(!playing))}>
@@ -108,7 +134,7 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
             <div>
               <h3 className="font-medium">{t('web.route.stops')}</h3>
               <ul className="text-sm">
-                {route.stops.map((s, i) => (
+                {view!.stops.map((s, i) => (
                   <li key={s.from}>
                     <button className="text-start underline" title={t('web.route.showOnMap')} onClick={() => setFocus({ kind: 'stop', index: i, seq: (focus?.seq ?? 0) + 1 })}>
                       {t('web.route.stop', { from: minutes.format(new Date(s.from)), to: minutes.format(new Date(s.to)), duration: formatDuration(s.seconds) })}
@@ -121,7 +147,7 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
             <div>
               <h3 className="font-medium">{t('web.route.events')}</h3>
               <ul className="text-sm">
-                {route.events.map((e, i) => (
+                {view!.events.map((e, i) => (
                   <li key={`${e.kind}-${e.capturedAt}`}>
                     <button className="text-start underline" title={t('web.route.showOnMap')} onClick={() => setFocus({ kind: 'event', index: i, seq: (focus?.seq ?? 0) + 1 })}>
                       {minutes.format(new Date(e.capturedAt))} · {t(`web.route.event.${e.kind}` as TextKey)} · {e.customerName ?? ''}

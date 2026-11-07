@@ -41,7 +41,7 @@ APP_DB_PASSWORD=<رمز دوم>
 JWT_SIGNING_KEY=<رمز سوم>
 ```
 ذخیره: `Ctrl+O`، Enter، `Ctrl+X`. این فایل فقط روی سرور می‌ماند. رمزها را یک جای امن (مدیر رمز) هم نگه دار.
-اگر کلید Firebase (Push) داری: `deploy/secrets/service-account.json` (`docs/PUSH.md`)؛ بدون آن Push خاموش است.
+اگر کلید Firebase (Push) داری: `deploy/secrets/service-account.json` (`docs/PUSH.md`)؛ بدون آن Push خاموش است. بعد از گذاشتن فایل حتماً بزن: `chown 1654:1654 deploy/secrets/service-account.json && chmod 400 deploy/secrets/service-account.json` (API با کاربر غیر root اجرا می‌شود؛ فایل فقط-root خطای «Access denied» می‌دهد و Push کار نمی‌کند).
 
 ## ۶. راه‌اندازی
 ```bash

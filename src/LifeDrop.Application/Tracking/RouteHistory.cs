@@ -12,8 +12,9 @@ namespace LifeDrop.Application.Tracking;
 
 // Route history and playback (plan step 2.11, decision D6): the points of one user on one day, the stops (at least 5 minutes within 50 metres), the check-ins and
 // check-outs and the shifts. Needs tracking.read and a user inside the reader's area; every read is audited. Points older than 90 days are gone (summaries stay).
-public sealed record RoutePointDto(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked);
-public sealed record RouteStopDto(DateTimeOffset From, DateTimeOffset To, int Seconds, double Latitude, double Longitude, string? CustomerName, int? CustomerDistanceMeters);
+// ShiftId (plan step 5.24): the shift the point belongs to, so a day with several shifts can be shown together or one by one.
+public sealed record RoutePointDto(double Latitude, double Longitude, double AccuracyMeters, DateTimeOffset CapturedAt, bool IsMocked, Guid? ShiftId = null);
+public sealed record RouteStopDto(DateTimeOffset From, DateTimeOffset To, int Seconds, double Latitude, double Longitude, string? CustomerName, int? CustomerDistanceMeters, Guid? ShiftId = null);
 public sealed record RouteVisitEventDto(string Kind, bool Accepted, string? RejectionReason, DateTimeOffset CapturedAt, double Latitude, double Longitude, string? CustomerName, int? RadiusMeters, bool IsMocked);
 public sealed record RouteShiftDto(Guid ShiftId, DateTimeOffset StartedAt, DateTimeOffset? EndedAt, int PointCount, bool PointsPurged);
 public sealed record RouteHistoryDto(Guid UserId, string? Email, DateOnly Date, IReadOnlyList<RouteShiftDto> Shifts, IReadOnlyList<RoutePointDto> Points, IReadOnlyList<RouteStopDto> Stops,
@@ -65,6 +66,13 @@ public static class RouteStops
         }
         return stops;
     }
+
+    // Stops are found inside each shift: a stop never runs across the gap between two shifts (the phone is not tracked there), so ending a shift and starting another at the same place does not make one long stop.
+    public static IReadOnlyList<(Guid? ShiftId, DateTimeOffset From, DateTimeOffset To, double Latitude, double Longitude)> ComputePerShift(IReadOnlyList<RoutePointDto> points) =>
+        points.GroupBy(p => p.ShiftId)
+            .SelectMany(group => Compute(group.ToList()).Select(stop => (group.Key, stop.From, stop.To, stop.Latitude, stop.Longitude)))
+            .OrderBy(stop => stop.From)
+            .ToList();
 
     public static double DistanceMeters(RoutePointDto a, RoutePointDto b) => DistanceMeters(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
 
@@ -120,10 +128,10 @@ public sealed class RouteHistory(IRouteHistoryStore store, IPermissionStore perm
         var from = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3));   // Iraq day
         var raw = await store.LoadAsync(tenantId, new UserId(userId), from, from.AddDays(1), MaxPoints, cancellationToken);
         var stops = new List<RouteStopDto>();
-        foreach (var stop in RouteStops.Compute(raw.Points))
+        foreach (var stop in RouteStops.ComputePerShift(raw.Points))
         {
             var near = await store.NearestCustomerAsync(tenantId, stop.Latitude, stop.Longitude, StopCustomerMeters, cancellationToken);
-            stops.Add(new RouteStopDto(stop.From, stop.To, (int)(stop.To - stop.From).TotalSeconds, stop.Latitude, stop.Longitude, near?.Name, near?.DistanceMeters));
+            stops.Add(new RouteStopDto(stop.From, stop.To, (int)(stop.To - stop.From).TotalSeconds, stop.Latitude, stop.Longitude, near?.Name, near?.DistanceMeters, stop.ShiftId));
         }
         await store.AuditViewAsync(tenantId, actorId, $"{userId}:{date:yyyy-MM-dd}", cancellationToken);
         return (RouteResult.Success, new RouteHistoryDto(userId, raw.Email, date, raw.Shifts, raw.Points, stops, raw.Events, raw.Truncated));
