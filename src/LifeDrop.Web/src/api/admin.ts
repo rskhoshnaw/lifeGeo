@@ -568,7 +568,7 @@ export interface RoutePoint {
   capturedAt: string
   isMocked: boolean
   // Plan step 5.24: the shift of the point (an older server sends none).
-  shiftId?: string
+  shiftId?: string | null
 }
 export interface RouteStop {
   from: string
@@ -578,7 +578,7 @@ export interface RouteStop {
   longitude: number
   customerName: string | null
   customerDistanceMeters: number | null
-  shiftId?: string
+  shiftId?: string | null
 }
 export interface RouteVisitEvent {
   kind: 'check_in' | 'check_out'

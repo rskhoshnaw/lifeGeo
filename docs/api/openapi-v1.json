@@ -24867,7 +24867,10 @@
             "type": "boolean"
           },
           "shiftId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
@@ -24970,7 +24973,10 @@
             "format": "int32"
           },
           "shiftId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
