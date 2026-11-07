@@ -72,6 +72,7 @@ crontab -e      # اضافه کنید:
 10 3 * * * /opt/lifedrop/deploy/backup.sh >> /var/log/lifedrop-backup.log 2>&1
 ```
 - هر شب یک dump فشرده در `BACKUP_DIR` ساخته می‌شود، فایل خراب یا خالی رد می‌شود، فایل‌های قدیمی‌تر از `BACKUP_KEEP_DAYS` حذف می‌شوند، و اگر `BACKUP_REMOTE` تنظیم باشد یک نسخه به جای دوم می‌رود (rclone یا scp).
+- **نسخهٔ بیرون از سرور (رمزنگاری‌شده، Google Drive، هر ۳ روز):** `deploy/backup-offsite.sh` و راهنمای `docs/BACKUP-OFFSITE.md`.
 - **یک backup که restore نشده، backup نیست:** بعد از اولین backup و سپس هر ماه `./restore-test.sh` را اجرا کنید؛ آخرین dump را در یک پایگاه‌داده موقت برمی‌گرداند، تعداد شرکت‌ها و migrationها را نشان می‌دهد و آن را پاک می‌کند. به پایگاه‌داده واقعی دست نمی‌زند.
 - بازگردانی واقعی بعد از خرابی: سرور تازه، `docker compose up -d db`، `./setup-db.sh`، سپس `docker compose exec -T db pg_restore -U postgres -d lifedrop --clean --if-exists --no-owner < فایل.dump` و `docker compose up -d`.
 
