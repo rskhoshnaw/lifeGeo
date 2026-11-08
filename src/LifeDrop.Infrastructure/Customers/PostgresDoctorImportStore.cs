@@ -112,9 +112,9 @@ public sealed class PostgresDoctorImportStore(NpgsqlDataSource dataSource) : IDo
             var id = Guid.NewGuid();
             await using (var insert = new NpgsqlCommand($"""
                 INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status, phone, phone2, address, place_id, notes,
-                                       clinic_name, specialty, cooperates, is_dealer, customer_class{(located ? ", geom, location_source, location_updated_at, location_updated_by" : "")})
+                                       clinic_name, specialty, cooperates, is_dealer, customer_class, created_by{(located ? ", geom, location_source, location_updated_at, location_updated_by" : "")})
                 VALUES (@id, @tenant, 'Doctor', @code, @name, @status, @owner, @region, 'approved', @phone, @phone2, @address, @place, @notes,
-                        @clinic, @specialty, @cooperates, @dealer, @class{(located ? ", ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, 'manual', now(), @actor" : "")})
+                        @clinic, @specialty, @cooperates, @dealer, @class, @actor{(located ? ", ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography, 'manual', now(), @actor" : "")})
                 """, connection, transaction))
             {
                 next++;
@@ -135,11 +135,11 @@ public sealed class PostgresDoctorImportStore(NpgsqlDataSource dataSource) : IDo
                 insert.Parameters.Add(new NpgsqlParameter("cooperates", NpgsqlDbType.Boolean) { Value = (object?)row.Cooperates ?? DBNull.Value });
                 insert.Parameters.Add(new NpgsqlParameter("dealer", NpgsqlDbType.Boolean) { Value = (object?)row.Dealer ?? DBNull.Value });
                 insert.Parameters.Add(new NpgsqlParameter("class", NpgsqlDbType.Text) { Value = (object?)row.CustomerClass ?? DBNull.Value });
+                insert.Parameters.AddWithValue("actor", actorId.Value);   // created_by, and the one who placed the position
                 if (located)
                 {
                     insert.Parameters.AddWithValue("lat", row.Latitude!.Value);
                     insert.Parameters.AddWithValue("lon", row.Longitude!.Value);
-                    insert.Parameters.AddWithValue("actor", actorId.Value);
                 }
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }

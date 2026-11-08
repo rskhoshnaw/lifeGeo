@@ -89,6 +89,45 @@ export interface Customer {
   cooperates?: boolean | null
   dealer?: boolean | null
   customerClass?: string | null
+  // Step 5.28: the current owner and who added the customer (the e-mail is the user's name in the system).
+  ownerUserId?: string | null
+  ownerEmail?: string | null
+  createdBy?: string | null
+  createdByEmail?: string | null
+}
+
+// The filters of the customer list (step 5.28 on top of 5.2). Empty or undefined = not filtered; dates are days, YYYY-MM-DD (Iraq time).
+export interface CustomerFilters {
+  type?: string
+  placeId?: string
+  ownerId?: string
+  createdBy?: string
+  createdFrom?: string
+  createdTo?: string
+  specialty?: string
+  customerClass?: string
+  hasLocation?: 'yes' | 'no' | ''
+  dealer?: 'yes' | 'no' | ''
+  cooperates?: 'yes' | 'no' | ''
+}
+
+// The query string of the filters; only what is set is sent.
+export function customerFilterQuery(filters: CustomerFilters = {}): string {
+  const parts: string[] = []
+  const add = (name: string, value: string | undefined) => value && parts.push(`${name}=${encodeURIComponent(value)}`)
+  const yesNo = (name: string, value: string | undefined) => value && parts.push(`${name}=${value === 'yes'}`)
+  add('type', filters.type)
+  add('placeId', filters.placeId)
+  add('ownerId', filters.ownerId)
+  add('createdBy', filters.createdBy)
+  add('createdFrom', filters.createdFrom)
+  add('createdTo', filters.createdTo)
+  add('specialty', filters.specialty)
+  add('customerClass', filters.customerClass)
+  yesNo('hasLocation', filters.hasLocation)
+  yesNo('dealer', filters.dealer)
+  yesNo('cooperates', filters.cooperates)
+  return parts.length ? `&${parts.join('&')}` : ''
 }
 
 // A message for the signed-in user (plan step 1.23-c): somebody other than the owner changed a customer of the user's area.
@@ -1123,9 +1162,9 @@ export class AdminApi {
   setUserPassword = (userId: string, password: string) => this.send('PUT', `/users/${userId}/password`, { password })
   deactivateUser = (userId: string) => this.post(`/users/${userId}/deactivate`)
   activateUser = (userId: string) => this.post(`/users/${userId}/activate`)
-  customers = (after?: Customer, archived = false, search = '') =>
+  customers = (after?: Customer, archived = false, search = '', filters?: CustomerFilters) =>
     this.get<Customer[]>(
-      `/customers?limit=100${archived ? '&archived=true' : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}` +
+      `/customers?limit=100${archived ? '&archived=true' : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}${customerFilterQuery(filters)}` +
         (after ? `&cursorCreatedAt=${encodeURIComponent(after.createdAt)}&cursorId=${after.id}` : ''),
     )
   setCustomerDoctor = (id: string, doctor: CustomerDoctor) => this.send('PUT', `/customers/${id}/doctor`, doctor)
@@ -1155,6 +1194,12 @@ export class AdminApi {
     const response = await this.api.request('/customers/priority', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
     if (!response.ok) throw await toError(response)
     return (await response.json()) as { updated: number }
+  }
+  // Give customers to another user: the ticked ones, or everything one user owns (step 5.28). `skipped` = in the request but not changed (not in the area, archived, already his, or a type he may not hold).
+  setCustomerOwner = async (request: { ownerUserId: string; customerIds?: string[]; fromUserId?: string }): Promise<{ updated: number; skipped: number }> => {
+    const response = await this.api.request('/customers/owner', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+    if (!response.ok) throw await toError(response)
+    return (await response.json()) as { updated: number; skipped: number }
   }
   // Products and prices (step 2.1).
   products = (includeInactive: boolean, search = '') =>

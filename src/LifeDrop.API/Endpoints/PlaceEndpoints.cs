@@ -116,6 +116,24 @@ public static class PlaceEndpoints
         }).RequireAuthorization()
             .WithName("SetCustomerPriority").WithTags("Customers").Produces<CustomerPriorityDto>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        // Give customers to another user (plan step 5.28).
+        app.MapPut("/customers/owner", async (SetCustomerOwnerRequest request, HttpContext context,
+            CustomerOwnerService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, data) = await service.SetAsync(tenantId, actorId, request, cancellationToken);
+            return result switch
+            {
+                CustomerOwnerResult.Success => Results.Ok(data),
+                CustomerOwnerResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                CustomerOwnerResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("SetCustomerOwner").WithTags("Customers").Produces<CustomerOwnerDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

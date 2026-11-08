@@ -27,7 +27,16 @@ public sealed record CustomerProfile(Guid Id, string Code, string Name, string T
     DoctorDetails? Doctor = null);
 
 // One row of the customer search (plan step 4.15).
-public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone);
+// CreatedAt and HasLocation (plan step 5.28): when the customer was added (it is also the paging cursor) and whether it has a position.
+public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone, DateTimeOffset? CreatedAt = null, bool HasLocation = false);
+
+// The filters of "my customers" (plan steps 5.2 and 5.28); empty or null = not filtered. AddedFrom is a day in Iraq time.
+public sealed record CustomerListFilter(string? Search = null, string? Type = null, Guid? PlaceId = null, bool? Cooperates = null, bool? HasLocation = null, string? CustomerClass = null,
+    DateOnly? AddedFrom = null, bool? Dealer = null)
+{
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Search) && string.IsNullOrWhiteSpace(Type) && PlaceId is null && Cooperates is null && HasLocation is null
+        && string.IsNullOrWhiteSpace(CustomerClass) && AddedFrom is null && Dealer is null;
+}
 
 // Customers and places for the field user (plan step 1.23-b): edit a customer's profile, register a new customer, pick or add
 // a neighbourhood, street or alley. Answers use VisitActionResult: Conflict = the name or code already exists,
@@ -92,6 +101,10 @@ public interface ICustomersApiClient
 
     // The customer list narrowed by type, place (a city or neighbourhood, everything below it) and "cooperates" (plan step 5.2); the text is optional when a filter is set.
     Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // One page (50) of the user's customers, oldest first, with every filter; `after` is the last item of the page before (null = the first page). No filter and no text lists all of them.
+    Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> ListCustomersAsync(CustomerListFilter filter, CustomerListItem? after, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 }
 
@@ -186,6 +199,14 @@ public sealed class CustomersApiClient : ICustomersApiClient
         return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone)).ToList());
     }
 
+    public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> ListCustomersAsync(CustomerListFilter filter, CustomerListItem? after, CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await CallAsync<List<CustomerDto>>(HttpMethod.Get, FilterPath(filter, after?.CreatedAt, after?.Id), null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<CustomerListItem>());
+        if (items is null || items.Any(c => c is null || c.Id == Guid.Empty || string.IsNullOrWhiteSpace(c.Code))) return (VisitActionResult.ServerError, Array.Empty<CustomerListItem>());
+        return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone, c.CreatedAt, c.Latitude is not null)).ToList());
+    }
+
     public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default)
     {
         var (result, items) = await CallAsync<List<CustomerDto>>(HttpMethod.Get, FilterPath(search, type, placeId, cooperates), null, cancellationToken);
@@ -195,13 +216,22 @@ public sealed class CustomersApiClient : ICustomersApiClient
     }
 
     // The request path of a filtered list; only the filters that are set are sent.
-    public static string FilterPath(string? search, string? type, Guid? placeId, bool? cooperates)
+    public static string FilterPath(string? search, string? type, Guid? placeId, bool? cooperates) =>
+        FilterPath(new CustomerListFilter(search, type, placeId, cooperates), null, null);
+
+    public static string FilterPath(CustomerListFilter filter, DateTimeOffset? cursorCreatedAt, Guid? cursorId)
     {
         var path = "/customers?limit=50";
-        if (!string.IsNullOrWhiteSpace(search)) path += "&q=" + Uri.EscapeDataString(search.Trim());
-        if (!string.IsNullOrWhiteSpace(type)) path += "&type=" + Uri.EscapeDataString(type.Trim());
-        if (placeId is { } place) path += "&placeId=" + place;
-        if (cooperates is { } cooperatesFilter) path += "&cooperates=" + (cooperatesFilter ? "true" : "false");
+        if (!string.IsNullOrWhiteSpace(filter.Search)) path += "&q=" + Uri.EscapeDataString(filter.Search.Trim());
+        if (!string.IsNullOrWhiteSpace(filter.Type)) path += "&type=" + Uri.EscapeDataString(filter.Type.Trim());
+        if (filter.PlaceId is { } place) path += "&placeId=" + place;
+        if (filter.Cooperates is { } cooperatesFilter) path += "&cooperates=" + (cooperatesFilter ? "true" : "false");
+        if (filter.HasLocation is { } located) path += "&hasLocation=" + (located ? "true" : "false");
+        if (filter.Dealer is { } dealer) path += "&dealer=" + (dealer ? "true" : "false");
+        if (!string.IsNullOrWhiteSpace(filter.CustomerClass)) path += "&customerClass=" + Uri.EscapeDataString(filter.CustomerClass.Trim());
+        if (filter.AddedFrom is { } from) path += "&createdFrom=" + from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (cursorCreatedAt is { } cursorDate && cursorId is { } cursor)
+            path += "&cursorCreatedAt=" + Uri.EscapeDataString(cursorDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)) + "&cursorId=" + cursor;
         return path;
     }
 
@@ -258,7 +288,8 @@ public sealed class CustomersApiClient : ICustomersApiClient
     private sealed record MeDto(string[]? Permissions);
     private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath,
         string? ContactName = null, string? Phone2 = null, string? Notes = null,
-        string? ClinicName = null, string? Specialty = null, bool? Cooperates = null, bool? Dealer = null, string? CustomerClass = null);
+        string? ClinicName = null, string? Specialty = null, bool? Cooperates = null, bool? Dealer = null, string? CustomerClass = null,
+        DateTimeOffset? CreatedAt = null, double? Latitude = null);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
     private sealed record CreatedDto(Guid Id);
 }
