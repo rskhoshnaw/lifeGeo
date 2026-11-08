@@ -23,6 +23,7 @@ public class LoginCoordinator : ILoginCoordinator
 
     public async Task<AuthResult<StoredSession>> LoginAsync(string tenantCode, string email, string password, CancellationToken cancellationToken = default)
     {
+        email = (email ?? "").Trim();   // spaces from autofill or paste must not look like another account
         var device = await _store.LoadDeviceAsync(cancellationToken);
         
         bool isDeviceBound = false;
@@ -38,7 +39,7 @@ public class LoginCoordinator : ILoginCoordinator
             }
             // Another e-mail on a phone registered for this company (the device was moved to this user, e.g. two accounts merged): the server decides, it
             // accepts the device only for its own user. On success the stored device gets the new e-mail (below).
-            deviceEmailChanged = !string.Equals(device.Email, email, StringComparison.OrdinalIgnoreCase);
+            deviceEmailChanged = !string.Equals((device.Email ?? "").Trim(), email, StringComparison.OrdinalIgnoreCase);
 
             if (device.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(device.DeviceSecret))
             {

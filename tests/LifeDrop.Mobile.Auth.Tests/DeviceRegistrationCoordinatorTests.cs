@@ -105,6 +105,23 @@ public class DeviceRegistrationCoordinatorTests
     }
 
     [Fact]
+    public async Task RegisterDeviceAsync_RegistersAgain_WhenSameCompanyButOtherEmail()
+    {
+        var apiClient = new MockAuthApiClient();
+        var fresh = new RegisteredDevice(Guid.NewGuid(), "new_secret");
+        apiClient.RegisterDeviceHandler = req => Task.FromResult(new AuthResult<RegisteredDevice>(AuthStatus.Success, fresh));
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "old_secret", "tenant", "old@test.com") };
+        var coordinator = new DeviceRegistrationCoordinator(apiClient, store);
+        var request = new RegisterDeviceRequest("tenant", " new@test.com ", "pass", "My Phone", "Android", "123", "1.0");
+
+        var result = await coordinator.RegisterDeviceAsync(request);
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.Equal(fresh.DeviceId, store.SavedDevice?.DeviceId);
+        Assert.Equal("new@test.com", store.SavedDevice?.Email);
+    }
+
+    [Fact]
     public async Task RegisterDeviceAsync_ReturnsConflict_WhenAccountMismatches_ZeroApiCalls()
     {
         var apiClient = new MockAuthApiClient();
