@@ -28,21 +28,27 @@ public class DeviceRegistrationCoordinator : IDeviceRegistrationCoordinator
             return new AuthResult<RegisteredDevice>(AuthStatus.BadRequest, ErrorMessage: "Missing required registration parameters.");
         }
 
+        // Spaces around the e-mail (autofill, copy and paste) must not make the same person look like another account.
+        request = request with { Email = request.Email.Trim() };
         var existingDevice = await _store.LoadDeviceAsync(cancellationToken);
         if (existingDevice != null)
         {
-            if (!string.Equals(CompanyDirectory.Normalize(existingDevice.TenantCode), CompanyDirectory.Normalize(request.TenantCode), StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(existingDevice.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(CompanyDirectory.Normalize(existingDevice.TenantCode), CompanyDirectory.Normalize(request.TenantCode), StringComparison.OrdinalIgnoreCase))
             {
                 return new AuthResult<RegisteredDevice>(AuthStatus.Conflict, ErrorMessage: "A device registration for a different account already exists on this device.");
             }
 
-            if (existingDevice.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(existingDevice.DeviceSecret))
+            // Same company, another e-mail (the phone is handed to another person, or the e-mail was changed): the old local registration is replaced by a new one for
+            // this e-mail; the server registers the device for the user who proves the password and an admin approves it as usual.
+            if (string.Equals((existingDevice.Email ?? "").Trim(), request.Email, StringComparison.OrdinalIgnoreCase))
             {
-                return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorCode: "reg_stored_malformed", ErrorMessage: "Stored device registration is malformed.");
-            }
+                if (existingDevice.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(existingDevice.DeviceSecret))
+                {
+                    return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorCode: "reg_stored_malformed", ErrorMessage: "Stored device registration is malformed.");
+                }
 
-            return new AuthResult<RegisteredDevice>(AuthStatus.Success, existingDevice);
+                return new AuthResult<RegisteredDevice>(AuthStatus.Success, existingDevice);
+            }
         }
 
         var response = await _apiClient.RegisterDeviceAsync(request, cancellationToken);

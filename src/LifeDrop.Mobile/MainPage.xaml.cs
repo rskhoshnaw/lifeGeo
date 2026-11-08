@@ -248,7 +248,7 @@ public partial class MainPage : ContentPage
             var installId = GetInstallId();
             var req = new RegisterDeviceRequest(
                 CompanyDirectory.Normalize(TenantEntry.Text),
-                EmailEntry.Text ?? "",
+                (EmailEntry.Text ?? "").Trim(),
                 PasswordEntry.Text ?? "",
                 DeviceLabelEntry.Text ?? "",
                 DeviceInfo.Platform == DevicePlatform.iOS ? "ios" : "android",
@@ -304,7 +304,7 @@ public partial class MainPage : ContentPage
 
             var result = await coord.LoginAsync(
                 CompanyDirectory.Normalize(TenantEntry.Text),
-                EmailEntry.Text ?? "",
+                (EmailEntry.Text ?? "").Trim(),
                 PasswordEntry.Text ?? "",
                 cts.Token);
 
