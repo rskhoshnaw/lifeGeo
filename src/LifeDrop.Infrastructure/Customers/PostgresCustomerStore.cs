@@ -48,8 +48,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
         const string sql = """
             WITH inserted AS (
-                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status)
-                VALUES (@id, @tenant, @type, @code, @name, 'no_location', @actor, @region, @approval)
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status, created_by)
+                VALUES (@id, @tenant, @type, @code, @name, 'no_location', @actor, @region, @approval, @actor)
                 ON CONFLICT (tenant_id, code) DO NOTHING
                 RETURNING id, tenant_id
             ), audited AS (
@@ -158,6 +158,14 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         if (filter?.PlaceId is not null)
             sql += "\nAND place_id IN (WITH RECURSIVE below AS (SELECT id FROM places WHERE id = @fPlace UNION ALL SELECT p.id FROM places p JOIN below b ON p.parent_id = b.id) SELECT id FROM below)";
         if (filter?.Cooperates is not null) sql += "\nAND cooperates = @fCooperates";
+        if (filter?.OwnerId is not null) sql += "\nAND owner_user_id = @fOwner";
+        if (filter?.CreatedBy is not null) sql += "\nAND created_by = @fCreatedBy";
+        if (filter?.CreatedFrom is not null) sql += "\nAND (created_at AT TIME ZONE 'Asia/Baghdad')::date >= @fFrom";
+        if (filter?.CreatedTo is not null) sql += "\nAND (created_at AT TIME ZONE 'Asia/Baghdad')::date <= @fTo";
+        if (!string.IsNullOrWhiteSpace(filter?.Specialty)) sql += "\nAND specialty = @fSpecialty";
+        if (!string.IsNullOrWhiteSpace(filter?.CustomerClass)) sql += "\nAND customer_class = @fClass";
+        if (filter?.HasLocation is not null) sql += filter.HasLocation == true ? "\nAND geom IS NOT NULL" : "\nAND geom IS NULL";
+        if (filter?.Dealer is not null) sql += "\nAND COALESCE(is_dealer, false) = @fDealer";
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             sql += "\nAND ((created_at > @cursorDate) OR (created_at = @cursorDate AND id > @cursorId))";
@@ -172,6 +180,13 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         if (!string.IsNullOrWhiteSpace(filter?.Type)) command.Parameters.AddWithValue("fType", filter!.Type!);
         if (filter?.PlaceId is { } placeFilter) command.Parameters.AddWithValue("fPlace", placeFilter);
         if (filter?.Cooperates is { } cooperatesFilter) command.Parameters.Add(new NpgsqlParameter("fCooperates", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = cooperatesFilter });
+        if (filter?.OwnerId is { } ownerFilter) command.Parameters.AddWithValue("fOwner", ownerFilter);
+        if (filter?.CreatedBy is { } createdByFilter) command.Parameters.AddWithValue("fCreatedBy", createdByFilter);
+        if (filter?.CreatedFrom is { } fromFilter) command.Parameters.Add(new NpgsqlParameter("fFrom", NpgsqlTypes.NpgsqlDbType.Date) { Value = fromFilter });
+        if (filter?.CreatedTo is { } toFilter) command.Parameters.Add(new NpgsqlParameter("fTo", NpgsqlTypes.NpgsqlDbType.Date) { Value = toFilter });
+        if (!string.IsNullOrWhiteSpace(filter?.Specialty)) command.Parameters.AddWithValue("fSpecialty", filter!.Specialty!);
+        if (!string.IsNullOrWhiteSpace(filter?.CustomerClass)) command.Parameters.AddWithValue("fClass", filter!.CustomerClass!);
+        if (filter?.Dealer is { } dealerFilter) command.Parameters.Add(new NpgsqlParameter("fDealer", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = dealerFilter });
         if (cursorCreatedAt.HasValue && cursorId.HasValue)
         {
             command.Parameters.AddWithValue("cursorDate", cursorCreatedAt.Value);
@@ -213,7 +228,9 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
                    UNION ALL
                    SELECT p.id, p.parent_id, p.kind, p.name, c.depth + 1 FROM places p JOIN chain c ON p.id = c.parent_id)
                SELECT * FROM chain) a),
-        priority, contact_name, phone2, notes, clinic_name, specialty, cooperates, is_dealer, customer_class
+        priority, contact_name, phone2, notes, clinic_name, specialty, cooperates, is_dealer, customer_class,
+        owner_user_id, (SELECT u.email FROM users u WHERE u.tenant_id = customers.tenant_id AND u.id = customers.owner_user_id),
+        created_by, (SELECT u.email FROM users u WHERE u.tenant_id = customers.tenant_id AND u.id = customers.created_by)
         """;
 
     private static CustomerDto ReadCustomer(NpgsqlDataReader reader) => new(
@@ -229,7 +246,8 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
         reader.IsDBNull(16) ? null : reader.GetGuid(16), reader.IsDBNull(17) ? null : ReadPath(reader.GetString(17)), reader.GetString(18),
         reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20), reader.IsDBNull(21) ? null : reader.GetString(21),
         reader.IsDBNull(22) ? null : reader.GetString(22), reader.IsDBNull(23) ? null : reader.GetString(23),
-        reader.IsDBNull(24) ? null : reader.GetBoolean(24), reader.IsDBNull(25) ? null : reader.GetBoolean(25), reader.IsDBNull(26) ? null : reader.GetString(26));
+        reader.IsDBNull(24) ? null : reader.GetBoolean(24), reader.IsDBNull(25) ? null : reader.GetBoolean(25), reader.IsDBNull(26) ? null : reader.GetString(26),
+        reader.IsDBNull(27) ? null : reader.GetGuid(27), reader.IsDBNull(28) ? null : reader.GetString(28), reader.IsDBNull(29) ? null : reader.GetGuid(29), reader.IsDBNull(30) ? null : reader.GetString(30));
 
     private static readonly System.Text.Json.JsonSerializerOptions PathJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

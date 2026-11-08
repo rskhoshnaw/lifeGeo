@@ -161,10 +161,20 @@ public sealed class GetCustomer(ICustomerStore store)
 }
 
 // The filters of the customer list (plan step 5.2): Type is one of the customer types, PlaceId a city or neighbourhood (customers placed anywhere below it match), Cooperates the doctor flag.
-public sealed record CustomerFilter(string? Type, Guid? PlaceId, bool? Cooperates)
+// Step 5.28: OwnerId (current owner), CreatedBy (who added it), CreatedFrom/CreatedTo (day added, Iraq time, both ends included), Specialty and CustomerClass (doctors),
+// HasLocation (true = has a position) and Dealer.
+public sealed record CustomerFilter(string? Type, Guid? PlaceId, bool? Cooperates, Guid? OwnerId = null, Guid? CreatedBy = null, DateOnly? CreatedFrom = null, DateOnly? CreatedTo = null,
+    string? Specialty = null, string? CustomerClass = null, bool? HasLocation = null, bool? Dealer = null)
 {
     public const int MaxTypeLength = 40;
-    public bool IsEmpty => string.IsNullOrWhiteSpace(Type) && PlaceId is null && Cooperates is null;
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Type) && PlaceId is null && Cooperates is null && OwnerId is null && CreatedBy is null && CreatedFrom is null && CreatedTo is null
+        && string.IsNullOrWhiteSpace(Specialty) && string.IsNullOrWhiteSpace(CustomerClass) && HasLocation is null && Dealer is null;
+
+    // The parts a client can get wrong: empty ids, an upside-down date range, a specialty or class that does not exist.
+    public bool IsValid() =>
+        OwnerId != Guid.Empty && CreatedBy != Guid.Empty && (CreatedFrom is null || CreatedTo is null || CreatedFrom <= CreatedTo)
+        && (string.IsNullOrWhiteSpace(Specialty) || DoctorSpecialties.Keys.Contains(Specialty.Trim().ToLowerInvariant()))
+        && (string.IsNullOrWhiteSpace(CustomerClass) || DoctorSpecialties.Classes.Contains(CustomerClass.Trim().ToUpperInvariant()));
 }
 
 public sealed class ListCustomers(ICustomerStore store)
@@ -178,9 +188,10 @@ public sealed class ListCustomers(ICustomerStore store)
         if (tenantId.IsEmpty || actualLimit is <= 0 or > 100 || cursorCreatedAt.HasValue != cursorId.HasValue
             || (text is not null && (text.Length < 2 || text.Length > MaxSearchLength))
             || (type is not null && type.Length > CustomerFilter.MaxTypeLength)
-            || filter.PlaceId == Guid.Empty)
+            || filter.PlaceId == Guid.Empty || !filter.IsValid())
             return (false, Array.Empty<CustomerDto>());
-        return (true, await store.FilterAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, text, filter with { Type = type }, cancellationToken));
+        return (true, await store.FilterAsync(tenantId, scope, actualLimit, cursorCreatedAt, cursorId, text,
+            filter with { Type = type, Specialty = string.IsNullOrWhiteSpace(filter.Specialty) ? null : filter.Specialty.Trim().ToLowerInvariant(), CustomerClass = string.IsNullOrWhiteSpace(filter.CustomerClass) ? null : filter.CustomerClass.Trim().ToUpperInvariant() }, cancellationToken));
     }
 
     public Task<(bool IsValid, IReadOnlyList<CustomerDto> Items)> ExecuteAsync(TenantId tenantId, AccessScope scope, int? limit, DateTimeOffset? cursorCreatedAt, Guid? cursorId, CancellationToken cancellationToken) =>

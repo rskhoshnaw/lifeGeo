@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { AdminApi, can, errorMessage, Permissions, type Customer, type Me } from '../api/admin.ts'
+import { AdminApi, can, errorMessage, Permissions, type Customer, type CustomerFilters, type Me, type UserSummary } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { Badge, type Tone } from '../components/Badge.tsx'
 
@@ -9,6 +9,8 @@ import { useAction, useLoad } from '../components/useLoad.ts'
 import { DoctorImport } from '../components/DoctorImport.tsx'
 import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
 import { CustomerPriorityBar } from '../components/CustomerPriorityBar.tsx'
+import { CustomerFilterBar } from '../components/CustomerFilterBar.tsx'
+import { CustomerOwnerBar } from '../components/CustomerOwnerBar.tsx'
 import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
 import { CustomerHistoryPanel } from '../components/CustomerHistoryPanel.tsx'
 import { CustomerCard } from '../components/CustomerCard.tsx'
@@ -21,7 +23,7 @@ export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
     <section className="space-y-8 p-6">
       {can(me, ...Permissions.approveCustomers) && <PendingCustomers admin={admin} />}
       {can(me, ...Permissions.editCustomers) && <DoctorImport admin={admin} onImported={() => setReload((n) => n + 1)} />}
-      {can(me, ...Permissions.customers) && <CustomerList key={reload} admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canMove={can(me, ...Permissions.moveCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} />}
+      {can(me, ...Permissions.customers) && <CustomerList key={reload} admin={admin} canEdit={can(me, ...Permissions.editCustomers)} canMove={can(me, ...Permissions.moveCustomers)} canArchive={can(me, ...Permissions.approveCustomers)} canPrioritise={can(me, ...Permissions.planVisits)} canAssign={can(me, ...Permissions.approveCustomers)} />}
     </section>
   )
 }
@@ -73,11 +75,31 @@ function PendingCustomers({ admin }: { admin: AdminApi }) {
   )
 }
 
-function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { admin: AdminApi; canEdit: boolean; canMove: boolean; canArchive: boolean; canPrioritise: boolean }) {
+const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', dateStyle: 'short' })
+
+// The list as a CSV file (UTF-8 with a mark, so Excel reads Kurdish and Arabic names); it holds the rows that are loaded.
+function downloadCsv(rows: Customer[]) {
+  const cell = (value: string | null | undefined) => `"${(value ?? '').replace(/"/g, '""')}"`
+  const lines = [['code', 'name', 'type', 'phone', 'owner', 'added_by', 'added_on', 'location'].join(',')]
+  for (const c of rows)
+    lines.push([c.code, c.name, c.type, c.phone, c.ownerEmail, c.createdByEmail, day.format(new Date(c.createdAt)), c.status].map(cell).join(','))
+  const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'customers.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canAssign }: { admin: AdminApi; canEdit: boolean; canMove: boolean; canArchive: boolean; canPrioritise: boolean; canAssign: boolean }) {
   const [archived, setArchived] = useState(false)
   const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState<CustomerFilters>({})
   const term = search.trim().length >= 2 ? search.trim() : ''
-  const first = useLoad(useCallback(() => admin.customers(undefined, archived, term), [admin, archived, term]))
+  const [showFilters, setShowFilters] = useState(false)
+  const activeFilters = Object.values(filters).filter(Boolean).length
+  const users = useLoad(useCallback(() => admin.users().catch(() => [] as UserSummary[]), [admin]))
+  const first = useLoad(useCallback(() => admin.customers(undefined, archived, term, filters), [admin, archived, term, filters]))
   const action = useAction(() => reload())
   const [editFor, setEditFor] = useState<Customer | null>(null)
   const [openFor, setOpenFor] = useState<Customer | null>(null)
@@ -89,7 +111,7 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
   const [historyFor, setHistoryFor] = useState<Customer | null>(null)
   const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
-  const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, type: (c) => c.type, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
+  const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, type: (c) => c.type, owner: (c) => c.ownerEmail ?? '', addedBy: (c) => c.createdByEmail ?? '', addedOn: (c) => c.createdAt, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
 
   function reload() {
     setEditFor(null)
@@ -105,7 +127,7 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
 
   async function loadMore() {
     try {
-      const page = await admin.customers(items[items.length - 1], archived, term)
+      const page = await admin.customers(items[items.length - 1], archived, term, filters)
       setMore([...more, ...page])
       if (page.length < 100) setDone(true)
     } catch (e) {
@@ -142,6 +164,34 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
           {t('web.customers.showArchived')}
         </label>
       )}
+      <button className="mb-3 rounded border px-2 py-1 text-sm" aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
+        {t('web.customers.filtersTitle')}{activeFilters > 0 ? ` (${activeFilters})` : ''}
+      </button>
+      {showFilters && (
+        <CustomerFilterBar
+          admin={admin}
+          users={users.data ?? []}
+          filters={filters}
+          onChange={(next) => {
+            setFilters(next)
+            setMore([])
+            setDone(false)
+          }}
+        />
+      )}
+      {canAssign && !archived && (
+        <CustomerOwnerBar
+          admin={admin}
+          users={users.data ?? []}
+          ticked={ticked}
+          onDone={() => {
+            setTicked([])
+            setMore([])
+            setDone(false)
+            first.reload()
+          }}
+        />
+      )}
       {canPrioritise && (
         <CustomerPriorityBar
           admin={admin}
@@ -155,13 +205,22 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
         />
       )}
       {first.data && (
+        <div className="mb-2 flex items-center gap-3 text-sm">
+          <span>{t('web.customers.shown', { count: items.length })}</span>
+          <button className="rounded border px-2 py-1" onClick={() => downloadCsv(sorted.rows ?? items)}>{t('web.customers.exportCsv')}</button>
+        </div>
+      )}
+      {first.data && (
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
-              {canPrioritise && <th />}
+              {(canPrioritise || canAssign) && <th />}
               <SortTh id="code" className="py-2" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.code')}</SortTh>
               <SortTh id="name" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.name')}</SortTh>
               <SortTh id="type" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.type')}</SortTh>
+              <SortTh id="owner" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.owner')}</SortTh>
+              <SortTh id="addedBy" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.addedBy')}</SortTh>
+              <SortTh id="addedOn" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.addedOn')}</SortTh>
               <SortTh id="approval" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.approval')}</SortTh>
               <SortTh id="priority" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.priority')}</SortTh>
               <th />
@@ -170,7 +229,7 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
           <tbody>
             {(sorted.rows ?? items).map((customer) => (
               <tr key={customer.id} className="border-b">
-                {canPrioritise && (
+                {(canPrioritise || canAssign) && (
                   <td>
                     <input
                       type="checkbox"
@@ -185,6 +244,9 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise }: { 
                   <button className="text-start text-brand-700 underline" aria-label={t('web.customers.open', { customer: customer.name })} onClick={() => setOpenFor(customer)}>{customer.name}</button>
                 </td>
                 <td>{customer.type}</td>
+                <td>{customer.ownerEmail ?? '—'}</td>
+                <td>{customer.createdByEmail ?? '—'}</td>
+                <td>{day.format(new Date(customer.createdAt))}</td>
                 <td><Badge tone={({ approved: 'good', pending: 'warn', rejected: 'bad' } as Record<string, Tone>)[customer.approvalStatus] ?? 'neutral'}>{approvalText(customer.approvalStatus)}</Badge></td>
                 <td>{t(`web.priority.${customer.priority}`)}</td>
                 <td className="space-x-2 text-end">

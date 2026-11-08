@@ -38,7 +38,12 @@ public sealed record CustomerDto(
     string? Specialty = null,
     bool? Cooperates = null,
     bool? Dealer = null,
-    string? CustomerClass = null
+    string? CustomerClass = null,
+    // Plan step 5.28: the current owner and who added the customer (e-mail is the user's name in the system).
+    Guid? OwnerUserId = null,
+    string? OwnerEmail = null,
+    Guid? CreatedBy = null,
+    string? CreatedByEmail = null
 )
 {
     // PRD §6.1: default check-in radius when the customer has no own radius.

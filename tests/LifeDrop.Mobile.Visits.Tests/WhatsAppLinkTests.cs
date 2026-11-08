@@ -38,4 +38,17 @@ public class CustomerFilterPathTests
         Assert.Equal("/customers?limit=50&q=ali%20h&type=Doctor&placeId=" + Place + "&cooperates=false", CustomersApiClient.FilterPath(" ali h ", "Doctor", Place, false));
         Assert.Equal("/customers?limit=50&cooperates=true", CustomersApiClient.FilterPath("  ", " ", null, true));
     }
+
+    [Fact]
+    public void FilterPath_AddsTheFiltersOfStep528AndThePagingCursor()
+    {
+        var filter = new CustomerListFilter(null, "Doctor", null, null, HasLocation: false, CustomerClass: "A+", AddedFrom: new DateOnly(2026, 11, 1), Dealer: true);
+        Assert.Equal("/customers?limit=50&type=Doctor&hasLocation=false&dealer=true&customerClass=A%2B&createdFrom=2026-11-01", CustomersApiClient.FilterPath(filter, null, null));
+        var cursor = new DateTimeOffset(2026, 11, 3, 10, 0, 0, TimeSpan.Zero);
+        Assert.Equal("/customers?limit=50&hasLocation=true&cursorCreatedAt=2026-11-03T10%3A00%3A00.0000000%2B00%3A00&cursorId=" + Place,
+            CustomersApiClient.FilterPath(new CustomerListFilter(HasLocation: true), cursor, Place));
+        Assert.Equal("/customers?limit=50", CustomersApiClient.FilterPath(new CustomerListFilter(), cursor, null));   // a cursor needs both parts
+        Assert.True(new CustomerListFilter().IsEmpty);
+        Assert.False(new CustomerListFilter(HasLocation: false).IsEmpty);
+    }
 }

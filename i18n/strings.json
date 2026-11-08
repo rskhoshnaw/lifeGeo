@@ -407,6 +407,162 @@
   "ar": "العملاء",
   "fa": "مشتریان"
  },
+ "web.customers.owner": {
+  "en": "Owner",
+  "ckb": "خاوەن",
+  "ar": "المسؤول",
+  "fa": "مسئول"
+ },
+ "web.customers.addedBy": {
+  "en": "Added by",
+  "ckb": "زیادکراو لەلایەن",
+  "ar": "أضيف بواسطة",
+  "fa": "اضافه‌شده توسط"
+ },
+ "web.customers.addedOn": {
+  "en": "Added on",
+  "ckb": "بەرواری زیادکردن",
+  "ar": "تاريخ الإضافة",
+  "fa": "تاریخ افزودن"
+ },
+ "web.customers.filtersTitle": {
+  "en": "Filters",
+  "ckb": "فلتەرەکان",
+  "ar": "عوامل التصفية",
+  "fa": "فیلترها"
+ },
+ "web.customers.clearFilters": {
+  "en": "Clear filters",
+  "ckb": "پاککردنەوەی فلتەرەکان",
+  "ar": "مسح التصفية",
+  "fa": "پاک کردن فیلترها"
+ },
+ "web.customers.allTypes": {
+  "en": "All types",
+  "ckb": "هەموو جۆرەکان",
+  "ar": "كل الأنواع",
+  "fa": "همه نوع‌ها"
+ },
+ "web.customers.allOwners": {
+  "en": "All owners",
+  "ckb": "هەموو خاوەنەکان",
+  "ar": "كل المسؤولين",
+  "fa": "همه مسئول‌ها"
+ },
+ "web.customers.allCreators": {
+  "en": "Added by anyone",
+  "ckb": "هەر کەسێک زیادی کردبێت",
+  "ar": "أضافه أي شخص",
+  "fa": "اضافه‌شده توسط هر کس"
+ },
+ "web.customers.allSpecialties": {
+  "en": "All specialties",
+  "ckb": "هەموو پسپۆڕییەکان",
+  "ar": "كل التخصصات",
+  "fa": "همه تخصص‌ها"
+ },
+ "web.customers.allClasses": {
+  "en": "All classes",
+  "ckb": "هەموو پۆلەکان",
+  "ar": "كل الفئات",
+  "fa": "همه کلاس‌ها"
+ },
+ "web.customers.addedFrom": {
+  "en": "Added from",
+  "ckb": "زیادکراو لە",
+  "ar": "أضيف من",
+  "fa": "اضافه‌شده از"
+ },
+ "web.customers.addedTo": {
+  "en": "Added until",
+  "ckb": "زیادکراو تا",
+  "ar": "أضيف حتى",
+  "fa": "اضافه‌شده تا"
+ },
+ "web.customers.locationAny": {
+  "en": "Location: any",
+  "ckb": "شوێن: هەموو",
+  "ar": "الموقع: الكل",
+  "fa": "موقعیت: همه"
+ },
+ "web.customers.dealerAny": {
+  "en": "Dealer: any",
+  "ckb": "فرۆشیار: هەموو",
+  "ar": "الوكيل: الكل",
+  "fa": "نماینده فروش: همه"
+ },
+ "web.customers.cooperatesAny": {
+  "en": "Cooperates: any",
+  "ckb": "هاوکاری: هەموو",
+  "ar": "التعاون: الكل",
+  "fa": "همکاری: همه"
+ },
+ "web.customers.shown": {
+  "en": "{count} customers shown",
+  "ckb": "{count} کڕیار پیشان دراوە",
+  "ar": "{count} عميل معروض",
+  "fa": "{count} مشتری نمایش داده شده"
+ },
+ "web.customers.exportCsv": {
+  "en": "Download this list (CSV)",
+  "ckb": "داگرتنی ئەم لیستە (CSV)",
+  "ar": "تنزيل هذه القائمة (CSV)",
+  "fa": "دانلود این فهرست (CSV)"
+ },
+ "web.ownerBar.title": {
+  "en": "Give customers to another user",
+  "ckb": "دانی کڕیار بە بەکارهێنەرێکی تر",
+  "ar": "إعطاء العملاء لمستخدم آخر",
+  "fa": "واگذاری مشتریان به کاربر دیگر"
+ },
+ "web.ownerBar.hint": {
+  "en": "Tick customers in the list and choose the new owner, or give everything one user owns to another. Planned visits and old reports stay as they are.",
+  "ckb": "کڕیارەکان لە لیستەکەدا دیاری بکە و خاوەنە نوێیەکە هەڵبژێرە، یان هەموو کڕیارەکانی بەکارهێنەرێک بدە بە یەکێکی تر. سەردانە پلانکراوەکان و ڕاپۆرتە کۆنەکان وەک خۆیان دەمێننەوە.",
+  "ar": "حدّد العملاء في القائمة واختر المسؤول الجديد، أو انقل كل عملاء مستخدم إلى آخر. تبقى الزيارات المخططة والتقارير القديمة كما هي.",
+  "fa": "مشتریان را در فهرست علامت بزنید و مسئول جدید را انتخاب کنید، یا همهٔ مشتریان یک کاربر را به کاربر دیگر بدهید. ویزیت‌های برنامه‌ریزی‌شده و گزارش‌های قدیمی همان‌طور می‌مانند."
+ },
+ "web.ownerBar.newOwner": {
+  "en": "New owner",
+  "ckb": "خاوەنی نوێ",
+  "ar": "المسؤول الجديد",
+  "fa": "مسئول جدید"
+ },
+ "web.ownerBar.chooseOwner": {
+  "en": "Choose the new owner…",
+  "ckb": "خاوەنی نوێ هەڵبژێرە…",
+  "ar": "اختر المسؤول الجديد…",
+  "fa": "مسئول جدید را انتخاب کنید…"
+ },
+ "web.ownerBar.giveTicked": {
+  "en": "Give the {count} ticked",
+  "ckb": "ئەو {count} دیاریکراوە بدە",
+  "ar": "إعطاء الـ {count} المحددين",
+  "fa": "واگذاری {count} مورد علامت‌خورده"
+ },
+ "web.ownerBar.fromUser": {
+  "en": "Everything owned by…",
+  "ckb": "هەموو ئەوانەی هی … ن",
+  "ar": "كل ما يملكه…",
+  "fa": "همهٔ مشتریان…"
+ },
+ "web.ownerBar.giveAll": {
+  "en": "Give all of that user's customers",
+  "ckb": "هەموو کڕیارەکانی ئەو بەکارهێنەرە بدە",
+  "ar": "إعطاء كل عملاء ذلك المستخدم",
+  "fa": "واگذاری همهٔ مشتریان آن کاربر"
+ },
+ "web.ownerBar.confirmAll": {
+  "en": "Give every customer of {from} to {to}?",
+  "ckb": "هەموو کڕیارەکانی {from} بدرێن بە {to}؟",
+  "ar": "إعطاء كل عملاء {from} إلى {to}؟",
+  "fa": "همهٔ مشتریان {from} به {to} داده شوند؟"
+ },
+ "web.ownerBar.done": {
+  "en": "{updated} customers moved to {to}. {skipped} not changed.",
+  "ckb": "{updated} کڕیار گوازرانەوە بۆ {to}. {skipped} نەگۆڕدران.",
+  "ar": "تم نقل {updated} عميلًا إلى {to}. لم يتغير {skipped}.",
+  "fa": "{updated} مشتری به {to} منتقل شد. {skipped} تغییری نکرد."
+ },
  "web.customers.code": {
   "en": "Code",
   "ckb": "کۆد",
@@ -7006,6 +7162,54 @@
   "ckb": "کڕیارەکانم",
   "ar": "زبائني",
   "fa": "مشتریان من"
+ },
+ "app.customers.hasLocation": {
+  "en": "Has a location",
+  "ckb": "شوێنی هەیە",
+  "ar": "له موقع",
+  "fa": "موقعیت دارد"
+ },
+ "app.customers.addedSince": {
+  "en": "Added",
+  "ckb": "کەی زیاد کراوە",
+  "ar": "تاريخ الإضافة",
+  "fa": "زمان افزودن"
+ },
+ "app.customers.sinceToday": {
+  "en": "Today",
+  "ckb": "ئەمڕۆ",
+  "ar": "اليوم",
+  "fa": "امروز"
+ },
+ "app.customers.sinceWeek": {
+  "en": "Last 7 days",
+  "ckb": "٧ ڕۆژی ڕابردوو",
+  "ar": "آخر 7 أيام",
+  "fa": "۷ روز گذشته"
+ },
+ "app.customers.sinceMonth": {
+  "en": "Last 30 days",
+  "ckb": "٣٠ ڕۆژی ڕابردوو",
+  "ar": "آخر 30 يومًا",
+  "fa": "۳۰ روز گذشته"
+ },
+ "app.customers.more": {
+  "en": "Show more",
+  "ckb": "زیاتر پیشان بدە",
+  "ar": "عرض المزيد",
+  "fa": "نمایش بیشتر"
+ },
+ "app.customers.count": {
+  "en": "{count} customers",
+  "ckb": "{count} کڕیار",
+  "ar": "{count} عميلًا",
+  "fa": "{count} مشتری"
+ },
+ "app.customers.noLocationMark": {
+  "en": "no location yet",
+  "ckb": "هێشتا شوێنی نییە",
+  "ar": "بدون موقع بعد",
+  "fa": "هنوز موقعیت ندارد"
  },
  "app.customers.title": {
   "en": "Customers",

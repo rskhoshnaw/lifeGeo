@@ -127,6 +127,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerEditService>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerPriorityStore, LifeDrop.Infrastructure.Customers.PostgresCustomerPriorityStore>();
         builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerPriorityService>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.ICustomerOwnerStore, LifeDrop.Infrastructure.Customers.PostgresCustomerOwnerStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Customers.CustomerOwnerService>();
         builder.Services.AddScoped<KillUserSessions>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<LifeDrop.API.Observability.RequestMetrics>();
@@ -682,6 +684,14 @@ public partial class Program
             string? type,
             Guid? placeId,
             bool? cooperates,
+            Guid? ownerId,
+            Guid? createdBy,
+            DateOnly? createdFrom,
+            DateOnly? createdTo,
+            string? specialty,
+            string? customerClass,
+            bool? hasLocation,
+            bool? dealer,
             HttpContext context, 
             LifeDrop.Application.Customers.ListCustomers listCustomers,
             LifeDrop.Application.Roles.IPermissionStore permissionStore,
@@ -704,7 +714,7 @@ public partial class Program
             if (archived == true && await permissionStore.GetAccessScopeAsync(new LifeDrop.Domain.Common.TenantId(tenantId), new LifeDrop.Domain.Common.UserId(actorId), "customers.approve", cancellationToken) is null)
                 return Results.Forbid();
 
-            var filter = new LifeDrop.Application.Customers.CustomerFilter(type, placeId, cooperates);
+            var filter = new LifeDrop.Application.Customers.CustomerFilter(type, placeId, cooperates, ownerId, createdBy, createdFrom, createdTo, specialty, customerClass, hasLocation, dealer);
             var result = archived != true && !filter.IsEmpty
                 ? await listCustomers.FilterAsync(new LifeDrop.Domain.Common.TenantId(tenantId), readScope, limit, cursorCreatedAt, cursorId, q, filter, cancellationToken)
                 : archived != true && !string.IsNullOrWhiteSpace(q)

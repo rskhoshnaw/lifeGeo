@@ -3,30 +3,44 @@ using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
 
-// Finds a customer by name, code or phone (plan step 4.15), narrowed by type, city and neighbourhood, and "cooperates" (plan step 5.2), and opens the customer's page,
-// where the order, payment, sample and follow-up buttons are. Two characters of text at least when no filter is chosen; the server limits the answer to the user's area
-// and 50 rows. Online only.
+// "My customers" (plan steps 4.15, 5.2 and 5.28): every customer the user may see, oldest first, 50 at a time ("Show more"), narrowed by name, code or phone, type, city and
+// neighbourhood, cooperates, with or without a position, class and the day they were added. Each row shows when the customer was added and whether it still has no position.
+// A tap opens the customer's page, where the order, payment, sample and follow-up buttons are, and where the position can be set. Online only; the server limits the answer to the user's area.
 public sealed class CustomersListPage : ContentPage
 {
     private readonly SearchBar _search = new();
     private readonly ChoiceField _type = new(Texts.Get("app.customer.type"));
     private readonly PlacePickerView _places = new() { AllowAdd = false };
     private readonly YesNoView _cooperates = new();
+    private readonly YesNoView _hasLocation = new();
+    private readonly ChoiceField _class = new(Texts.Get("app.customer.class"));
+    private readonly ChoiceField _since = new(Texts.Get("app.customers.addedSince"));
     private readonly Button _show = new();
+    private readonly Button _more = new() { IsVisible = false };
+    private readonly Label _count = new() { IsVisible = false, FontAttributes = FontAttributes.Bold };
     private readonly VerticalStackLayout _results = new() { Spacing = 8 };
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private bool _placesLoaded;
+    private CustomerListFilter _filter = new();
+    private readonly List<CustomerListItem> _items = new();
+
+    // Days back for "added since": today, 7 days, 30 days.
+    private static readonly int[] SinceDays = [0, 7, 30];
 
     public CustomersListPage()
     {
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.customers.title");
         _search.Placeholder = Texts.Get("app.customers.search");
-        _search.SearchButtonPressed += async (_, _) => await SearchAsync();
+        _search.SearchButtonPressed += async (_, _) => await LoadAsync(more: false);
         _type.Items = new[] { Texts.Get("app.customers.all") }.Concat(NewCustomerFlow.Types.Select(t => DailyPlan.TypeLabel(t.ToLowerInvariant()))).ToList();
+        _class.Items = new[] { Texts.Get("app.customers.all") }.Concat(DoctorOptions.Classes).ToList();
+        _since.Items = new[] { Texts.Get("app.customers.all"), Texts.Get("app.customers.sinceToday"), Texts.Get("app.customers.sinceWeek"), Texts.Get("app.customers.sinceMonth") };
         _show.Text = Texts.Get("app.customers.apply");
-        _show.Clicked += async (_, _) => await SearchAsync();
+        _show.Clicked += async (_, _) => await LoadAsync(more: false);
+        _more.Text = Texts.Get("app.customers.more");
+        _more.Clicked += async (_, _) => await LoadAsync(more: true);
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
@@ -40,7 +54,10 @@ public sealed class CustomersListPage : ContentPage
                     new Label { Text = Texts.Get("app.customers.place"), FontAttributes = FontAttributes.Bold },
                     _places,
                     new CaptionedField("app.customer.cooperates", _cooperates),
-                    _show, _spinner, _message, _results
+                    new CaptionedField("app.customers.hasLocation", _hasLocation),
+                    new CaptionedField("app.customer.class", _class),
+                    new CaptionedField("app.customers.addedSince", _since),
+                    _show, _spinner, _message, _count, _results, _more
                 }
             }
         };
@@ -64,7 +81,8 @@ public sealed class CustomersListPage : ContentPage
         }
     }
 
-    private async Task SearchAsync()
+    // more = false: a new list with the filters as they are now; true: the next page of the same list.
+    private async Task LoadAsync(bool more)
     {
         var api = TrackingHost.CustomersApi;
         if (api is null)
@@ -72,22 +90,29 @@ public sealed class CustomersListPage : ContentPage
             AppLanguage.ShowRoot(new MainPage());
             return;
         }
-        var text = (_search.Text ?? "").Trim();
-        var type = _type.SelectedIndex > 0 ? NewCustomerFlow.Types[_type.SelectedIndex - 1] : null;
-        var place = _places.PlaceId;
-        var cooperates = _cooperates.Value;
-        var filtered = type is not null || place is not null || cooperates is not null;
-        if (text.Length < 2 && (!filtered || text.Length > 0)) return;
+        if (!more)
+        {
+            var text = (_search.Text ?? "").Trim();
+            if (text.Length == 1) return;   // the server wants two characters at least
+            _filter = new CustomerListFilter(
+                text.Length == 0 ? null : text,
+                _type.SelectedIndex > 0 ? NewCustomerFlow.Types[_type.SelectedIndex - 1] : null,
+                _places.PlaceId,
+                _cooperates.Value,
+                _hasLocation.Value,
+                _class.SelectedIndex > 0 ? DoctorOptions.Classes[_class.SelectedIndex - 1] : null,
+                _since.SelectedIndex > 0 ? IraqTime.Today(TimeProvider.System).AddDays(-SinceDays[_since.SelectedIndex - 1]) : null);
+            _items.Clear();
+            _results.Children.Clear();
+        }
 
-        _results.Children.Clear();
         _message.IsVisible = false;
+        _more.IsVisible = false;
         _spinner.IsVisible = _spinner.IsRunning = true;
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            var (result, items) = filtered
-                ? await api.FilterCustomersAsync(text.Length == 0 ? null : text, type, place, cooperates, cts.Token)
-                : await api.SearchCustomersAsync(text, cts.Token);
+            var (result, page) = await api.ListCustomersAsync(_filter, more && _items.Count > 0 ? _items[^1] : null, cts.Token);
             if (result == VisitActionResult.SessionExpired)
             {
                 AppLanguage.ShowRoot(new MainPage());
@@ -98,14 +123,18 @@ public sealed class CustomersListPage : ContentPage
                 Show(VisitLifecycle.Describe(result));
                 return;
             }
-            if (items.Count == 0) Show(Texts.Get("app.customers.none"));
-            foreach (var item in items)
+            foreach (var item in page)
             {
-                var button = new Button { Text = $"{item.Code} · {item.Name}" + (string.IsNullOrWhiteSpace(item.Phone) ? "" : $" · {item.Phone}"), HorizontalOptions = LayoutOptions.Fill };
+                _items.Add(item);
+                var button = new Button { Text = RowText(item), HorizontalOptions = LayoutOptions.Fill };
                 var captured = item;
                 button.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerPage(captured.Id, captured.Name));
                 _results.Children.Add(button);
             }
+            if (_items.Count == 0) Show(Texts.Get("app.customers.none"));
+            _count.IsVisible = _items.Count > 0;
+            _count.Text = Texts.Get("app.customers.count", ("count", _items.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            _more.IsVisible = page.Count == 50;   // a full page: there may be more
         }
         catch (OperationCanceledException)
         {
@@ -115,6 +144,15 @@ public sealed class CustomersListPage : ContentPage
         {
             _spinner.IsVisible = _spinner.IsRunning = false;
         }
+    }
+
+    // "D-0001 · Dr. Ali · 0750…" and, below, the day it was added (Iraq is UTC+3 all year) and a note when it has no position yet.
+    internal static string RowText(CustomerListItem item)
+    {
+        var line = $"{item.Code} · {item.Name}" + (string.IsNullOrWhiteSpace(item.Phone) ? "" : $" · {item.Phone}");
+        var added = item.CreatedAt is { } at ? at.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : "";
+        var detail = string.Join(" · ", new[] { added, item.HasLocation ? "" : Texts.Get("app.customers.noLocationMark") }.Where(x => x.Length > 0));
+        return detail.Length == 0 ? line : line + "\n" + detail;
     }
 
     private void Show(string text)
