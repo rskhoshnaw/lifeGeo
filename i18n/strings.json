@@ -2357,6 +2357,24 @@
   "ar": "تمت إضافة العميل (الرمز {code}) لكن تعذّر حفظ الهاتف أو العنوان أو المكان. افتح العميل وحاول مرة أخرى.",
   "fa": "مشتری اضافه شد (کد {code}) اما تلفن، نشانی یا مکان ذخیره نشد. مشتری را باز کنید و دوباره تلاش کنید."
  },
+ "app.customer.setLocation": {
+  "en": "Set location here",
+  "ckb": "شوێنی کڕیار لێرە دابنێ",
+  "ar": "تعيين موقع العميل هنا",
+  "fa": "ثبت موقعیت مشتری در همین‌جا"
+ },
+ "app.customer.setLocationQuestion": {
+  "en": "Save your current GPS position as this customer's location? Do this only when you are at the customer.",
+  "ckb": "شوێنی ئێستای GPS ی خۆت وەک شوێنی ئەم کڕیارە پاشەکەوت بکەیت؟ تەنها کاتێک ئەمە بکە کە لای کڕیارەکەیت.",
+  "ar": "هل تريد حفظ موقعك الحالي (GPS) كموقع لهذا العميل؟ افعل ذلك فقط عندما تكون عند العميل.",
+  "fa": "موقعیت فعلی GPS شما به‌عنوان موقعیت این مشتری ذخیره شود؟ فقط وقتی کنار مشتری هستید این کار را بکنید."
+ },
+ "app.customer.locationSaved": {
+  "en": "The customer's location was saved.",
+  "ckb": "شوێنی کڕیار پاشەکەوت کرا.",
+  "ar": "تم حفظ موقع العميل.",
+  "fa": "موقعیت مشتری ذخیره شد."
+ },
  "app.customer.partialLocation": {
   "en": "The customer was added (code {code}), but the location could not be saved. Open the customer and try again.",
   "ckb": "کڕیار زیاد کرا (کۆد {code})، بەڵام شوێنەکە پاشەکەوت نەکرا. کڕیارەکە بکەرەوە و دووبارە هەوڵ بدەرەوە.",
