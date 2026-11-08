@@ -31,6 +31,8 @@ public sealed class CustomerPage : ContentPage
     private readonly Button _sample = new();
     private readonly Button _followUp = new();
     private readonly Button _history = new();
+    // Sets the position of this customer from the phone's GPS (any customer, also to correct a wrong position).
+    private readonly Button _setLocation = new();
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private bool _loaded;
@@ -56,6 +58,9 @@ public sealed class CustomerPage : ContentPage
         _payment.Clicked += async (_, _) => await Navigation.PushAsync(new PaymentPage(_customerId, _titleLabel.Text));
         _sample.Text = Texts.Get("app.sample.button");
         _sample.Clicked += async (_, _) => await Navigation.PushAsync(new SamplePage(_customerId, _titleLabel.Text));
+        _setLocation.Text = Texts.Get("app.customer.setLocation");
+        _setLocation.Clicked += async (_, _) => await SetLocationAsync();
+        _setLocation.IsEnabled = false;
         _history.Text = Texts.Get("app.customer.history");
         _history.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerHistoryPage(_customerId, _profile?.Name));
         _followUp.Text = Texts.Get("app.followup.new");
@@ -79,7 +84,7 @@ public sealed class CustomerPage : ContentPage
                     _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", new PhoneWithWhatsApp(_phone)), new CaptionedField("app.customer.address", _address),
                     new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", new PhoneWithWhatsApp(_phone2)), new CaptionedField("app.customer.notes", _notes), _flags,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
-                    _places, _save, _history, _order, _payment, _sample, _followUp, _spinner, _message
+                    _places, _save, _setLocation, _history, _order, _payment, _sample, _followUp, _spinner, _message
                 }
             }
         };
@@ -129,7 +134,7 @@ public sealed class CustomerPage : ContentPage
             _phone2.Text = customer.Phone2;
             _notes.Text = customer.Notes;
             await _places.LoadAsync(api, customer.PlacePath, cts.Token);
-            _save.IsEnabled = true;
+            _save.IsEnabled = _setLocation.IsEnabled = true;
         }
         catch (OperationCanceledException)
         {
@@ -187,6 +192,41 @@ public sealed class CustomerPage : ContentPage
         }
     }
 
+    // The user stands at the customer: take the GPS position and save it (server: customers.location.write, accuracy up to 100 m).
+    private async Task SetLocationAsync()
+    {
+        var api = TrackingHost.CustomersApi;
+        if (api is null) return;
+        if (!await DisplayAlertAsync(Texts.Get("app.customer.setLocation"), Texts.Get("app.customer.setLocationQuestion"), Texts.Get("app.yes"), Texts.Get("app.cancel"))) return;
+        SetBusy(true);
+        try
+        {
+            var position = await new MauiLocationSource().GetFixAsync();
+            if (position.Fix is not { } fix)
+            {
+                Show(Texts.Get("app.customer.locationFailed"), VisitActionResult.NetworkError);
+                return;
+            }
+            if (fix.AccuracyMeters > NewCustomerFlow.MaxLocationAccuracyMeters)
+            {
+                Show(VisitLifecycle.Describe(VisitActionResult.GpsLowAccuracy), VisitActionResult.GpsLowAccuracy);
+                return;
+            }
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var result = await api.SetLocationAsync(_customerId, fix, cts.Token);
+            Show(result == VisitActionResult.Success ? Texts.Get("app.customer.locationSaved")
+                : result == VisitActionResult.NotFound ? Texts.Get("app.customer.notYours") : VisitLifecycle.Describe(result), result);
+        }
+        catch (OperationCanceledException)
+        {
+            Show(Texts.Get("app.timeout"), VisitActionResult.NetworkError);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     private void Show(string text, VisitActionResult result)
     {
         _message.Text = text;
@@ -197,7 +237,7 @@ public sealed class CustomerPage : ContentPage
     private void SetBusy(bool busy)
     {
         _spinner.IsVisible = _spinner.IsRunning = busy;
-        _save.IsEnabled = _loaded && !busy;
+        _save.IsEnabled = _setLocation.IsEnabled = _loaded && !busy;
         _phone.IsEnabled = _address.IsEnabled = _contactName.IsEnabled = _phone2.IsEnabled = _notes.IsEnabled = !busy;
         _places.SetEnabled(!busy);
         if (busy) _message.IsVisible = false;
