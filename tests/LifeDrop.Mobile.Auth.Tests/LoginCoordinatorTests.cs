@@ -31,6 +31,7 @@ public class LoginCoordinatorTests
         public bool SimulateSaveFailure { get; set; }
         public bool ThrowCancellationOnSave { get; set; }
         public StoredSession? SavedSession { get; private set; }
+        public RegisteredDevice? SavedDevice { get; private set; }
 
         public Task<RegisteredDevice?> LoadDeviceAsync(CancellationToken cancellationToken = default) => Task.FromResult(DeviceToReturn);
         
@@ -42,7 +43,11 @@ public class LoginCoordinatorTests
             return Task.CompletedTask;
         }
 
-        public Task SaveDeviceAsync(RegisteredDevice device, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task SaveDeviceAsync(RegisteredDevice device, CancellationToken cancellationToken = default)
+        {
+            SavedDevice = device;
+            return Task.CompletedTask;
+        }
         public Task ClearDeviceAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<StoredSession?> LoadSessionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> MarkSessionRefreshingAsync(StoredSession expectedSession, StoredSession pendingSession, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -99,6 +104,42 @@ public class LoginCoordinatorTests
         var result = await coordinator.LoginAsync("lifedrop", "user@test.com", "password");
 
         Assert.Equal(AuthStatus.LocalStateError, result.Status);
+    }
+
+    [Fact]
+    public async Task LoginAsync_OtherEmailOnRegisteredPhone_SendsDeviceAndStoresNewEmail_WhenServerAccepts()
+    {
+        var apiClient = new MockAuthApiClient();
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "tenant", "old@test.com") };
+        var coordinator = new LoginCoordinator(apiClient, store);
+        LoginRequest? capturedRequest = null;
+        apiClient.LoginAsyncHandler = req => {
+            capturedRequest = req;
+            return Task.FromResult(new AuthResult<AuthTokens>(AuthStatus.Success, new AuthTokens("access", "refresh", "Bearer", _fixedTime.AddMinutes(15), _fixedTime.AddDays(7))));
+        };
+
+        var result = await coordinator.LoginAsync("tenant", "new@test.com", "password");
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(store.DeviceToReturn.DeviceId, capturedRequest.DeviceId);
+        Assert.Equal("new@test.com", store.SavedDevice?.Email);
+        Assert.Equal(store.DeviceToReturn.DeviceId, store.SavedDevice?.DeviceId);
+    }
+
+    [Fact]
+    public async Task LoginAsync_OtherEmailOnRegisteredPhone_KeepsStoredDevice_WhenServerRefuses()
+    {
+        var apiClient = new MockAuthApiClient();
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "tenant", "old@test.com") };
+        var coordinator = new LoginCoordinator(apiClient, store);
+        apiClient.LoginAsyncHandler = _ => Task.FromResult(new AuthResult<AuthTokens>(AuthStatus.Forbidden, null));
+
+        var result = await coordinator.LoginAsync("tenant", "new@test.com", "password");
+
+        Assert.NotEqual(AuthStatus.Success, result.Status);
+        Assert.Null(store.SavedDevice);
+        Assert.Null(store.SavedSession);
     }
 
     [Fact]

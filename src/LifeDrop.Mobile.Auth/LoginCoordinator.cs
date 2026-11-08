@@ -27,15 +27,18 @@ public class LoginCoordinator : ILoginCoordinator
         
         bool isDeviceBound = false;
         Guid? deviceId = null;
+        var deviceEmailChanged = false;
         string? deviceSecret = null;
 
         if (device != null)
         {
-            if (!string.Equals(CompanyDirectory.Normalize(device.TenantCode), CompanyDirectory.Normalize(tenantCode), StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(device.Email, email, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(CompanyDirectory.Normalize(device.TenantCode), CompanyDirectory.Normalize(tenantCode), StringComparison.OrdinalIgnoreCase))
             {
                 return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "device_mismatch");
             }
+            // Another e-mail on a phone registered for this company (the device was moved to this user, e.g. two accounts merged): the server decides, it
+            // accepts the device only for its own user. On success the stored device gets the new e-mail (below).
+            deviceEmailChanged = !string.Equals(device.Email, email, StringComparison.OrdinalIgnoreCase);
 
             if (device.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(device.DeviceSecret))
             {
@@ -60,6 +63,22 @@ public class LoginCoordinator : ILoginCoordinator
         }
 
         var tokens = response.Data;
+
+        if (deviceEmailChanged && device is not null)
+        {
+            try
+            {
+                await _store.SaveDeviceAsync(device with { Email = email }, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return new AuthResult<StoredSession>(AuthStatus.LocalStateError, ErrorCode: "device_save_failed");
+            }
+        }
 
         StoredSession session;
         try
