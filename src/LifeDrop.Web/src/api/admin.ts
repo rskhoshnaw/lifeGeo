@@ -738,6 +738,22 @@ export interface KpiReport {
   users: KpiRow[]
   alerts: { kind: string; category: string; total: number; handled: number; valid: number; suspicious: number; fraud: number }[]
 }
+// One calendar month of one user's KPIs (step 5.29); month is "yyyy-MM". A month without data has zero counts and no rates.
+export interface KpiPeriod {
+  month: string
+  counts: KpiCounts
+  rates: KpiRates
+}
+// A user's month with the month before, the same month a year earlier and 12 months of trend (oldest first, ends with the month).
+export interface KpiCompare {
+  userId: string
+  email: string | null
+  month: string
+  current: KpiPeriod
+  previous: KpiPeriod
+  lastYear: KpiPeriod
+  trend: KpiPeriod[]
+}
 export interface Sample {
   id: string
   number: string
@@ -1345,6 +1361,8 @@ export class AdminApi {
   // KPI report (step 2.12): reports.read, only the users inside the reader's area.
   kpis = (from: string, to: string, regionId: string, teamId: string, customerType: string) =>
     this.get<KpiReport>(`/reports/kpis?from=${from}&to=${to}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
+  // KPIs of one month with the month before, last year's month and a 12-month trend (step 5.29). No userId = the caller's own; another user needs reports.read and the user in the caller's area.
+  kpiCompare = (month: string, userId?: string) => this.get<KpiCompare>(`/reports/kpi-compare?month=${month}-01${userId ? `&userId=${userId}` : ''}`)
   // Saved and scheduled reports (step 3.2, part 1): reports.read, only the caller's own.
   savedReports = () => this.get<SavedReport[]>('/saved-reports')
   saveReport = (report: SaveReport) => this.post('/saved-reports', report)

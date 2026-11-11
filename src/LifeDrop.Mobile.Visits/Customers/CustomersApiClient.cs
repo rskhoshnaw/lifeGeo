@@ -83,6 +83,9 @@ public interface ICustomersApiClient
     // The caller's own targets and deliveries of a month, month = the first day of it, "2026-10-01" (plan step 5.5).
     Task<(VisitActionResult Result, IReadOnlyList<MyTargetRow> Rows)> GetMyTargetsAsync(string month, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+    // The caller's own KPIs of a month with the month before, the same month last year and 12 months of trend (plan step 5.29); month is the first day, "2026-11-01".
+    Task<(VisitActionResult Result, MyKpiData? Data)> GetMyKpisAsync(string month, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
     // The days and hours in which the customer accepts visits (plan step 5.3); an empty list means "always". Replaces the old list.
     Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
@@ -172,6 +175,13 @@ public sealed class CustomersApiClient : ICustomersApiClient
         var (result, rows) = await CallAsync<List<MyTargetRow>>(HttpMethod.Get, $"/targets/mine?month={Uri.EscapeDataString(month)}", null, cancellationToken);
         if (result != VisitActionResult.Success) return (result, Array.Empty<MyTargetRow>());
         return rows is null || rows.Any(r => r is null) ? (VisitActionResult.ServerError, Array.Empty<MyTargetRow>()) : (result, rows);
+    }
+
+    public async Task<(VisitActionResult Result, MyKpiData? Data)> GetMyKpisAsync(string month, CancellationToken cancellationToken = default)
+    {
+        var (result, data) = await CallAsync<MyKpiData>(HttpMethod.Get, $"/reports/kpi-compare?month={Uri.EscapeDataString(month)}", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, null);
+        return data?.Current is null || data.Previous is null || data.LastYear is null || data.Trend is null ? (VisitActionResult.ServerError, null) : (result, data);
     }
 
     public async Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>

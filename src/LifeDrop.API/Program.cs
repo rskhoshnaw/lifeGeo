@@ -170,6 +170,7 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Tracking.CustomerMap>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.IReportStore, LifeDrop.Infrastructure.Reports.PostgresReportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.KpiReport>();
+        builder.Services.AddScoped<LifeDrop.Application.Reports.KpiCompare>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.ISavedReportStore, LifeDrop.Infrastructure.Reports.PostgresSavedReportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.SavedReportService>();
         builder.Services.AddScoped<LifeDrop.Application.Forms.IFormFieldStore, LifeDrop.Infrastructure.Forms.PostgresFormFieldStore>();

@@ -38,6 +38,7 @@ public partial class HomePage : ContentPage
         PaymentsBtn.Text = Texts.Get("app.home.payments");
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
         TargetsBtn.Text = Texts.Get("app.home.targets");
+        KpiBtn.Text = Texts.Get("app.home.kpi");
         ApplyButtonVisibility();
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
@@ -59,6 +60,7 @@ public partial class HomePage : ContentPage
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
         ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
+        ShowButton(KpiBtn, MyPermissions.Has("visits.plan"));       // their own KPIs (plan step 5.29)
     }
 
     private async Task RefreshPermissionsAsync()
@@ -317,6 +319,7 @@ public partial class HomePage : ContentPage
     }
 
     private async void OnTargetsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyTargetsPage());
+    private async void OnKpiClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyKpiPage());
 
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 

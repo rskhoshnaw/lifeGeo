@@ -24,6 +24,24 @@ public static class ReportEndpoints
         }).RequireAuthorization()
             .WithName("GetKpiReport").WithTags("Reports").Produces<KpiReportDto>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        // A user's own KPIs for a month with the month before, the same month last year and 12 months of trend (plan step 5.29). Own numbers need no permission; another user's need reports.read.
+        app.MapGet("/reports/kpi-compare", async (DateOnly month, Guid? userId, HttpContext context, KpiCompare compare,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, data) = await compare.GetAsync(tenantId, actorId, userId, month, cancellationToken);
+            return result switch
+            {
+                ReportResult.Success => Results.Ok(data),
+                ReportResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                ReportResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("GetKpiCompare").WithTags("Reports").Produces<KpiCompareDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
     }
 
     private static bool TryReadActor(HttpContext context, out TenantId tenantId, out UserId actorId)

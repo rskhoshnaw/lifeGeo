@@ -18,3 +18,6 @@ Days are **Iraq days** (Asia/Baghdad). Filters: day range (from and to, at most 
 | Alerts | Alerts of the users that occurred in the range, by kind, with how many were handled and the result of the review (valid / suspicious / fraud) | — | only the categories the reader may read (security needs `alerts.security.read`) |
 
 Not in this step: payments and samples (they can be added to the same report later).
+
+## Own numbers and comparison (plan step 5.29)
+`GET /reports/kpi-compare` gives one user's numbers for one calendar month (Iraq days, no customer-type filter) next to the month before, the same month a year earlier and 12 months of trend. A visitor reads their own (app: "My KPIs"); a reader with `reports.read` can ask for a user inside their area (panel: Reports, "KPIs: compare months"). A count changes by a percentage of the earlier month (no percentage when it was 0), a rate by percentage points; more is better except for failures, late starts and overdue follow-ups.
