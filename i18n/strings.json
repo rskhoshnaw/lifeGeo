@@ -8651,6 +8651,180 @@
   "ar": "اترك الخانة فارغة أو اكتب 0 لإزالة الهدف.",
   "fa": "برای حذف هدف، کادر را خالی بگذارید یا 0 بنویسید."
  },
+ "app.home.kpi": {
+  "en": "My KPIs",
+  "ckb": "KPIـەکانم",
+  "ar": "مؤشراتي",
+  "fa": "شاخص‌های من"
+ },
+ "app.kpi.title": {
+  "en": "My KPIs",
+  "ckb": "KPIـەکانم",
+  "ar": "مؤشراتي",
+  "fa": "شاخص‌های من"
+ },
+ "app.kpi.note": {
+  "en": "Your own numbers for the month, next to the month before and the same month last year. Green is better, red is worse.",
+  "ckb": "ژمارەکانی خۆت بۆ ئەم مانگە، لەگەڵ مانگی پێشوو و هەمان مانگی ساڵی ڕابردوو. سەوز باشترە، سوور خراپترە.",
+  "ar": "أرقامك الخاصة لهذا الشهر مقارنةً بالشهر السابق ونفس الشهر من العام الماضي. الأخضر أفضل والأحمر أسوأ.",
+  "fa": "عددهای خودتان برای این ماه در کنار ماه قبل و همین ماه سال قبل. سبز بهتر است و قرمز بدتر."
+ },
+ "app.kpi.planned": {
+  "en": "Visits planned",
+  "ckb": "سەردانە پلانکراوەکان",
+  "ar": "الزيارات المخططة",
+  "fa": "ویزیت‌های برنامه‌ریزی‌شده"
+ },
+ "app.kpi.completed": {
+  "en": "Visits completed",
+  "ckb": "سەردانە تەواوبووەکان",
+  "ar": "الزيارات المكتملة",
+  "fa": "ویزیت‌های انجام‌شده"
+ },
+ "app.kpi.completion": {
+  "en": "Visit completion rate",
+  "ckb": "ڕێژەی تەواوبوونی سەردان",
+  "ar": "نسبة إكمال الزيارات",
+  "fa": "درصد تکمیل ویزیت"
+ },
+ "app.kpi.failure": {
+  "en": "Visit failure rate",
+  "ckb": "ڕێژەی شکستی سەردان",
+  "ar": "نسبة فشل الزيارات",
+  "fa": "درصد ناموفق بودن ویزیت"
+ },
+ "app.kpi.delay": {
+  "en": "Late-start rate",
+  "ckb": "ڕێژەی دواکەوتنی دەستپێک",
+  "ar": "نسبة التأخر في البدء",
+  "fa": "درصد تأخیر در شروع"
+ },
+ "app.kpi.newCustomers": {
+  "en": "New customers",
+  "ckb": "کڕیاری نوێ",
+  "ar": "عملاء جدد",
+  "fa": "مشتریان جدید"
+ },
+ "app.kpi.orders": {
+  "en": "Orders",
+  "ckb": "داواکارییەکان",
+  "ar": "الطلبات",
+  "fa": "سفارش‌ها"
+ },
+ "app.kpi.delivery": {
+  "en": "Order delivery rate",
+  "ckb": "ڕێژەی گەیاندنی داواکاری",
+  "ar": "نسبة تسليم الطلبات",
+  "fa": "درصد تحویل سفارش"
+ },
+ "app.kpi.followups": {
+  "en": "Overdue follow-ups",
+  "ckb": "بەدواداچوونە دواکەوتووەکان",
+  "ar": "المتابعات المتأخرة",
+  "fa": "پیگیری‌های عقب‌افتاده"
+ },
+ "app.kpi.previousMonth": {
+  "en": "Month before ({month})",
+  "ckb": "مانگی پێشوو ({month})",
+  "ar": "الشهر السابق ({month})",
+  "fa": "ماه قبل ({month})"
+ },
+ "app.kpi.lastYearMonth": {
+  "en": "Last year ({month})",
+  "ckb": "ساڵی ڕابردوو ({month})",
+  "ar": "العام الماضي ({month})",
+  "fa": "سال قبل ({month})"
+ },
+ "app.kpi.trend": {
+  "en": "Last 12 months",
+  "ckb": "١٢ مانگی ڕابردوو",
+  "ar": "آخر 12 شهرًا",
+  "fa": "۱۲ ماه گذشته"
+ },
+ "app.kpi.trendLine": {
+  "en": "{month}: {completed}/{planned} visits ({rate}) · new customers {customers} · orders {orders}",
+  "ckb": "{month}: {completed}/{planned} سەردان ({rate}) · کڕیاری نوێ {customers} · داواکاری {orders}",
+  "ar": "{month}: {completed}/{planned} زيارة ({rate}) · عملاء جدد {customers} · طلبات {orders}",
+  "fa": "{month}: {completed}/{planned} ویزیت ({rate}) · مشتری جدید {customers} · سفارش {orders}"
+ },
+ "app.kpi.loadFailed": {
+  "en": "Could not load your KPIs. Try again.",
+  "ckb": "نەتوانرا KPIەکانت باربکرێن. دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر تحميل مؤشراتك. حاول مرة أخرى.",
+  "fa": "بارگذاری شاخص‌ها ممکن نشد. دوباره تلاش کنید."
+ },
+ "web.kpiCompare.title": {
+  "en": "KPIs: compare months",
+  "ckb": "KPI: بەراوردی مانگەکان",
+  "ar": "المؤشرات: مقارنة الأشهر",
+  "fa": "شاخص‌ها: مقایسهٔ ماه‌ها"
+ },
+ "web.kpiCompare.user": {
+  "en": "User",
+  "ckb": "بەکارهێنەر",
+  "ar": "المستخدم",
+  "fa": "کاربر"
+ },
+ "web.kpiCompare.me": {
+  "en": "Me (own numbers)",
+  "ckb": "من (ژمارەکانی خۆم)",
+  "ar": "أنا (أرقامي)",
+  "fa": "من (عددهای خودم)"
+ },
+ "web.kpiCompare.month": {
+  "en": "Month",
+  "ckb": "مانگ",
+  "ar": "الشهر",
+  "fa": "ماه"
+ },
+ "web.kpiCompare.metric": {
+  "en": "KPI",
+  "ckb": "KPI",
+  "ar": "المؤشر",
+  "fa": "شاخص"
+ },
+ "web.kpiCompare.previous": {
+  "en": "month before",
+  "ckb": "مانگی پێشوو",
+  "ar": "الشهر السابق",
+  "fa": "ماه قبل"
+ },
+ "web.kpiCompare.lastYear": {
+  "en": "last year",
+  "ckb": "ساڵی ڕابردوو",
+  "ar": "العام الماضي",
+  "fa": "سال قبل"
+ },
+ "web.kpiCompare.vsPrevious": {
+  "en": "Change vs month before",
+  "ckb": "گۆڕان بەرامبەر مانگی پێشوو",
+  "ar": "التغيّر مقابل الشهر السابق",
+  "fa": "تغییر نسبت به ماه قبل"
+ },
+ "web.kpiCompare.vsLastYear": {
+  "en": "Change vs last year",
+  "ckb": "گۆڕان بەرامبەر ساڵی ڕابردوو",
+  "ar": "التغيّر مقابل العام الماضي",
+  "fa": "تغییر نسبت به سال قبل"
+ },
+ "web.kpiCompare.trend": {
+  "en": "Last 12 months",
+  "ckb": "١٢ مانگی ڕابردوو",
+  "ar": "آخر 12 شهرًا",
+  "fa": "۱۲ ماه گذشته"
+ },
+ "web.kpiCompare.planned": {
+  "en": "Visits planned",
+  "ckb": "سەردانە پلانکراوەکان",
+  "ar": "الزيارات المخططة",
+  "fa": "ویزیت‌های برنامه‌ریزی‌شده"
+ },
+ "web.kpiCompare.completed": {
+  "en": "Visits completed",
+  "ckb": "سەردانە تەواوبووەکان",
+  "ar": "الزيارات المكتملة",
+  "fa": "ویزیت‌های انجام‌شده"
+ },
  "app.home.targets": {
   "en": "My targets and progress",
   "ckb": "ئامانج و پێشکەوتنەکەم",

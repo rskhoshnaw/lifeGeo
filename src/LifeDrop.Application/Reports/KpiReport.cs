@@ -28,7 +28,7 @@ public sealed record AlertKpi(string Kind, string Category, int Total, int Handl
 
 public sealed record KpiReportDto(DateOnly From, DateOnly To, KpiRow Total, IReadOnlyList<KpiRow> Users, IReadOnlyList<AlertKpi> Alerts);
 
-public enum ReportResult { Success, Forbidden, InvalidData }
+public enum ReportResult { Success, Forbidden, InvalidData, NotFound }
 
 public sealed record KpiUser(Guid UserId, string? Email, string? TeamName);
 

@@ -11100,6 +11100,105 @@
         }
       }
     },
+    "/reports/kpi-compare": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "GetKpiCompare",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KpiCompareDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/notifications": {
       "get": {
         "tags": [
@@ -22493,6 +22592,48 @@
           }
         }
       },
+      "KpiCompareDto": {
+        "required": [
+          "userId",
+          "email",
+          "month",
+          "current",
+          "previous",
+          "lastYear",
+          "trend"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "month": {
+            "type": "string"
+          },
+          "current": {
+            "$ref": "#/components/schemas/KpiPeriodDto"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/KpiPeriodDto"
+          },
+          "lastYear": {
+            "$ref": "#/components/schemas/KpiPeriodDto"
+          },
+          "trend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KpiPeriodDto"
+            }
+          }
+        }
+      },
       "KpiCounts": {
         "required": [
           "visitsPlanned",
@@ -22612,6 +22753,25 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "KpiPeriodDto": {
+        "required": [
+          "month",
+          "counts",
+          "rates"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/KpiCounts"
+          },
+          "rates": {
+            "$ref": "#/components/schemas/KpiRates"
           }
         }
       },

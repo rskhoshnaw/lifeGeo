@@ -637,6 +637,7 @@ Permission `reports.read` (CompanyManager, SalesManager: all users; Supervisor: 
 | Route | Who | Rules |
 |---|---|---|
 | `GET /reports/kpis?from=&to=&regionId=&teamId=&customerType=` | `reports.read` | `from`/`to` are Iraq days (`to` not before `from`, at most 366 days; else 400). Returns `total` and `users` (one row each, users without data left out) with `counts` (numerators, denominators, money per currency) and `rates` (percent, `null` when the denominator is 0), and `alerts` by kind with handled and review results, only the categories the caller may read (`alerts.read`, `alerts.security.read`) |
+| `GET /reports/kpi-compare?month=&userId=` | any signed-in user for the own numbers; `reports.read` for another user (the user must be inside the reader's area, else 404) | Plan step 5.29. `month` = any day of the month (`2026-11-01`), from 36 months back to the current month (else 400). Returns `current`, `previous` (month before), `lastYear` (same month a year earlier) and `trend` (12 months, oldest first) as `{month, counts, rates}`; a month without data has zero counts and null rates. Numbers follow `docs/KPI.md` for one user and one calendar month (Iraq days). 200, 400, 403, 404. | — |
 
 ### Offline work (plan step 2.13, `docs/OFFLINE.md`)
 

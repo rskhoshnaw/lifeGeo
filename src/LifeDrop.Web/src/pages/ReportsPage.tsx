@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AdminApi, errorMessage, iraqToday, type KpiReport, type KpiRow, type Region, type Team } from '../api/admin.ts'
 import { downloadText } from '../components/download.ts'
 import { kpiCsv } from '../components/reportCsv.ts'
+import { KpiCompareView } from '../components/KpiCompareView.tsx'
 import { SavedReports } from '../components/SavedReports.tsx'
 import { t, type TextKey } from '../i18n.ts'
 
@@ -185,6 +186,7 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
           )}
         </>
       )}
+      <KpiCompareView admin={admin} />
     </section>
   )
 }
