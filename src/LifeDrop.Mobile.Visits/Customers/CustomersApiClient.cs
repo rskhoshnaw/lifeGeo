@@ -54,6 +54,11 @@ public sealed record OrderHistoryItem(string Number, DateTimeOffset CreatedAt, s
 public sealed record CustomerHistoryData(IReadOnlyList<VisitHistoryItem> Visits, IReadOnlyList<OrderHistoryItem>? Orders);
 
 // One product of the caller's month: the target (null when none was set) and what was delivered of the caller's orders (plan step 5.5).
+// Feedback from the field (plan step 5.30): the user's own feedback with the managers' answers (oldest first) and how many photos it has.
+public sealed record MyFeedbackReply(string? UserEmail, string Body, DateTimeOffset CreatedAt);
+
+public sealed record MyFeedback(Guid Id, string Kind, string Body, string Status, DateTimeOffset CreatedAt, string? CustomerCode, string? CustomerName, List<Guid>? PhotoIds, List<MyFeedbackReply>? Replies);
+
 public sealed record MyTargetRow(Guid ProductId, string ProductCode, string ProductName, string Unit, decimal? Target, decimal Actual);
 
 // A day and the hours in which a customer accepts visits (plan step 5.3): Weekday 0 = Sunday .. 6 = Saturday, times as HH:mm:ss in Iraq time.
@@ -85,6 +90,15 @@ public interface ICustomersApiClient
         throw new NotSupportedException();
     // The caller's own KPIs of a month with the month before, the same month last year and 12 months of trend (plan step 5.29); month is the first day, "2026-11-01".
     Task<(VisitActionResult Result, MyKpiData? Data)> GetMyKpisAsync(string month, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    // Feedback (plan step 5.30): send one (a kind from FeedbackRules.Kinds, the text, optionally about a customer), add its photos one by one, and read the user's own with the answers.
+    Task<(VisitActionResult Result, Guid? Id)> CreateFeedbackAsync(string kind, string body, Guid? customerId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    Task<VisitActionResult> AddFeedbackPhotoAsync(Guid feedbackId, byte[] data, string contentType, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    // 50 at a time, newest first; `before` = the CreatedAt of the last one of the page before.
+    Task<(VisitActionResult Result, IReadOnlyList<MyFeedback> Items)> GetMyFeedbackAsync(DateTimeOffset? before, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
     // The days and hours in which the customer accepts visits (plan step 5.3); an empty list means "always". Replaces the old list.
     Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
@@ -184,6 +198,28 @@ public sealed class CustomersApiClient : ICustomersApiClient
         return data?.Current is null || data.Previous is null || data.LastYear is null || data.Trend is null ? (VisitActionResult.ServerError, null) : (result, data);
     }
 
+    public async Task<(VisitActionResult Result, Guid? Id)> CreateFeedbackAsync(string kind, string body, Guid? customerId, CancellationToken cancellationToken = default)
+    {
+        var (result, created) = await CallAsync<CreatedDto>(HttpMethod.Post, "/feedback", new { kind, body, customerId }, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, null);
+        return created is null || created.Id == Guid.Empty ? (VisitActionResult.ServerError, null) : (result, created.Id);
+    }
+
+    public async Task<VisitActionResult> AddFeedbackPhotoAsync(Guid feedbackId, byte[] data, string contentType, CancellationToken cancellationToken = default)
+    {
+        var content = new ByteArrayContent(data);
+        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        return (await CallAsync<object>(HttpMethod.Post, $"/feedback/{feedbackId}/photos", content, cancellationToken)).Result;
+    }
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<MyFeedback> Items)> GetMyFeedbackAsync(DateTimeOffset? before, CancellationToken cancellationToken = default)
+    {
+        var path = "/feedback?mine=true&limit=50" + (before is { } at ? "&before=" + Uri.EscapeDataString(at.ToString("O", System.Globalization.CultureInfo.InvariantCulture)) : "");
+        var (result, items) = await CallAsync<List<MyFeedback>>(HttpMethod.Get, path, null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<MyFeedback>());
+        return items is null || items.Any(i => i is null || i.Id == Guid.Empty) ? (VisitActionResult.ServerError, Array.Empty<MyFeedback>()) : (result, items);
+    }
+
     public async Task<VisitActionResult> SetVisitWindowsAsync(Guid customerId, IReadOnlyList<VisitWindowItem> windows, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/visit-windows", new { windows = windows.Select(w => new { weekday = w.Weekday, opensAt = w.OpensAt, closesAt = w.ClosesAt }).ToList() }, cancellationToken)).Result;
 
@@ -260,7 +296,9 @@ public sealed class CustomersApiClient : ICustomersApiClient
         {
             using var request = new HttpRequestMessage(method, path);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
-            if (body is not null) request.Content = JsonContent.Create(body);
+            // A ready content (a photo) is sent as it is; any other body is sent as JSON.
+            if (body is HttpContent raw) request.Content = raw;
+            else if (body is not null) request.Content = JsonContent.Create(body);
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {

@@ -630,6 +630,19 @@ Retention: exact tracking points are kept 90 days. The background job (same loop
 | `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) Step 5.24: every point and every stop carries `shiftId`; stops are found inside each shift (never across the gap between two shifts of the day). |
 | `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — |
 
+### Feedback from the field (plan step 5.30)
+Everybody signed in sends and reads their own feedback; `feedback.manage` (CompanyManager, SalesManager: the whole company; Supervisor: feedback written from the own region) reads, answers and sets the status inside its data scope. Outside the scope the answer is 404. A photo is served only to its author and to the managers in scope.
+
+| Route | Who | Notes | Audit / notification |
+|---|---|---|---|
+| `POST /feedback` | any signed-in user | Body `kind` (`suggestion`, `complaint`, `note`), `body` (1-2000), optional `customerId` (a customer the author may read, else 400; needs `customers.read`). 201 `{id}`. The author's team region is stored with it. | Notification `feedback.new` to the managers whose scope reaches the author (not the author) |
+| `GET /feedback` | any signed-in user | Query `mine`, `status` (`new`, `in_review`, `done`), `kind`, `userId`, `customerId`, `before` (createdAt, paging), `limit` (1-100, default 50). Without `feedback.manage`, or with `mine=true`, only the caller's own; else everything in the data scope. Newest first, with replies (oldest first) and photo ids. 400 for a bad filter. | — |
+| `GET /feedback/{id}` | author or `feedback.manage` in scope | 200, 404 | — |
+| `POST /feedback/{id}/photos` | the author only | Raw body, `Content-Type` `image/jpeg`, `image/png` or `image/webp`, 1 byte to 3 MB, at most 3 per feedback (409 `TOO_MANY_PHOTOS`); 204, 400, 404 | — |
+| `GET /feedback/{id}/photos/{photoId}` | author or `feedback.manage` in scope | The picture, `Cache-Control: private`; 404 | — |
+| `POST /feedback/{id}/replies` | `feedback.manage` in scope | Body `body` (1-1000). The first answer moves `new` to `in_review`. 204, 400, 403, 404 | Audit `feedback.replied`; notification `feedback.reply` to the author (unless they wrote it) |
+| `PUT /feedback/{id}/status` | `feedback.manage` in scope | Body `status` (`new`, `in_review`, `done`). Setting the same status again is fine. 204, 400, 403, 404 | Audit `feedback.status_changed` |
+
 ### Reports and KPIs (plan step 2.12)
 
 Permission `reports.read` (CompanyManager, SalesManager: all users; Supervisor: the users of the region). Definitions of every number: `docs/KPI.md`.

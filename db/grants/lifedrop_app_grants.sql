@@ -52,3 +52,6 @@ GRANT SELECT, INSERT, DELETE ON plan_template_items TO lifedrop_app;
 GRANT SELECT, INSERT, DELETE ON client_error_reports TO lifedrop_app;
 -- Step 5.17: the state of the phone during a shift (one row per shift, replaced at every report).
 GRANT SELECT, INSERT, UPDATE ON shift_health TO lifedrop_app;
+-- Step 5.30: feedback from the field (a manager answers and sets the status; photos and answers are only added).
+GRANT SELECT, INSERT, UPDATE ON feedback TO lifedrop_app;
+GRANT SELECT, INSERT ON feedback_replies, feedback_photos TO lifedrop_app;

@@ -1,3 +1,5 @@
 "push_customer_profile_changed" = "تم تعديل بيانات عميل في منطقتك.";
 "push_customer_location_changed" = "تم تغيير موقع عميل في منطقتك.";
 "push_tracking_stopped" = "توقف تتبع الموقع. افتح LifeDrop لمتابعة ورديتك.";
+"push_feedback_new" = "لديك ملاحظة جديدة للقراءة.";
+"push_feedback_reply" = "ردّ مدير على ملاحظتك.";

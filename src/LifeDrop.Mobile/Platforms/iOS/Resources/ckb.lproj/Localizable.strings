@@ -1,3 +1,5 @@
 "push_customer_profile_changed" = "کڕیارێکی ناوچەکەت گۆڕدرا.";
 "push_customer_location_changed" = "شوێنی کڕیارێکی ناوچەکەت گۆڕدرا.";
 "push_tracking_stopped" = "شوێنپێدان وەستا. LifeDrop بکەرەوە بۆ بەردەوامبوونی شیفت.";
+"push_feedback_new" = "ڕەخنە یان پێشنیارێکی نوێ هەیە بۆ خوێندنەوە.";
+"push_feedback_reply" = "بەڕێوەبەرێک وەڵامی ڕەخنە یان پێشنیارەکەتی دایەوە.";

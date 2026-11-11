@@ -18,6 +18,8 @@ public static class ApiErrors
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
     public const string UserNotFound = "USER_NOT_FOUND";
     public const string CustomerNotFound = "CUSTOMER_NOT_FOUND";
+    public const string FeedbackNotFound = "FEEDBACK_NOT_FOUND";
+    public const string TooManyPhotos = "TOO_MANY_PHOTOS";
     public const string RegionNotFound = "REGION_NOT_FOUND";
     public const string CustomerNotApproved = "CUSTOMER_NOT_APPROVED";
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";

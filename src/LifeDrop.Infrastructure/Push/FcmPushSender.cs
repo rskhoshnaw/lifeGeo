@@ -97,6 +97,8 @@ public sealed class FcmPushSender : IPushSender
         "customer.profile_changed" => "push_customer_profile_changed",
         "customer.location_changed" => "push_customer_location_changed",
         "tracking.stopped" => "push_tracking_stopped",
+        "feedback.new" => "push_feedback_new",
+        "feedback.reply" => "push_feedback_reply",
         _ => null
     };
 
