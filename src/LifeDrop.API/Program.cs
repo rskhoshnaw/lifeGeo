@@ -171,6 +171,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Reports.IReportStore, LifeDrop.Infrastructure.Reports.PostgresReportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.KpiReport>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.KpiCompare>();
+        builder.Services.AddScoped<LifeDrop.Application.Feedback.IFeedbackStore, LifeDrop.Infrastructure.Feedback.PostgresFeedbackStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Feedback.FeedbackService>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.ISavedReportStore, LifeDrop.Infrastructure.Reports.PostgresSavedReportStore>();
         builder.Services.AddScoped<LifeDrop.Application.Reports.SavedReportService>();
         builder.Services.AddScoped<LifeDrop.Application.Forms.IFormFieldStore, LifeDrop.Infrastructure.Forms.PostgresFormFieldStore>();
@@ -787,6 +789,7 @@ public partial class Program
         LifeDrop.API.Endpoints.AlertEndpoints.MapAlertEndpoints(app);
         LifeDrop.API.Endpoints.RouteHistoryEndpoints.MapRouteHistoryEndpoints(app);
         LifeDrop.API.Endpoints.ReportEndpoints.MapReportEndpoints(app);
+        LifeDrop.API.Endpoints.FeedbackEndpoints.MapFeedbackEndpoints(app);
         LifeDrop.API.Endpoints.NotificationEndpoints.MapNotificationEndpoints(app);
         LifeDrop.API.Endpoints.PushEndpoints.MapPushEndpoints(app);
         LifeDrop.API.Endpoints.PlatformEndpoints.MapPlatformEndpoints(app);

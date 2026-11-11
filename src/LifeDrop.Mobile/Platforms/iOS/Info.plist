@@ -55,7 +55,9 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>GeoTrack uses the camera to scan your company QR code when you sign in.</string>
+	<string>GeoTrack uses the camera to scan your company QR code when you sign in and to take a photo you attach to your feedback.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GeoTrack lets you choose a photo from your library to attach to your feedback.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>GeoTrack uses your location to check you in at a customer and to record your visit.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

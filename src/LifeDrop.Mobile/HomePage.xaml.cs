@@ -39,6 +39,7 @@ public partial class HomePage : ContentPage
         FollowUpsBtn.Text = Texts.Get("app.home.followups");
         TargetsBtn.Text = Texts.Get("app.home.targets");
         KpiBtn.Text = Texts.Get("app.home.kpi");
+        FeedbackBtn.Text = Texts.Get("app.home.feedback");
         ApplyButtonVisibility();
         RenderPending();
         LogoutBtn.Text = Texts.Get("app.home.logout");
@@ -320,6 +321,7 @@ public partial class HomePage : ContentPage
 
     private async void OnTargetsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyTargetsPage());
     private async void OnKpiClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new MyKpiPage());
+    private async void OnFeedbackClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new FeedbackPage());
 
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 

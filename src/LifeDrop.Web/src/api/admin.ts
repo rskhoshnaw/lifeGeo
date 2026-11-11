@@ -134,7 +134,7 @@ export function customerFilterQuery(filters: CustomerFilters = {}): string {
 export interface Notification {
   id: string
   // manager.message (step 4.16): entityId is the text the manager wrote.
-  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped'
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply'
   entityId: string
   actorId: string
   actorEmail: string | null
@@ -754,6 +754,36 @@ export interface KpiCompare {
   lastYear: KpiPeriod
   trend: KpiPeriod[]
 }
+// Feedback from the field (step 5.30): a suggestion, a complaint or a note, optionally about a customer, with photos; managers answer and set the status.
+export type FeedbackKind = 'suggestion' | 'complaint' | 'note'
+export type FeedbackStatus = 'new' | 'in_review' | 'done'
+export interface FeedbackReply {
+  id: string
+  userId: string
+  userEmail: string | null
+  body: string
+  createdAt: string
+}
+export interface Feedback {
+  id: string
+  kind: FeedbackKind
+  body: string
+  status: FeedbackStatus
+  createdAt: string
+  updatedAt: string
+  userId: string
+  userEmail: string | null
+  customerId: string | null
+  customerCode: string | null
+  customerName: string | null
+  photoIds: string[]
+  replies: FeedbackReply[]
+}
+export interface FeedbackFilters {
+  status?: FeedbackStatus | ''
+  kind?: FeedbackKind | ''
+  userId?: string
+}
 export interface Sample {
   id: string
   number: string
@@ -1096,6 +1126,7 @@ export const Permissions = {
   liveMap: ['tracking.read', 'tracking.summary'],
   routeHistory: ['tracking.read'],
   reports: ['reports.read'],
+  feedback: ['feedback.manage'],
   targets: ['targets.read'],
   manageTargets: ['targets.manage'],
   forms: ['forms.manage'],
@@ -1363,6 +1394,19 @@ export class AdminApi {
     this.get<KpiReport>(`/reports/kpis?from=${from}&to=${to}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
   // KPIs of one month with the month before, last year's month and a 12-month trend (step 5.29). No userId = the caller's own; another user needs reports.read and the user in the caller's area.
   kpiCompare = (month: string, userId?: string) => this.get<KpiCompare>(`/reports/kpi-compare?month=${month}-01${userId ? `&userId=${userId}` : ''}`)
+  // Feedback from the field (step 5.30): feedback.manage reads the feedback in its scope (newest first, 50 per page; `before` = the createdAt of the last one), answers it and sets the status.
+  feedbackList = (filters: FeedbackFilters = {}, before?: string) =>
+    this.get<Feedback[]>(
+      `/feedback?limit=50${filters.status ? `&status=${filters.status}` : ''}${filters.kind ? `&kind=${filters.kind}` : ''}${filters.userId ? `&userId=${filters.userId}` : ''}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+    )
+  replyFeedback = (id: string, body: string) => this.post(`/feedback/${id}/replies`, { body })
+  setFeedbackStatus = (id: string, status: FeedbackStatus) => this.send('PUT', `/feedback/${id}/status`, { status })
+  // A photo needs the sign-in, so it is fetched with it and shown from a local address (the page revokes it when it is done).
+  feedbackPhotoUrl = async (id: string, photoId: string): Promise<string> => {
+    const response = await this.api.request(`/feedback/${id}/photos/${photoId}`)
+    if (!response.ok) throw await toError(response)
+    return URL.createObjectURL(await response.blob())
+  }
   // Saved and scheduled reports (step 3.2, part 1): reports.read, only the caller's own.
   savedReports = () => this.get<SavedReport[]>('/saved-reports')
   saveReport = (report: SaveReport) => this.post('/saved-reports', report)

@@ -29,11 +29,12 @@ import { WholesalerPage } from './pages/WholesalerPage.tsx'
 import { MarketingPage } from './pages/MarketingPage.tsx'
 import { PlacesPage } from './pages/PlacesPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
+import { FeedbackPage } from './pages/FeedbackPage.tsx'
 import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'account'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'feedback' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -119,6 +120,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'alerts', label: alertCount > 0 ? `${t('web.tab.alerts')} (${alertCount})` : t('web.tab.alerts'), visible: canAlerts },
     { id: 'route', label: t('web.tab.route'), visible: can(me, ...Permissions.routeHistory) },
     { id: 'reports', label: t('web.tab.reports'), visible: can(me, ...Permissions.reports) },
+    { id: 'feedback', label: t('web.tab.feedback'), visible: can(me, ...Permissions.feedback) },
     { id: 'targets', label: t('web.tab.targets'), visible: can(me, ...Permissions.targets) },
     { id: 'warehouse', label: t('web.tab.warehouse'), visible: shows('warehouse') && can(me, ...Permissions.warehouseWork) },
     { id: 'wholesaler', label: t('web.tab.wholesaler'), visible: shows('warehouse') && can(me, ...Permissions.wholesalerWork) },
@@ -161,6 +163,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}
       {me && tab === 'route' && <RouteHistoryPage admin={admin} />}
       {me && tab === 'reports' && <ReportsPage admin={admin} />}
+      {me && tab === 'feedback' && <FeedbackPage admin={admin} />}
       {me && tab === 'targets' && <TargetsPage admin={admin} me={me} />}
       {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
       {me && tab === 'wholesaler' && <WholesalerPage admin={admin} />}

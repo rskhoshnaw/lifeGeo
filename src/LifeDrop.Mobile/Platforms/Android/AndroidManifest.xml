@@ -19,4 +19,10 @@
 	<!-- QR code scanning in the sign-in screen (plan step 4.7). -->
 	<uses-permission android:name="android.permission.CAMERA" />
 	<uses-feature android:name="android.hardware.camera" android:required="false" />
+	<!-- Taking a photo for feedback (plan step 5.30): Android 11 and later need the camera app to be named here. -->
+	<queries>
+		<intent>
+			<action android:name="android.media.action.IMAGE_CAPTURE" />
+		</intent>
+	</queries>
 </manifest>

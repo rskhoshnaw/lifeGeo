@@ -75,6 +75,8 @@ public static class PushMessages
         "customer.profile_changed" => "app.push.customerProfileChanged",
         "customer.location_changed" => "app.push.customerLocationChanged",
         "tracking.stopped" => "app.push.trackingStopped",
+        "feedback.new" => "app.push.feedbackNew",
+        "feedback.reply" => "app.push.feedbackReply",
         _ => null
     };
 }

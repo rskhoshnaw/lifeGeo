@@ -5561,6 +5561,156 @@
   "ar": "الزبائن على الخريطة (يتجمعون عند الابتعاد؛ الدائرة هي نطاق تسجيل الدخول)",
   "fa": "مشتری‌ها روی نقشه (در دوری گروه می‌شوند؛ دایره شعاع check-in است)"
  },
+ "web.tab.feedback": {
+  "en": "Feedback",
+  "ckb": "ڕەخنە و پێشنیار",
+  "ar": "الملاحظات والاقتراحات",
+  "fa": "بازخوردها"
+ },
+ "web.feedback.title": {
+  "en": "Feedback from the field",
+  "ckb": "ڕەخنە و پێشنیارەکانی کاربەران",
+  "ar": "ملاحظات واقتراحات المستخدمين",
+  "fa": "بازخورد کاربران"
+ },
+ "web.feedback.allStatuses": {
+  "en": "All statuses",
+  "ckb": "هەموو دۆخەکان",
+  "ar": "كل الحالات",
+  "fa": "همهٔ وضعیت‌ها"
+ },
+ "web.feedback.allKinds": {
+  "en": "All kinds",
+  "ckb": "هەموو جۆرەکان",
+  "ar": "كل الأنواع",
+  "fa": "همهٔ نوع‌ها"
+ },
+ "web.feedback.allUsers": {
+  "en": "All users",
+  "ckb": "هەموو بەکارهێنەران",
+  "ar": "كل المستخدمين",
+  "fa": "همهٔ کاربران"
+ },
+ "web.feedback.status.new": {
+  "en": "New",
+  "ckb": "نوێ",
+  "ar": "جديد",
+  "fa": "جدید"
+ },
+ "web.feedback.status.in_review": {
+  "en": "In review",
+  "ckb": "لە بەرچاوگرتندایە",
+  "ar": "قيد المراجعة",
+  "fa": "در حال بررسی"
+ },
+ "web.feedback.status.done": {
+  "en": "Done",
+  "ckb": "تەواو بوو",
+  "ar": "منجز",
+  "fa": "انجام شد"
+ },
+ "web.feedback.kind.suggestion": {
+  "en": "Suggestion",
+  "ckb": "پێشنیار",
+  "ar": "اقتراح",
+  "fa": "پیشنهاد"
+ },
+ "web.feedback.kind.complaint": {
+  "en": "Complaint",
+  "ckb": "ڕەخنە",
+  "ar": "شكوى",
+  "fa": "شکایت"
+ },
+ "web.feedback.kind.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "ملاحظه"
+ },
+ "web.feedback.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.feedback.author": {
+  "en": "From",
+  "ckb": "لەلایەن",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.feedback.kindLabel": {
+  "en": "Kind",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "web.feedback.statusLabel": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.feedback.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.feedback.text": {
+  "en": "Text",
+  "ckb": "دەق",
+  "ar": "النص",
+  "fa": "متن"
+ },
+ "web.feedback.open": {
+  "en": "Open",
+  "ckb": "کردنەوە",
+  "ar": "فتح",
+  "fa": "باز کردن"
+ },
+ "web.feedback.close": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "web.feedback.none": {
+  "en": "No feedback yet.",
+  "ckb": "هێشتا ڕەخنە یان پێشنیار نییە.",
+  "ar": "لا توجد ملاحظات بعد.",
+  "fa": "هنوز بازخوردی نیست."
+ },
+ "web.feedback.photoAlt": {
+  "en": "Photo {number}",
+  "ckb": "وێنەی {number}",
+  "ar": "الصورة {number}",
+  "fa": "عکس {number}"
+ },
+ "web.feedback.replies": {
+  "en": "Answers",
+  "ckb": "وەڵامەکان",
+  "ar": "الردود",
+  "fa": "پاسخ‌ها"
+ },
+ "web.feedback.noReplies": {
+  "en": "No answer yet.",
+  "ckb": "هێشتا وەڵام نەدراوەتەوە.",
+  "ar": "لا يوجد رد بعد.",
+  "fa": "هنوز پاسخی داده نشده."
+ },
+ "web.feedback.replyPlaceholder": {
+  "en": "Write an answer…",
+  "ckb": "وەڵامێک بنووسە…",
+  "ar": "اكتب ردًا…",
+  "fa": "پاسخی بنویسید…"
+ },
+ "web.feedback.send": {
+  "en": "Send answer",
+  "ckb": "ناردنی وەڵام",
+  "ar": "إرسال الرد",
+  "fa": "ارسال پاسخ"
+ },
  "web.tab.reports": {
   "en": "Reports",
   "ckb": "ڕاپۆرتەکان",
@@ -8824,6 +8974,198 @@
   "ckb": "سەردانە تەواوبووەکان",
   "ar": "الزيارات المكتملة",
   "fa": "ویزیت‌های انجام‌شده"
+ },
+ "app.push.feedbackNew": {
+  "en": "You have new feedback to read.",
+  "ckb": "ڕەخنە یان پێشنیارێکی نوێ هەیە بۆ خوێندنەوە.",
+  "ar": "لديك ملاحظة جديدة للقراءة.",
+  "fa": "یک بازخورد تازه برای خواندن دارید."
+ },
+ "app.push.feedbackReply": {
+  "en": "A manager answered your feedback.",
+  "ckb": "بەڕێوەبەرێک وەڵامی ڕەخنە یان پێشنیارەکەتی دایەوە.",
+  "ar": "ردّ مدير على ملاحظتك.",
+  "fa": "یک مدیر به بازخورد شما پاسخ داد."
+ },
+ "web.notifications.feedbackNew": {
+  "en": "{actor} sent feedback.",
+  "ckb": "{actor} ڕەخنە یان پێشنیارێکی نارد.",
+  "ar": "أرسل {actor} ملاحظة.",
+  "fa": "{actor} بازخورد فرستاد."
+ },
+ "web.notifications.feedbackReply": {
+  "en": "{actor} answered your feedback.",
+  "ckb": "{actor} وەڵامی ڕەخنە یان پێشنیارەکەتی دایەوە.",
+  "ar": "ردّ {actor} على ملاحظتك.",
+  "fa": "{actor} به بازخورد شما پاسخ داد."
+ },
+ "app.home.feedback": {
+  "en": "Feedback and suggestions",
+  "ckb": "ڕەخنە و پێشنیار",
+  "ar": "الملاحظات والاقتراحات",
+  "fa": "بازخورد و پیشنهاد"
+ },
+ "app.feedback.title": {
+  "en": "Feedback and suggestions",
+  "ckb": "ڕەخنە و پێشنیار",
+  "ar": "الملاحظات والاقتراحات",
+  "fa": "بازخورد و پیشنهاد"
+ },
+ "app.feedback.kind.suggestion": {
+  "en": "Suggestion",
+  "ckb": "پێشنیار",
+  "ar": "اقتراح",
+  "fa": "پیشنهاد"
+ },
+ "app.feedback.kind.complaint": {
+  "en": "Complaint",
+  "ckb": "ڕەخنە",
+  "ar": "شكوى",
+  "fa": "شکایت"
+ },
+ "app.feedback.kind.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "ملاحظه"
+ },
+ "app.feedback.status.new": {
+  "en": "New",
+  "ckb": "نوێ",
+  "ar": "جديد",
+  "fa": "جدید"
+ },
+ "app.feedback.status.in_review": {
+  "en": "In review",
+  "ckb": "لە بەرچاوگرتندایە",
+  "ar": "قيد المراجعة",
+  "fa": "در حال بررسی"
+ },
+ "app.feedback.status.done": {
+  "en": "Done",
+  "ckb": "تەواو بوو",
+  "ar": "منجز",
+  "fa": "انجام شد"
+ },
+ "app.feedback.kindLabel": {
+  "en": "Kind",
+  "ckb": "جۆر",
+  "ar": "النوع",
+  "fa": "نوع"
+ },
+ "app.feedback.text": {
+  "en": "Write your suggestion, complaint or note…",
+  "ckb": "پێشنیار، ڕەخنە یان تێبینییەکەت بنووسە…",
+  "ar": "اكتب اقتراحك أو شكواك أو ملاحظتك…",
+  "fa": "پیشنهاد، شکایت یا ملاحظهٔ خود را بنویسید…"
+ },
+ "app.feedback.customerSearch": {
+  "en": "Link a customer (optional): name, code or phone",
+  "ckb": "بەستنەوە بە کڕیارێک (ئارەزوومەندانە): ناو، کۆد یان تەلەفۆن",
+  "ar": "ربط عميل (اختياري): الاسم أو الرمز أو الهاتف",
+  "fa": "اتصال به یک مشتری (اختیاری): نام، کد یا تلفن"
+ },
+ "app.feedback.customerLinked": {
+  "en": "Customer: {customer}",
+  "ckb": "کڕیار: {customer}",
+  "ar": "العميل: {customer}",
+  "fa": "مشتری: {customer}"
+ },
+ "app.feedback.customerClear": {
+  "en": "Remove the customer",
+  "ckb": "لابردنی کڕیار",
+  "ar": "إزالة العميل",
+  "fa": "حذف مشتری"
+ },
+ "app.feedback.takePhoto": {
+  "en": "Take a photo",
+  "ckb": "وێنە بگرە",
+  "ar": "التقاط صورة",
+  "fa": "عکس بگیرید"
+ },
+ "app.feedback.choosePhoto": {
+  "en": "Choose a photo",
+  "ckb": "وێنە هەڵبژێرە",
+  "ar": "اختيار صورة",
+  "fa": "عکس انتخاب کنید"
+ },
+ "app.feedback.photosAdded": {
+  "en": "{count} of {max} photos added",
+  "ckb": "{count} لە {max} وێنە زیاد کرا",
+  "ar": "تمت إضافة {count} من {max} صور",
+  "fa": "{count} از {max} عکس اضافه شد"
+ },
+ "app.feedback.photoTooLarge": {
+  "en": "This photo is too big. Choose a smaller one.",
+  "ckb": "ئەم وێنەیە زۆر گەورەیە. وێنەیەکی بچووکتر هەڵبژێرە.",
+  "ar": "هذه الصورة كبيرة جدًا. اختر صورة أصغر.",
+  "fa": "این عکس خیلی بزرگ است. عکس کوچک‌تری انتخاب کنید."
+ },
+ "app.feedback.photoUnsupported": {
+  "en": "Use a JPEG, PNG or WEBP photo.",
+  "ckb": "وێنەی JPEG، PNG یان WEBP بەکاربهێنە.",
+  "ar": "استخدم صورة JPEG أو PNG أو WEBP.",
+  "fa": "از عکس JPEG، PNG یا WEBP استفاده کنید."
+ },
+ "app.feedback.send": {
+  "en": "Send",
+  "ckb": "ناردن",
+  "ar": "إرسال",
+  "fa": "ارسال"
+ },
+ "app.feedback.sent": {
+  "en": "Thank you. Your feedback was sent.",
+  "ckb": "سوپاس. ڕەخنە یان پێشنیارەکەت نێردرا.",
+  "ar": "شكرًا لك. تم إرسال ملاحظتك.",
+  "fa": "سپاس. بازخورد شما ارسال شد."
+ },
+ "app.feedback.sentPhotosFailed": {
+  "en": "Your feedback was sent, but {failed} photo(s) could not be added.",
+  "ckb": "نێردرا، بەڵام {failed} وێنە نەتوانرا زیاد بکرێت.",
+  "ar": "تم الإرسال لكن تعذّرت إضافة {failed} صورة.",
+  "fa": "ارسال شد، اما افزودن {failed} عکس ممکن نشد."
+ },
+ "app.feedback.failed": {
+  "en": "Could not send your feedback. Check the internet and try again.",
+  "ckb": "نەتوانرا بنێردرێت. ئینتەرنێت بپشکنە و دووبارە هەوڵ بدەرەوە.",
+  "ar": "تعذّر الإرسال. تحقق من الإنترنت وحاول مرة أخرى.",
+  "fa": "ارسال نشد. اینترنت را بررسی کنید و دوباره تلاش کنید."
+ },
+ "app.feedback.invalid": {
+  "en": "Write the text first (at most 2000 characters).",
+  "ckb": "سەرەتا دەقەکە بنووسە (زۆرترین ٢٠٠٠ پیت).",
+  "ar": "اكتب النص أولًا (2000 حرف كحد أقصى).",
+  "fa": "اول متن را بنویسید (حداکثر ۲۰۰۰ نویسه)."
+ },
+ "app.feedback.mine": {
+  "en": "My feedback",
+  "ckb": "ڕەخنە و پێشنیارەکانم",
+  "ar": "ملاحظاتي",
+  "fa": "بازخوردهای من"
+ },
+ "app.feedback.noneYet": {
+  "en": "You have not sent any feedback yet.",
+  "ckb": "هێشتا هیچت نەناردووە.",
+  "ar": "لم ترسل أي ملاحظة بعد.",
+  "fa": "هنوز بازخوردی نفرستاده‌اید."
+ },
+ "app.feedback.answer": {
+  "en": "Answer from {who}: {text}",
+  "ckb": "وەڵام لە {who}: {text}",
+  "ar": "رد من {who}: {text}",
+  "fa": "پاسخ از {who}: {text}"
+ },
+ "app.feedback.photoCount": {
+  "en": "{count} photos",
+  "ckb": "{count} وێنە",
+  "ar": "{count} صور",
+  "fa": "{count} عکس"
+ },
+ "app.feedback.photoFailed": {
+  "en": "Could not get the photo. Check that the app may use the camera and photos.",
+  "ckb": "نەتوانرا وێنەکە وەربگیرێت. بپشکنە ئەپەکە ڕێگەی بەکارهێنانی کامێرا و وێنەکانی هەبێت.",
+  "ar": "تعذّر الحصول على الصورة. تأكد من أن التطبيق مسموح له باستخدام الكاميرا والصور.",
+  "fa": "گرفتن عکس ممکن نشد. بررسی کنید برنامه اجازهٔ استفاده از دوربین و عکس‌ها را داشته باشد."
  },
  "app.home.targets": {
   "en": "My targets and progress",
