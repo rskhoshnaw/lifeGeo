@@ -706,3 +706,13 @@ TV role (step 5.11, migration 0064): the default role `TvDisplay` (whole company
 | `PUT /warehouses/{warehouseId}/stock/{productId}` | `warehouses.manage` (any warehouse) or `warehouse.work` (own warehouses) | Body `{quantity}`, 0 to 1,000,000,000, three decimals. 404: no such active company warehouse or product, or not the worker's warehouse. Audit `warehouse.stock_set`. |
 
 Tests: `WarehouseStockStoreTests` (database), `MarketingServiceTests.AnOwnTextNeedsNoTemplateButOnlyForManualSending`, the product-details part of the catalog integration test, `ProductsTests`.
+
+## Changes of 2026-11-13, second batch (steps 5.37–5.40)
+
+| Route | Permission | Notes |
+|-------|-----------|-------|
+| `PUT /products/{id}/details` | `catalog.manage` | New `available` (bool; null = unchanged; false = listed but not orderable) and `minStock` (≥0, three decimals; null clears). |
+| `POST /orders` | `orders.create` | 400 when a line is a product with `available=false`. |
+| `GET /customers/{id}/prices` | as before | Each row has `available`. |
+| `GET /warehouses/stock` | as in 5.35 | Rows also carry `expiryDate` and `minStock` of the product. |
+| `POST /warehouse/orders/{id}/handover` | `warehouse.work` (own warehouses) | Also takes the prepared quantity (else the ordered one) off the warehouse's counted stock, never below zero. |

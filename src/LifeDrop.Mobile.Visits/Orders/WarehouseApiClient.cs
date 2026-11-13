@@ -8,6 +8,8 @@ public sealed record WarehouseOrderDetail(Guid Id, string Number, string Status,
     IReadOnlyList<WarehouseOrderLine> Lines);
 public sealed record PreparedLineInput(int LineNo, decimal Quantity, string? Reason);
 public sealed record DriverItem(Guid Id, string Name);
+// The stock of one product in one warehouse (Counted false = nobody counted it yet, quantity 0).
+public sealed record WarehouseStockItem(Guid WarehouseId, string WarehouseName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted);
 
 // Warehouse work from the phone (plan step 2.3): the orders of the warehouses the user works in, start, report what was prepared, hand over to a
 // driver. Online only; the server checks the user's warehouses and every step again.
@@ -20,6 +22,9 @@ public interface IWarehouseApiClient
     Task<VisitActionResult> ReadyAsync(Guid orderId, IReadOnlyList<PreparedLineInput> lines, CancellationToken cancellationToken = default);
     Task<(VisitActionResult Result, IReadOnlyList<DriverItem> Drivers)> GetDriversAsync(CancellationToken cancellationToken = default);
     Task<VisitActionResult> HandOverAsync(Guid orderId, Guid driverId, CancellationToken cancellationToken = default);
+    // The stock of the user's warehouses and the count of one product (owner request 2026-11-13).
+    Task<(VisitActionResult Result, IReadOnlyList<WarehouseStockItem> Items)> GetStockAsync(CancellationToken cancellationToken = default);
+    Task<VisitActionResult> SetStockAsync(Guid warehouseId, Guid productId, decimal quantity, CancellationToken cancellationToken = default);
 }
 
 public sealed class WarehouseApiClient : IWarehouseApiClient
@@ -66,6 +71,18 @@ public sealed class WarehouseApiClient : IWarehouseApiClient
     public async Task<VisitActionResult> HandOverAsync(Guid orderId, Guid driverId, CancellationToken cancellationToken = default) =>
         (await _http.CallAsync<object>(HttpMethod.Post, $"/warehouse/orders/{orderId}/handover", new { driverId }, cancellationToken)).Result;
 
+    public async Task<(VisitActionResult Result, IReadOnlyList<WarehouseStockItem> Items)> GetStockAsync(CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await _http.CallAsync<List<StockDto>>(HttpMethod.Get, "/warehouses/stock", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<WarehouseStockItem>());
+        if (items is null || items.Any(s => s is null || s.WarehouseId == Guid.Empty || s.ProductId == Guid.Empty)) return (VisitActionResult.ServerError, Array.Empty<WarehouseStockItem>());
+        return (result, items.Select(s => new WarehouseStockItem(s.WarehouseId, s.WarehouseName ?? "", s.ProductId, s.ProductCode ?? "", s.ProductName ?? "", s.Unit ?? "", s.Quantity, s.Counted)).ToList());
+    }
+
+    public async Task<VisitActionResult> SetStockAsync(Guid warehouseId, Guid productId, decimal quantity, CancellationToken cancellationToken = default) =>
+        (await _http.CallAsync<object>(HttpMethod.Put, $"/warehouses/{warehouseId}/stock/{productId}", new { quantity }, cancellationToken)).Result;
+
+    private sealed record StockDto(Guid WarehouseId, string? WarehouseName, Guid ProductId, string? ProductCode, string? ProductName, string? Unit, decimal Quantity, bool Counted);
     private sealed record LineDto(int LineNo, string? ProductCode, string? ProductName, string? Unit, decimal Quantity, decimal? PreparedQuantity, string? ShortageReason);
     private sealed record OrderDto(Guid Id, string? Number, string? CustomerName, string? WarehouseName, string? Status, string? Note, string? DriverEmail, DateTimeOffset CreatedAt, List<LineDto>? Items);
     private sealed record DriverDto(Guid Id, string? Email);

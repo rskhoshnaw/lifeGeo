@@ -85,6 +85,28 @@ public class WarehouseStockStoreTests
             Assert.Equal("2", await InTenant(connection, tenant, "SELECT count(*) FROM warehouse_stock"));
             Assert.Equal("3", await InTenant(connection, tenant, "SELECT count(*) FROM audit_logs WHERE action = 'warehouse.stock_set'"));
 
+            // Handing an order to a driver takes what was prepared off the counted stock of that warehouse (never below zero; uncounted products are left alone).
+            Guid driver = Guid.NewGuid(), customer = Guid.NewGuid(), order = Guid.NewGuid();
+            await using (var seedDriver = new NpgsqlCommand("INSERT INTO users(id,tenant_id,email) VALUES (@d,@t,'driver@a.test')", connection))
+            {
+                seedDriver.Parameters.AddWithValue("d", driver);
+                seedDriver.Parameters.AddWithValue("t", tenant);
+                await seedDriver.ExecuteNonQueryAsync();
+            }
+            await InTenant(connection, tenant, $"""
+                SELECT seed_default_roles('{tenant}');
+                INSERT INTO user_roles(tenant_id,user_id,role_id) SELECT '{tenant}','{driver}',id FROM roles WHERE tenant_id = '{tenant}' AND name = 'Driver';
+                INSERT INTO customers(id,tenant_id,type,code,name) VALUES ('{customer}','{tenant}','Pharmacy','H-1','Shifa');
+                INSERT INTO orders(id,tenant_id,number,customer_id,warehouse_id,created_by,status,currency,total,client_ref) VALUES ('{order}','{tenant}',1,'{customer}','{w1}','{manager}','ready','IQD',0,gen_random_uuid());
+                INSERT INTO order_items(tenant_id,order_id,line_no,product_id,product_code,product_name,unit,quantity,prepared_quantity,shortage_reason,list_price,unit_price,line_total) VALUES
+                    ('{tenant}','{order}',1,'{a}','A','Cough syrup','box',4,3,'short',1000,1000,0),
+                    ('{tenant}','{order}',2,'{b}','B','Vitamin C','box',9,NULL,NULL,500,500,0);
+                """);
+            Assert.Equal(OrderResult.Success, await store.HandOverAsync(t, new UserId(officer), order, driver, CancellationToken.None));
+            var after = (await store.ListStockAsync(t, null, CancellationToken.None)).Where(r => r.WarehouseCode == "W1").ToDictionary(r => r.ProductCode, r => r.Quantity);
+            Assert.Equal((7m, 0m), (after["A"], after["B"]));   // A: 10 - 3 prepared; B: 3 - 9 ordered, not below zero
+            Assert.Equal("0", await InTenant(connection, tenant, $"SELECT count(*) FROM warehouse_stock WHERE warehouse_id = '{w2}'"));   // the other warehouse is untouched
+
             // Quantities cannot be negative, whatever the caller does.
             await Assert.ThrowsAsync<PostgresException>(() => store.SetStockAsync(t, mgr, w1, a, -1m, null, CancellationToken.None));
 

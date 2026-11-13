@@ -15,6 +15,9 @@ public sealed class CustomersListPage : ContentPage
     private readonly YesNoView _hasLocation = new();
     private readonly ChoiceField _class = new(Texts.Get("app.customer.class"));
     private readonly ChoiceField _since = new(Texts.Get("app.customers.addedSince"));
+    private readonly ChoiceField _owner = new(Texts.Get("app.customers.owner"));
+    private readonly CaptionedField _ownerBox;
+    private IReadOnlyList<(Guid Id, string Name)> _owners = Array.Empty<(Guid, string)>();
     private readonly Button _show = new();
     private readonly Button _more = new() { IsVisible = false };
     private readonly Label _count = new() { IsVisible = false, FontAttributes = FontAttributes.Bold };
@@ -31,6 +34,7 @@ public sealed class CustomersListPage : ContentPage
     public CustomersListPage()
     {
         FlowDirection = AppLanguage.Direction;
+        _ownerBox = new CaptionedField("app.customers.owner", _owner) { IsVisible = false };
         Title = Texts.Get("app.customers.title");
         _search.Placeholder = Texts.Get("app.customers.search");
         _search.SearchButtonPressed += async (_, _) => await LoadAsync(more: false);
@@ -57,6 +61,7 @@ public sealed class CustomersListPage : ContentPage
                     new CaptionedField("app.customers.hasLocation", _hasLocation),
                     new CaptionedField("app.customer.class", _class),
                     new CaptionedField("app.customers.addedSince", _since),
+                    _ownerBox,
                     _show, _spinner, _message, _count, _results, _more
                 }
             }
@@ -72,6 +77,20 @@ public sealed class CustomersListPage : ContentPage
         _placesLoaded = true;
         // The list opens with the first customers of the user's area (all of the company for a manager); no need to press "show" first.
         _ = LoadAsync(more: false);
+        try
+        {
+            using var ownersCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            _owners = await api.GetOwnersAsync(ownersCts.Token);
+            if (_owners.Count > 0)
+            {
+                _owner.Items = new[] { Texts.Get("app.customers.all") }.Concat(_owners.Select(o => o.Name)).ToList();
+                _ownerBox.IsVisible = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // No owner filter then.
+        }
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         try
         {
@@ -103,7 +122,8 @@ public sealed class CustomersListPage : ContentPage
                 _cooperates.Value,
                 _hasLocation.Value,
                 _class.SelectedIndex > 0 ? DoctorOptions.Classes[_class.SelectedIndex - 1] : null,
-                _since.SelectedIndex > 0 ? IraqTime.Today(TimeProvider.System).AddDays(-SinceDays[_since.SelectedIndex - 1]) : null);
+                _since.SelectedIndex > 0 ? IraqTime.Today(TimeProvider.System).AddDays(-SinceDays[_since.SelectedIndex - 1]) : null,
+                OwnerId: _owner.SelectedIndex > 0 && _owner.SelectedIndex - 1 < _owners.Count ? _owners[_owner.SelectedIndex - 1].Id : null);
             _items.Clear();
             _results.Children.Clear();
         }

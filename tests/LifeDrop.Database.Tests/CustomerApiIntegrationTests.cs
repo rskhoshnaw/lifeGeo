@@ -173,7 +173,8 @@ public class CustomerApiIntegrationTests
                 var m71 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0071_merge_customer_phones.sql"));
                 var m72 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0072_product_scientific_name.sql"));
                 var m73 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0073_warehouse_city_stock.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73;
+                var m74 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0074_product_availability.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5026,8 +5027,9 @@ public class CustomerApiIntegrationTests
         var withDetails = (await Products()).Single(p => p.Code == "PAR-500");
         Assert.Equal(("pediatrics", "Pioneer", new DateOnly(2027, 3, 31), 12.5m, "Keep cool", true), (withDetails.Specialty, withDetails.Manufacturer, withDetails.ExpiryDate, withDetails.StockQty, withDetails.Notes, withDetails.InStock));
         Assert.Equal("Acetaminophen", withDetails.ScientificName);   // trimmed, and kept when the main fields are edited
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { StockQty = 0m })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { StockQty = 0m, Available = false, MinStock = 2.5m })).StatusCode);
         var cleared = (await Products()).Single(p => p.Code == "PAR-500");
+        Assert.Equal((false, 2.5m), (cleared.Available, cleared.MinStock));   // listed but marked unavailable (it is not orderable)
         Assert.Equal((null, null, 0m, false), (cleared.Specialty, cleared.Manufacturer, cleared.StockQty, cleared.InStock));
         Assert.Null(cleared.ScientificName);
         foreach (var bad in new object[] { new { Specialty = "dentist" }, new { StockQty = -1m }, new { StockQty = 1.2345m }, new { Manufacturer = new string('m', 101) }, new { Notes = new string('n', 501) }, new { ScientificName = new string('s', 151) } })

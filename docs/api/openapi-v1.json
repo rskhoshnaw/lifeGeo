@@ -22944,6 +22944,10 @@
           "pricesHidden": {
             "type": "boolean",
             "default": false
+          },
+          "available": {
+            "type": "boolean",
+            "default": true
           }
         }
       },
@@ -25487,6 +25491,21 @@
               "null",
               "string"
             ]
+          },
+          "available": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "minStock": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -25604,6 +25623,19 @@
               "null",
               "string"
             ]
+          },
+          "available": {
+            "type": "boolean",
+            "default": true
+          },
+          "minStock": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
           "inStock": {
             "type": "boolean"
@@ -28966,6 +28998,22 @@
           "counted": {
             "type": "boolean",
             "default": true
+          },
+          "expiryDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "minStock": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },

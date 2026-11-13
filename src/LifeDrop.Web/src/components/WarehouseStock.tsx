@@ -48,6 +48,11 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
     return [...map.values()]
   }, [stock.data])
 
+  // Warnings: counted stock at or below the product's limit, and products that expire within 90 days (by the product's expiry day).
+  const low = (stock.data ?? []).filter((r) => r.counted && r.minStock != null && r.quantity <= r.minStock)
+  const soonLimit = new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10)
+  const expiring = [...new Map((stock.data ?? []).filter((r) => r.expiryDate && r.expiryDate <= soonLimit).map((r) => [r.productId, r])).values()]
+
   const draftOf = (r: WarehouseStockRow) => drafts[`${r.warehouseId}:${r.productId}`] ?? String(r.quantity)
   const save = (r: WarehouseStockRow) =>
     action.run(async () => {
@@ -69,6 +74,26 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
       <h3 className="font-semibold">{t('web.stock.title')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       {warehouses.length === 0 && <p className="text-slate-600">{t('web.stock.none')}</p>}
+      {low.length > 0 && (
+        <div role="status" className="rounded border border-amber-400 bg-amber-50 p-2">
+          <strong>{t('web.stock.low')}</strong>
+          <ul>
+            {low.map((r) => (
+              <li key={`${r.warehouseId}:${r.productId}`}>{r.warehouseName}: {r.productCode} · {r.productName} — {number(r.quantity)} {r.unit}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {expiring.length > 0 && (
+        <div role="status" className="rounded border border-red-400 bg-red-50 p-2">
+          <strong>{t('web.stock.expiring')}</strong>
+          <ul>
+            {expiring.map((r) => (
+              <li key={r.productId}>{r.productCode} · {r.productName} — {r.expiryDate}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {warehouses.length > 0 && (
         <table className="w-full text-start">
           <thead>

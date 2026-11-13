@@ -24,12 +24,14 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
     // Plan step 4.42: the prices are hidden from this reader (the amounts are 0).
     bool PricesHidden = false,
     // Owner request 2026-11-13: the scientific (generic) name, shown under the name in the app.
-    string? ScientificName = null)
+    string? ScientificName = null,
+    // Owner request 2026-11-13: false = temporarily unavailable (listed, not orderable); MinStock = low-stock limit of the warehouses.
+    bool Available = true, decimal? MinStock = null)
 {
     public bool InStock => StockQty is null or > 0;
 }
 
-public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes, string? ScientificName = null);
+public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes, string? ScientificName = null, bool? Available = null, decimal? MinStock = null);
 
 // Code is needed to create and ignored when editing (it never changes). Status: active (default) | inactive.
 public sealed record SaveProductRequest(string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency,
@@ -56,7 +58,8 @@ public sealed record AppliedDiscountDto(Guid Id, string Kind, decimal Value, Gui
 public sealed record EffectivePriceDto(Guid ProductId, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit,
     string Currency, decimal ListPrice, string ListSource, Guid? CityPriceId, IReadOnlyList<AppliedDiscountDto> Discounts, decimal Price,
     string? PhotoKey = null,
-    bool PricesHidden = false);
+    bool PricesHidden = false,
+    bool Available = true);
 
 public sealed record ProductPhoto(string ContentType, byte[] Data);
 
@@ -206,9 +209,10 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         var notes = Opt(request.Notes);
         var scientific = Opt(request.ScientificName);
         if (productId == Guid.Empty || scientific?.Length > MaxScientificNameLength || (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) || manufacturer?.Length > MaxManufacturerLength ||
-            notes?.Length > MaxNotesLength || request.StockQty is { } qty && !(qty >= 0 && qty <= MaxPrice && decimal.Round(qty, 3) == qty))
+            notes?.Length > MaxNotesLength || request.StockQty is { } qty && !(qty >= 0 && qty <= MaxPrice && decimal.Round(qty, 3) == qty) ||
+            request.MinStock is { } min && !(min >= 0 && min <= MaxPrice && decimal.Round(min, 3) == min))
             return CatalogResult.InvalidData;
-        return await store.SetDetailsAsync(tenantId, actorId, productId, new ProductDetailsRequest(specialty, manufacturer, request.ExpiryDate, request.StockQty, notes, scientific), cancellationToken)
+        return await store.SetDetailsAsync(tenantId, actorId, productId, new ProductDetailsRequest(specialty, manufacturer, request.ExpiryDate, request.StockQty, notes, scientific, request.Available, request.MinStock), cancellationToken)
             ? CatalogResult.Success : CatalogResult.NotFound;
     }
 
@@ -277,7 +281,7 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
             var list = row.CityPrice ?? row.Product.BasePrice;
             var (price, applied) = PriceCalculator.Apply(list, row.Product.Id, data.Discounts);
             var p = row.Product;
-            return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price, p.PhotoKey);
+            return new EffectivePriceDto(p.Id, p.Code, p.Name, p.NameCkb, p.NameAr, p.NameEn, p.Unit, p.Currency, list, row.CityPrice is null ? "base" : "city", row.CityPriceId, applied, price, p.PhotoKey, false, p.Available);
         }).ToList();
         if ((await visibility.HiddenForAsync(tenantId, actorId, [customerId], cancellationToken)).Contains(customerId)) items = items.Select(PriceVisibility.Mask).ToList();
         return (CatalogResult.Success, items);

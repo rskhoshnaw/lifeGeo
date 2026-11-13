@@ -10654,5 +10654,95 @@
   "ckb": "لە کوێ",
   "ar": "أين",
   "fa": "کجا"
+ },
+ "app.products.unavailable": {
+  "en": "Currently unavailable",
+  "ckb": "ئێستا بەردەست نییە",
+  "ar": "غير متوفر حالياً",
+  "fa": "فعلاً موجود نیست"
+ },
+ "web.catalog.available": {
+  "en": "Available",
+  "ckb": "بەردەستە",
+  "ar": "متوفر",
+  "fa": "موجود است"
+ },
+ "web.catalog.availableHint": {
+  "en": "Untick while the product is out of stock: it stays listed, marked unavailable, and cannot be ordered. Tick it again when it is back.",
+  "ckb": "کاتێک بەرهەمەکە تەواو بووە لێی بکەوە: لە لیستەکەدا دەمێنێتەوە وەک بەردەست نییە و ناکرێت داوا بکرێت. کە گەڕایەوە دووبارە دایبنێ.",
+  "ar": "ألغِ التحديد عندما ينفد المنتج: يبقى في القائمة كغير متوفر ولا يمكن طلبه. حدّده من جديد عند عودته.",
+  "fa": "وقتی دارو تمام شده تیک را بردارید: در فهرست می‌ماند و «فعلاً موجود نیست» نشان داده می‌شود و سفارش‌پذیر نیست. وقتی برگشت دوباره تیک بزنید."
+ },
+ "web.catalog.unavailable": {
+  "en": "unavailable",
+  "ckb": "بەردەست نییە",
+  "ar": "غير متوفر",
+  "fa": "ناموجود"
+ },
+ "web.catalog.minStock": {
+  "en": "Low-stock limit",
+  "ckb": "سنووری کەمبوونەوە",
+  "ar": "حد المخزون المنخفض",
+  "fa": "حد کمبود موجودی"
+ },
+ "web.stock.low": {
+  "en": "Low stock",
+  "ckb": "کۆگا کەم بووە",
+  "ar": "مخزون منخفض",
+  "fa": "موجودی کم"
+ },
+ "web.stock.expiring": {
+  "en": "Expires within 90 days",
+  "ckb": "لە ماوەی ٩٠ ڕۆژدا بەسەر دەچێت",
+  "ar": "ينتهي خلال 90 يوماً",
+  "fa": "انقضا ظرف ۹۰ روز"
+ },
+ "app.home.stock": {
+  "en": "Stock",
+  "ckb": "کۆگا",
+  "ar": "المخزون",
+  "fa": "موجودی انبار"
+ },
+ "app.stock.title": {
+  "en": "Warehouse stock",
+  "ckb": "کۆگای کۆگا",
+  "ar": "مخزون المستودع",
+  "fa": "موجودی انبار"
+ },
+ "app.stock.none": {
+  "en": "No warehouse of yours has products yet.",
+  "ckb": "هیچ کۆگایەکی تۆ هێشتا بەرهەمی نییە.",
+  "ar": "لا يوجد مستودع لك فيه منتجات بعد.",
+  "fa": "هنوز انباری با دارو برای شما نیست."
+ },
+ "app.stock.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوت",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "app.stock.notCounted": {
+  "en": "Not counted yet",
+  "ckb": "هێشتا نەژمێردراوە",
+  "ar": "لم يُجرد بعد",
+  "fa": "هنوز شمارش نشده"
+ },
+ "app.stock.invalid": {
+  "en": "Type a quantity of 0 or more.",
+  "ckb": "بڕێک بنووسە ٠ یان زیاتر.",
+  "ar": "اكتب كمية 0 أو أكثر.",
+  "fa": "مقداری ۰ یا بیشتر بنویسید."
+ },
+ "app.stock.saved": {
+  "en": "{name} saved.",
+  "ckb": "{name} پاشەکەوت کرا.",
+  "ar": "تم حفظ {name}.",
+  "fa": "{name} ذخیره شد."
+ },
+ "app.customers.owner": {
+  "en": "Owner",
+  "ckb": "خاوەن",
+  "ar": "المالك",
+  "fa": "صاحب مشتری"
  }
 }
