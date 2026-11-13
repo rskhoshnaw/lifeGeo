@@ -12,7 +12,8 @@ public interface IMarketingApiClient
     Task<(VisitActionResult Result, IReadOnlyList<MarketingTemplateItem> Templates)> GetTemplatesAsync(CancellationToken cancellationToken = default);
     Task<(VisitActionResult Result, IReadOnlyList<MarketingCampaignItem> Campaigns)> GetCampaignsAsync(CancellationToken cancellationToken = default);
     // customerType empty = every type.
-    Task<(VisitActionResult Result, CampaignCreated? Campaign)> CreateCampaignAsync(string name, Guid templateId, string? customerType, CancellationToken cancellationToken = default);
+    // ownText (not empty) is the user's own message: the template is then ignored.
+    Task<(VisitActionResult Result, CampaignCreated? Campaign)> CreateCampaignAsync(string name, Guid templateId, string? customerType, CancellationToken cancellationToken = default, string? ownText = null);
     // Only the messages that still wait.
     Task<(VisitActionResult Result, IReadOnlyList<MarketingMessageItem> Messages)> GetQueueAsync(Guid campaignId, CancellationToken cancellationToken = default);
     Task<VisitActionResult> SentAsync(Guid messageId, CancellationToken cancellationToken = default);
@@ -52,10 +53,10 @@ public sealed class MarketingApiClient : IMarketingApiClient
         return (result, items.Select(c => new MarketingCampaignItem(c.Id, c.Name ?? "", c.Queued, c.Sent, c.Skipped, c.Delivery ?? "manual")).ToList());
     }
 
-    public async Task<(VisitActionResult Result, CampaignCreated? Campaign)> CreateCampaignAsync(string name, Guid templateId, string? customerType, CancellationToken cancellationToken = default)
+    public async Task<(VisitActionResult Result, CampaignCreated? Campaign)> CreateCampaignAsync(string name, Guid templateId, string? customerType, CancellationToken cancellationToken = default, string? ownText = null)
     {
         var types = string.IsNullOrWhiteSpace(customerType) ? Array.Empty<string>() : [customerType];
-        var (result, created) = await _http.CallAsync<CreatedDto>(HttpMethod.Post, "/marketing/campaigns", new { name, templateId, customerTypes = types }, cancellationToken);
+        var (result, created) = await _http.CallAsync<CreatedDto>(HttpMethod.Post, "/marketing/campaigns", new { name, templateId = string.IsNullOrWhiteSpace(ownText) ? templateId : Guid.Empty, customerTypes = types, body = string.IsNullOrWhiteSpace(ownText) ? null : ownText.Trim() }, cancellationToken);
         if (result != VisitActionResult.Success) return (result, null);
         return created is null || created.Id == Guid.Empty ? (VisitActionResult.ServerError, null) : (result, new CampaignCreated(created.Id, created.Queued, created.SkippedNoPhone));
     }

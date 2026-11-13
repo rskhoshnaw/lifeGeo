@@ -89,20 +89,24 @@ public sealed class PostgresMarketingStore(NpgsqlDataSource dataSource) : IMarke
     }) + scope.DoctorFilter("c.type");
 
     public async Task<(MarketingResult Result, CampaignCreatedDto? Campaign)> CreateCampaignAsync(TenantId tenantId, UserId actorId, AccessScope customerScope, string name, Guid templateId,
-        IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken)
+        IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken, string? ownBody = null)
     {
         var api = delivery == "api";
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, cancellationToken);
         string? body, waName = null, waLanguage = null;
-        await using (var template = new NpgsqlCommand("SELECT body, whatsapp_name, whatsapp_language FROM marketing_templates WHERE tenant_id = @tenant AND id = @id AND is_active", connection, transaction))
+        if (ownBody is not null) body = ownBody;   // the user's own text: no template
+        else
         {
-            template.Parameters.AddWithValue("tenant", tenantId.Value);
-            template.Parameters.AddWithValue("id", templateId);
-            await using var found = await template.ExecuteReaderAsync(cancellationToken);
-            if (!await found.ReadAsync(cancellationToken)) return (MarketingResult.NotFound, null);
-            body = found.GetString(0);
-            if (!found.IsDBNull(1)) (waName, waLanguage) = (found.GetString(1), found.GetString(2));
+            await using (var template = new NpgsqlCommand("SELECT body, whatsapp_name, whatsapp_language FROM marketing_templates WHERE tenant_id = @tenant AND id = @id AND is_active", connection, transaction))
+            {
+                template.Parameters.AddWithValue("tenant", tenantId.Value);
+                template.Parameters.AddWithValue("id", templateId);
+                await using var found = await template.ExecuteReaderAsync(cancellationToken);
+                if (!await found.ReadAsync(cancellationToken)) return (MarketingResult.NotFound, null);
+                body = found.GetString(0);
+                if (!found.IsDBNull(1)) (waName, waLanguage) = (found.GetString(1), found.GetString(2));
+            }
         }
         if (api && waName is null) return (MarketingResult.InvalidData, null);   // only a template that Meta approved can be sent by the API
         if (placeId is { } place)

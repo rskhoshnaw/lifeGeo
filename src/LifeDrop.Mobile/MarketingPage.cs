@@ -11,6 +11,7 @@ public sealed class MarketingPage : ContentPage
     private readonly Entry _name = new() { MaxLength = 100 };
     private readonly ChoiceField _template = new(Texts.Get("app.marketing.template"));
     private readonly ChoiceField _type = new(Texts.Get("app.customer.type"));
+    private readonly Editor _ownText = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 1000, HeightRequest = 100 };
     private readonly Button _create = new();
     private readonly VerticalStackLayout _list = new() { Spacing = 8 };
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
@@ -24,10 +25,11 @@ public sealed class MarketingPage : ContentPage
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.marketing.title");
         _name.Placeholder = Texts.Get("app.marketing.name");
+        _ownText.Placeholder = Texts.Get("app.marketing.ownText");
         _create.Text = Texts.Get("app.marketing.create");
         _create.Clicked += async (_, _) => await CreateAsync();
         _type.Items = Types.Select(t => t == "" ? Texts.Get("app.marketing.allTypes") : t).ToList();
-        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { _name, _template, _type, _create, _spinner, _message, _list } } };
+        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { _name, _template, _ownText, _type, _create, _spinner, _message, _list } } };
     }
 
     protected override async void OnAppearing()
@@ -75,7 +77,8 @@ public sealed class MarketingPage : ContentPage
     private async Task CreateAsync()
     {
         if (TrackingHost.MarketingApi is not { } api) return;
-        if (string.IsNullOrWhiteSpace(_name.Text) || _template.SelectedIndex < 0 || _template.SelectedIndex >= _templates.Count)
+        var own = (_ownText.Text ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(_name.Text) || (own.Length == 0 && (_template.SelectedIndex < 0 || _template.SelectedIndex >= _templates.Count)))
         {
             Show(Texts.Get("app.marketing.needNameAndTemplate"));
             return;
@@ -83,12 +86,13 @@ public sealed class MarketingPage : ContentPage
         CampaignCreated? created = null;
         var status = await RunAsync(async c =>
         {
-            var (result, campaign) = await api.CreateCampaignAsync(_name.Text.Trim(), _templates[_template.SelectedIndex].Id, Types[Math.Max(0, _type.SelectedIndex)], c);
+            var (result, campaign) = await api.CreateCampaignAsync(_name.Text.Trim(), own.Length > 0 ? Guid.Empty : _templates[_template.SelectedIndex].Id, Types[Math.Max(0, _type.SelectedIndex)], c, own);
             created = campaign;
             return result;
         });
         if (status != VisitActionResult.Success || created is null) return;
         _name.Text = "";
+        _ownText.Text = "";
         await LoadAsync();
         Show(Texts.Get("app.marketing.created", ("queued", created.Queued.ToString()), ("skipped", created.SkippedNoPhone.ToString())));
         await Navigation.PushAsync(new MarketingQueuePage(created.Id));

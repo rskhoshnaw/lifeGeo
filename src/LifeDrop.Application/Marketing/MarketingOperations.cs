@@ -12,7 +12,9 @@ public sealed record SaveTemplateRequest(string? Name, string? Body, bool? IsAct
 
 // CustomerTypes empty / null = every type; PlaceId = a city, area or street (its customers and everything below it).
 // Delivery: "manual" (default: the user opens each chat) or "api" (the server sends the approved WhatsApp template, only to customers who agreed).
-public sealed record CreateCampaignRequest(string? Name, Guid TemplateId, IReadOnlyList<string>? CustomerTypes = null, Guid? PlaceId = null, string? Delivery = null);
+public sealed record CreateCampaignRequest(string? Name, Guid TemplateId, IReadOnlyList<string>? CustomerTypes = null, Guid? PlaceId = null, string? Delivery = null,
+    // Own text of the user (owner request 2026-11-13): when it is given, TemplateId is ignored (send an empty id) and the campaign copies this text; only for manual sending.
+    string? Body = null);
 
 public sealed record CampaignCreatedDto(Guid Id, int Queued, int SkippedNoPhone, int SkippedNoConsent = 0);
 
@@ -37,7 +39,7 @@ public interface IMarketingStore
     // Copies the text of an active template, takes the approved, not archived customers inside the customers' scope that match the filters, and writes one queued message for every
     // customer with a usable phone (the same phone only once, the first customer wins). NotFound: no active template (or the place). Audit marketing.campaign_created.
     Task<(MarketingResult Result, CampaignCreatedDto? Campaign)> CreateCampaignAsync(TenantId tenantId, UserId actorId, AccessScope customerScope, string name, Guid templateId,
-        IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken);
+        IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken, string? ownBody = null);
     // Newest first; the creator's own campaigns, or all of them for the tenant-wide scope.
     Task<IReadOnlyList<CampaignDto>> ListCampaignsAsync(TenantId tenantId, AccessScope scope, CancellationToken cancellationToken);
     // Null: not a campaign the actor may see. Status empty = every message; queued messages first.
@@ -103,10 +105,12 @@ public sealed class MarketingService(IMarketingStore store, IPermissionStore per
         if (scope is null) return (MarketingResult.Forbidden, null);
         var types = (request.CustomerTypes ?? []).Select(t => t?.Trim().ToLowerInvariant() ?? "").Distinct().ToList();
         var delivery = string.IsNullOrWhiteSpace(request.Delivery) ? "manual" : request.Delivery.Trim().ToLowerInvariant();
-        if (!ValidText(request.Name, MaxNameLength) || request.TemplateId == Guid.Empty || request.PlaceId == Guid.Empty || types.Count > MaxTypes || types.Any(t => t.Length is 0 or > 30) || delivery is not ("manual" or "api"))
+        var ownBody = string.IsNullOrWhiteSpace(request.Body) ? null : request.Body.Trim();
+        if (ownBody is not null && (ownBody.Length > MaxBodyLength || delivery != "manual")) return (MarketingResult.InvalidData, null);   // an own text is never an approved WhatsApp template
+        if (!ValidText(request.Name, MaxNameLength) || (ownBody is null && request.TemplateId == Guid.Empty) || request.PlaceId == Guid.Empty || types.Count > MaxTypes || types.Any(t => t.Length is 0 or > 30) || delivery is not ("manual" or "api"))
             return (MarketingResult.InvalidData, null);
         if (delivery == "api" && !WhatsAppApiAvailable) return (MarketingResult.Unavailable, null);   // not turned on for this company
-        return await store.CreateCampaignAsync(tenantId, actorId, scope, request.Name!.Trim(), request.TemplateId, types, request.PlaceId, delivery, cancellationToken);
+        return await store.CreateCampaignAsync(tenantId, actorId, scope, request.Name!.Trim(), request.TemplateId, types, request.PlaceId, delivery, cancellationToken, ownBody);
     }
 
     private async Task<AccessScope?> UseScopeAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken) =>
