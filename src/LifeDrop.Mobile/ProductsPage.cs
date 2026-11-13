@@ -18,6 +18,8 @@ public sealed class ProductsPage : ContentPage
     private IReadOnlyList<ProductItem> _all = Array.Empty<ProductItem>();
     private IReadOnlyList<string> _specialtyKeys = Array.Empty<string>();
     private IReadOnlyList<string> _manufacturers = Array.Empty<string>();
+    private readonly Button _customerButton = new();
+    private CustomerListItem? _customer;
     private bool _loaded;
     private bool _filling;
 
@@ -32,6 +34,12 @@ public sealed class ProductsPage : ContentPage
         _stock.Title = Texts.Get("app.products.stock");
         _stock.ItemsSource = new List<string> { Texts.Get("app.products.stockAll"), Texts.Get("app.products.inStock"), Texts.Get("app.products.outOfStock") };
         _stock.SelectedIndex = 0;
+        _customerButton.Text = Texts.Get("app.products.pickCustomer");
+        _customerButton.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerPickPage(customer =>
+        {
+            _customer = customer;
+            _customerButton.Text = Texts.Get("app.products.orderFor", ("customer", customer.Name));
+        }));
         _specialty.SelectedIndexChanged += (_, _) => Render();
         _manufacturer.SelectedIndexChanged += (_, _) => Render();
         _stock.SelectedIndexChanged += (_, _) => Render();
@@ -41,7 +49,7 @@ public sealed class ProductsPage : ContentPage
             {
                 Padding = 16,
                 Spacing = 10,
-                Children = { _search, _specialty, _stock, _manufacturer, _spinner, _message, _results }
+                Children = { _customerButton, _search, _specialty, _stock, _manufacturer, _spinner, _message, _results }
             }
         };
     }
@@ -118,24 +126,35 @@ public sealed class ProductsPage : ContentPage
         var api = TrackingHost.ProductsApi;
         foreach (var product in shown)
         {
+            // Photo, name, scientific name, expiry day, price (owner request 2026-11-13).
             var lines = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Fill };
-            lines.Children.Add(new Label { Text = $"{product.Code} · {product.DisplayName(language)}", FontAttributes = FontAttributes.Bold });
-            var details = new List<string>();
-            if (!string.IsNullOrWhiteSpace(product.Specialty)) details.Add(Texts.Get("specialty." + product.Specialty));
-            if (!string.IsNullOrWhiteSpace(product.Manufacturer)) details.Add(product.Manufacturer!);
-            if (product.ExpiryDate is { } expiry) details.Add(Texts.Get("app.products.expires", ("date", expiry.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))));
-            if (details.Count > 0) lines.Children.Add(new Label { Text = string.Join(" · ", details), FontSize = 13 });
-            var stockText = product.StockQty is null ? null : product.InStock ? Texts.Get("app.products.inStockQty", ("qty", product.StockQty.Value.ToString("0.###", CultureInfo.InvariantCulture))) : Texts.Get("app.products.outOfStock");
+            lines.Children.Add(new Label { Text = product.DisplayName(language), FontAttributes = FontAttributes.Bold });
+            if (!string.IsNullOrWhiteSpace(product.ScientificName)) lines.Children.Add(new Label { Text = product.ScientificName, FontSize = 13, FontAttributes = FontAttributes.Italic });
+            if (product.ExpiryDate is { } expiry) lines.Children.Add(new Label { Text = Texts.Get("app.products.expires", ("date", expiry.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))), FontSize = 13 });
             var price = product.PricesHidden ? null : $"{product.BasePrice.ToString("0.###", CultureInfo.InvariantCulture)} {product.Currency} / {product.Unit}";
-            var summary = string.Join(" · ", new[] { stockText, price }.Where(x => !string.IsNullOrEmpty(x)));
-            if (summary.Length > 0) lines.Children.Add(new Label { Text = summary, FontSize = 13 });
-            if (!string.IsNullOrWhiteSpace(product.Notes)) lines.Children.Add(new Label { Text = product.Notes, FontSize = 12, TextColor = Colors.Gray });
+            if (price is not null) lines.Children.Add(new Label { Text = price, FontSize = 13, FontAttributes = FontAttributes.Bold });
+            if (product.StockQty is not null && !product.InStock) lines.Children.Add(new Label { Text = Texts.Get("app.products.outOfStock"), FontSize = 12, TextColor = Colors.Gray });
+            var order = new Button { Text = Texts.Get("app.products.order"), FontSize = 13, HorizontalOptions = LayoutOptions.Start };
+            var captured = product;
+            order.Clicked += async (_, _) => await OrderAsync(captured);
+            lines.Children.Add(order);
             var row = new HorizontalStackLayout { Spacing = 10 };
             if (api?.PhotoUrl(product.PhotoKey) is { } url)
-                row.Children.Add(new Image { Source = ImageSource.FromUri(new Uri(url)), WidthRequest = 56, HeightRequest = 56, Aspect = Aspect.AspectFill });
+                row.Children.Add(new Image { Source = ImageSource.FromUri(new Uri(url)), WidthRequest = 72, HeightRequest = 72, Aspect = Aspect.AspectFill });
             row.Children.Add(lines);
             _results.Children.Add(row);
         }
+    }
+
+    // The order page for the chosen customer with this product already in the list; without a customer the user is asked to choose one first.
+    private async Task OrderAsync(ProductItem product)
+    {
+        if (_customer is not { } customer)
+        {
+            await DisplayAlertAsync(Texts.Get("app.products.title"), Texts.Get("app.products.needCustomer"), Texts.Get("app.ok"));
+            return;
+        }
+        await Navigation.PushAsync(new OrderPage(customer.Id, customer.Name, null, product.Id));
     }
 
     private void Show(string text)

@@ -10498,5 +10498,35 @@
   "ckb": "کراوە",
   "ar": "مفتوحة",
   "fa": "باز"
+ },
+ "web.catalog.scientificName": {
+  "en": "Scientific name",
+  "ckb": "ناوی زانستی",
+  "ar": "الاسم العلمي",
+  "fa": "نام علمی"
+ },
+ "app.products.pickCustomer": {
+  "en": "Choose customer",
+  "ckb": "کڕیار هەڵبژێرە",
+  "ar": "اختر العميل",
+  "fa": "انتخاب مشتری"
+ },
+ "app.products.orderFor": {
+  "en": "Order for: {customer}",
+  "ckb": "داواکاری بۆ: {customer}",
+  "ar": "طلب لـ: {customer}",
+  "fa": "سفارش برای: {customer}"
+ },
+ "app.products.order": {
+  "en": "Order",
+  "ckb": "داواکاری",
+  "ar": "طلب",
+  "fa": "سفارش"
+ },
+ "app.products.needCustomer": {
+  "en": "Choose the customer first.",
+  "ckb": "سەرەتا کڕیار هەڵبژێرە.",
+  "ar": "اختر العميل أولاً.",
+  "fa": "ابتدا مشتری را انتخاب کنید."
  }
 }

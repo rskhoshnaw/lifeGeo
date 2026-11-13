@@ -319,6 +319,7 @@ export interface Product {
   notes?: string | null
   inStock?: boolean
   photoKey?: string | null
+  scientificName?: string | null
 }
 export interface ProductDetails {
   specialty: string | null
@@ -326,6 +327,7 @@ export interface ProductDetails {
   expiryDate: string | null
   stockQty: number | null
   notes: string | null
+  scientificName?: string | null
 }
 export interface ProductInput {
   code?: string
