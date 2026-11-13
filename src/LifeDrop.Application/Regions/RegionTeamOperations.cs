@@ -6,13 +6,16 @@ namespace LifeDrop.Application.Regions;
 // Regions and teams (plan step 0.6a, decision D11): each team operates in exactly one region,
 // the sales manager defines regions and assigns them to teams, and a user belongs to at most one team.
 public sealed record RegionDto(Guid Id, string Name, DateTimeOffset CreatedAt, bool HidePrices = false);
-public sealed record TeamDto(Guid Id, string Name, Guid RegionId, DateTimeOffset CreatedAt);
+// LeaderUserId / LeaderEmail: the team leader (a member with the role Supervisor); null when there is none (or the person no longer qualifies).
+public sealed record TeamDto(Guid Id, string Name, Guid RegionId, DateTimeOffset CreatedAt, Guid? LeaderUserId = null, string? LeaderEmail = null);
 
 public sealed record CreateRegionRequest(string Name);
 public sealed record CreateTeamRequest(string Name, Guid RegionId);
 public sealed record ChangeTeamRegionRequest(Guid RegionId);
+// UserId null clears the leader.
+public sealed record SetTeamLeaderRequest(Guid? UserId);
 
-public enum RegionTeamResult { Success, Forbidden, InvalidData, NotFound, RegionNotFound, UserNotFound, Duplicate }
+public enum RegionTeamResult { Success, Forbidden, InvalidData, NotFound, RegionNotFound, UserNotFound, Duplicate, NotEligible }
 
 public interface IRegionTeamStore
 {
@@ -22,6 +25,8 @@ public interface IRegionTeamStore
     Task<IReadOnlyList<TeamDto>> ListTeamsAsync(TenantId tenantId, CancellationToken cancellationToken);
     Task<RegionTeamResult> ChangeTeamRegionAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid regionId, CancellationToken cancellationToken);
     Task<RegionTeamResult> AssignMemberAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid userId, CancellationToken cancellationToken);
+    // NotEligible: the user is not an active member of the team with the role Supervisor. userId null clears the leader.
+    Task<RegionTeamResult> SetLeaderAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid? userId, CancellationToken cancellationToken);
     Task<RegionTeamResult> RemoveMemberAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid userId, CancellationToken cancellationToken);
 }
 
@@ -80,6 +85,15 @@ public sealed class RegionTeamService(IRegionTeamStore store, IPermissionStore p
             return RegionTeamResult.Forbidden;
         if (teamId == Guid.Empty || userId == Guid.Empty) return RegionTeamResult.InvalidData;
         return await store.AssignMemberAsync(tenantId, actorId, teamId, userId, cancellationToken);
+    }
+
+    public async Task<RegionTeamResult> SetLeaderAsync(TenantId tenantId, UserId actorId, Guid teamId, SetTeamLeaderRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!await AllowedAsync(tenantId, actorId, PermissionKeys.TeamsManage, cancellationToken))
+            return RegionTeamResult.Forbidden;
+        if (teamId == Guid.Empty || request.UserId == Guid.Empty) return RegionTeamResult.InvalidData;
+        return await store.SetLeaderAsync(tenantId, actorId, teamId, request.UserId, cancellationToken);
     }
 
     public async Task<RegionTeamResult> RemoveMemberAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid userId, CancellationToken cancellationToken)

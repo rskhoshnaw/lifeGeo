@@ -887,6 +887,8 @@ export interface Team {
   id: string
   name: string
   regionId: string
+  leaderUserId?: string | null
+  leaderEmail?: string | null
 }
 
 // One user on shift (plan step 1.19, decision D3). Without tracking.read for that user, precise is false and the
@@ -1485,6 +1487,8 @@ export class AdminApi {
   createRegion = (name: string) => this.post('/regions', { name })
   createTeam = (name: string, regionId: string) => this.post('/teams', { name, regionId })
   moveTeam = (teamId: string, regionId: string) => this.send('PUT', `/teams/${teamId}/region`, { regionId })
+  // The team leader: a member of the team with the role Supervisor; null clears it.
+  setTeamLeader = (teamId: string, userId: string | null) => this.send('PUT', `/teams/${teamId}/leader`, { userId })
   addMember = (teamId: string, userId: string) => this.send('PUT', `/teams/${teamId}/members/${userId}`)
   removeMember = (teamId: string, userId: string) => this.send('DELETE', `/teams/${teamId}/members/${userId}`)
 

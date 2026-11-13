@@ -88,6 +88,16 @@ export function RegionsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   ) : (
                     <span>{regionLabel(team.regionId)}</span>
                   )}
+                  <span className="text-slate-600">{t('web.teams.leader')}: {team.leaderEmail ?? t('web.teams.noLeader')}</span>
+                  {canManageTeams && (
+                    <select aria-label={t('web.teams.leaderOf', { team: team.name })} className="rounded border px-1 py-1" value={team.leaderUserId ?? ''} disabled={action.busy}
+                      onChange={(e) => void action.run(() => admin.setTeamLeader(team.id, e.target.value || null))}>
+                      <option value="">{t('web.teams.noLeader')}</option>
+                      {members.filter((u) => u.roles.includes('Supervisor')).map((u) => (
+                        <option key={u.id} value={u.id}>{u.email ?? u.id}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 {canManageTeams && (
                   <div className="mt-2 flex flex-wrap items-center gap-2 ps-4">

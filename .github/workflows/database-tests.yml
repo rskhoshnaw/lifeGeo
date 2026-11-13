@@ -33,7 +33,7 @@ jobs:
       # The older integration tests replay a refresh token at once and expect the session to end; the grace window (plan step 5.21) has its own test.
       Auth__RefreshReplayGraceSeconds: "0"
       # Raise this when database tests are added; CI fails if fewer tests run.
-      MIN_EXPECTED_TESTS: 100
+      MIN_EXPECTED_TESTS: 101
 
     steps:
     - uses: actions/checkout@v7

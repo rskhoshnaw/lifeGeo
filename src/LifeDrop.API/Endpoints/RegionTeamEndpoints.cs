@@ -68,6 +68,18 @@ public static class RegionTeamEndpoints
             .WithName("ChangeTeamRegion").WithTags("Teams").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // The team leader (owner request 2026-11-13): a member of the team with the role Supervisor; userId null clears it.
+        app.MapPut("/teams/{teamId:guid}/leader", async (Guid teamId, SetTeamLeaderRequest request, HttpContext context,
+            RegionTeamService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetLeaderAsync(tenantId, actorId, teamId, request, cancellationToken);
+            return result == RegionTeamResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetTeamLeader").WithTags("Teams").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPut("/teams/{teamId:guid}/members/{userId:guid}", async (Guid teamId, Guid userId, HttpContext context,
             RegionTeamService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
@@ -108,7 +120,7 @@ public static class RegionTeamEndpoints
     private static IResult ToError(RegionTeamResult result) => result switch
     {
         RegionTeamResult.Forbidden => Results.Forbid(),
-        RegionTeamResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+        RegionTeamResult.InvalidData or RegionTeamResult.NotEligible => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         RegionTeamResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         RegionTeamResult.RegionNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.RegionNotFound),
         RegionTeamResult.UserNotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.UserNotFound),
