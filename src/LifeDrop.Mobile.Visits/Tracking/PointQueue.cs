@@ -4,7 +4,7 @@ using LifeDrop.Mobile.Offline;
 namespace LifeDrop.Mobile.Tracking;
 
 // Totals for the points of the current shift as the user sees them (plan step 1.14).
-public sealed record PointCounts(int Local, int Sent, int Accepted, int Rejected, int Dropped);
+public sealed record PointCounts(int Local, int Sent, int Accepted, int Rejected, int Dropped, bool? ShiftOpen = null);
 
 // Queue of tracking points waiting for upload (plan steps 1.13, 1.14). With a durable store it is saved after every
 // change, so closing the app loses nothing. A point leaves the queue only after the server answered for it; points
@@ -20,6 +20,7 @@ public sealed class PointQueue
     private readonly List<TrackedPoint> _points = new();
     private readonly HashSet<Guid> _sending = new();
     private Guid? _shiftId;
+    private bool _shiftOpen;
     private int _accepted, _rejected, _dropped;
 
     public PointQueue(IDurableStore? store = null)
@@ -31,6 +32,23 @@ public sealed class PointQueue
     public Guid? ShiftId
     {
         get { lock (_gate) return _shiftId; }
+    }
+
+    // The shift of ShiftId is still open as far as this phone knows (kept on disk): after the system killed the app (a phone call on a small phone often does), tracking
+    // continues from this without asking the server, which may be out of reach while the call goes on.
+    public bool ShiftOpen
+    {
+        get { lock (_gate) return _shiftOpen && _shiftId is not null; }
+    }
+
+    public void CloseShift()
+    {
+        lock (_gate)
+        {
+            if (!_shiftOpen) return;
+            _shiftOpen = false;
+            Save();
+        }
     }
 
     public int Count
@@ -51,11 +69,20 @@ public sealed class PointQueue
     {
         lock (_gate)
         {
-            if (_shiftId == shiftId) return;
+            if (_shiftId == shiftId)
+            {
+                if (!_shiftOpen)
+                {
+                    _shiftOpen = true;
+                    Save();
+                }
+                return;
+            }
             if (_shiftId is not null) _dropped += _points.Count;
             _points.Clear();
             _sending.Clear();
             _shiftId = shiftId;
+            _shiftOpen = true;
             _accepted = _rejected = 0;
             Save();
         }
@@ -109,7 +136,7 @@ public sealed class PointQueue
 
     private void Save()
     {
-        _store?.Write(Key, JsonSerializer.Serialize(new Snapshot(_shiftId, _points, _accepted, _rejected, _dropped), Json));
+        _store?.Write(Key, JsonSerializer.Serialize(new Snapshot(_shiftId, _points, _accepted, _rejected, _dropped, _shiftOpen), Json));
     }
 
     private void Load()
@@ -121,6 +148,7 @@ public sealed class PointQueue
             var snapshot = JsonSerializer.Deserialize<Snapshot>(text, Json);
             if (snapshot is null) return;
             _shiftId = snapshot.ShiftId;
+            _shiftOpen = snapshot.ShiftOpen ?? false;   // a file from an older version does not say: nothing is resumed from it
             _points.AddRange(snapshot.Points ?? []);
             (_accepted, _rejected, _dropped) = (snapshot.Accepted, snapshot.Rejected, snapshot.Dropped);
         }
@@ -130,5 +158,5 @@ public sealed class PointQueue
         }
     }
 
-    private sealed record Snapshot(Guid? ShiftId, List<TrackedPoint>? Points, int Accepted, int Rejected, int Dropped);
+    private sealed record Snapshot(Guid? ShiftId, List<TrackedPoint>? Points, int Accepted, int Rejected, int Dropped, bool? ShiftOpen = null);
 }

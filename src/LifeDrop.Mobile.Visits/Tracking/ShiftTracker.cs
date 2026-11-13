@@ -69,10 +69,29 @@ public sealed class ShiftTracker
         await _changing.WaitAsync(cancellationToken);
         try
         {
-            var (status, shift) = await _api.GetCurrentShiftAsync(cancellationToken);
+            ShiftCallStatus status;
+            ShiftInfo? shift;
+            try
+            {
+                (status, shift) = await _api.GetCurrentShiftAsync(cancellationToken);
+            }
+            catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
+            {
+                // The caller's time ran out (a slow network right after a phone call, or the system gave the app only a few seconds after starting it again): the same as no answer.
+                (status, shift) = (ShiftCallStatus.NetworkError, null);
+            }
             if (status == ShiftCallStatus.Success) TurnOn(shift!);
             else if (status == ShiftCallStatus.NotFound) TurnOff();
-            else Remember(status);
+            else
+            {
+                Remember(status);
+                // The server cannot be reached (no data during or right after a phone call, a weak network): a shift this phone knows is open goes on, the points wait in the queue.
+                if (status is ShiftCallStatus.NetworkError or ShiftCallStatus.ServerError && State == ShiftState.Off && _queue.ShiftOpen && _queue.ShiftId is { } id)
+                {
+                    Shift = new ShiftInfo(id, Guid.Empty, _clock.GetUtcNow(), null);
+                    State = ShiftState.On;
+                }
+            }
             return status;
         }
         finally
@@ -176,6 +195,7 @@ public sealed class ShiftTracker
             Remember(status);
             if (status is ShiftCallStatus.Success or ShiftCallStatus.NotFound)
             {
+                _queue.CloseShift();
                 Shift = null;
                 return ShiftCallStatus.Success;
             }
@@ -197,6 +217,7 @@ public sealed class ShiftTracker
 
     private void TurnOff()
     {
+        _queue.CloseShift();
         Shift = null;
         State = ShiftState.Off;
     }

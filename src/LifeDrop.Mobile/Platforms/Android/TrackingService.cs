@@ -26,6 +26,7 @@ public sealed class TrackingService : Service, ILocationListener
     private LocationManager? _locations;
     private Timer? _uploadTimer;
     private PowerManager.WakeLock? _wakeLock;   // keeps the processor awake between fixes, so the phone in a pocket or on a desk keeps sending (step 5.14)
+    private volatile bool _resumePending;   // the shift could not be confirmed after a restart; asked again at every upload tick
     private readonly FixQuality _quality = new();   // drops rough fixes while a good one is recent (step 5.12)
 
     // Android 12+ refuses to start a foreground service from the background, and refuses a location service without the location permission; both used to close the app.
@@ -154,22 +155,29 @@ public sealed class TrackingService : Service, ILocationListener
 
     private async Task ResumeOrStopAsync(ShiftTracker tracker)
     {
+        ShiftCallStatus status;
         try
         {
-            await tracker.ResumeAsync();
+            status = await tracker.ResumeAsync();
         }
         catch (Exception)
         {
-            // Network trouble: keep the service; the next start or the Home page resumes the shift.
+            // Network trouble: keep the service and ask again at the next tick.
+            _resumePending = true;
             return;
         }
-        if (tracker.State == ShiftState.Off) StopSelf();
+        if (tracker.State == ShiftState.On) { _resumePending = false; return; }
+        // The server answered "no open shift": stop. Without an answer (no data right after a phone call, the process was killed meanwhile) the service stays and asks again at every
+        // upload tick instead of dying quietly, which is what used to stop the tracking.
+        if (status is ShiftCallStatus.Success or ShiftCallStatus.NotFound or ShiftCallStatus.SessionExpired) StopSelf();
+        else _resumePending = true;
     }
 
-    private static async Task FlushQuietlyAsync()
+    private async Task FlushQuietlyAsync()
     {
         try
         {
+            if (_resumePending && TrackingHost.Tracker is { State: ShiftState.Off } waiting) await ResumeOrStopAsync(waiting);
             await TrackingHost.SyncQuietlyAsync(); // tracking points and visit steps saved offline
         }
         catch (Exception)
