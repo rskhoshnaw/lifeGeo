@@ -53,4 +53,24 @@ describe('WarehouseStock', () => {
     await user.click(screen.getByRole('button', { name: 'Save Vitamin C' }))
     expect(saved).toEqual([['w1', 'b', 7.5]])
   })
+
+  it('warns about low stock and products that expire within 90 days', async () => {
+    const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+    const later = new Date(Date.now() + 400 * 86_400_000).toISOString().slice(0, 10)
+    const warn = [
+      row({ quantity: 2, counted: true, minStock: 5, expiryDate: soon }),
+      row({ productId: 'b', productCode: 'B', productName: 'Vitamin C', quantity: 2, counted: true, minStock: 5, expiryDate: later }),
+      row({ productId: 'c', productCode: 'C', productName: 'Plenty', quantity: 50, counted: true, minStock: 5 }),
+      row({ productId: 'd', productCode: 'D', productName: 'Never counted', quantity: 0, counted: false, minStock: 5 }),
+    ]
+    render(<WarehouseStock admin={admin(warn).fake} canEdit={false} />)
+    const low = (await screen.findByText('Low stock')).closest('div')!
+    expect(within(low).getByText(/Cough syrup — 2 box/)).toBeInTheDocument()
+    expect(within(low).getByText(/Vitamin C — 2 box/)).toBeInTheDocument()
+    expect(within(low).queryByText(/Plenty/)).not.toBeInTheDocument()          // above the limit
+    expect(within(low).queryByText(/Never counted/)).not.toBeInTheDocument()   // not counted: nothing to warn about
+    const expiring = screen.getByText('Expires within 90 days').closest('div')!
+    expect(within(expiring).getByText(new RegExp(`Cough syrup — ${soon}`))).toBeInTheDocument()
+    expect(within(expiring).queryByText(/Vitamin C/)).not.toBeInTheDocument()
+  })
 })

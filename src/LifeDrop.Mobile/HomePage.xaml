@@ -20,6 +20,15 @@
                 <Label x:Name="StatusLabel" Grid.Row="1"
                        TextColor="#FFD5DA" FontSize="13"
                        HorizontalOptions="Start" Margin="0,4,0,0" />
+                <Border Grid.Row="8" Grid.Column="1" StrokeThickness="1"
+                        BackgroundColor="{StaticResource White}"
+                        StrokeShape="RoundRectangle 14">
+                    <Button x:Name="StockBtn" Clicked="OnStockClicked"
+                            BackgroundColor="Transparent" TextColor="{StaticResource MidnightBlue}"
+                            HeightRequest="80" FontSize="13" FontAttributes="Bold"
+                            LineBreakMode="WordWrap" />
+                </Border>
+
             </Grid>
 
             <!-- Shift / CTA Hero Card (overlapping header) -->

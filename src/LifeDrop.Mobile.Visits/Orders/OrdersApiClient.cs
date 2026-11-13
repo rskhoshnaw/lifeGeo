@@ -62,7 +62,8 @@ public sealed class OrdersApiClient : IOrdersApiClient
         if (result != VisitActionResult.Success) return (result, Array.Empty<PricedProduct>());
         if (items is null || items.Any(p => p is null || p.ProductId == Guid.Empty || string.IsNullOrWhiteSpace(p.Code) || string.IsNullOrWhiteSpace(p.Currency)))
             return (VisitActionResult.ServerError, Array.Empty<PricedProduct>());
-        return (result, items.Select(p => new PricedProduct(p.ProductId, p.Code!, p.Name ?? "", p.NameCkb, p.NameAr, p.NameEn, p.Unit ?? "", p.Currency!, p.ListPrice, p.Price, p.PricesHidden)).ToList());
+        // A product that is temporarily unavailable cannot be ordered, so the order page does not list it.
+        return (result, items.Where(p => p.Available).Select(p => new PricedProduct(p.ProductId, p.Code!, p.Name ?? "", p.NameCkb, p.NameAr, p.NameEn, p.Unit ?? "", p.Currency!, p.ListPrice, p.Price, p.PricesHidden)).ToList());
     }
 
     public async Task<(VisitActionResult Result, PlacedOrder? Order)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
@@ -81,6 +82,6 @@ public sealed class OrdersApiClient : IOrdersApiClient
         _http.CallAsync<T>(method, path, body, cancellationToken);
 
     private sealed record WarehouseDto(Guid Id, string? Code, string? Name);
-    private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price, bool PricesHidden);
+    private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price, bool PricesHidden, bool Available = true);
     private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed, bool PricesHidden);
 }

@@ -320,6 +320,8 @@ export interface Product {
   inStock?: boolean
   photoKey?: string | null
   scientificName?: string | null
+  available?: boolean
+  minStock?: number | null
 }
 export interface ProductDetails {
   specialty: string | null
@@ -328,6 +330,8 @@ export interface ProductDetails {
   stockQty: number | null
   notes: string | null
   scientificName?: string | null
+  available?: boolean
+  minStock?: number | null
 }
 export interface ProductInput {
   code?: string
@@ -400,6 +404,8 @@ export interface WarehouseStockRow {
   unit: string
   quantity: number
   counted: boolean
+  expiryDate?: string | null
+  minStock?: number | null
 }
 export interface WarehousePlace {
   cityId?: string | null

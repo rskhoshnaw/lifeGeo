@@ -73,7 +73,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 </td>
                 <td>{p.specialty ? t(`specialty.${p.specialty}` as TextKey) : ''}</td>
                 <td>{p.stockQty == null ? '' : p.inStock ? `${t('web.catalog.inStock')} (${money(p.stockQty)})` : t('web.catalog.outOfStock')}</td>
-                <td>{t(`web.catalog.${p.status}`)}</td>
+                <td>{t(`web.catalog.${p.status}`)}{p.available === false && <em> · {t('web.catalog.unavailable')}</em>}</td>
                 <td className="space-x-2 text-end">
                   {canManage && (
                     <>
@@ -131,6 +131,8 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [status, setStatus] = useState<'active' | 'inactive'>(product?.status ?? 'active')
   const [specialty, setSpecialty] = useState(product?.specialty ?? '')
   const [scientific, setScientific] = useState(product?.scientificName ?? '')
+  const [available, setAvailable] = useState(product?.available ?? true)
+  const [minStock, setMinStock] = useState(product?.minStock == null ? '' : String(product.minStock))
   const [maker, setMaker] = useState(product?.manufacturer ?? '')
   const [expiry, setExpiry] = useState(product?.expiryDate ?? '')
   const [stock, setStock] = useState(product?.stockQty == null ? '' : String(product.stockQty))
@@ -153,6 +155,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       await admin.setProductDetails(product.id, {
         specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
         stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null, scientificName: scientific.trim() || null,
+        available, minStock: minStock.trim() === '' ? null : Number(minStock),
       })
       if (photo) await admin.setProductPhoto(product.id, photo)
       else if (dropPhoto && product.photoKey) await admin.removeProductPhoto(product.id)
@@ -178,6 +181,11 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
               <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
             ))}
           </select>
+          <label className="flex items-center gap-1" title={t('web.catalog.availableHint')}>
+            <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+            {t('web.catalog.available')}
+          </label>
+          <input aria-label={t('web.catalog.minStock')} placeholder={t('web.catalog.minStock')} type="number" min={0} step="any" className={field} value={minStock} onChange={(e) => setMinStock(e.target.value)} />
           <input aria-label={t('web.catalog.scientificName')} placeholder={t('web.catalog.scientificName')} className={`${field} min-w-56`} maxLength={150} value={scientific} onChange={(e) => setScientific(e.target.value)} />
           <input aria-label={t('web.catalog.manufacturer')} placeholder={t('web.catalog.manufacturer')} className={field} maxLength={100} value={maker} onChange={(e) => setMaker(e.target.value)} />
           <label className="flex items-center gap-1">

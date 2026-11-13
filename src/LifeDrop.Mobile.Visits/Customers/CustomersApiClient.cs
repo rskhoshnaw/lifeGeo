@@ -32,10 +32,10 @@ public sealed record CustomerListItem(Guid Id, string Code, string Name, string 
 
 // The filters of "my customers" (plan steps 5.2 and 5.28); empty or null = not filtered. AddedFrom is a day in Iraq time.
 public sealed record CustomerListFilter(string? Search = null, string? Type = null, Guid? PlaceId = null, bool? Cooperates = null, bool? HasLocation = null, string? CustomerClass = null,
-    DateOnly? AddedFrom = null, bool? Dealer = null)
+    DateOnly? AddedFrom = null, bool? Dealer = null, Guid? OwnerId = null)
 {
     public bool IsEmpty => string.IsNullOrWhiteSpace(Search) && string.IsNullOrWhiteSpace(Type) && PlaceId is null && Cooperates is null && HasLocation is null
-        && string.IsNullOrWhiteSpace(CustomerClass) && AddedFrom is null && Dealer is null;
+        && string.IsNullOrWhiteSpace(CustomerClass) && AddedFrom is null && Dealer is null && OwnerId is null;
 }
 
 // Customers and places for the field user (plan step 1.23-b): edit a customer's profile, register a new customer, pick or add
@@ -74,6 +74,8 @@ public static class DoctorOptions
 public interface ICustomersApiClient
 {
     Task<(VisitActionResult Result, CustomerProfile? Customer)> GetCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
+    // The people whose customers a manager may look at (those the user may track); empty for others. Used for the owner filter of the customer list.
+    Task<IReadOnlyList<(Guid Id, string Name)>> GetOwnersAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<(Guid, string)>>(Array.Empty<(Guid, string)>());
     Task<VisitActionResult> SetProfileAsync(Guid customerId, string? phone, string? address, Guid? placeId, CancellationToken cancellationToken = default);
     // parentId null lists the cities. Active places only.
     Task<(VisitActionResult Result, IReadOnlyList<PlaceItem> Places)> GetPlacesAsync(Guid? parentId, CancellationToken cancellationToken = default);
@@ -146,6 +148,13 @@ public sealed class CustomersApiClient : ICustomersApiClient
             ? (VisitActionResult.ServerError, null)
             : (result, new CustomerProfile(dto.Id, dto.Code, dto.Name ?? "", dto.Type ?? "", dto.Phone, dto.Address, dto.PlaceId, dto.PlacePath, dto.ContactName, dto.Phone2, dto.Notes,
                 new DoctorDetails(dto.ClinicName, dto.Specialty, dto.Cooperates, dto.Dealer, dto.CustomerClass)));
+    }
+
+    public async Task<IReadOnlyList<(Guid Id, string Name)>> GetOwnersAsync(CancellationToken cancellationToken = default)
+    {
+        var (result, users) = await CallAsync<List<OwnerDto>>(HttpMethod.Get, "/tracking/users", null, cancellationToken);
+        if (result != VisitActionResult.Success || users is null) return Array.Empty<(Guid, string)>();
+        return users.Where(u => u is not null && u.Id != Guid.Empty && !string.IsNullOrWhiteSpace(u.Email)).Select(u => (u.Id, u.Email!)).OrderBy(u => u.Item2, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<VisitActionResult> SetProfileAsync(Guid customerId, string? phone, string? address, Guid? placeId, CancellationToken cancellationToken = default) =>
@@ -275,6 +284,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
         if (filter.HasLocation is { } located) path += "&hasLocation=" + (located ? "true" : "false");
         if (filter.Dealer is { } dealer) path += "&dealer=" + (dealer ? "true" : "false");
         if (!string.IsNullOrWhiteSpace(filter.CustomerClass)) path += "&customerClass=" + Uri.EscapeDataString(filter.CustomerClass.Trim());
+        if (filter.OwnerId is { } owner) path += "&ownerId=" + owner;
         if (filter.AddedFrom is { } from) path += "&createdFrom=" + from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         if (cursorCreatedAt is { } cursorDate && cursorId is { } cursor)
             path += "&cursorCreatedAt=" + Uri.EscapeDataString(cursorDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)) + "&cursorId=" + cursor;
@@ -338,6 +348,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
         string? ContactName = null, string? Phone2 = null, string? Notes = null,
         string? ClinicName = null, string? Specialty = null, bool? Cooperates = null, bool? Dealer = null, string? CustomerClass = null,
         DateTimeOffset? CreatedAt = null, double? Latitude = null, string? OwnerEmail = null);
+    private sealed record OwnerDto(Guid Id, string? Email);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
     private sealed record CreatedDto(Guid Id);
 }

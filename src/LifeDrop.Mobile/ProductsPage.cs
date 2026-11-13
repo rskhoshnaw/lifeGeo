@@ -134,7 +134,8 @@ public sealed class ProductsPage : ContentPage
             var price = product.PricesHidden ? null : $"{product.BasePrice.ToString("0.###", CultureInfo.InvariantCulture)} {product.Currency} / {product.Unit}";
             if (price is not null) lines.Children.Add(new Label { Text = price, FontSize = 13, FontAttributes = FontAttributes.Bold });
             if (product.StockQty is not null && !product.InStock) lines.Children.Add(new Label { Text = Texts.Get("app.products.outOfStock"), FontSize = 12, TextColor = Colors.Gray });
-            var order = new Button { Text = Texts.Get("app.products.order"), FontSize = 13, HorizontalOptions = LayoutOptions.Start };
+            if (!product.Available) lines.Children.Add(new Label { Text = Texts.Get("app.products.unavailable"), FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Colors.OrangeRed });
+            var order = new Button { Text = Texts.Get("app.products.order"), FontSize = 13, HorizontalOptions = LayoutOptions.Start, IsEnabled = product.Available };
             var captured = product;
             order.Clicked += async (_, _) => await OrderAsync(captured);
             lines.Children.Add(order);

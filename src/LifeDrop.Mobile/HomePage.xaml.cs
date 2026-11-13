@@ -31,6 +31,7 @@ public partial class HomePage : ContentPage
         ProductsBtn.Text = Texts.Get("app.home.products");
         AccountBtn.Text = Texts.Get("app.home.account");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
+        StockBtn.Text = Texts.Get("app.home.stock");
         WholesalerBtn.Text = Texts.Get("app.home.wholesaler");
         MarketingBtn.Text = Texts.Get("app.home.marketing");
         PlanTemplatesBtn.Text = Texts.Get("app.home.planTemplates");
@@ -52,9 +53,14 @@ public partial class HomePage : ContentPage
     private void ApplyButtonVisibility()
     {
         var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
-        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments"));
-        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups"));
+        // Buttons a role cannot use (a driver or a warehouse worker has no visits, customers or payments) are not shown; until the permissions are known everything shows.
+        ShowButton(PlanBtn, MyPermissions.Has("visits.plan") || MyPermissions.Has("visits.write"));
+        ShowButton(NewCustomerBtn, MyPermissions.Has("customers.write"));
+        ShowButton(CustomersBtn, MyPermissions.Has("customers.read"));
+        ShowButton(PaymentsBtn, CompanyModules.Shows(hidden, "payments") && MyPermissions.Has("payments.record"));
+        ShowButton(FollowUpsBtn, CompanyModules.Shows(hidden, "followups") && (MyPermissions.Has("followups.create") || MyPermissions.Has("followups.read")));
         ShowButton(WarehouseBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
+        ShowButton(StockBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("warehouse.work"));
         ShowButton(WholesalerBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("wholesaler.work"));
         ShowButton(PlanTemplatesBtn, MyPermissions.Has("visits.plan"));
         ShowButton(MarketingBtn, MyPermissions.Has("marketing.use"));
@@ -121,7 +127,7 @@ public partial class HomePage : ContentPage
         TelegramBtn.IsEnabled = !isBusy;
         ProductsBtn.IsEnabled = !isBusy;
         AccountBtn.IsEnabled = !isBusy;
-        WarehouseBtn.IsEnabled = !isBusy;
+        WarehouseBtn.IsEnabled = StockBtn.IsEnabled = !isBusy;
         WholesalerBtn.IsEnabled = !isBusy;
         MarketingBtn.IsEnabled = !isBusy;
         PlanTemplatesBtn.IsEnabled = !isBusy;
@@ -347,6 +353,7 @@ public partial class HomePage : ContentPage
 
     private async void OnPlanClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new DailyPlanPage());
 
+    private async void OnStockClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WarehouseStockPage());
     private async void OnWarehouseClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WarehouseOrdersPage());
 
     private async void OnWholesalerClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new WholesalerOrdersPage());
