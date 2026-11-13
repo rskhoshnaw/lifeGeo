@@ -235,7 +235,7 @@ public sealed class OrderPage : ContentPage
             return;
         }
         var order = _draft.Placed!;
-        await DisplayAlertAsync(Texts.Get("app.order.title"), order.PricesHidden ? Texts.Get("app.order.placedNoPrice", ("number", order.Number)) : Texts.Get("app.order.placed", ("number", order.Number), ("total", Format(order.Total)), ("currency", order.Currency)), Texts.Get("app.ok"));
+        await DisplayAlertAsync(Texts.Get("app.order.title"), order.PricesHidden ? Texts.Get("app.order.placedNoPrice", ("number", order.Number)) : Texts.Get("app.order.placed", ("number", order.Number), ("total", Format(order.Total)), ("currency", order.Currency)) + (order.StockWarnings is { Count: > 0 } warn ? "\n" + Texts.Get("app.order.stockWarning", ("products", string.Join(", ", warn))) : ""), Texts.Get("app.ok"));
         await Navigation.PopAsync();
     }
 

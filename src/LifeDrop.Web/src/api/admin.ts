@@ -322,6 +322,7 @@ export interface Product {
   scientificName?: string | null
   available?: boolean
   minStock?: number | null
+  reservedQty?: number | null
 }
 export interface ProductDetails {
   specialty: string | null
@@ -407,6 +408,7 @@ export interface WarehouseStockRow {
   counted: boolean
   expiryDate?: string | null
   minStock?: number | null
+  reserved?: number
 }
 export interface WarehousePlace {
   cityId?: string | null
@@ -868,6 +870,7 @@ export interface CreatedOrder {
   currency: 'IQD' | 'USD'
   total: number
   replayed: boolean
+  stockWarnings?: string[] | null
 }
 export interface NewOrderInput {
   customerId: string
