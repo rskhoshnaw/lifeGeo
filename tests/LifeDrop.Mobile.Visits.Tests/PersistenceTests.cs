@@ -96,6 +96,60 @@ public sealed class PersistenceTests : IDisposable
         Assert.Equal(0, tracker.QueuedPoints);
     }
 
+    // A phone call on mobile data: the system killed the app, the service restarted in a new process and the server cannot be reached for now. The shift this phone knows is open
+    // goes on (the points wait in the queue); only an answer from the server that there is no open shift ends it.
+    [Fact]
+    public async Task AShiftOpenOnThePhoneContinuesAfterARestartWhenTheServerCannotBeReached()
+    {
+        var store = new FileDurableStore(_directory);
+        var first = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.Success, new ShiftInfo(ShiftId, Guid.NewGuid(), DateTimeOffset.UtcNow, null)), TimeProvider.System, new PointQueue(store));
+        Assert.Equal(ShiftCallStatus.Success, await first.StartAsync());
+        Assert.True(first.AddFix(36.19, 44.01, 10, DateTimeOffset.UtcNow, false));
+
+        // A new process, no data: the answer is a network error, not an exception.
+        var offline = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.NetworkError, null), TimeProvider.System, new PointQueue(store));
+        Assert.Equal(ShiftState.Off, offline.State);
+        Assert.Equal(ShiftCallStatus.NetworkError, await offline.ResumeAsync());
+        Assert.Equal(ShiftState.On, offline.State);
+        Assert.True(offline.AddFix(36.19, 44.02, 10, DateTimeOffset.UtcNow, false));   // tracking goes on
+        Assert.Equal(2, offline.QueuedPoints);
+
+        // The server then says there is no open shift: tracking ends and the next process does not resume it.
+        var closed = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.NotFound, null), TimeProvider.System, new PointQueue(store));
+        await closed.ResumeAsync();
+        Assert.Equal(ShiftState.Off, closed.State);
+        var later = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.NetworkError, null), TimeProvider.System, new PointQueue(store));
+        await later.ResumeAsync();
+        Assert.Equal(ShiftState.Off, later.State);
+    }
+
+    [Fact]
+    public async Task AnEndedShiftOrAnOldFileIsNotResumedWithoutTheServer()
+    {
+        var store = new FileDurableStore(_directory);
+        var tracker = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.Success, new ShiftInfo(ShiftId, Guid.NewGuid(), DateTimeOffset.UtcNow, null)), TimeProvider.System, new PointQueue(store));
+        await tracker.StartAsync();
+        Assert.Equal(ShiftCallStatus.Success, await tracker.EndAsync());
+        var restarted = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.NetworkError, null), TimeProvider.System, new PointQueue(store));
+        await restarted.ResumeAsync();
+        Assert.Equal(ShiftState.Off, restarted.State);   // the shift was ended on this phone
+
+        // A queue file written before this field existed does not say the shift is open.
+        new FileDurableStore(_directory).Write("tracking-queue", $"{{\"shiftId\":\"{ShiftId}\",\"points\":[],\"accepted\":0,\"rejected\":0,\"dropped\":0}}");
+        var old = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.NetworkError, null), TimeProvider.System, new PointQueue(new FileDurableStore(_directory)));
+        await old.ResumeAsync();
+        Assert.Equal(ShiftState.Off, old.State);
+    }
+
+    private sealed class CurrentShiftApi(ShiftCallStatus current, ShiftInfo? shift) : IShiftApiClient
+    {
+        public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> StartShiftAsync(CancellationToken cancellationToken = default) => Task.FromResult((current, shift));
+        public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> GetCurrentShiftAsync(CancellationToken cancellationToken = default) => Task.FromResult((current, shift));
+        public Task<ShiftCallStatus> EndShiftAsync(Guid shiftId, CancellationToken cancellationToken = default) => Task.FromResult(ShiftCallStatus.Success);
+        public Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, ShiftHealth? health = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult((ShiftCallStatus.Success, (UploadResult?)new UploadResult(points.Count, 0, 0)));
+    }
+
     private sealed class CountingShiftApi : IShiftApiClient
     {
         public Guid? ShiftId { get; private set; }

@@ -59,7 +59,8 @@ public static class IosTrackingService
             var tracker = TrackingHost.GetOrCreate();
             if (tracker is null) return;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            if (await tracker.ResumeAsync(cts.Token) == ShiftCallStatus.Success && tracker.State == ShiftState.On) Start();
+            await tracker.ResumeAsync(cts.Token);
+            if (tracker.State == ShiftState.On) Start();   // also when the server could not be reached but this phone knows the shift is open
         }
         catch (Exception)
         {

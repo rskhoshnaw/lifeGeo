@@ -72,7 +72,16 @@ public sealed class ShiftTracker
             var (status, shift) = await _api.GetCurrentShiftAsync(cancellationToken);
             if (status == ShiftCallStatus.Success) TurnOn(shift!);
             else if (status == ShiftCallStatus.NotFound) TurnOff();
-            else Remember(status);
+            else
+            {
+                Remember(status);
+                // The server cannot be reached (no data during or right after a phone call, a weak network): a shift this phone knows is open goes on, the points wait in the queue.
+                if (status is ShiftCallStatus.NetworkError or ShiftCallStatus.ServerError && State == ShiftState.Off && _queue.ShiftOpen && _queue.ShiftId is { } id)
+                {
+                    Shift = new ShiftInfo(id, Guid.Empty, _clock.GetUtcNow(), null);
+                    State = ShiftState.On;
+                }
+            }
             return status;
         }
         finally
@@ -176,6 +185,7 @@ public sealed class ShiftTracker
             Remember(status);
             if (status is ShiftCallStatus.Success or ShiftCallStatus.NotFound)
             {
+                _queue.CloseShift();
                 Shift = null;
                 return ShiftCallStatus.Success;
             }
@@ -197,6 +207,7 @@ public sealed class ShiftTracker
 
     private void TurnOff()
     {
+        _queue.CloseShift();
         Shift = null;
         State = ShiftState.Off;
     }

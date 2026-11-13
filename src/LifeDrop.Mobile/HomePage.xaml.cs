@@ -151,7 +151,8 @@ public partial class HomePage : ContentPage
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                if (await tracker.ResumeAsync(cts.Token) == ShiftCallStatus.Success && tracker.State == ShiftState.On) StartTrackingService();
+                await tracker.ResumeAsync(cts.Token);
+                if (tracker.State == ShiftState.On) StartTrackingService();   // also when the server could not be reached but this phone knows the shift is open
                 await TrackingHost.SyncQuietlyAsync();
             }
             catch (OperationCanceledException)
