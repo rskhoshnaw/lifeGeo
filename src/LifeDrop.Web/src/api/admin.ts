@@ -364,6 +364,7 @@ export interface CustomerDiscount {
   validTo: string | null
 }
 export interface EffectivePrice {
+  available?: boolean
   productId: string
   code: string
   name: string

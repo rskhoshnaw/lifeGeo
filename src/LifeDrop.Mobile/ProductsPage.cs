@@ -20,6 +20,7 @@ public sealed class ProductsPage : ContentPage
     private IReadOnlyList<string> _manufacturers = Array.Empty<string>();
     private readonly Button _customerButton = new();
     private CustomerListItem? _customer;
+    private readonly bool _canOrder;
     private bool _loaded;
     private bool _filling;
 
@@ -34,6 +35,9 @@ public sealed class ProductsPage : ContentPage
         _stock.Title = Texts.Get("app.products.stock");
         _stock.ItemsSource = new List<string> { Texts.Get("app.products.stockAll"), Texts.Get("app.products.inStock"), Texts.Get("app.products.outOfStock") };
         _stock.SelectedIndex = 0;
+        // Only roles that may place orders get the customer choice and the order buttons (a scientific rep cannot order).
+        _canOrder = MyPermissions.Has("orders.create");
+        _customerButton.IsVisible = _canOrder;
         _customerButton.Text = Texts.Get("app.products.pickCustomer");
         _customerButton.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerPickPage(customer =>
         {
@@ -138,7 +142,7 @@ public sealed class ProductsPage : ContentPage
             var order = new Button { Text = Texts.Get("app.products.order"), FontSize = 13, HorizontalOptions = LayoutOptions.Start, IsEnabled = product.Available };
             var captured = product;
             order.Clicked += async (_, _) => await OrderAsync(captured);
-            lines.Children.Add(order);
+            if (_canOrder) lines.Children.Add(order);
             var row = new HorizontalStackLayout { Spacing = 10 };
             if (api?.PhotoUrl(product.PhotoKey) is { } url)
                 row.Children.Add(new Image { Source = ImageSource.FromUri(new Uri(url)), WidthRequest = 72, HeightRequest = 72, Aspect = Aspect.AspectFill });

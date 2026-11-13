@@ -553,7 +553,7 @@ describe('panel management screens', () => {
       '/orders/o1': order,
       '/warehouses': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }],
       '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
-      [`/customers/c1/prices?date=${iraqToday()}`]: [price('pr1', 'PAR-500', 'IQD', 1620), price('pr2', 'AMX-250', 'USD', 4)],
+      [`/customers/c1/prices?date=${iraqToday()}`]: [price('pr1', 'PAR-500', 'IQD', 1620), price('pr2', 'AMX-250', 'USD', 4), { ...price('pr3', 'OLD-1', 'IQD', 5), available: false }],
     }, { '/orders': json({ id: 'o2', number: 'O-000002', currency: 'IQD', total: 3240, replayed: false }, 201) })
     const user = userEvent.setup()
     render(<App api={api} />)
@@ -572,7 +572,9 @@ describe('panel management screens', () => {
     // A new order: prices are the server's, a second currency blocks the order, the order carries no price at all
     await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
     await user.selectOptions(screen.getByLabelText('Warehouse', { selector: 'select' }), 'w1')
-    await user.selectOptions(await screen.findByLabelText('Product', { selector: 'select' }), 'pr1')
+    const productBox = await screen.findByLabelText('Product', { selector: 'select' })
+    expect(within(productBox).queryByRole('option', { name: /OLD-1/ })).not.toBeInTheDocument()   // temporarily unavailable: not orderable
+    await user.selectOptions(productBox, 'pr1')
     await user.type(screen.getByLabelText('Quantity'), '2')
     await user.click(screen.getByRole('button', { name: 'Add line' }))
     expect(await screen.findByText('Total: 3,240 IQD')).toBeInTheDocument()

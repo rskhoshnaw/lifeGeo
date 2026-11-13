@@ -254,7 +254,7 @@ function NewOrderForm({ admin, onPlaced }: { admin: AdminApi; onPlaced: (message
         <form onSubmit={addLine} className="flex flex-wrap items-center gap-2">
           <select aria-label={t('web.orders.product')} className="rounded border px-2 py-1" value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="">{t('web.orders.chooseProduct')}</option>
-            {(prices.data ?? []).map((p) => (
+            {(prices.data ?? []).filter((p) => p.available !== false).map((p) => (
               <option key={p.productId} value={p.productId}>
                 {p.code} · {p.name} ({money(p.price)} {p.currency})
               </option>
