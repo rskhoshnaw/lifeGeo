@@ -5355,6 +5355,17 @@ public class CustomerApiIntegrationTests
         var race = await Task.WhenAll(Place(null, (tracked, 6m)), Place(null, (tracked, 6m)), Place(null, (tracked, 6m)));
         Assert.Equal(new[] { HttpStatusCode.Created, HttpStatusCode.Conflict, HttpStatusCode.Conflict }, race.Select(r => r.StatusCode).OrderBy(c => c).ToArray());
         Assert.Equal(4m, await Stock(tracked));
+
+        // A product marked temporarily unavailable cannot be ordered although it has stock; marking it available again allows it
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = false })).StatusCode);
+        As(rep);
+        await AssertProblemAsync(await Place(null, (tracked, 1m)), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(4m, await Stock(tracked));
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = true })).StatusCode);
+        As(rep);
+        Assert.Equal(HttpStatusCode.Created, (await Place(null, (tracked, 1m))).StatusCode);
     }
 
     [SkippableFact]
