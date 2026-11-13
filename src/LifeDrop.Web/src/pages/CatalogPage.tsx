@@ -130,6 +130,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [price, setPrice] = useState(product ? String(product.basePrice) : '')
   const [status, setStatus] = useState<'active' | 'inactive'>(product?.status ?? 'active')
   const [specialty, setSpecialty] = useState(product?.specialty ?? '')
+  const [scientific, setScientific] = useState(product?.scientificName ?? '')
   const [maker, setMaker] = useState(product?.manufacturer ?? '')
   const [expiry, setExpiry] = useState(product?.expiryDate ?? '')
   const [stock, setStock] = useState(product?.stockQty == null ? '' : String(product.stockQty))
@@ -151,7 +152,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       await admin.updateProduct(product.id, input)
       await admin.setProductDetails(product.id, {
         specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
-        stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null,
+        stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null, scientificName: scientific.trim() || null,
       })
       if (photo) await admin.setProductPhoto(product.id, photo)
       else if (dropPhoto && product.photoKey) await admin.removeProductPhoto(product.id)
@@ -177,6 +178,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
               <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
             ))}
           </select>
+          <input aria-label={t('web.catalog.scientificName')} placeholder={t('web.catalog.scientificName')} className={`${field} min-w-56`} maxLength={150} value={scientific} onChange={(e) => setScientific(e.target.value)} />
           <input aria-label={t('web.catalog.manufacturer')} placeholder={t('web.catalog.manufacturer')} className={field} maxLength={100} value={maker} onChange={(e) => setMaker(e.target.value)} />
           <label className="flex items-center gap-1">
             {t('web.catalog.expiry')}

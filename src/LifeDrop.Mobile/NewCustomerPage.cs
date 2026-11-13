@@ -22,7 +22,6 @@ public sealed class NewCustomerPage : ContentPage
     private readonly VisitWindowsView _when = new();
     private readonly YesNoView _cooperates = new();
     private readonly YesNoView _dealer = new();
-    private readonly Entry _phone2 = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _notes = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 500, HeightRequest = 80 };
     private readonly PlacePickerView _places = new();
     private readonly Button _locationButton = new();
@@ -35,7 +34,6 @@ public sealed class NewCustomerPage : ContentPage
     private readonly CaptionedField _nameBox;
     private readonly CaptionedField _contactBox;
     private readonly CaptionedField _phoneBox;
-    private readonly CaptionedField _phone2Box;
     private readonly CaptionedField _addressBox;
     private readonly CaptionedField _notesBox;
     private readonly CaptionedField _cooperatesBox;
@@ -51,7 +49,6 @@ public sealed class NewCustomerPage : ContentPage
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
         _contactName.Placeholder = Texts.Get("app.customer.contactName");
-        _phone2.Placeholder = Texts.Get("app.customer.phone2");
         _notes.Placeholder = Texts.Get("app.customer.notes");
         _locationButton.Text = Texts.Get("app.customer.useLocation");
         _locationButton.Clicked += async (_, _) => await CaptureLocationAsync();
@@ -62,7 +59,6 @@ public sealed class NewCustomerPage : ContentPage
         _nameBox = new CaptionedField("app.customer.name", _name);
         _contactBox = new CaptionedField("app.customer.contactName", _contactName);
         _phoneBox = new CaptionedField("app.customer.phone", _phone);
-        _phone2Box = new CaptionedField("app.customer.phone2", _phone2);
         _addressBox = new CaptionedField("app.customer.address", _address);
         _notesBox = new CaptionedField("app.customer.notes", _notes);
         _cooperatesBox = new CaptionedField("app.customer.cooperates", _cooperates);
@@ -86,7 +82,7 @@ public sealed class NewCustomerPage : ContentPage
         _form.Children.Add(_nameBox);
         if (doctor)
         {
-            foreach (var view in new View[] { _doctorBox, _phoneBox, _addressBox, _contactBox, _phone2Box, _notesBox, _placeTitle, _places }) _form.Children.Add(view);
+            foreach (var view in new View[] { _doctorBox, _phoneBox, _addressBox, _contactBox, _notesBox, _placeTitle, _places }) _form.Children.Add(view);
         }
         else
         {
@@ -167,7 +163,7 @@ public sealed class NewCustomerPage : ContentPage
             windows = items;
         }
         var request = isDoctor
-            ? new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, _phone2.Text, _notes.Text, DoctorFromForm())
+            ? new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, null, _notes.Text, DoctorFromForm())
             : new NewCustomerRequest(_name.Text ?? "", SelectedType, _phone.Text, _address.Text, _places.PlaceId, _fix, _contactName.Text, null, _notes.Text,
                 new DoctorDetails(null, null, _cooperates.Value, _dealer.Value, null), windows);
         if (!NewCustomerFlow.IsValid(request))

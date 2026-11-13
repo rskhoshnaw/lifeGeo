@@ -22,12 +22,14 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
     // Plan step 4.40: key of the photo (GET /product-photos/{key}); null = no photo.
     string? PhotoKey = null,
     // Plan step 4.42: the prices are hidden from this reader (the amounts are 0).
-    bool PricesHidden = false)
+    bool PricesHidden = false,
+    // Owner request 2026-11-13: the scientific (generic) name, shown under the name in the app.
+    string? ScientificName = null)
 {
     public bool InStock => StockQty is null or > 0;
 }
 
-public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes);
+public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes, string? ScientificName = null);
 
 // Code is needed to create and ignored when editing (it never changes). Status: active (default) | inactive.
 public sealed record SaveProductRequest(string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency,
@@ -160,6 +162,7 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
     }
 
     public const int MaxManufacturerLength = 100;
+    public const int MaxScientificNameLength = 150;
     public const int MaxNotesLength = 500;
     public const int MaxPhotoBytes = 1_048_576;
 
@@ -201,10 +204,11 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         var specialty = Opt(request.Specialty);
         var manufacturer = Opt(request.Manufacturer);
         var notes = Opt(request.Notes);
-        if (productId == Guid.Empty || (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) || manufacturer?.Length > MaxManufacturerLength ||
+        var scientific = Opt(request.ScientificName);
+        if (productId == Guid.Empty || scientific?.Length > MaxScientificNameLength || (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) || manufacturer?.Length > MaxManufacturerLength ||
             notes?.Length > MaxNotesLength || request.StockQty is { } qty && !(qty >= 0 && qty <= MaxPrice && decimal.Round(qty, 3) == qty))
             return CatalogResult.InvalidData;
-        return await store.SetDetailsAsync(tenantId, actorId, productId, new ProductDetailsRequest(specialty, manufacturer, request.ExpiryDate, request.StockQty, notes), cancellationToken)
+        return await store.SetDetailsAsync(tenantId, actorId, productId, new ProductDetailsRequest(specialty, manufacturer, request.ExpiryDate, request.StockQty, notes, scientific), cancellationToken)
             ? CatalogResult.Success : CatalogResult.NotFound;
     }
 

@@ -49,13 +49,14 @@ public class ProductsTests
     {
         var handler = new Handler(_ => Json(HttpStatusCode.OK, """
             [{"id":"11111111-1111-1111-1111-111111111111","code":"P1","name":"Paracetamol","nameCkb":"پاراسیتامۆل","unit":"box","currency":"IQD","basePrice":1500,"status":"active",
-              "specialty":"pediatrics","manufacturer":"Pioneer","expiryDate":"2027-03-31","stockQty":0,"inStock":false,"notes":"Keep cool","photoKey":"0123456789abcdef0123456789abcdef","pricesHidden":false}]
+              "specialty":"pediatrics","manufacturer":"Pioneer","expiryDate":"2027-03-31","stockQty":0,"inStock":false,"notes":"Keep cool","photoKey":"0123456789abcdef0123456789abcdef","pricesHidden":false,"scientificName":"Acetaminophen"}]
             """));
         var client = Client(handler);
         var (result, products) = await client.GetProductsAsync();
         Assert.Equal(VisitActionResult.Success, result);
         var p = products.Single();
         Assert.Equal(("P1", "pediatrics", "Pioneer", new DateOnly(2027, 3, 31), false, 1500m, "پاراسیتامۆل"), (p.Code, p.Specialty, p.Manufacturer, p.ExpiryDate, p.InStock, p.BasePrice, p.DisplayName("ckb")));
+        Assert.Equal("Acetaminophen", p.ScientificName);
         Assert.Equal("/products", handler.Last!.RequestUri!.AbsolutePath);
         Assert.Equal("https://api.test/product-photos/0123456789abcdef0123456789abcdef", client.PhotoUrl(p.PhotoKey));
         Assert.Null(client.PhotoUrl(null));

@@ -53,6 +53,19 @@ public class MarketingServiceTests
     }
 
     [Fact]
+    public async Task AnOwnTextNeedsNoTemplateButOnlyForManualSending()
+    {
+        var store = new Store();
+        var service = new MarketingService(store, new Permissions(PermissionKeys.MarketingUse, PermissionKeys.CustomersRead));
+        Assert.Equal(MarketingResult.Success, (await service.CreateCampaignAsync(Tenant, User, new CreateCampaignRequest("Mine", Guid.Empty, Body: "  Hello {name}  "), CancellationToken.None)).Result);
+        Assert.Equal("Hello {name}", store.OwnBody);
+        var calls = store.Calls.Count;
+        Assert.Equal(MarketingResult.InvalidData, (await service.CreateCampaignAsync(Tenant, User, new CreateCampaignRequest("Mine", Guid.Empty, Delivery: "api", Body: "Hello"), CancellationToken.None)).Result);
+        Assert.Equal(MarketingResult.InvalidData, (await service.CreateCampaignAsync(Tenant, User, new CreateCampaignRequest("Mine", Guid.Empty, Body: new string('x', MarketingService.MaxBodyLength + 1)), CancellationToken.None)).Result);
+        Assert.Equal(calls, store.Calls.Count);
+    }
+
+    [Fact]
     public async Task ACampaignNeedsTheCustomerScopeAndCleansTheFilters()
     {
         var store = new Store();
@@ -160,7 +173,7 @@ public class MarketingServiceTests
     {
         public List<string> Calls { get; } = [];
         public bool IncludeInactive, MissingCampaign;
-        public string? Name, Body, WaName, WaLanguage, Delivery;
+        public string? Name, Body, WaName, WaLanguage, Delivery, OwnBody;
         public IReadOnlyList<string> Types = [];
 
         public Task<IReadOnlyList<TemplateDto>> ListTemplatesAsync(TenantId tenantId, bool includeInactive, CancellationToken cancellationToken)
@@ -184,10 +197,10 @@ public class MarketingServiceTests
         }
 
         public Task<(MarketingResult Result, CampaignCreatedDto? Campaign)> CreateCampaignAsync(TenantId tenantId, UserId actorId, AccessScope customerScope, string name, Guid templateId,
-            IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken)
+            IReadOnlyList<string> customerTypes, Guid? placeId, string delivery, CancellationToken cancellationToken, string? ownBody = null)
         {
             Calls.Add("campaign");
-            (Name, Types, Delivery) = (name, customerTypes, delivery);
+            (Name, Types, Delivery, OwnBody) = (name, customerTypes, delivery, ownBody);
             return Task.FromResult<(MarketingResult, CampaignCreatedDto?)>((MarketingResult.Success, new CampaignCreatedDto(Guid.NewGuid(), 0, 0)));
         }
 

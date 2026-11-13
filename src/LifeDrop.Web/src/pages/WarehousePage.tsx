@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { AdminApi, type Order } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { WarehouseStock } from '../components/WarehouseStock.tsx'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 const filters = ['', 'placed', 'preparing', 'ready', 'handed_over', 'cancelled']
@@ -60,6 +61,7 @@ export function WarehousePage({ admin }: { admin: AdminApi }) {
         </table>
       )}
       {open && <WorkOrder key={open} admin={admin} orderId={open} onChanged={orders.reload} />}
+      <WarehouseStock admin={admin} canEdit />
     </section>
   )
 }

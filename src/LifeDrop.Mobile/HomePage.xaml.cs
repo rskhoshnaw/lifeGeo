@@ -62,6 +62,28 @@ public partial class HomePage : ContentPage
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
         ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
         ShowButton(KpiBtn, MyPermissions.Has("visits.plan"));       // their own KPIs (plan step 5.29)
+        Reflow();
+    }
+
+    // The cards in their designed order (row, then column), taken once from the layout.
+    private List<Border>? _cards;
+
+    // Hidden cards leave no hole: the visible ones are placed one after the other, two to a row.
+    private void Reflow()
+    {
+        _cards ??= CardsGrid.Children.OfType<Border>().OrderBy(c => Grid.GetRow(c) * 2 + Grid.GetColumn(c)).ToList();
+        var visible = _cards.Where(c => c.IsVisible).ToList();
+        var rows = Math.Max(1, (visible.Count + 1) / 2);
+        if (CardsGrid.RowDefinitions.Count != rows)
+        {
+            CardsGrid.RowDefinitions.Clear();
+            for (var i = 0; i < rows; i++) CardsGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        }
+        for (var i = 0; i < visible.Count; i++)
+        {
+            Grid.SetRow(visible[i], i / 2);
+            Grid.SetColumn(visible[i], i % 2);
+        }
     }
 
     private async Task RefreshPermissionsAsync()

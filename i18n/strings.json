@@ -2244,10 +2244,10 @@
   "fa": "پروفایل {customer}"
  },
  "web.customers.phone": {
-  "en": "Phone",
-  "ckb": "تەلەفۆن",
-  "ar": "الهاتف",
-  "fa": "تلفن"
+  "en": "Mobile / WhatsApp",
+  "ckb": "مۆبایل / واتساپ",
+  "ar": "الجوال / واتساب",
+  "fa": "موبایل / واتساپ"
  },
  "web.customers.address": {
   "en": "Address note",
@@ -2424,10 +2424,10 @@
   "fa": "نوع"
  },
  "app.customer.phone": {
-  "en": "Phone",
-  "ckb": "تەلەفۆن",
-  "ar": "الهاتف",
-  "fa": "تلفن"
+  "en": "Mobile / WhatsApp",
+  "ckb": "مۆبایل / واتساپ",
+  "ar": "الجوال / واتساب",
+  "fa": "موبایل / واتساپ"
  },
  "app.customer.address": {
   "en": "Address note",
@@ -8586,10 +8586,10 @@
   "fa": "ماه بعد"
  },
  "web.route.legend": {
-  "en": "Blue line: the route. Dark green: start. Black: end. Orange: stops (names are customers nearby). Green: accepted check-in or check-out. Red: refused, or a fake position. Click a stop or a visit below to find it on the map.",
-  "ckb": "هێڵی شین: ڕێگا. سەوزی تۆخ: دەستپێک. ڕەش: کۆتایی. پرتەقاڵی: وەستانەکان (ناوەکان کڕیارە نزیکەکانن). سەوز: چوونەژوورەوە یان دەرچوونی قبوڵکراو. سوور: ڕەتکراوە یان شوێنی ساختە. کلیک لە وەستان یان سەردانێک بکە لە خوارەوە بۆ دۆزینەوەی لەسەر نەخشە.",
-  "ar": "الخط الأزرق: المسار. الأخضر الداكن: البداية. الأسود: النهاية. البرتقالي: التوقفات (الأسماء عملاء قريبون). الأخضر: تسجيل دخول أو خروج مقبول. الأحمر: مرفوض أو موقع مزيف. انقر على توقف أو زيارة أدناه لتجدها على الخريطة.",
-  "fa": "خط آبی: مسیر. سبز تیره: شروع. سیاه: پایان. نارنجی: توقف‌ها (نام‌ها مشتری‌های نزدیک هستند). سبز: ورود یا خروج پذیرفته‌شده. قرمز: ردشده یا موقعیت جعلی. روی یک توقف یا ویزیت در پایین کلیک کنید تا روی نقشه پیدا شود."
+  "en": "Blue line: the route. Dark green: start. Black: end. Orange: stops (names are customers nearby). Green: accepted check-in or check-out. Red: refused, or a fake position. Click a stop or a visit below to find it on the map. Blue dots: customers (a circle shows where check-in works when you zoom in).",
+  "ckb": "هێڵی شین: ڕێگا. سەوزی تۆخ: دەستپێک. ڕەش: کۆتایی. پرتەقاڵی: وەستانەکان (ناوەکان کڕیارە نزیکەکانن). سەوز: چوونەژوورەوە یان دەرچوونی قبوڵکراو. سوور: ڕەتکراوە یان شوێنی ساختە. کلیک لە وەستان یان سەردانێک بکە لە خوارەوە بۆ دۆزینەوەی لەسەر نەخشە. خاڵە شینەکان: کڕیارەکان (کاتێک زووم دەکەیت بازنەیەک شوێنی چوونەژوورەوە نیشان دەدات).",
+  "ar": "الخط الأزرق: المسار. الأخضر الداكن: البداية. الأسود: النهاية. البرتقالي: التوقفات (الأسماء عملاء قريبون). الأخضر: تسجيل دخول أو خروج مقبول. الأحمر: مرفوض أو موقع مزيف. انقر على توقف أو زيارة أدناه لتجدها على الخريطة. النقاط الزرقاء: العملاء (دائرة تبيّن نطاق تسجيل الدخول عند التكبير).",
+  "fa": "خط آبی: مسیر. سبز تیره: شروع. سیاه: پایان. نارنجی: توقف‌ها (نام‌ها مشتری‌های نزدیک هستند). سبز: ورود یا خروج پذیرفته‌شده. قرمز: ردشده یا موقعیت جعلی. روی یک توقف یا ویزیت در پایین کلیک کنید تا روی نقشه پیدا شود. نقطه‌های آبی: مشتریان (با بزرگ‌نمایی دایره‌ای محدودهٔ ثبت ورود را نشان می‌دهد)."
  },
  "app.customer.history": {
   "en": "History of this customer",
@@ -10498,5 +10498,161 @@
   "ckb": "کراوە",
   "ar": "مفتوحة",
   "fa": "باز"
+ },
+ "web.catalog.scientificName": {
+  "en": "Scientific name",
+  "ckb": "ناوی زانستی",
+  "ar": "الاسم العلمي",
+  "fa": "نام علمی"
+ },
+ "app.products.pickCustomer": {
+  "en": "Choose customer",
+  "ckb": "کڕیار هەڵبژێرە",
+  "ar": "اختر العميل",
+  "fa": "انتخاب مشتری"
+ },
+ "app.products.orderFor": {
+  "en": "Order for: {customer}",
+  "ckb": "داواکاری بۆ: {customer}",
+  "ar": "طلب لـ: {customer}",
+  "fa": "سفارش برای: {customer}"
+ },
+ "app.products.order": {
+  "en": "Order",
+  "ckb": "داواکاری",
+  "ar": "طلب",
+  "fa": "سفارش"
+ },
+ "app.products.needCustomer": {
+  "en": "Choose the customer first.",
+  "ckb": "سەرەتا کڕیار هەڵبژێرە.",
+  "ar": "اختر العميل أولاً.",
+  "fa": "ابتدا مشتری را انتخاب کنید."
+ },
+ "app.marketing.ownText": {
+  "en": "Or write your own message (use {name} for the customer's name). Leave empty to use the template.",
+  "ckb": "یان نامەی خۆت بنووسە ({name} بۆ ناوی کڕیار). بەتاڵی بهێڵەوە بۆ بەکارهێنانی قاڵب.",
+  "ar": "أو اكتب رسالتك الخاصة (استخدم {name} لاسم العميل). اتركها فارغة لاستخدام القالب.",
+  "fa": "یا پیام خودتان را بنویسید ({name} برای نام مشتری). برای استفاده از قالب خالی بگذارید."
+ },
+ "web.orders.warehouseCity": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.orders.warehouseAddress": {
+  "en": "Address",
+  "ckb": "ناونیشان",
+  "ar": "العنوان",
+  "fa": "نشانی"
+ },
+ "web.orders.warehousePhone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "web.stock.title": {
+  "en": "Stock per warehouse",
+  "ckb": "کۆگا بەپێی کۆگا",
+  "ar": "المخزون لكل مستودع",
+  "fa": "موجودی هر انبار"
+ },
+ "web.stock.none": {
+  "en": "No stock to show yet.",
+  "ckb": "هێشتا هیچ کۆگایەک بۆ پیشاندان نییە.",
+  "ar": "لا يوجد مخزون لعرضه بعد.",
+  "fa": "هنوز موجودی‌ای برای نمایش نیست."
+ },
+ "web.stock.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.stock.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.stock.counted": {
+  "en": "Products counted",
+  "ckb": "بەرهەمی ژمێردراو",
+  "ar": "المنتجات المجرودة",
+  "fa": "داروهای شمارش‌شده"
+ },
+ "web.stock.units": {
+  "en": "Units in stock",
+  "ckb": "یەکەی ماوە",
+  "ar": "الوحدات المتوفرة",
+  "fa": "تعداد موجود"
+ },
+ "web.stock.empty": {
+  "en": "Out of stock",
+  "ckb": "تەواوبوو",
+  "ar": "نفد المخزون",
+  "fa": "تمام‌شده"
+ },
+ "web.stock.edit": {
+  "en": "Count",
+  "ckb": "ژماردن",
+  "ar": "جرد",
+  "fa": "شمارش"
+ },
+ "web.stock.view": {
+  "en": "Details",
+  "ckb": "وردەکاری",
+  "ar": "التفاصيل",
+  "fa": "جزئیات"
+ },
+ "web.stock.open": {
+  "en": "Stock of {name}",
+  "ckb": "کۆگای {name}",
+  "ar": "مخزون {name}",
+  "fa": "موجودی {name}"
+ },
+ "web.stock.quantityOf": {
+  "en": "Quantity of {name}",
+  "ckb": "بڕی {name}",
+  "ar": "كمية {name}",
+  "fa": "مقدار {name}"
+ },
+ "web.stock.saveOf": {
+  "en": "Save {name}",
+  "ckb": "پاشەکەوتکردنی {name}",
+  "ar": "حفظ {name}",
+  "fa": "ذخیره {name}"
+ },
+ "web.stock.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوت",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "web.stock.notCounted": {
+  "en": "Not counted",
+  "ckb": "نەژمێردراوە",
+  "ar": "غير مجرود",
+  "fa": "شمارش نشده"
+ },
+ "web.stock.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "دارو"
+ },
+ "web.stock.total": {
+  "en": "Total in all warehouses",
+  "ckb": "کۆی هەموو کۆگاکان",
+  "ar": "المجموع في كل المستودعات",
+  "fa": "مجموع همه انبارها"
+ },
+ "web.stock.where": {
+  "en": "Where",
+  "ckb": "لە کوێ",
+  "ar": "أين",
+  "fa": "کجا"
  }
 }

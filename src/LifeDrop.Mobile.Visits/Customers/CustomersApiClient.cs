@@ -28,7 +28,7 @@ public sealed record CustomerProfile(Guid Id, string Code, string Name, string T
 
 // One row of the customer search (plan step 4.15).
 // CreatedAt and HasLocation (plan step 5.28): when the customer was added (it is also the paging cursor) and whether it has a position.
-public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone, DateTimeOffset? CreatedAt = null, bool HasLocation = false);
+public sealed record CustomerListItem(Guid Id, string Code, string Name, string Type, string? Phone, DateTimeOffset? CreatedAt = null, bool HasLocation = false, string? OwnerEmail = null);
 
 // The filters of "my customers" (plan steps 5.2 and 5.28); empty or null = not filtered. AddedFrom is a day in Iraq time.
 public sealed record CustomerListFilter(string? Search = null, string? Type = null, Guid? PlaceId = null, bool? Cooperates = null, bool? HasLocation = null, string? CustomerClass = null,
@@ -250,7 +250,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
         var (result, items) = await CallAsync<List<CustomerDto>>(HttpMethod.Get, FilterPath(filter, after?.CreatedAt, after?.Id), null, cancellationToken);
         if (result != VisitActionResult.Success) return (result, Array.Empty<CustomerListItem>());
         if (items is null || items.Any(c => c is null || c.Id == Guid.Empty || string.IsNullOrWhiteSpace(c.Code))) return (VisitActionResult.ServerError, Array.Empty<CustomerListItem>());
-        return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone, c.CreatedAt, c.Latitude is not null)).ToList());
+        return (result, items.Select(c => new CustomerListItem(c.Id, c.Code!, c.Name ?? "", c.Type ?? "", c.Phone, c.CreatedAt, c.Latitude is not null, c.OwnerEmail)).ToList());
     }
 
     public async Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default)
@@ -337,7 +337,7 @@ public sealed class CustomersApiClient : ICustomersApiClient
     private sealed record CustomerDto(Guid Id, string? Type, string? Code, string? Name, string? Phone, string? Address, Guid? PlaceId, List<PlacePathItem>? PlacePath,
         string? ContactName = null, string? Phone2 = null, string? Notes = null,
         string? ClinicName = null, string? Specialty = null, bool? Cooperates = null, bool? Dealer = null, string? CustomerClass = null,
-        DateTimeOffset? CreatedAt = null, double? Latitude = null);
+        DateTimeOffset? CreatedAt = null, double? Latitude = null, string? OwnerEmail = null);
     private sealed record PlaceDto(Guid Id, Guid? ParentId, string? Kind, string? Name, string? NameCkb, string? NameAr, string? NameEn, int ChildCount);
     private sealed record CreatedDto(Guid Id);
 }

@@ -43,10 +43,12 @@ public sealed class OrderPage : ContentPage
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
     private readonly Label _message = new() { IsVisible = false };
     private bool _loaded;
+    private readonly Guid? _firstProduct;
 
-    public OrderPage(Guid customerId, string? customerName, Guid? visitId = null)
+    public OrderPage(Guid customerId, string? customerName, Guid? visitId = null, Guid? productId = null)
     {
         _draft = new OrderDraft(customerId, visitId);
+        _firstProduct = productId;
         _customerName = customerName;
         FlowDirection = AppLanguage.Direction;
         Title = Texts.Get("app.order.title");
@@ -144,6 +146,8 @@ public sealed class OrderPage : ContentPage
                 return;
             }
             _draft.Load(products, warehouses);
+            // Coming from the product list: that product starts with quantity 1.
+            if (_firstProduct is { } first && _draft.QuantityOf(first) == 0) _draft.SetQuantity(first, "1");
         }
         catch (OperationCanceledException)
         {

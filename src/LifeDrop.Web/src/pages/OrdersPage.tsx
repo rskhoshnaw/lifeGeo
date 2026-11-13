@@ -1,7 +1,8 @@
-import { useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, can, errorMessage, iraqToday, Permissions, type EffectivePrice, type Me, type Order, type Warehouse } from '../api/admin.ts'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { AdminApi, can, errorMessage, iraqToday, Permissions, type EffectivePrice, type Me, type Order, type Place, type Warehouse } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { WarehouseStock } from '../components/WarehouseStock.tsx'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 const discountText = (d: { kind: 'percent' | 'amount'; value: number }) => (d.kind === 'percent' ? `-${money(d.value)}%` : `-${money(d.value)}`)
@@ -91,6 +92,7 @@ export function OrdersPage({ admin, me }: { admin: AdminApi; me: Me }) {
         />
       )}
       {can(me, ...Permissions.manageWarehouses) && <Warehouses admin={admin} />}
+      {can(me, ...Permissions.manageWarehouses, ...Permissions.reports) && <WarehouseStock admin={admin} canEdit={can(me, ...Permissions.manageWarehouses)} />}
     </section>
   )
 }
@@ -308,18 +310,28 @@ function Warehouses({ admin }: { admin: AdminApi }) {
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [kind, setKind] = useState<'company' | 'wholesaler'>('company')
+  const [cityId, setCityId] = useState('')
+  const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
+  // The cities for the warehouse form; the list stays empty when the user may not read places.
+  const [cities, setCities] = useState<Place[]>([])
+  useEffect(() => {
+    admin.places(null).then(setCities, () => setCities([]))
+  }, [admin])
   const [staffFor, setStaffFor] = useState<Warehouse | null>(null)
 
   function add(e: FormEvent) {
     e.preventDefault()
     void action.run(async () => {
-      await admin.createWarehouse(code.trim(), name.trim(), kind)
+      await admin.createWarehouse(code.trim(), name.trim(), kind, { cityId, address: address.trim(), phone: phone.trim() })
       setCode('')
       setName('')
+      setAddress('')
+      setPhone('')
     })
   }
 
-  const toggle = (w: Warehouse) => void action.run(() => admin.updateWarehouse(w.id, w.name, w.status === 'active' ? 'inactive' : 'active'))
+  const toggle = (w: Warehouse) => void action.run(() => admin.updateWarehouse(w.id, w.name, w.status === 'active' ? 'inactive' : 'active', { cityId: w.cityId, address: w.address, phone: w.phone }))
 
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
@@ -329,7 +341,7 @@ function Warehouses({ admin }: { admin: AdminApi }) {
         <div key={w.id} className="flex items-center gap-3 border-b py-1">
           <span className="min-w-20">{w.code}</span>
           <span className="flex-1">
-            {w.name} {w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
+            {w.name} {w.cityName && <em>[{w.cityName}] </em>}{w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
           </span>
           <button className="rounded border px-2 py-1" aria-label={t('web.orders.staffOf', { name: w.name })} onClick={() => setStaffFor(staffFor?.id === w.id ? null : w)}>
             {t('web.orders.staff')}
@@ -347,6 +359,14 @@ function Warehouses({ admin }: { admin: AdminApi }) {
           <option value="company">{t('web.orders.kind.company')}</option>
           <option value="wholesaler">{t('web.orders.kind.wholesaler')}</option>
         </select>
+        <select aria-label={t('web.orders.warehouseCity')} className="rounded border px-2 py-1" value={cityId} onChange={(e) => setCityId(e.target.value)}>
+          <option value="">{t('web.orders.warehouseCity')}</option>
+          {cities.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+        <input aria-label={t('web.orders.warehouseAddress')} placeholder={t('web.orders.warehouseAddress')} maxLength={300} className="rounded border px-2 py-1" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <input aria-label={t('web.orders.warehousePhone')} placeholder={t('web.orders.warehousePhone')} maxLength={40} className="rounded border px-2 py-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
         <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !code.trim() || !name.trim()}>
           {t('web.orders.addWarehouse')}
         </button>

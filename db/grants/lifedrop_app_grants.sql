@@ -55,3 +55,5 @@ GRANT SELECT, INSERT, UPDATE ON shift_health TO lifedrop_app;
 -- Step 5.30: feedback from the field (a manager answers and sets the status; photos and answers are only added).
 GRANT SELECT, INSERT, UPDATE ON feedback TO lifedrop_app;
 GRANT SELECT, INSERT ON feedback_replies, feedback_photos TO lifedrop_app;
+-- Step 5.35: a warehouse per city with its own stock (set, never deleted).
+GRANT SELECT, INSERT, UPDATE ON warehouse_stock TO lifedrop_app;

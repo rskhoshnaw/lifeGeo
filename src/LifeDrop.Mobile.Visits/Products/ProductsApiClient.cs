@@ -4,7 +4,7 @@ namespace LifeDrop.Mobile.Visits;
 
 // One product as the catalogue page shows it (plan step 4.43). PricesHidden: the server hid the prices from this user (a ticked city or region), then BasePrice is 0 and must not be shown.
 public sealed record ProductItem(Guid Id, string Code, string Name, string? NameCkb, string? NameAr, string? NameEn, string Unit, string Currency, decimal BasePrice,
-    string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, bool InStock, string? Notes, string? PhotoKey, bool PricesHidden)
+    string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, bool InStock, string? Notes, string? PhotoKey, bool PricesHidden, string? ScientificName = null)
 {
     public string DisplayName(string language)
     {
@@ -64,12 +64,12 @@ public sealed class ProductsApiClient : IProductsApiClient
         if (items is null || items.Any(p => p is null || p.Id == Guid.Empty || string.IsNullOrWhiteSpace(p.Code) || string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.Currency)))
             return (VisitActionResult.ServerError, Array.Empty<ProductItem>());
         return (result, items.Select(p => new ProductItem(p.Id, p.Code!, p.Name!, p.NameCkb, p.NameAr, p.NameEn, p.Unit ?? "", p.Currency!, p.BasePrice, p.Specialty, p.Manufacturer,
-            p.ExpiryDate, p.StockQty, p.InStock, p.Notes, p.PhotoKey, p.PricesHidden)).ToList());
+            p.ExpiryDate, p.StockQty, p.InStock, p.Notes, p.PhotoKey, p.PricesHidden, p.ScientificName)).ToList());
     }
 
     public string? PhotoUrl(string? photoKey) =>
         string.IsNullOrWhiteSpace(photoKey) || _httpClient.BaseAddress is null ? null : new Uri(_httpClient.BaseAddress, "/product-photos/" + Uri.EscapeDataString(photoKey)).ToString();
 
     private sealed record ProductDto(Guid Id, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal BasePrice,
-        string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, bool InStock, string? Notes, string? PhotoKey, bool PricesHidden);
+        string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, bool InStock, string? Notes, string? PhotoKey, bool PricesHidden, string? ScientificName = null);
 }
