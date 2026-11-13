@@ -693,3 +693,16 @@ App connection errors (step 5.10, migration 0063): errors such as a DNS failure 
 Tests: `ClientErrorReportsTests` (cleaning, validation, permission, retention cutoff), `ClientErrorStoreTests` (tenant, audit, RLS, purge, database checks), `ClientErrorTests` (app outbox, flush, classification), panel `ClientErrors.test.tsx`.
 
 TV role (step 5.11, migration 0064): the default role `TvDisplay` (whole company, no device binding) has only `tracking.read`. It opens `GET /live-map` with positions and, like any holder of `tracking.read`, the other tracking reads; it cannot open customers, orders, reports or any write. No new route and no API change. A wall-screen account should have this role only: the panel opens it straight on the TV screen.
+
+## Changes of 2026-11-13 (steps 5.31–5.36)
+
+| Route | Permission | Notes |
+|-------|-----------|-------|
+| `PUT /customers/{id}/contact` | `customers.write` (data scope) | `phone2` is no longer used by the clients (merged into `phone`, migration 0071); the app and panel send `null`. |
+| `PUT /products/{id}/details` | `catalog.manage` | New optional `scientificName` (1–150 characters, null clears). `ProductDto.scientificName` is returned by `GET /products`. |
+| `POST /marketing/campaigns` | `marketing.use` | New optional `body`: the user's own text (≤1000 characters, `{name}` = customer name); then `templateId` is ignored and `delivery` must be `manual`. |
+| `GET /warehouses`, `POST /warehouses`, `PUT /warehouses/{id}` | as before (`orders.read`/`orders.create`; `warehouses.manage`) | Warehouses carry `cityId`/`cityName` (a place of kind city), `address`, `phone`. A `PUT` replaces them (omitted = cleared). |
+| `GET /warehouses/stock` | `warehouses.manage` or `reports.read`: every active company warehouse; `warehouse.work`: only the warehouses of `warehouse_staff` | One row per active product and warehouse (`counted=false`, quantity 0 until set). 403 for anybody else. |
+| `PUT /warehouses/{warehouseId}/stock/{productId}` | `warehouses.manage` (any warehouse) or `warehouse.work` (own warehouses) | Body `{quantity}`, 0 to 1,000,000,000, three decimals. 404: no such active company warehouse or product, or not the worker's warehouse. Audit `warehouse.stock_set`. |
+
+Tests: `WarehouseStockStoreTests` (database), `MarketingServiceTests.AnOwnTextNeedsNoTemplateButOnlyForManualSending`, the product-details part of the catalog integration test, `ProductsTests`.

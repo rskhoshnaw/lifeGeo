@@ -41,6 +41,28 @@ public static class OrderEndpoints
             .WithName("UpdateWarehouse").WithTags("Orders").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Stock per warehouse (owner request 2026-11-13): the managers see every warehouse, a warehouse worker only his own.
+        app.MapGet("/warehouses/stock", async (HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListStockAsync(tenantId, actorId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListWarehouseStock").WithTags("Warehouse").Produces<List<WarehouseStockDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/warehouses/{warehouseId:guid}/stock/{productId:guid}", async (Guid warehouseId, Guid productId, SetStockRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetStockAsync(tenantId, actorId, warehouseId, productId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetWarehouseStock").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // Staff of a warehouse (plan step 2.3): who works where, set by the sales manager.
         app.MapGet("/warehouses/{warehouseId:guid}/staff", async (Guid warehouseId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

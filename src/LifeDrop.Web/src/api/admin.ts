@@ -371,12 +371,40 @@ export interface EffectivePrice {
   price: number
 }
 
+const placeBody = (place: WarehousePlace) => ({
+  ...(place.cityId ? { cityId: place.cityId } : {}),
+  ...(place.address ? { address: place.address } : {}),
+  ...(place.phone ? { phone: place.phone } : {}),
+})
 export interface Warehouse {
   id: string
   code: string
   name: string
   status: 'active' | 'inactive'
   kind?: 'company' | 'wholesaler'
+  cityId?: string | null
+  cityName?: string | null
+  address?: string | null
+  phone?: string | null
+}
+// The stock of one product in one warehouse (counted false = nobody set it yet, quantity 0).
+export interface WarehouseStockRow {
+  warehouseId: string
+  warehouseCode: string
+  warehouseName: string
+  cityId: string | null
+  cityName: string | null
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  quantity: number
+  counted: boolean
+}
+export interface WarehousePlace {
+  cityId?: string | null
+  address?: string | null
+  phone?: string | null
 }
 export interface Wholesaler {
   id: string
@@ -1275,9 +1303,13 @@ export class AdminApi {
   customerPrices = (customerId: string, date: string) => this.get<EffectivePrice[]>(`/customers/${customerId}/prices?date=${date}`)
   // Warehouses and orders (step 2.2). The server prices every order line; no price is ever sent.
   warehouses = (includeInactive = false) => this.get<Warehouse[]>(`/warehouses${includeInactive ? '?includeInactive=true' : ''}`)
-  createWarehouse = (code: string, name: string, kind: 'company' | 'wholesaler' = 'company') =>
-    this.post('/warehouses', kind === 'company' ? { code, name } : { code, name, kind })
-  updateWarehouse = (id: string, name: string, status: 'active' | 'inactive') => this.send('PUT', `/warehouses/${id}`, { name, status })
+  // City, address and phone are sent only when they are set (the server clears what a PUT leaves out).
+  createWarehouse = (code: string, name: string, kind: 'company' | 'wholesaler' = 'company', place: WarehousePlace = {}) =>
+    this.post('/warehouses', { code, name, ...(kind === 'company' ? {} : { kind }), ...placeBody(place) })
+  updateWarehouse = (id: string, name: string, status: 'active' | 'inactive', place: WarehousePlace = {}) => this.send('PUT', `/warehouses/${id}`, { name, status, ...placeBody(place) })
+  // Stock per warehouse and product (the managers: all warehouses; a warehouse worker: his own).
+  warehouseStock = () => this.get<WarehouseStockRow[]>('/warehouses/stock')
+  setWarehouseStock = (warehouseId: string, productId: string, quantity: number) => this.send('PUT', `/warehouses/${warehouseId}/stock/${productId}`, { quantity })
   orders = (before?: Order) =>
     this.get<Order[]>(before ? `/orders?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/orders?limit=50')
   order = (id: string) => this.get<Order>(`/orders/${id}`)

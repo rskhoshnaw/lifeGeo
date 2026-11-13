@@ -4,7 +4,7 @@
 -- so nothing is lost. (The note is limited to 500 characters; a longer text is cut.)
 UPDATE customers
 SET notes = left(CASE WHEN notes IS NULL THEN 'Second number: ' || phone2 ELSE notes || E'\n' || 'Second number: ' || phone2 END, 500)
-WHERE phone2 IS NOT NULL AND phone IS NOT NULL AND btrim(phone) <> btrim(phone2);
+WHERE phone2 IS NOT NULL AND btrim(coalesce(phone, '')) <> '' AND btrim(phone) <> btrim(phone2);
 
 UPDATE customers SET phone = phone2 WHERE phone2 IS NOT NULL AND (phone IS NULL OR btrim(phone) = '');
 

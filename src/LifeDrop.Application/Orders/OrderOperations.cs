@@ -18,9 +18,15 @@ namespace LifeDrop.Application.Orders;
 // that were applied; the phone never sends a price. "Placed" is true only after the server accepted the order. A retry with the
 // same ClientRef returns the order that exists.
 // Kind (plan step 5.6): "company" (our own warehouse) or "wholesaler" (a mudhakhar that takes the order to the pharmacy with its own car).
-public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status, string Kind = "company");
+// CityId / CityName: the city the warehouse serves (a place of kind city; owner request 2026-11-13), Address and Phone are optional.
+public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status, string Kind = "company", Guid? CityId = null, string? CityName = null, string? Address = null, string? Phone = null);
+
+// The stock of one product in one warehouse; every active product of every active company warehouse is listed, Counted false (quantity 0) until somebody set it.
+public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, string WarehouseName, Guid? CityId, string? CityName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted = true);
+
+public sealed record SetStockRequest(decimal? Quantity);
 // Kind is chosen when the warehouse is created (company when empty) and cannot be changed later: orders may already follow its rules.
-public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null, string? Kind = null);
+public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null, string? Kind = null, Guid? CityId = null, string? Address = null, string? Phone = null);
 
 public sealed record OrderLineRequest(Guid? ProductId, decimal? Quantity);
 public sealed record CreateOrderRequest(Guid? CustomerId, Guid? WarehouseId, Guid? VisitId, Guid? ClientRef, IReadOnlyList<OrderLineRequest>? Items, string? Note = null, bool? DetachVisitIfInvalid = null);
@@ -83,6 +89,12 @@ public interface IOrderStore
     // Null when the code exists already.
     Task<Guid?> CreateWarehouseAsync(TenantId tenantId, UserId actorId, SaveWarehouseRequest warehouse, CancellationToken cancellationToken);
     Task<bool> UpdateWarehouseAsync(TenantId tenantId, UserId actorId, Guid warehouseId, SaveWarehouseRequest warehouse, CancellationToken cancellationToken);
+    // True when the place exists and is a city.
+    Task<bool> CityExistsAsync(TenantId tenantId, Guid cityId, CancellationToken cancellationToken);
+    // The stock of all active company warehouses (onlyStaffOf empty), or of the warehouses that user works in, for every active product. Ordered by warehouse code, then product code.
+    Task<IReadOnlyList<WarehouseStockDto>> ListStockAsync(TenantId tenantId, Guid? onlyStaffOf, CancellationToken cancellationToken);
+    // Sets the quantity (an upsert). NotFound: no such active warehouse or product, or (with onlyStaffOf) the user does not work in that warehouse. Audit warehouse.stock_set.
+    Task<OrderResult> SetStockAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, Guid? onlyStaffOf, CancellationToken cancellationToken);
 
     // NotFound: warehouse or visit missing. InvalidData: warehouse inactive or the visit is not usable. Replays the order of an earlier send with
     // the same ClientRef (same creator and customer; else Conflict). Writes the order, its lines, the number and the audit row in one transaction.
@@ -144,12 +156,36 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         return (OrderResult.Success, await store.ListWarehousesAsync(tenantId, inactive, cancellationToken));
     }
 
+    public const decimal MaxStock = 1_000_000_000m;
+
+    // Owner request 2026-11-13. The managers (warehouses.manage, reports.read) see the stock of every warehouse; a warehouse worker (warehouse.work) only of the warehouses he works in.
+    public async Task<(OrderResult Result, IReadOnlyList<WarehouseStockDto> Items)> ListStockAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        if (tenantId.IsEmpty || actorId.IsEmpty) return (OrderResult.Forbidden, Array.Empty<WarehouseStockDto>());
+        var all = await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is not null ||
+                  await ScopeAsync(tenantId, actorId, PermissionKeys.ReportsRead, cancellationToken) is not null;
+        if (!all && await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<WarehouseStockDto>());
+        return (OrderResult.Success, await store.ListStockAsync(tenantId, all ? null : actorId.Value, cancellationToken));
+    }
+
+    // The manager of warehouses sets any warehouse, a warehouse worker only his own.
+    public async Task<OrderResult> SetStockAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, SetStockRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (tenantId.IsEmpty || actorId.IsEmpty) return OrderResult.Forbidden;
+        var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is not null;
+        if (!manager && await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        if (warehouseId == Guid.Empty || productId == Guid.Empty || request.Quantity is not { } quantity || quantity < 0 || quantity > MaxStock || decimal.Round(quantity, 3) != quantity) return OrderResult.InvalidData;
+        return await store.SetStockAsync(tenantId, actorId, warehouseId, productId, quantity, manager ? null : actorId.Value, cancellationToken);
+    }
+
     public async Task<(OrderResult Result, Guid? Id)> CreateWarehouseAsync(TenantId tenantId, UserId actorId, SaveWarehouseRequest request, CancellationToken cancellationToken)
     {
         if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return (OrderResult.Forbidden, null);
         var code = request.Code?.Trim();
         if (string.IsNullOrEmpty(code) || code.Length > 40 || !CleanWarehouse(request, out var clean)) return (OrderResult.InvalidData, null);
-        var id = await store.CreateWarehouseAsync(tenantId, actorId, clean! with { Code = code }, cancellationToken);
+        if (clean!.CityId is { } city && !await store.CityExistsAsync(tenantId, city, cancellationToken)) return (OrderResult.InvalidData, null);
+        var id = await store.CreateWarehouseAsync(tenantId, actorId, clean with { Code = code }, cancellationToken);
         return id is null ? (OrderResult.Conflict, null) : (OrderResult.Success, id);
     }
 
@@ -157,6 +193,7 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
     {
         if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return OrderResult.Forbidden;
         if (warehouseId == Guid.Empty || !CleanWarehouse(request, out var clean)) return OrderResult.InvalidData;
+        if (clean!.CityId is { } city && !await store.CityExistsAsync(tenantId, city, cancellationToken)) return OrderResult.InvalidData;
         return await store.UpdateWarehouseAsync(tenantId, actorId, warehouseId, clean!, cancellationToken) ? OrderResult.Success : OrderResult.NotFound;
     }
 
@@ -403,7 +440,10 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var kind = request.Kind ?? "company";
         clean = null;
         if (string.IsNullOrEmpty(name) || name.Length > 160 || status is not ("active" or "inactive") || kind is not ("company" or "wholesaler")) return false;
-        clean = request with { Name = name, Status = status, Kind = kind };
+        var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        if (request.CityId == Guid.Empty || address?.Length > 300 || phone?.Length > 40) return false;
+        clean = request with { Name = name, Status = status, Kind = kind, Address = address, Phone = phone };
         return true;
     }
 }

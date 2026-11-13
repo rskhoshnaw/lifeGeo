@@ -70,6 +70,8 @@ public sealed class CustomersListPage : ContentPage
         var api = TrackingHost.CustomersApi;
         if (api is null) return;
         _placesLoaded = true;
+        // The list opens with the first customers of the user's area (all of the company for a manager); no need to press "show" first.
+        _ = LoadAsync(more: false);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         try
         {
@@ -151,7 +153,7 @@ public sealed class CustomersListPage : ContentPage
     {
         var line = $"{item.Code} · {item.Name}" + (string.IsNullOrWhiteSpace(item.Phone) ? "" : $" · {item.Phone}");
         var added = item.CreatedAt is { } at ? at.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : "";
-        var detail = string.Join(" · ", new[] { added, item.HasLocation ? "" : Texts.Get("app.customers.noLocationMark") }.Where(x => x.Length > 0));
+        var detail = string.Join(" · ", new[] { added, item.OwnerEmail ?? "", item.HasLocation ? "" : Texts.Get("app.customers.noLocationMark") }.Where(x => x.Length > 0));
         return detail.Length == 0 ? line : line + "\n" + detail;
     }
 

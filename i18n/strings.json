@@ -10534,5 +10534,125 @@
   "ckb": "یان نامەی خۆت بنووسە ({name} بۆ ناوی کڕیار). بەتاڵی بهێڵەوە بۆ بەکارهێنانی قاڵب.",
   "ar": "أو اكتب رسالتك الخاصة (استخدم {name} لاسم العميل). اتركها فارغة لاستخدام القالب.",
   "fa": "یا پیام خودتان را بنویسید ({name} برای نام مشتری). برای استفاده از قالب خالی بگذارید."
+ },
+ "web.orders.warehouseCity": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.orders.warehouseAddress": {
+  "en": "Address",
+  "ckb": "ناونیشان",
+  "ar": "العنوان",
+  "fa": "نشانی"
+ },
+ "web.orders.warehousePhone": {
+  "en": "Phone",
+  "ckb": "تەلەفۆن",
+  "ar": "الهاتف",
+  "fa": "تلفن"
+ },
+ "web.stock.title": {
+  "en": "Stock per warehouse",
+  "ckb": "کۆگا بەپێی کۆگا",
+  "ar": "المخزون لكل مستودع",
+  "fa": "موجودی هر انبار"
+ },
+ "web.stock.none": {
+  "en": "No stock to show yet.",
+  "ckb": "هێشتا هیچ کۆگایەک بۆ پیشاندان نییە.",
+  "ar": "لا يوجد مخزون لعرضه بعد.",
+  "fa": "هنوز موجودی‌ای برای نمایش نیست."
+ },
+ "web.stock.warehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المستودع",
+  "fa": "انبار"
+ },
+ "web.stock.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.stock.counted": {
+  "en": "Products counted",
+  "ckb": "بەرهەمی ژمێردراو",
+  "ar": "المنتجات المجرودة",
+  "fa": "داروهای شمارش‌شده"
+ },
+ "web.stock.units": {
+  "en": "Units in stock",
+  "ckb": "یەکەی ماوە",
+  "ar": "الوحدات المتوفرة",
+  "fa": "تعداد موجود"
+ },
+ "web.stock.empty": {
+  "en": "Out of stock",
+  "ckb": "تەواوبوو",
+  "ar": "نفد المخزون",
+  "fa": "تمام‌شده"
+ },
+ "web.stock.edit": {
+  "en": "Count",
+  "ckb": "ژماردن",
+  "ar": "جرد",
+  "fa": "شمارش"
+ },
+ "web.stock.view": {
+  "en": "Details",
+  "ckb": "وردەکاری",
+  "ar": "التفاصيل",
+  "fa": "جزئیات"
+ },
+ "web.stock.open": {
+  "en": "Stock of {name}",
+  "ckb": "کۆگای {name}",
+  "ar": "مخزون {name}",
+  "fa": "موجودی {name}"
+ },
+ "web.stock.quantityOf": {
+  "en": "Quantity of {name}",
+  "ckb": "بڕی {name}",
+  "ar": "كمية {name}",
+  "fa": "مقدار {name}"
+ },
+ "web.stock.saveOf": {
+  "en": "Save {name}",
+  "ckb": "پاشەکەوتکردنی {name}",
+  "ar": "حفظ {name}",
+  "fa": "ذخیره {name}"
+ },
+ "web.stock.save": {
+  "en": "Save",
+  "ckb": "پاشەکەوت",
+  "ar": "حفظ",
+  "fa": "ذخیره"
+ },
+ "web.stock.notCounted": {
+  "en": "Not counted",
+  "ckb": "نەژمێردراوە",
+  "ar": "غير مجرود",
+  "fa": "شمارش نشده"
+ },
+ "web.stock.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "دارو"
+ },
+ "web.stock.total": {
+  "en": "Total in all warehouses",
+  "ckb": "کۆی هەموو کۆگاکان",
+  "ar": "المجموع في كل المستودعات",
+  "fa": "مجموع همه انبارها"
+ },
+ "web.stock.where": {
+  "en": "Where",
+  "ckb": "لە کوێ",
+  "ar": "أين",
+  "fa": "کجا"
  }
 }
