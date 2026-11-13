@@ -90,6 +90,7 @@
     <None Include="../../db/migrations/0072_product_scientific_name.sql" Link="0072_product_scientific_name.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0073_warehouse_city_stock.sql" Link="0073_warehouse_city_stock.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0074_product_availability.sql" Link="0074_product_availability.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0075_team_leader.sql" Link="0075_team_leader.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

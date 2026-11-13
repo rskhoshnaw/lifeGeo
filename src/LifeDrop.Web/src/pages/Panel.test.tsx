@@ -1388,6 +1388,20 @@ describe('panel management screens', () => {
     ])
   })
 
+  it('chooses the team leader among the supervisors of the team and shows it', async () => {
+    const salesManager: Me = { id: 'm', email: 'manager@t1', roles: ['SalesManager'], permissions: ['regions.manage', 'regions.read', 'sessions.kill', 'teams.manage', 'teams.read'] }
+    const supervisor = { ...rep, id: 'u3', email: 'sup@t1', roles: ['Supervisor'] }
+    const { api, calls } = server(salesManager, { '/regions': [{ id: 'r', name: 'Erbil' }], '/teams': [{ id: 't', name: 'Team A', regionId: 'r', leaderUserId: null, leaderEmail: null }], '/users': [rep, supervisor] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Regions & teams' }))
+    expect(await screen.findByText(/Team leader: No leader/)).toBeInTheDocument()
+    const choose = await screen.findByRole('combobox', { name: 'Leader of Team A' })
+    expect(within(choose).queryByRole('option', { name: 'rep@t1' })).not.toBeInTheDocument()   // not a supervisor
+    await user.selectOptions(choose, 'u3')
+    expect(posts(calls)).toEqual([{ method: 'PUT', path: '/teams/t/leader', body: { userId: 'u3' } }])
+  })
+
   it('shows regions and teams read-only without manage permissions', async () => {
     const { api, calls } = server({ id: 'x', email: 'ceo@t1', roles: ['CompanyManager'], permissions: ['regions.read', 'teams.read'] }, { '/regions': [{ id: 'r', name: 'Erbil' }], '/teams': [{ id: 't', name: 'Team A', regionId: 'r' }] })
     render(<App api={api} />)

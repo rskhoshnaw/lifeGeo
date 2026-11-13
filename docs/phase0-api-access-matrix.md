@@ -716,3 +716,13 @@ Tests: `WarehouseStockStoreTests` (database), `MarketingServiceTests.AnOwnTextNe
 | `GET /customers/{id}/prices` | as before | Each row has `available`. |
 | `GET /warehouses/stock` | as in 5.35 | Rows also carry `expiryDate` and `minStock` of the product. |
 | `POST /warehouse/orders/{id}/handover` | `warehouse.work` (own warehouses) | Also takes the prepared quantity (else the ordered one) off the warehouse's counted stock, never below zero. |
+
+## Team leader (step 5.41, migration 0075)
+
+| Route | Permission | Notes |
+|-------|-----------|-------|
+| `PUT /teams/{teamId}/leader` | `teams.manage` | Body `{userId}`; null clears. 400: the user is not an active member of the team with the role Supervisor. 404: no such team. Audit `team.leader_set` / `team.leader_cleared`. |
+| `GET /teams` | `teams.read` | Each team has `leaderUserId` / `leaderEmail` (null when none, or when the person left the team or lost the Supervisor role). |
+
+Leaving a team (removed, or moved to another team) clears the leadership. Data scope is unchanged: a Supervisor still sees the whole region of their team.
+

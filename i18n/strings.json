@@ -10744,5 +10744,23 @@
   "ckb": "خاوەن",
   "ar": "المالك",
   "fa": "صاحب مشتری"
+ },
+ "web.teams.leader": {
+  "en": "Team leader",
+  "ckb": "بەرپرسی تیم",
+  "ar": "مسؤول الفريق",
+  "fa": "مسئول تیم"
+ },
+ "web.teams.noLeader": {
+  "en": "No leader",
+  "ckb": "بەرپرس نییە",
+  "ar": "بلا مسؤول",
+  "fa": "بدون مسئول"
+ },
+ "web.teams.leaderOf": {
+  "en": "Leader of {team}",
+  "ckb": "بەرپرسی {team}",
+  "ar": "مسؤول {team}",
+  "fa": "مسئول {team}"
  }
 }

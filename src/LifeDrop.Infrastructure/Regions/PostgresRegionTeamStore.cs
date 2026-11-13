@@ -66,11 +66,19 @@ public sealed class PostgresRegionTeamStore(NpgsqlDataSource dataSource) : IRegi
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginTenantTransactionAsync(connection, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT id, name, region_id, created_at FROM teams ORDER BY name, id", connection, transaction);
+            """
+            SELECT t.id, t.name, t.region_id, t.created_at, l.id, l.email
+            FROM teams t
+            LEFT JOIN users l ON l.tenant_id = t.tenant_id AND l.id = t.leader_user_id AND l.is_active
+                AND EXISTS (SELECT 1 FROM team_members m WHERE m.tenant_id = t.tenant_id AND m.team_id = t.id AND m.user_id = l.id)
+                AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id WHERE ur.tenant_id = t.tenant_id AND ur.user_id = l.id AND r.name = 'Supervisor')
+            ORDER BY t.name, t.id
+            """, connection, transaction);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var items = new List<TeamDto>();
         while (await reader.ReadAsync(cancellationToken))
-            items.Add(new TeamDto(reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetFieldValue<DateTimeOffset>(3)));
+            items.Add(new TeamDto(reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetFieldValue<DateTimeOffset>(3),
+                reader.IsDBNull(4) ? null : reader.GetGuid(4), reader.IsDBNull(5) ? null : reader.GetString(5)));
         return items;
     }
 
@@ -117,7 +125,46 @@ public sealed class PostgresRegionTeamStore(NpgsqlDataSource dataSource) : IRegi
         upsert.Parameters.AddWithValue("team", teamId);
         await upsert.ExecuteNonQueryAsync(cancellationToken);
 
+        await using (var endLead = new NpgsqlCommand("UPDATE teams SET leader_user_id = NULL WHERE tenant_id = @tenant AND leader_user_id = @user AND id <> @team", connection, transaction))
+        {
+            endLead.Parameters.AddWithValue("tenant", tenantId.Value);
+            endLead.Parameters.AddWithValue("user", userId);
+            endLead.Parameters.AddWithValue("team", teamId);
+            await endLead.ExecuteNonQueryAsync(cancellationToken);
+        }
         await AuditAsync(connection, transaction, tenantId, actorId, "team.member_assigned", $"{teamId}:{userId}", cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return RegionTeamResult.Success;
+    }
+
+    public async Task<RegionTeamResult> SetLeaderAsync(TenantId tenantId, UserId actorId, Guid teamId, Guid? userId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginTenantTransactionAsync(connection, tenantId, cancellationToken);
+        if (!await ExistsAsync(connection, transaction, "teams", teamId, cancellationToken)) return RegionTeamResult.NotFound;
+        if (userId is { } leader)
+        {
+            await using var check = new NpgsqlCommand("""
+                SELECT EXISTS (
+                    SELECT 1 FROM users u
+                    JOIN team_members m ON m.tenant_id = u.tenant_id AND m.user_id = u.id AND m.team_id = @team
+                    JOIN user_roles ur ON ur.tenant_id = u.tenant_id AND ur.user_id = u.id
+                    JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id AND r.name = 'Supervisor'
+                    WHERE u.tenant_id = @tenant AND u.id = @user AND u.is_active)
+                """, connection, transaction);
+            check.Parameters.AddWithValue("tenant", tenantId.Value);
+            check.Parameters.AddWithValue("team", teamId);
+            check.Parameters.AddWithValue("user", leader);
+            if (!(bool)(await check.ExecuteScalarAsync(cancellationToken) ?? false)) return RegionTeamResult.NotEligible;
+        }
+        await using (var update = new NpgsqlCommand("UPDATE teams SET leader_user_id = @user WHERE tenant_id = @tenant AND id = @team", connection, transaction))
+        {
+            update.Parameters.Add(new NpgsqlParameter("user", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)userId ?? DBNull.Value });
+            update.Parameters.AddWithValue("tenant", tenantId.Value);
+            update.Parameters.AddWithValue("team", teamId);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, userId is null ? "team.leader_cleared" : "team.leader_set", $"{teamId}:{userId}", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return RegionTeamResult.Success;
     }
@@ -133,6 +180,13 @@ public sealed class PostgresRegionTeamStore(NpgsqlDataSource dataSource) : IRegi
         delete.Parameters.AddWithValue("user", userId);
         if (await delete.ExecuteNonQueryAsync(cancellationToken) == 0) return RegionTeamResult.NotFound;
 
+        await using (var endLead = new NpgsqlCommand("UPDATE teams SET leader_user_id = NULL WHERE tenant_id = @tenant AND id = @team AND leader_user_id = @user", connection, transaction))
+        {
+            endLead.Parameters.AddWithValue("tenant", tenantId.Value);
+            endLead.Parameters.AddWithValue("team", teamId);
+            endLead.Parameters.AddWithValue("user", userId);
+            await endLead.ExecuteNonQueryAsync(cancellationToken);
+        }
         await AuditAsync(connection, transaction, tenantId, actorId, "team.member_removed", $"{teamId}:{userId}", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return RegionTeamResult.Success;
