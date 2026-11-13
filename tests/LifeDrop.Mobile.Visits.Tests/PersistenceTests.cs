@@ -123,6 +123,18 @@ public sealed class PersistenceTests : IDisposable
         Assert.Equal(ShiftState.Off, later.State);
     }
 
+    // The same when the caller's time runs out (iPhone: the app is started in the background and gets a few seconds; Home page: a slow network): that is an exception, not a status.
+    [Fact]
+    public async Task AShiftOpenOnThePhoneContinuesWhenTheServerDoesNotAnswerInTime()
+    {
+        var store = new FileDurableStore(_directory);
+        var first = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.Success, new ShiftInfo(ShiftId, Guid.NewGuid(), DateTimeOffset.UtcNow, null)), TimeProvider.System, new PointQueue(store));
+        await first.StartAsync();
+        var slow = new ShiftTracker(new CurrentShiftApi(ShiftCallStatus.Success, null, timesOut: true), TimeProvider.System, new PointQueue(store));
+        Assert.Equal(ShiftCallStatus.NetworkError, await slow.ResumeAsync());
+        Assert.Equal(ShiftState.On, slow.State);
+    }
+
     [Fact]
     public async Task AnEndedShiftOrAnOldFileIsNotResumedWithoutTheServer()
     {
@@ -141,10 +153,11 @@ public sealed class PersistenceTests : IDisposable
         Assert.Equal(ShiftState.Off, old.State);
     }
 
-    private sealed class CurrentShiftApi(ShiftCallStatus current, ShiftInfo? shift) : IShiftApiClient
+    private sealed class CurrentShiftApi(ShiftCallStatus current, ShiftInfo? shift, bool timesOut = false) : IShiftApiClient
     {
         public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> StartShiftAsync(CancellationToken cancellationToken = default) => Task.FromResult((current, shift));
-        public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> GetCurrentShiftAsync(CancellationToken cancellationToken = default) => Task.FromResult((current, shift));
+        public Task<(ShiftCallStatus Status, ShiftInfo? Shift)> GetCurrentShiftAsync(CancellationToken cancellationToken = default) =>
+            timesOut ? throw new OperationCanceledException(cancellationToken) : Task.FromResult((current, shift));
         public Task<ShiftCallStatus> EndShiftAsync(Guid shiftId, CancellationToken cancellationToken = default) => Task.FromResult(ShiftCallStatus.Success);
         public Task<(ShiftCallStatus Status, UploadResult? Result)> UploadPointsAsync(Guid shiftId, IReadOnlyList<TrackedPoint> points, ShiftHealth? health = null, CancellationToken cancellationToken = default) =>
             Task.FromResult((ShiftCallStatus.Success, (UploadResult?)new UploadResult(points.Count, 0, 0)));

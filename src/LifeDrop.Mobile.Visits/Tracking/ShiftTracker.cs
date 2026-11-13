@@ -69,7 +69,17 @@ public sealed class ShiftTracker
         await _changing.WaitAsync(cancellationToken);
         try
         {
-            var (status, shift) = await _api.GetCurrentShiftAsync(cancellationToken);
+            ShiftCallStatus status;
+            ShiftInfo? shift;
+            try
+            {
+                (status, shift) = await _api.GetCurrentShiftAsync(cancellationToken);
+            }
+            catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
+            {
+                // The caller's time ran out (a slow network right after a phone call, or the system gave the app only a few seconds after starting it again): the same as no answer.
+                (status, shift) = (ShiftCallStatus.NetworkError, null);
+            }
             if (status == ShiftCallStatus.Success) TurnOn(shift!);
             else if (status == ShiftCallStatus.NotFound) TurnOff();
             else

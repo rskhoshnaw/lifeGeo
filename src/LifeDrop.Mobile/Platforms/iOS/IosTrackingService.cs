@@ -58,7 +58,8 @@ public static class IosTrackingService
         {
             var tracker = TrackingHost.GetOrCreate();
             if (tracker is null) return;
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            // iOS gives an app that was started in the background only a few seconds: do not wait long for the server; a shift this phone knows is open continues without it.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
             await tracker.ResumeAsync(cts.Token);
             if (tracker.State == ShiftState.On) Start();   // also when the server could not be reached but this phone knows the shift is open
         }
