@@ -726,3 +726,14 @@ Tests: `WarehouseStockStoreTests` (database), `MarketingServiceTests.AnOwnTextNe
 
 Leaving a team (removed, or moved to another team) clears the leadership. Data scope is unchanged: a Supervisor still sees the whole region of their team.
 
+## Stock follows the warehouses (step 5.42, migration 0076)
+
+| Route | Notes |
+|-------|-------|
+| `GET /products`, `GET /customers/{id}/prices` | A product counted in warehouses: `stockQty` = sum of the counted stock of the active company warehouses, `reservedQty` = what the open orders (placed, preparing, ready) of those warehouses take, `inStock` = stock − reserved > 0. Not counted: the old `stock_qty`, `reservedQty` null. |
+| `POST /orders` | A product counted in the order's warehouse: an order for more than free (stock − open orders there) is placed with `stockWarnings` (product codes); the old single figure is not touched. Other products: the old figure, 409 `OUT_OF_STOCK` when short. |
+| `POST /orders/{id}/cancel` | Gives the old figure back only for lines that took it. |
+| `POST /warehouse/orders/{id}/handover` | Takes the goods off the warehouse stock (and marks the order). |
+| `POST /deliveries/{id}/deliver`, `POST /deliveries/{id}/fail` | A failed delivery gives all of them back to the warehouse stock, a short delivery the difference; once; not for orders handed over before 5.42. |
+| `GET /warehouses/stock` | Rows also carry `reserved`. |
+

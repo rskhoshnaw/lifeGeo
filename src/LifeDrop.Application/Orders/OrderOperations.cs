@@ -22,7 +22,9 @@ namespace LifeDrop.Application.Orders;
 public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status, string Kind = "company", Guid? CityId = null, string? CityName = null, string? Address = null, string? Phone = null);
 
 // The stock of one product in one warehouse; every active product of every active company warehouse is listed, Counted false (quantity 0) until somebody set it.
-public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, string WarehouseName, Guid? CityId, string? CityName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted = true, DateOnly? ExpiryDate = null, decimal? MinStock = null);
+public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, string WarehouseName, Guid? CityId, string? CityName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted = true, DateOnly? ExpiryDate = null, decimal? MinStock = null,
+    // What the open orders of this warehouse (placed, preparing, ready) will take; Quantity - Reserved is what is free.
+    decimal Reserved = 0);
 
 public sealed record SetStockRequest(decimal? Quantity);
 // Kind is chosen when the warehouse is created (company when empty) and cannot be changed later: orders may already follow its rules.
@@ -58,7 +60,9 @@ public sealed record OrderDto(Guid Id, string Number, Guid CustomerId, string Cu
 
 // Replayed: the same ClientRef was sent before and the order that exists is returned.
 // VisitDetached: an order saved without internet whose visit was cancelled or failed by the time it arrived is placed without the visit (plan step 2.13).
-public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false, bool PricesHidden = false);
+public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool VisitDetached = false, bool PricesHidden = false,
+    // Codes of the products whose quantity is more than the warehouse has free (its stock minus the open orders); the order is placed anyway (owner request 2026-11-13).
+    IReadOnlyList<string>? StockWarnings = null);
 
 // OutOfStock (plan step 4.41): a product whose stock is tracked has less than the order asks for; nothing is taken.
 public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock }

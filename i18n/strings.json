@@ -10762,5 +10762,23 @@
   "ckb": "بەرپرسی {team}",
   "ar": "مسؤول {team}",
   "fa": "مسئول {team}"
+ },
+ "web.orders.stockWarning": {
+  "en": "Warning: the warehouse has less free stock than ordered for: {products}.",
+  "ckb": "ئاگاداری: کۆگا لە بڕی داواکراو کەمتر ماوەی هەیە بۆ: {products}.",
+  "ar": "تنبيه: المخزون الحر في المستودع أقل من المطلوب لـ: {products}.",
+  "fa": "هشدار: موجودی آزاد انبار از مقدار سفارش کمتر است برای: {products}."
+ },
+ "app.order.stockWarning": {
+  "en": "Warning: the warehouse has less free stock than ordered for: {products}.",
+  "ckb": "ئاگاداری: کۆگا لە بڕی داواکراو کەمتر ماوەی هەیە بۆ: {products}.",
+  "ar": "تنبيه: المخزون الحر في المستودع أقل من المطلوب لـ: {products}.",
+  "fa": "هشدار: موجودی آزاد انبار از مقدار سفارش کمتر است برای: {products}."
+ },
+ "web.stock.reserved": {
+  "en": "reserved by open orders: {reserved}, free: {free}",
+  "ckb": "گیراو بۆ داواکارییە کراوەکان: {reserved}، ئازاد: {free}",
+  "ar": "محجوز للطلبات المفتوحة: {reserved}، الحر: {free}",
+  "fa": "رزرو سفارش‌های باز: {reserved}، آزاد: {free}"
  }
 }

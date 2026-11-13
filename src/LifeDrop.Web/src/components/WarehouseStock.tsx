@@ -129,7 +129,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
           <h4 className="font-semibold">{current.code} · {current.name}</h4>
           {current.rows.map((r) => (
             <div key={r.productId} className="flex items-center gap-3">
-              <span className="flex-1">{r.productCode} · {r.productName}</span>
+              <span className="flex-1">{r.productCode} · {r.productName}{(r.reserved ?? 0) > 0 && <em className="text-slate-600"> ({t('web.stock.reserved', { reserved: number(r.reserved ?? 0), free: number(r.quantity - (r.reserved ?? 0)) })})</em>}</span>
               {canEdit ? (
                 <>
                   <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={draftOf(r)}

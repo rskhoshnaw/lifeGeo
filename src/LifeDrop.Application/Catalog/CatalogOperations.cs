@@ -26,9 +26,12 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
     // Owner request 2026-11-13: the scientific (generic) name, shown under the name in the app.
     string? ScientificName = null,
     // Owner request 2026-11-13: false = temporarily unavailable (listed, not orderable); MinStock = low-stock limit of the warehouses.
-    bool Available = true, decimal? MinStock = null)
+    bool Available = true, decimal? MinStock = null,
+    // Only for a product counted in warehouses (then StockQty is the sum of their counted stock): what the open orders (placed, preparing, ready) will take. Null otherwise.
+    decimal? ReservedQty = null)
 {
-    public bool InStock => StockQty is null or > 0;
+    // Free stock: not tracked, or more than the open orders will take.
+    public bool InStock => StockQty is null || StockQty - (ReservedQty ?? 0) > 0;
 }
 
 public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes, string? ScientificName = null, bool? Available = null, decimal? MinStock = null);

@@ -10,7 +10,11 @@ namespace LifeDrop.Infrastructure.Catalog;
 
 public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProductStore
 {
-    private const string ProductColumns = "id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, stock_qty, notes, (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = products.tenant_id AND ph.product_id = products.id), scientific_name, available, min_stock";
+    // The stock of a product counted in warehouses is the sum of their counted stock (owner request 2026-11-13), else the old single figure; Reserved is what the open orders
+    // of those warehouses will take (null for a product not counted anywhere).
+    private static string Total(string a) => $"COALESCE((SELECT sum(ws.quantity) FROM warehouse_stock ws JOIN warehouses w ON w.tenant_id = ws.tenant_id AND w.id = ws.warehouse_id WHERE ws.tenant_id = {a}.tenant_id AND ws.product_id = {a}.id AND w.status = 'active' AND w.kind = 'company' HAVING count(*) > 0), {a}.stock_qty)";
+    private static string Reserved(string a) => $"CASE WHEN EXISTS (SELECT 1 FROM warehouse_stock x JOIN warehouses xw ON xw.tenant_id = x.tenant_id AND xw.id = x.warehouse_id WHERE x.tenant_id = {a}.tenant_id AND x.product_id = {a}.id AND xw.status = 'active' AND xw.kind = 'company') THEN (SELECT coalesce(sum(oi.quantity), 0) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id JOIN warehouse_stock ws ON ws.tenant_id = o.tenant_id AND ws.warehouse_id = o.warehouse_id AND ws.product_id = oi.product_id WHERE oi.tenant_id = {a}.tenant_id AND oi.product_id = {a}.id AND o.status IN ('placed', 'preparing', 'ready')) END";
+    private static readonly string ProductColumns = $"id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, {Total("products")}, notes, (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = products.tenant_id AND ph.product_id = products.id), scientific_name, available, min_stock, {Reserved("products")}";
 
     public async Task<IReadOnlyList<ProductDto>> ListAsync(TenantId tenantId, bool includeInactive, string? query, CancellationToken cancellationToken)
     {
@@ -291,7 +295,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
             return (CatalogResult.NotFound, null);
 
         var id = Guid.NewGuid();
-        await using (var insert = new NpgsqlCommand("""
+        await using (var insert = new NpgsqlCommand($"""
             INSERT INTO customer_discounts (id, tenant_id, customer_id, product_id, kind, value, valid_from, valid_to, created_by)
             VALUES (@id, @tenant, @customer, @product, @kind, @value, @from, @to, @actor)
             """, connection, transaction))
@@ -327,8 +331,8 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
                 SELECT p.id, p.parent_id, p.kind FROM places p JOIN chain ON p.id = chain.parent_id WHERE p.tenant_id = @tenant
             ),
             city AS (SELECT id FROM chain WHERE kind = 'city' LIMIT 1)
-            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id, p.specialty, p.manufacturer, p.expiry_date, p.stock_qty, p.notes,
-                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id), p.scientific_name, p.available, p.min_stock
+            SELECT p.id, p.code, p.name, p.name_ckb, p.name_ar, p.name_en, p.unit, p.currency, p.base_price, p.status, p.updated_at, cp.price, cp.id, p.specialty, p.manufacturer, p.expiry_date, {Total("p")}, p.notes,
+                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id), p.scientific_name, p.available, p.min_stock, {Reserved("p")}
             FROM products p
             LEFT JOIN LATERAL (
                 SELECT r.id, r.price FROM city_prices r
@@ -376,7 +380,8 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         reader.IsDBNull(extra) ? null : reader.GetString(extra), reader.IsDBNull(extra + 1) ? null : reader.GetString(extra + 1),
         reader.IsDBNull(extra + 2) ? null : reader.GetFieldValue<DateOnly>(extra + 2), reader.IsDBNull(extra + 3) ? null : reader.GetDecimal(extra + 3),
         reader.IsDBNull(extra + 4) ? null : reader.GetString(extra + 4), reader.IsDBNull(extra + 5) ? null : reader.GetString(extra + 5),
-        ScientificName: reader.IsDBNull(extra + 6) ? null : reader.GetString(extra + 6), Available: reader.GetBoolean(extra + 7), MinStock: reader.IsDBNull(extra + 8) ? null : reader.GetDecimal(extra + 8));
+        ScientificName: reader.IsDBNull(extra + 6) ? null : reader.GetString(extra + 6), Available: reader.GetBoolean(extra + 7), MinStock: reader.IsDBNull(extra + 8) ? null : reader.GetDecimal(extra + 8),
+        ReservedQty: reader.IsDBNull(extra + 9) ? null : reader.GetDecimal(extra + 9));
 
     private static void AddFields(NpgsqlCommand command, SaveProductRequest product)
     {

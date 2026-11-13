@@ -21183,6 +21183,15 @@
           "pricesHidden": {
             "type": "boolean",
             "default": false
+          },
+          "stockWarnings": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -25731,6 +25740,15 @@
             ],
             "format": "double"
           },
+          "reservedQty": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
           "inStock": {
             "type": "boolean"
           }
@@ -29136,6 +29154,15 @@
               "string"
             ],
             "format": "double"
+          },
+          "reserved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
           }
         }
       },

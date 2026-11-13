@@ -222,7 +222,8 @@ function NewOrderForm({ admin, onPlaced }: { admin: AdminApi; onPlaced: (message
       }),
     )
     if (!created) return
-    onPlaced(t('web.orders.placed', { number: created.number, total: `${money(created.total)} ${created.currency}` }))
+    const placedText = t('web.orders.placed', { number: created.number, total: `${money(created.total)} ${created.currency}` })
+    onPlaced(created.stockWarnings?.length ? `${placedText} ${t('web.orders.stockWarning', { products: created.stockWarnings.join(', ') })}` : placedText)
     setLines([])
     setNote('')
     setClientRef(crypto.randomUUID())

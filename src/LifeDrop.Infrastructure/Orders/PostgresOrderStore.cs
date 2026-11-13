@@ -100,7 +100,8 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT w.id, w.code, w.name, w.city_id, pl.name, p.id, p.code, p.name, p.unit, coalesce(s.quantity, 0), s.quantity IS NOT NULL, p.expiry_date, p.min_stock
+            SELECT w.id, w.code, w.name, w.city_id, pl.name, p.id, p.code, p.name, p.unit, coalesce(s.quantity, 0), s.quantity IS NOT NULL, p.expiry_date, p.min_stock,
+                   coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id WHERE o.tenant_id = w.tenant_id AND o.warehouse_id = w.id AND oi.product_id = p.id AND o.status IN ('placed', 'preparing', 'ready')), 0)
             FROM warehouses w
             JOIN products p ON p.tenant_id = w.tenant_id
             LEFT JOIN warehouse_stock s ON s.tenant_id = w.tenant_id AND s.warehouse_id = w.id AND s.product_id = p.id
@@ -117,7 +118,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new WarehouseStockDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetGuid(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetDecimal(9), reader.GetBoolean(10),
-                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12)));
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.GetDecimal(13)));
         return items;
     }
 
@@ -177,23 +178,43 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         if (warehouseStatus is null) return (OrderResult.NotFound, null);
         if (warehouseStatus != "active") return (OrderResult.InvalidData, null);
 
-        // Plan step 4.41: a product with a tracked stock (stock_qty not null) is locked, checked and reduced by what the order takes, in a fixed order so that two orders never wait on each other.
+        // A product counted in the chosen warehouse (owner request 2026-11-13): its stock there minus the open orders of that warehouse is what is free; an order for more is
+        // placed anyway and the sender is warned. Such a product does not touch the old single figure below.
+        // Plan step 4.41: any other product with a tracked stock (stock_qty not null) is locked, checked and reduced by what the order takes, in a fixed order so that two orders never wait on each other.
         // Nothing is taken when one line is short (the whole transaction is rolled back); a product without a stock figure is not limited.
+        var warnings = new List<string>();
+        var takenFromLegacy = new HashSet<Guid>();
         foreach (var taken in order.Lines.GroupBy(l => l.ProductId).OrderBy(g => g.Key))
         {
+            var needed = taken.Sum(l => l.Quantity);
+            await using (var counted = new NpgsqlCommand("""
+                SELECT ws.quantity - coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id
+                                               WHERE o.tenant_id = ws.tenant_id AND o.warehouse_id = ws.warehouse_id AND oi.product_id = ws.product_id AND o.status IN ('placed', 'preparing', 'ready')), 0)
+                FROM warehouse_stock ws WHERE ws.tenant_id = @tenant AND ws.warehouse_id = @warehouse AND ws.product_id = @product
+                """, connection, transaction))
+            {
+                counted.Parameters.AddWithValue("tenant", tenantId.Value);
+                counted.Parameters.AddWithValue("warehouse", order.WarehouseId);
+                counted.Parameters.AddWithValue("product", taken.Key);
+                if (await counted.ExecuteScalarAsync(cancellationToken) is decimal free)
+                {
+                    if (free < needed) warnings.Add(taken.First().ProductCode);
+                    continue;
+                }
+            }
             await using var stock = new NpgsqlCommand("SELECT stock_qty FROM products WHERE tenant_id = @tenant AND id = @product FOR UPDATE", connection, transaction);
             stock.Parameters.AddWithValue("tenant", tenantId.Value);
             stock.Parameters.AddWithValue("product", taken.Key);
             var available = await stock.ExecuteScalarAsync(cancellationToken);
             if (available is decimal quantity)
             {
-                var needed = taken.Sum(l => l.Quantity);
                 if (quantity < needed) return (OrderResult.OutOfStock, null);
                 await using var reduce = new NpgsqlCommand("UPDATE products SET stock_qty = stock_qty - @needed, updated_at = now() WHERE tenant_id = @tenant AND id = @product", connection, transaction);
                 reduce.Parameters.AddWithValue("tenant", tenantId.Value);
                 reduce.Parameters.AddWithValue("product", taken.Key);
                 reduce.Parameters.AddWithValue("needed", needed);
                 await reduce.ExecuteNonQueryAsync(cancellationToken);
+                takenFromLegacy.Add(taken.Key);
             }
         }
 
@@ -234,8 +255,8 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             {
                 lineNo++;
                 await using var item = new NpgsqlCommand("""
-                    INSERT INTO order_items (tenant_id, order_id, line_no, product_id, product_code, product_name, unit, quantity, list_price, unit_price, line_total, discounts)
-                    VALUES (@tenant, @order, @line, @product, @code, @name, @unit, @quantity, @list, @price, @total, @discounts::jsonb)
+                    INSERT INTO order_items (tenant_id, order_id, line_no, product_id, product_code, product_name, unit, quantity, list_price, unit_price, line_total, discounts, legacy_stock_taken)
+                    VALUES (@tenant, @order, @line, @product, @code, @name, @unit, @quantity, @list, @price, @total, @discounts::jsonb, @legacy)
                     """, connection, transaction);
                 item.Parameters.AddWithValue("tenant", tenantId.Value);
                 item.Parameters.AddWithValue("order", id);
@@ -249,6 +270,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
                 item.Parameters.AddWithValue("price", line.UnitPrice);
                 item.Parameters.AddWithValue("total", line.LineTotal);
                 item.Parameters.AddWithValue("discounts", JsonSerializer.Serialize(line.Discounts, Json));
+                item.Parameters.AddWithValue("legacy", takenFromLegacy.Contains(line.ProductId));
                 await item.ExecuteNonQueryAsync(cancellationToken);
             }
         }
@@ -260,7 +282,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await AddHistoryAsync(connection, transaction, tenantId, id, "placed", actorId, null, cancellationToken);
         await AuditAsync(connection, transaction, tenantId, actorId, "order.created", id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return (OrderResult.Success, new CreatedOrderDto(id, FormatNumber(number), order.Currency, order.Total, false));
+        return (OrderResult.Success, new CreatedOrderDto(id, FormatNumber(number), order.Currency, order.Total, false, StockWarnings: warnings.Count > 0 ? warnings : null));
     }
 
     // Tenant: all; region: the customers of the region, the ones the user owns and the orders the user placed; own: the user's own orders and customers.
@@ -424,7 +446,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         // Plan step 4.41: what the order took from a tracked stock goes back.
         await using (var restore = new NpgsqlCommand("""
             UPDATE products p SET stock_qty = p.stock_qty + t.qty, updated_at = now()
-            FROM (SELECT product_id, sum(quantity) AS qty FROM order_items WHERE tenant_id = @tenant AND order_id = @id GROUP BY product_id) t
+            FROM (SELECT product_id, sum(quantity) AS qty FROM order_items WHERE tenant_id = @tenant AND order_id = @id AND legacy_stock_taken GROUP BY product_id) t
             WHERE p.tenant_id = @tenant AND p.id = t.product_id AND p.stock_qty IS NOT NULL
             """, connection, transaction))
         {
@@ -642,7 +664,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             SELECT 1 FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
             WHERE ur.tenant_id = @tenant AND ur.user_id = @id AND r.name = 'Driver'
             """, tenantId, driverId, cancellationToken)) return OrderResult.InvalidData;
-        await using (var update = new NpgsqlCommand("UPDATE orders SET status = 'handed_over', driver_id = @driver WHERE tenant_id = @tenant AND id = @id", connection, transaction))
+        await using (var update = new NpgsqlCommand("UPDATE orders SET status = 'handed_over', stock_left_warehouse = true, driver_id = @driver WHERE tenant_id = @tenant AND id = @id", connection, transaction))
         {
             update.Parameters.AddWithValue("driver", driverId);
             update.Parameters.AddWithValue("tenant", tenantId.Value);
@@ -824,6 +846,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             order.Parameters.AddWithValue("id", orderId);
             await order.ExecuteNonQueryAsync(cancellationToken);
         }
+        if (shortage) await ReturnStockAsync(connection, transaction, tenantId, actorId, orderId, cancellationToken);
         await AddHistoryAsync(connection, transaction, tenantId, orderId, "delivered", actorId, shortage ? "shortage" : null, cancellationToken, location);
         await AuditAsync(connection, transaction, tenantId, actorId, "order.delivered", orderId, cancellationToken);
         if (shortage) await AuditAsync(connection, transaction, tenantId, actorId, "order.delivery_shortage", orderId, cancellationToken);
@@ -845,10 +868,34 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             update.Parameters.AddWithValue("id", orderId);
             await update.ExecuteNonQueryAsync(cancellationToken);
         }
+        await ReturnStockAsync(connection, transaction, tenantId, actorId, orderId, cancellationToken);
         await AddHistoryAsync(connection, transaction, tenantId, orderId, "delivery_failed", actorId, reason, cancellationToken, location);
         await AuditAsync(connection, transaction, tenantId, actorId, "order.delivery_failed", orderId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return OrderResult.Success;
+    }
+
+    // The goods that were taken off the warehouse at hand-over and did not reach the customer (everything when the delivery failed, the difference when it was short) go back
+    // to the warehouse's counted stock, once. Orders handed over before this existed (stock_left_warehouse false) add nothing.
+    private static async Task ReturnStockAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, Guid orderId, CancellationToken cancellationToken)
+    {
+        await using (var back = new NpgsqlCommand("""
+            UPDATE warehouse_stock s SET quantity = s.quantity + i.q, updated_at = now(), updated_by = @actor
+            FROM (SELECT product_id, sum(coalesce(prepared_quantity, quantity) - coalesce(delivered_quantity, 0)) AS q FROM order_items WHERE tenant_id = @tenant AND order_id = @id GROUP BY product_id) i,
+                 orders o
+            WHERE o.tenant_id = @tenant AND o.id = @id AND o.stock_left_warehouse AND i.q > 0
+              AND s.tenant_id = @tenant AND s.product_id = i.product_id AND s.warehouse_id = o.warehouse_id
+            """, connection, transaction))
+        {
+            back.Parameters.AddWithValue("actor", actorId.Value);
+            back.Parameters.AddWithValue("tenant", tenantId.Value);
+            back.Parameters.AddWithValue("id", orderId);
+            await back.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using var done = new NpgsqlCommand("UPDATE orders SET stock_left_warehouse = false WHERE tenant_id = @tenant AND id = @id", connection, transaction);
+        done.Parameters.AddWithValue("tenant", tenantId.Value);
+        done.Parameters.AddWithValue("id", orderId);
+        await done.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<bool> HasPlacedOrderForVisitAsync(TenantId tenantId, Guid visitId, CancellationToken cancellationToken)

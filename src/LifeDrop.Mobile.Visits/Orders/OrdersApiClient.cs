@@ -24,7 +24,7 @@ public sealed record PricedProduct(Guid ProductId, string Code, string Name, str
 }
 
 // Replayed: the server had this order already (a retry of a lost answer).
-public sealed record PlacedOrder(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool PricesHidden = false);
+public sealed record PlacedOrder(Guid Id, string Number, string Currency, decimal Total, bool Replayed, bool PricesHidden = false, IReadOnlyList<string>? StockWarnings = null);
 
 public sealed record OrderLineInput(Guid ProductId, decimal Quantity);
 
@@ -75,7 +75,7 @@ public sealed class OrdersApiClient : IOrdersApiClient
         if (result != VisitActionResult.Success) return (result, null);
         return dto is null || dto.Id == Guid.Empty || string.IsNullOrWhiteSpace(dto.Number)
             ? (VisitActionResult.ServerError, null)
-            : (result, new PlacedOrder(dto.Id, dto.Number, dto.Currency ?? "", dto.Total, dto.Replayed, dto.PricesHidden));
+            : (result, new PlacedOrder(dto.Id, dto.Number, dto.Currency ?? "", dto.Total, dto.Replayed, dto.PricesHidden, dto.StockWarnings));
     }
 
     private Task<(VisitActionResult Result, T? Data)> CallAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
@@ -83,5 +83,5 @@ public sealed class OrdersApiClient : IOrdersApiClient
 
     private sealed record WarehouseDto(Guid Id, string? Code, string? Name);
     private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price, bool PricesHidden, bool Available = true);
-    private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed, bool PricesHidden);
+    private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed, bool PricesHidden, List<string>? StockWarnings = null);
 }
