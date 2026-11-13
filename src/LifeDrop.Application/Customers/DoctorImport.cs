@@ -92,8 +92,9 @@ public sealed class DoctorImport(IDoctorImportStore store, IPermissionStore perm
         if (specialty is not null && !DoctorSpecialties.Keys.Contains(specialty)) errors.Add(new DoctorImportError(number, "specialty", "invalid"));
         var customerClass = Text(row.CustomerClass)?.ToUpperInvariant();
         if (customerClass is not null && !DoctorSpecialties.Classes.Contains(customerClass)) errors.Add(new DoctorImportError(number, "class", "invalid"));
-        var phone = Limited(row.Phone, "phone", 40);
-        var phone2 = Limited(row.Phone2, "phone2", 40);
+        // One mobile / WhatsApp number per customer: a file that still has a second one fills the first when that is empty.
+        var phone = Limited(row.Phone, "phone", 40) ?? Limited(row.Phone2, "phone2", 40);
+        string? phone2 = null;
         var city = Limited(row.City, "city", 100);
         var neighbourhood = Limited(row.Neighbourhood, "neighbourhood", 100);
         var street = Limited(row.Street, "street", 100);

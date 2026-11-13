@@ -86,6 +86,7 @@
     <None Include="../../db/migrations/0068_user_phone.sql" Link="0068_user_phone.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0069_customer_created_by.sql" Link="0069_customer_created_by.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0070_feedback.sql" Link="0070_feedback.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0071_merge_customer_phones.sql" Link="0071_merge_customer_phones.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

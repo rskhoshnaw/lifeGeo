@@ -40,7 +40,7 @@
             </Border>
 
             <!-- Module Cards Grid -->
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+            <Grid x:Name="CardsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                   ColumnSpacing="12" RowSpacing="12" Padding="16,20,16,8">
 
                 <Border Grid.Row="0" Grid.Column="0" StrokeThickness="1"

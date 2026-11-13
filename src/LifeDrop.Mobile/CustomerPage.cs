@@ -22,7 +22,6 @@ public sealed class CustomerPage : ContentPage
     private readonly Entry _phone = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _address = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 300, HeightRequest = 80 };
     private readonly Entry _contactName = new() { MaxLength = 100 };
-    private readonly Entry _phone2 = new() { Keyboard = Keyboard.Telephone, MaxLength = 40 };
     private readonly Editor _notes = new() { AutoSize = EditorAutoSizeOption.TextChanges, MaxLength = 500, HeightRequest = 80 };
     private readonly PlacePickerView _places = new();
     private readonly Button _save = new();
@@ -47,7 +46,6 @@ public sealed class CustomerPage : ContentPage
         _phone.Placeholder = Texts.Get("app.customer.phone");
         _address.Placeholder = Texts.Get("app.customer.address");
         _contactName.Placeholder = Texts.Get("app.customer.contactName");
-        _phone2.Placeholder = Texts.Get("app.customer.phone2");
         _notes.Placeholder = Texts.Get("app.customer.notes");
         _save.Text = Texts.Get("app.customer.save");
         _save.Clicked += async (_, _) => await SaveAsync();
@@ -82,7 +80,7 @@ public sealed class CustomerPage : ContentPage
                 Children =
                 {
                     _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", new PhoneWithWhatsApp(_phone)), new CaptionedField("app.customer.address", _address),
-                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.phone2", new PhoneWithWhatsApp(_phone2)), new CaptionedField("app.customer.notes", _notes), _flags,
+                    new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.notes", _notes), _flags,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
                     _places, _save, _setLocation, _history, _order, _payment, _sample, _followUp, _spinner, _message
                 }
@@ -131,7 +129,6 @@ public sealed class CustomerPage : ContentPage
             _phone.Text = customer.Phone;
             _address.Text = customer.Address;
             _contactName.Text = customer.ContactName;
-            _phone2.Text = customer.Phone2;
             _notes.Text = customer.Notes;
             await _places.LoadAsync(api, customer.PlacePath, cts.Token);
             _save.IsEnabled = _setLocation.IsEnabled = true;
@@ -156,7 +153,7 @@ public sealed class CustomerPage : ContentPage
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var result = await api.SetProfileAsync(_customerId, _phone.Text, _address.Text, _places.PlaceId, cts.Token);
             if (result == VisitActionResult.Success)
-                result = await api.SetContactAsync(_customerId, _contactName.Text, _phone2.Text, _notes.Text, cts.Token);
+                result = await api.SetContactAsync(_customerId, _contactName.Text, null, _notes.Text, cts.Token);
             // A doctor: the name (only when it changed) and the doctor fields.
             if (result == VisitActionResult.Success && _profile is { } profile && NewCustomerFlow.IsDoctor(profile.Type))
             {
@@ -238,7 +235,7 @@ public sealed class CustomerPage : ContentPage
     {
         _spinner.IsVisible = _spinner.IsRunning = busy;
         _save.IsEnabled = _setLocation.IsEnabled = _loaded && !busy;
-        _phone.IsEnabled = _address.IsEnabled = _contactName.IsEnabled = _phone2.IsEnabled = _notes.IsEnabled = !busy;
+        _phone.IsEnabled = _address.IsEnabled = _contactName.IsEnabled = _notes.IsEnabled = !busy;
         _places.SetEnabled(!busy);
         if (busy) _message.IsVisible = false;
     }

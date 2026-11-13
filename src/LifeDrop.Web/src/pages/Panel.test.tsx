@@ -1210,7 +1210,7 @@ describe('panel management screens', () => {
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Customers' }))
     await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
-    expect(await screen.findByRole('textbox', { name: 'Phone' })).toHaveValue('0750')
+    expect(await screen.findByRole('textbox', { name: 'Mobile / WhatsApp' })).toHaveValue('0750')
     // The saved place and every level above it are chosen; one more list offers what is below the street
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Alley' })).toHaveValue(''))
     expect(screen.getByRole('combobox', { name: 'City' })).toHaveValue('ci')
@@ -1324,7 +1324,7 @@ describe('panel management screens', () => {
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Customers' }))
     await user.click(await screen.findByRole('button', { name: 'Profile P-1' }))
-    expect(await screen.findByRole('textbox', { name: 'Phone' })).toBeDisabled()
+    expect(await screen.findByRole('textbox', { name: 'Mobile / WhatsApp' })).toBeDisabled()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'City' })).toBeDisabled())
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })

@@ -13,7 +13,6 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
   const [phone, setPhone] = useState(customer.phone ?? '')
   const [address, setAddress] = useState(customer.address ?? '')
   const [contactName, setContactName] = useState(customer.contactName ?? '')
-  const [phone2, setPhone2] = useState(customer.phone2 ?? '')
   const [notes, setNotes] = useState(customer.notes ?? '')
   const [path, setPath] = useState<string[]>((customer.placePath ?? []).map((p) => p.id))
   const action = useAction(onClose)
@@ -23,8 +22,8 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
   // The contact details have their own route, so it is only called when one of them changed.
   async function save() {
     await admin.setCustomerProfile(customer.id, { phone: phone.trim() || null, address: address.trim() || null, placeId })
-    const contact = { contactName: contactName.trim() || null, phone2: phone2.trim() || null, notes: notes.trim() || null }
-    if (contact.contactName !== (customer.contactName ?? null) || contact.phone2 !== (customer.phone2 ?? null) || contact.notes !== (customer.notes ?? null)) {
+    const contact = { contactName: contactName.trim() || null, phone2: null, notes: notes.trim() || null }
+    if (contact.contactName !== (customer.contactName ?? null) || customer.phone2 != null || contact.notes !== (customer.notes ?? null)) {
       await admin.setCustomerContact(customer.id, contact)
     }
   }
@@ -41,8 +40,6 @@ export function CustomerProfileEditor({ admin, customer, canEdit, onClose }: { a
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <input aria-label={t('web.customers.contactName')} placeholder={t('web.customers.contactName')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={100} value={contactName} onChange={(e) => setContactName(e.target.value)} />
-        <input aria-label={t('web.customers.phone2')} placeholder={t('web.customers.phone2')} className="rounded border px-2 py-1" disabled={!canEdit} maxLength={40} value={phone2} onChange={(e) => setPhone2(e.target.value)} />
-        <WhatsAppLink phone={phone2} />
         <input aria-label={t('web.customers.notes')} placeholder={t('web.customers.notes')} className="min-w-64 flex-1 rounded border px-2 py-1" disabled={!canEdit} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">

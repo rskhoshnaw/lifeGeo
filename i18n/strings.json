@@ -2244,10 +2244,10 @@
   "fa": "پروفایل {customer}"
  },
  "web.customers.phone": {
-  "en": "Phone",
-  "ckb": "تەلەفۆن",
-  "ar": "الهاتف",
-  "fa": "تلفن"
+  "en": "Mobile / WhatsApp",
+  "ckb": "مۆبایل / واتساپ",
+  "ar": "الجوال / واتساب",
+  "fa": "موبایل / واتساپ"
  },
  "web.customers.address": {
   "en": "Address note",
@@ -2424,10 +2424,10 @@
   "fa": "نوع"
  },
  "app.customer.phone": {
-  "en": "Phone",
-  "ckb": "تەلەفۆن",
-  "ar": "الهاتف",
-  "fa": "تلفن"
+  "en": "Mobile / WhatsApp",
+  "ckb": "مۆبایل / واتساپ",
+  "ar": "الجوال / واتساب",
+  "fa": "موبایل / واتساپ"
  },
  "app.customer.address": {
   "en": "Address note",
