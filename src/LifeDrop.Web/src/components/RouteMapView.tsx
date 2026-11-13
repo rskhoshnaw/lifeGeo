@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
-import type { RoutePoint, RouteStop, RouteVisitEvent } from '../api/admin.ts'
+import type { MapCustomer, RoutePoint, RouteStop, RouteVisitEvent } from '../api/admin.ts'
+import { circlePolygon } from '../api/geo.ts'
 import { t } from '../i18n.ts'
 
 import { loadMapLibre, mapStyle } from './mapStyle.ts'
@@ -13,7 +14,7 @@ type MapLibre = typeof import('maplibre-gl')
 export type RouteFocus = { kind: 'stop' | 'event'; index: number; seq: number }
 // groups (plan step 5.24): the line of each shift of the day in its own colour; without it the points are one blue line.
 export type RouteGroup = { id: string; label: number; color: string; points: RoutePoint[] }
-export function RouteMapView({ points, stops, events, index, focus = null, groups }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number; focus?: RouteFocus | null; groups?: RouteGroup[] }) {
+export function RouteMapView({ points, stops, events, index, focus = null, groups, customers = [] }: { points: RoutePoint[]; stops: RouteStop[]; events: RouteVisitEvent[]; index: number; focus?: RouteFocus | null; groups?: RouteGroup[]; customers?: MapCustomer[] }) {
   const container = useRef<HTMLDivElement>(null)
   const markers = useRef<Marker[]>([])
   const stopMarkers = useRef<Marker[]>([])
@@ -89,6 +90,34 @@ export function RouteMapView({ points, stops, events, index, focus = null, group
       map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 })
     }
   }, [loaded, points, stops, events, groups])
+
+  // The customers of the user's area as blue dots with the check-in circle when zoomed in (as on the live map), so the route shows whether the user
+  // went to customers or elsewhere. A click on a dot shows its name.
+  useEffect(() => {
+    if (!loaded) return
+    const { lib, map } = loaded
+    const dots = { type: 'FeatureCollection' as const, features: customers.map((c) => ({ type: 'Feature' as const, properties: { name: `${c.code} · ${c.name}` }, geometry: { type: 'Point' as const, coordinates: [c.longitude, c.latitude] } })) }
+    const circles = { type: 'FeatureCollection' as const, features: customers.map((c) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Polygon' as const, coordinates: circlePolygon(c.latitude, c.longitude, c.geofenceRadiusMeters) } })) }
+    const apply = () => {
+      const source = map.getSource('route-customers') as GeoJSONSource | undefined
+      if (source) {
+        source.setData(dots)
+        ;(map.getSource('route-geofences') as GeoJSONSource).setData(circles)
+        return
+      }
+      map.addSource('route-customers', { type: 'geojson', data: dots })
+      map.addSource('route-geofences', { type: 'geojson', data: circles })
+      map.addLayer({ id: 'route-geofences-fill', type: 'fill', source: 'route-geofences', minzoom: 14, paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.12 } })
+      map.addLayer({ id: 'route-geofences-line', type: 'line', source: 'route-geofences', minzoom: 14, paint: { 'line-color': '#2563eb', 'line-width': 1 } })
+      map.addLayer({ id: 'route-customer-points', type: 'circle', source: 'route-customers', paint: { 'circle-color': '#2563eb', 'circle-radius': 6, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } })
+      map.on('click', 'route-customer-points', (e) => {
+        const feature = e.features?.[0]
+        if (feature && feature.geometry.type === 'Point') new lib.Popup().setLngLat(feature.geometry.coordinates as [number, number]).setText(String(feature.properties?.name ?? '')).addTo(map)
+      })
+    }
+    if (map.loaded()) apply()
+    else map.once('load', apply)
+  }, [loaded, customers])
 
   // A click on a stop or a visit in the lists: fly there and show its name.
   useEffect(() => {

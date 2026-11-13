@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AdminApi, iraqToday, type TrackableUser } from '../api/admin.ts'
+import { AdminApi, iraqToday, type MapCustomer, type TrackableUser } from '../api/admin.ts'
 import { formatDuration, nextIndex } from '../api/geo.ts'
 import { useLoad } from '../components/useLoad.ts'
 import { RouteMapView, type RouteFocus } from '../components/RouteMapView.tsx'
@@ -17,6 +17,11 @@ const minutes = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hou
 export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
   const users = useLoad(useCallback(() => admin.trackingUsers(), [admin]))
   const [user, setUser] = useState('')
+  // The customers of the reader's area on the map (as on the live map); the route works when the reader may not read customers.
+  const [customers, setCustomers] = useState<MapCustomer[]>([])
+  useEffect(() => {
+    admin.mapCustomers().then(setCustomers, () => setCustomers([]))
+  }, [admin])
   const [date, setDate] = useState(iraqToday())
   const [focus, setFocus] = useState<RouteFocus | null>(null)
   const [month, setMonth] = useState(`${iraqToday().slice(0, 7)}-01`)
@@ -117,7 +122,7 @@ export function RouteHistoryPage({ admin }: { admin: AdminApi }) {
       {route && count === 0 && <p className="text-slate-600">{t('web.route.nopoints')}</p>}
       {route && count > 0 && (
         <>
-          <RouteMapView points={view!.points} stops={view!.stops} events={view!.events} index={index} focus={focus} groups={view!.groups} />
+          <RouteMapView points={view!.points} stops={view!.stops} events={view!.events} index={index} focus={focus} groups={view!.groups} customers={customers} />
           <p className="text-xs text-slate-600">{t('web.route.legend')}</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <button className="rounded border px-3 py-1" onClick={() => (index >= count - 1 ? (setIndex(0), setPlaying(true)) : setPlaying(!playing))}>
