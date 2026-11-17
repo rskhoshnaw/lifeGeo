@@ -13,10 +13,10 @@ function server(me: Me, data: Record<string, unknown>, posts: Record<string, Res
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input).replace('https://api.test', '')
     const method = init?.method ?? 'GET'
-    calls.push({ method, path, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    calls.push({ method, path, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined })
     if (path === '/auth/refresh') return json({ accessToken: 'a', refreshToken: 'r', tokenType: 'Bearer', expiresAt: '', refreshExpiresAt: '' })
     if (path === '/me') return json(me)
-    if (method !== 'GET') return posts[path] ?? new Response(null, { status: 204 })
+    if (method !== 'GET') return posts[path]?.clone() ?? new Response(null, { status: 204 })
     return path in data ? json(data[path]) : json({ code: 'NOT_FOUND' }, 404)
   }) as typeof fetch
   sessionStorage.clear()
@@ -474,7 +474,7 @@ describe('panel management screens', () => {
       '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
       '/customers/c1/discounts': [discount],
       '/customers/c1/prices?date=2026-10-06': [{ productId: 'pr1', code: 'PAR-500', name: 'Paracetamol 500', unit: 'box', currency: 'IQD', listPrice: 1800, listSource: 'city', discounts: [{ id: 'd1', kind: 'percent', value: 10, productId: null }], price: 1620 }],
-    })
+    }, { '/products': json({ id: 'np1' }, 201) })
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Products' }))
@@ -492,6 +492,19 @@ describe('panel management screens', () => {
     await waitFor(() => expect(posts(calls)).toHaveLength(1))
     expect(posts(calls)[0]).toEqual({ method: 'POST', path: '/products', body: { code: 'AMX-250', name: 'Amoxicillin 250', nameCkb: null, nameAr: null, nameEn: null, unit: 'box', currency: 'USD', basePrice: 3.5, status: 'active' } })
 
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save product' })).not.toBeInTheDocument())   // the first form is closed
+    // A new product with a photo and details: they are saved right after it is created (the server answers with its id)
+    await user.click(screen.getByRole('button', { name: 'New product' }))
+    await user.type(screen.getByLabelText('Code'), 'IBU-400')
+    await user.type(screen.getByLabelText('Name'), 'Ibuprofen 400')
+    await user.type(screen.getByLabelText('Unit'), 'box')
+    await user.type(screen.getByLabelText('Base price'), '2')
+    await user.type(screen.getByLabelText('Scientific name'), ' Ibuprofen ')
+    await user.upload(screen.getByLabelText(/^Photo/, { selector: 'input' }), new File(['x'], 'p.png', { type: 'image/png' }))
+    await user.click(screen.getByRole('button', { name: 'Save product' }))
+    await waitFor(() => expect(JSON.stringify(calls.filter((c) => c.method !== 'GET').map((c) => c.method + ' ' + c.path))).toContain('PUT /products/np1/photo'))
+    expect(calls.find((c) => c.path === '/products/np1/details')?.body).toMatchObject({ scientificName: 'Ibuprofen', available: true })
+
     // City prices of a product: end one, add one for a city (no start day = today on the server)
     await user.click(screen.getByRole('button', { name: 'City prices of PAR-500' }))
     expect(await screen.findByText('Erbil', { selector: 'td' })).toBeInTheDocument()
@@ -499,9 +512,9 @@ describe('panel management screens', () => {
     await user.selectOptions(await screen.findByLabelText('City', { selector: 'select' }), 'p1')
     await user.type(screen.getByLabelText('Price'), '1750')
     await user.click(screen.getByRole('button', { name: 'Add rule' }))
-    await waitFor(() => expect(posts(calls)).toHaveLength(3))
+    await waitFor(() => expect(posts(calls)).toHaveLength(6))
     expect(prompt).toHaveBeenCalledTimes(1)
-    expect(posts(calls).slice(1)).toEqual([
+    expect(posts(calls).slice(4)).toEqual([
       { method: 'POST', path: '/city-prices/cp1/end', body: { validTo: '2026-12-31' } },
       { method: 'POST', path: '/products/pr1/city-prices', body: { cityId: 'p1', price: 1750, validFrom: null, validTo: null } },
     ])
@@ -518,8 +531,8 @@ describe('panel management screens', () => {
     await user.type(screen.getByLabelText('Value'), '5')
     await user.click(screen.getByRole('button', { name: 'Add discount' }))
     await user.click(await screen.findByRole('button', { name: 'End discount -10%' }))
-    await waitFor(() => expect(posts(calls)).toHaveLength(5))
-    expect(posts(calls).slice(3)).toEqual([
+    await waitFor(() => expect(posts(calls)).toHaveLength(8))
+    expect(posts(calls).slice(6)).toEqual([
       { method: 'POST', path: '/customers/c1/discounts', body: { productId: null, kind: 'percent', value: 5, validFrom: null, validTo: null } },
       { method: 'POST', path: '/discounts/d1/end', body: { validTo: '2026-12-31' } },
     ])
