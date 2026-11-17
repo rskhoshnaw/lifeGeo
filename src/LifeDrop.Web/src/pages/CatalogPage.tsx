@@ -150,15 +150,23 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       unit: unit.trim(), currency, basePrice: Number(price), status,
     }
     void action.run(async () => {
-      if (!product) return admin.createProduct({ ...input, code: code.trim() })
-      await admin.updateProduct(product.id, input)
-      await admin.setProductDetails(product.id, {
+      let id = product?.id
+      if (product) await admin.updateProduct(product.id, input)
+      else {
+        // A new product: when a photo or any detail was filled in, they are saved right after it is created.
+        const created = await admin.createProduct({ ...input, code: code.trim() })
+        const extras = photo !== null || specialty !== '' || scientific.trim() !== '' || maker.trim() !== '' || expiry !== '' || stock.trim() !== '' || notes.trim() !== '' || minStock.trim() !== '' || !available
+        if (!extras || !created.id) return
+        id = created.id
+      }
+      if (!id) return
+      await admin.setProductDetails(id, {
         specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
         stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null, scientificName: scientific.trim() || null,
         available, minStock: minStock.trim() === '' ? null : Number(minStock),
       })
-      if (photo) await admin.setProductPhoto(product.id, photo)
-      else if (dropPhoto && product.photoKey) await admin.removeProductPhoto(product.id)
+      if (photo) await admin.setProductPhoto(id, photo)
+      else if (dropPhoto && product?.photoKey) await admin.removeProductPhoto(id)
     })
   }
 
@@ -173,42 +181,40 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         <input aria-label={t('web.catalog.nameAr')} placeholder={t('web.catalog.nameAr')} className={field} maxLength={160} value={ar} onChange={(e) => setAr(e.target.value)} />
         <input aria-label={t('web.catalog.nameEn')} placeholder={t('web.catalog.nameEn')} className={field} maxLength={160} value={en} onChange={(e) => setEn(e.target.value)} />
       </div>
-      {product && (
-        <div className="flex flex-wrap items-center gap-2">
-          <select aria-label={t('web.catalog.specialty')} className={field} value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
-            <option value="">{t('web.catalog.specialty')}</option>
-            {doctorSpecialties.map((x) => (
-              <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
-            ))}
-          </select>
-          <label className="flex items-center gap-1" title={t('web.catalog.availableHint')}>
-            <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
-            {t('web.catalog.available')}
-          </label>
-          <input aria-label={t('web.catalog.minStock')} placeholder={t('web.catalog.minStock')} type="number" min={0} step="any" className={field} value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-          <input aria-label={t('web.catalog.scientificName')} placeholder={t('web.catalog.scientificName')} className={`${field} min-w-56`} maxLength={150} value={scientific} onChange={(e) => setScientific(e.target.value)} />
-          <input aria-label={t('web.catalog.manufacturer')} placeholder={t('web.catalog.manufacturer')} className={field} maxLength={100} value={maker} onChange={(e) => setMaker(e.target.value)} />
-          <label className="flex items-center gap-1">
-            {t('web.catalog.expiry')}
-            <input type="date" className={field} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
-          </label>
-          <input aria-label={t('web.catalog.stock')} placeholder={t('web.catalog.stockHint')} type="number" min={0} step="any" className={field} value={stock} onChange={(e) => setStock(e.target.value)} />
-          <label className="flex items-center gap-1">
-            {t('web.catalog.photo')}
-            <input type="file" accept="image/jpeg,image/png,image/webp" aria-label={t('web.catalog.photo')} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-          </label>
-          {product.photoKey && (
-            <>
-              <img src={admin.productPhotoUrl(product.photoKey)} alt={product.name} className="h-12 w-12 rounded border object-cover" />
-              <label className="flex items-center gap-1">
-                <input type="checkbox" checked={dropPhoto} onChange={(e) => setDropPhoto(e.target.checked)} />
-                {t('web.catalog.removePhoto')}
-              </label>
-            </>
-          )}
-          <input aria-label={t('web.catalog.notes')} placeholder={t('web.catalog.notes')} className={`${field} min-w-56 flex-1`} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <select aria-label={t('web.catalog.specialty')} className={field} value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
+          <option value="">{t('web.catalog.specialty')}</option>
+          {doctorSpecialties.map((x) => (
+            <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
+          ))}
+        </select>
+        <label className="flex items-center gap-1" title={t('web.catalog.availableHint')}>
+          <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+          {t('web.catalog.available')}
+        </label>
+        <input aria-label={t('web.catalog.minStock')} placeholder={t('web.catalog.minStock')} type="number" min={0} step="any" className={field} value={minStock} onChange={(e) => setMinStock(e.target.value)} />
+        <input aria-label={t('web.catalog.scientificName')} placeholder={t('web.catalog.scientificName')} className={`${field} min-w-56`} maxLength={150} value={scientific} onChange={(e) => setScientific(e.target.value)} />
+        <input aria-label={t('web.catalog.manufacturer')} placeholder={t('web.catalog.manufacturer')} className={field} maxLength={100} value={maker} onChange={(e) => setMaker(e.target.value)} />
+        <label className="flex items-center gap-1">
+          {t('web.catalog.expiry')}
+          <input type="date" className={field} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+        </label>
+        <input aria-label={t('web.catalog.stock')} placeholder={t('web.catalog.stockHint')} type="number" min={0} step="any" className={field} value={stock} onChange={(e) => setStock(e.target.value)} />
+        <label className="flex items-center gap-1">
+          {t('web.catalog.photo')}
+          <input type="file" accept="image/jpeg,image/png,image/webp" aria-label={t('web.catalog.photo')} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+        </label>
+        {product?.photoKey && (
+          <>
+            <img src={admin.productPhotoUrl(product.photoKey)} alt={product.name} className="h-12 w-12 rounded border object-cover" />
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={dropPhoto} onChange={(e) => setDropPhoto(e.target.checked)} />
+              {t('web.catalog.removePhoto')}
+            </label>
+          </>
+        )}
+        <input aria-label={t('web.catalog.notes')} placeholder={t('web.catalog.notes')} className={`${field} min-w-56 flex-1`} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.catalog.unit')} placeholder={t('web.catalog.unit')} className={field} maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} />
         <select aria-label={t('web.catalog.currency')} className={field} value={currency} onChange={(e) => setCurrency(e.target.value as 'IQD' | 'USD')}>

@@ -1293,7 +1293,16 @@ export class AdminApi {
   // Products and prices (step 2.1).
   products = (includeInactive: boolean, search = '') =>
     this.get<Product[]>(`/products?${includeInactive ? 'includeInactive=true&' : ''}${search ? `q=${encodeURIComponent(search)}` : ''}`)
-  createProduct = (product: ProductInput) => this.post('/products', product)
+  // Returns the id of the new product (empty when the server sent no body), so the photo and details can be saved at once.
+  createProduct = async (product: ProductInput): Promise<{ id?: string }> => {
+    const response = await this.api.request('/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product) })
+    if (!response.ok) throw await toError(response)
+    try {
+      return (await response.json()) as { id?: string }
+    } catch {
+      return {}
+    }
+  }
   productPhotoUrl = (key: string) => this.api.publicUrl(`/product-photos/${key}`)
   setCityHidePrices = (id: string, hidePrices: boolean) => this.send('PUT', `/places/${id}/hide-prices`, { hidePrices })
   setRegionHidePrices = (id: string, hidePrices: boolean) => this.send('PUT', `/regions/${id}/hide-prices`, { hidePrices })
