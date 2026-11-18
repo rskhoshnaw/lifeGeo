@@ -18,8 +18,7 @@ public sealed record PricedProduct(Guid ProductId, string Code, string Name, str
 {
     public string DisplayName(string language)
     {
-        var name = language switch { "ckb" => NameCkb, "ar" => NameAr, "en" => NameEn, _ => null };
-        return string.IsNullOrWhiteSpace(name) ? Name : name;
+        return Name;   // only the name is shown (owner decision 2026-11-18): the names in other languages are no longer used
     }
 }
 

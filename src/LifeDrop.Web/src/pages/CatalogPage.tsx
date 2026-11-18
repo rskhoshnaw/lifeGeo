@@ -119,12 +119,13 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   )
 }
 
+// The units of a product (owner decision 2026-11-18); the English word is what is stored, the list shows it in the panel language. A unit an older product already has stays selectable.
+const productUnits = ['box', 'strip', 'bottle', 'vial', 'ampoule', 'tube', 'sachet', 'pack', 'carton', 'piece'] as const
+type ProductUnit = (typeof productUnits)[number]
+
 function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Product | null; onDone: () => void }) {
   const [code, setCode] = useState(product?.code ?? '')
   const [name, setName] = useState(product?.name ?? '')
-  const [ckb, setCkb] = useState(product?.nameCkb ?? '')
-  const [ar, setAr] = useState(product?.nameAr ?? '')
-  const [en, setEn] = useState(product?.nameEn ?? '')
   const [unit, setUnit] = useState(product?.unit ?? '')
   const [currency, setCurrency] = useState<'IQD' | 'USD'>(product?.currency ?? 'IQD')
   const [price, setPrice] = useState(product ? String(product.basePrice) : '')
@@ -146,7 +147,8 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   function submit(e: FormEvent) {
     e.preventDefault()
     const input: ProductInput = {
-      name: name.trim(), nameCkb: ckb.trim() || null, nameAr: ar.trim() || null, nameEn: en.trim() || null,
+      // The names in other languages are not entered any more (owner decision 2026-11-18); what an older product has is kept as it is.
+      name: name.trim(), nameCkb: product?.nameCkb ?? null, nameAr: product?.nameAr ?? null, nameEn: product?.nameEn ?? null,
       unit: unit.trim(), currency, basePrice: Number(price), status,
     }
     void action.run(async () => {
@@ -177,9 +179,6 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       <div className="flex flex-wrap gap-2">
         <input aria-label={t('web.catalog.code')} placeholder={t('web.catalog.code')} className={field} maxLength={40} disabled={!!product} title={product ? t('web.catalog.codeFixed') : undefined} value={code} onChange={(e) => setCode(e.target.value)} />
         <input aria-label={t('web.catalog.name')} placeholder={t('web.catalog.name')} className={`${field} min-w-56`} maxLength={160} value={name} onChange={(e) => setName(e.target.value)} />
-        <input aria-label={t('web.catalog.nameCkb')} placeholder={t('web.catalog.nameCkb')} className={field} maxLength={160} value={ckb} onChange={(e) => setCkb(e.target.value)} />
-        <input aria-label={t('web.catalog.nameAr')} placeholder={t('web.catalog.nameAr')} className={field} maxLength={160} value={ar} onChange={(e) => setAr(e.target.value)} />
-        <input aria-label={t('web.catalog.nameEn')} placeholder={t('web.catalog.nameEn')} className={field} maxLength={160} value={en} onChange={(e) => setEn(e.target.value)} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <select aria-label={t('web.catalog.specialty')} className={field} value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
@@ -216,7 +215,12 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         <input aria-label={t('web.catalog.notes')} placeholder={t('web.catalog.notes')} className={`${field} min-w-56 flex-1`} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label={t('web.catalog.unit')} placeholder={t('web.catalog.unit')} className={field} maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} />
+        <select aria-label={t('web.catalog.unit')} className={field} value={unit} onChange={(e) => setUnit(e.target.value)}>
+          <option value="">{t('web.catalog.unit')}</option>
+          {[...productUnits, ...(unit && !productUnits.includes(unit as ProductUnit) ? [unit] : [])].map((u) => (
+            <option key={u} value={u}>{productUnits.includes(u as ProductUnit) ? t(`web.unit.${u}` as TextKey) : u}</option>
+          ))}
+        </select>
         <select aria-label={t('web.catalog.currency')} className={field} value={currency} onChange={(e) => setCurrency(e.target.value as 'IQD' | 'USD')}>
           <option value="IQD">IQD</option>
           <option value="USD">USD</option>

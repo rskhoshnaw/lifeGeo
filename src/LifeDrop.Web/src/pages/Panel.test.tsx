@@ -483,9 +483,12 @@ describe('panel management screens', () => {
     // A new product: names are trimmed only when saved
     await user.click(screen.getByRole('button', { name: 'New product' }))
     expect(screen.getByRole('button', { name: 'Save product' })).toBeDisabled()
+    // The unit is chosen from a list, and the names in other languages are not asked for any more
+    expect(within(screen.getByLabelText('Unit')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Unit', 'Box', 'Strip', 'Bottle', 'Vial', 'Ampoule', 'Tube', 'Sachet', 'Pack', 'Carton', 'Piece'])
+    for (const label of ["Name (Kurdish)", "Name (Arabic)", "Name (English)"]) expect(screen.queryByLabelText(label)).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Code'), 'AMX-250')
     await user.type(screen.getByLabelText('Name'), ' Amoxicillin 250 ')
-    await user.type(screen.getByLabelText('Unit'), 'box')
+    await user.selectOptions(screen.getByLabelText('Unit'), 'box')
     await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
     await user.type(screen.getByLabelText('Base price'), '3.5')
     await user.click(screen.getByRole('button', { name: 'Save product' }))
@@ -497,7 +500,7 @@ describe('panel management screens', () => {
     await user.click(screen.getByRole('button', { name: 'New product' }))
     await user.type(screen.getByLabelText('Code'), 'IBU-400')
     await user.type(screen.getByLabelText('Name'), 'Ibuprofen 400')
-    await user.type(screen.getByLabelText('Unit'), 'box')
+    await user.selectOptions(screen.getByLabelText('Unit'), 'box')
     await user.type(screen.getByLabelText('Base price'), '2')
     await user.type(screen.getByLabelText('Scientific name'), ' Ibuprofen ')
     await user.upload(screen.getByLabelText(/^Photo/, { selector: 'input' }), new File(['x'], 'p.png', { type: 'image/png' }))
