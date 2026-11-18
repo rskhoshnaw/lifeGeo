@@ -133,8 +133,8 @@ public class OrdersTests
         Assert.Equal(new[] { a.ProductId }, draft.Find("a", "en").Where(p => p.Code == "A").Select(p => p.ProductId).ToArray());
         Assert.Equal(new[] { a.ProductId }, draft.Find("ناوی A", "ckb").Select(p => p.ProductId).ToArray());   // the Arabic-script name
         Assert.Empty(draft.Find("zzz", "en"));
-        Assert.Equal("ناوی A", a.DisplayName("ar"));
-        Assert.Equal("Name A", a.DisplayName("en"));      // no English name: the main name
+        Assert.Equal("Name A", a.DisplayName("ar"));      // only the main name is shown (owner decision 2026-11-18), whatever the language
+        Assert.Equal("Name A", a.DisplayName("en"));
         Assert.Single(draft.Find("", "en", max: 1));
     }
 
@@ -195,7 +195,7 @@ public class OrdersTests
         var prices = Client(new Handler(_ => Json(HttpStatusCode.OK, $$"""[{"productId":"{{product}}","code":"P1","name":"Paracetamol","nameCkb":"پاراسیتامۆل","unit":"box","currency":"IQD","listPrice":1800,"price":1620,"discounts":[]}]""")));
         var (result, products) = await prices.GetPricesAsync(Guid.NewGuid(), new DateOnly(2026, 10, 6));
         Assert.Equal(VisitActionResult.Success, result);
-        Assert.Equal(("P1", 1620m, "پاراسیتامۆل"), (products[0].Code, products[0].Price, products[0].DisplayName("ckb")));
+        Assert.Equal(("P1", 1620m, "Paracetamol"), (products[0].Code, products[0].Price, products[0].DisplayName("ckb")));
 
         var warehouses = Client(new Handler(_ => Json(HttpStatusCode.OK, """[{"id":"22222222-2222-2222-2222-222222222222","code":"W1","name":"Erbil"}]""")));
         Assert.Equal("Erbil", (await warehouses.GetWarehousesAsync()).Warehouses.Single().Name);

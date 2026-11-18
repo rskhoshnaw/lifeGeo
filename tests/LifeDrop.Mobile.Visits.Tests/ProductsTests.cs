@@ -55,7 +55,7 @@ public class ProductsTests
         var (result, products) = await client.GetProductsAsync();
         Assert.Equal(VisitActionResult.Success, result);
         var p = products.Single();
-        Assert.Equal(("P1", "pediatrics", "Pioneer", new DateOnly(2027, 3, 31), false, 1500m, "پاراسیتامۆل"), (p.Code, p.Specialty, p.Manufacturer, p.ExpiryDate, p.InStock, p.BasePrice, p.DisplayName("ckb")));
+        Assert.Equal(("P1", "pediatrics", "Pioneer", new DateOnly(2027, 3, 31), false, 1500m, "Paracetamol"), (p.Code, p.Specialty, p.Manufacturer, p.ExpiryDate, p.InStock, p.BasePrice, p.DisplayName("ckb")));
         Assert.Equal("Acetaminophen", p.ScientificName);
         Assert.Equal("/products", handler.Last!.RequestUri!.AbsolutePath);
         Assert.Equal("https://api.test/product-photos/0123456789abcdef0123456789abcdef", client.PhotoUrl(p.PhotoKey));

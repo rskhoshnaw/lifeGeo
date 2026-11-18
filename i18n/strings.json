@@ -10780,5 +10780,65 @@
   "ckb": "گیراو بۆ داواکارییە کراوەکان: {reserved}، ئازاد: {free}",
   "ar": "محجوز للطلبات المفتوحة: {reserved}، الحر: {free}",
   "fa": "رزرو سفارش‌های باز: {reserved}، آزاد: {free}"
+ },
+ "web.unit.box": {
+  "en": "Box",
+  "ckb": "قوتوو",
+  "ar": "علبة",
+  "fa": "جعبه"
+ },
+ "web.unit.strip": {
+  "en": "Strip",
+  "ckb": "شریت",
+  "ar": "شريط",
+  "fa": "ورق"
+ },
+ "web.unit.bottle": {
+  "en": "Bottle",
+  "ckb": "بوتڵ",
+  "ar": "قنينة",
+  "fa": "بطری"
+ },
+ "web.unit.vial": {
+  "en": "Vial",
+  "ckb": "ڤایل",
+  "ar": "فيال",
+  "fa": "ویال"
+ },
+ "web.unit.ampoule": {
+  "en": "Ampoule",
+  "ckb": "ئەمپوڵ",
+  "ar": "أمبولة",
+  "fa": "آمپول"
+ },
+ "web.unit.tube": {
+  "en": "Tube",
+  "ckb": "تیوب",
+  "ar": "أنبوب",
+  "fa": "تیوب"
+ },
+ "web.unit.sachet": {
+  "en": "Sachet",
+  "ckb": "ساشێ",
+  "ar": "كيس (ساشيه)",
+  "fa": "ساشه"
+ },
+ "web.unit.pack": {
+  "en": "Pack",
+  "ckb": "پاکێت",
+  "ar": "عبوة",
+  "fa": "بسته"
+ },
+ "web.unit.carton": {
+  "en": "Carton",
+  "ckb": "کارتۆن",
+  "ar": "كرتون",
+  "fa": "کارتن"
+ },
+ "web.unit.piece": {
+  "en": "Piece",
+  "ckb": "دانە",
+  "ar": "قطعة",
+  "fa": "عدد"
  }
 }
