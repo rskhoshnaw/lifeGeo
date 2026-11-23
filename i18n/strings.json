@@ -10840,5 +10840,107 @@
   "ckb": "دانە",
   "ar": "قطعة",
   "fa": "عدد"
+ },
+ "app.home.order": {
+  "en": "Take customer order",
+  "ckb": "وەرگرتنی داواکاری کڕیار",
+  "ar": "أخذ طلب عميل",
+  "fa": "ثبت سفارش مشتری"
+ },
+ "app.products.expired": {
+  "en": "Expired",
+  "ckb": "بەسەرچووە",
+  "ar": "منتهي الصلاحية",
+  "fa": "منقضی شده"
+ },
+ "app.products.expiresSoon": {
+  "en": "Expires soon",
+  "ckb": "نزیکە بەسەربچێت",
+  "ar": "ينتهي قريباً",
+  "fa": "نزدیک انقضا"
+ },
+ "app.products.details": {
+  "en": "Product details",
+  "ckb": "وردەکاری بەرهەم",
+  "ar": "تفاصيل المنتج",
+  "fa": "جزئیات محصول"
+ },
+ "app.products.noPhoto": {
+  "en": "No photo",
+  "ckb": "وێنە نییە",
+  "ar": "لا توجد صورة",
+  "fa": "بدون عکس"
+ },
+ "app.products.stockQtyLabel": {
+  "en": "Stock quantity",
+  "ckb": "بڕی کۆگا",
+  "ar": "كمية المخزون",
+  "fa": "موجودی انبار"
+ },
+ "app.products.available": {
+  "en": "Available",
+  "ckb": "بەردەستە",
+  "ar": "متوفر",
+  "fa": "موجود"
+ },
+ "web.catalog.gallery": {
+  "en": "Gallery",
+  "ckb": "گاڵەری",
+  "ar": "معرض",
+  "fa": "گالری"
+ },
+ "web.catalog.table": {
+  "en": "Table",
+  "ckb": "خشتە",
+  "ar": "جدول",
+  "fa": "جدول"
+ },
+ "web.catalog.close": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
+ },
+ "web.catalog.details": {
+  "en": "Product details",
+  "ckb": "وردەکاری بەرهەم",
+  "ar": "تفاصيل المنتج",
+  "fa": "جزئیات محصول"
+ },
+ "web.catalog.expired": {
+  "en": "Expired",
+  "ckb": "بەسەرچووە",
+  "ar": "منتهي الصلاحية",
+  "fa": "منقضی شده"
+ },
+ "web.catalog.expiresSoon": {
+  "en": "Expires soon",
+  "ckb": "نزیکە بەسەربچێت",
+  "ar": "ينتهي قريباً",
+  "fa": "نزدیک انقضا"
+ },
+ "web.catalog.allSpecialties": {
+  "en": "All specialties",
+  "ckb": "هەموو پسپۆڕییەکان",
+  "ar": "كل التخصصات",
+  "fa": "همه تخصص‌ها"
+ },
+ "web.catalog.allManufacturers": {
+  "en": "All manufacturers",
+  "ckb": "هەموو دروستکەران",
+  "ar": "كل المصنعين",
+  "fa": "همه تولیدکنندگان"
+ },
+ "web.catalog.allStock": {
+  "en": "Any stock",
+  "ckb": "هەموو کۆگا",
+  "ar": "أي مخزون",
+  "fa": "همه موجودی‌ها"
+ },
+ "web.catalog.noResults": {
+  "en": "No products match.",
+  "ckb": "هیچ بەرهەمێک نەدۆزرایەوە.",
+  "ar": "لا توجد منتجات مطابقة.",
+  "fa": "محصولی پیدا نشد."
  }
 }

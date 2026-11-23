@@ -4,23 +4,21 @@ using LifeDrop.Mobile.Visits;
 
 namespace LifeDrop.Mobile;
 
-// The product catalogue (plan step 4.43): photo, name, specialty, manufacturer, expiry, stock and (unless the server hid it) the price. The list is loaded once from the server;
-// search and the three filters (specialty, in or out of stock, manufacturer) work on the phone. Online only.
+// The product gallery (plan step 4.43, redone as cards 2026-11-23): two cards per row, photo on top, then name, scientific name, expiry day and price.
+// A tap opens ProductDetailPage with everything entered for the product. Search and the three filters (specialty, stock, manufacturer) work on the
+// phone. Taking orders is a separate page (OrderEntryPage): this page only shows products. Online only.
 public sealed class ProductsPage : ContentPage
 {
     private readonly SearchBar _search = new();
     private readonly Picker _specialty = new();
     private readonly Picker _stock = new();
     private readonly Picker _manufacturer = new();
-    private readonly VerticalStackLayout _results = new() { Spacing = 10 };
+    private readonly Grid _gallery = new() { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 12, RowSpacing = 12 };
     private readonly ActivityIndicator _spinner = new() { IsVisible = false };
-    private readonly Label _message = new() { IsVisible = false };
+    private readonly Label _message = new() { IsVisible = false, HorizontalTextAlignment = TextAlignment.Center };
     private IReadOnlyList<ProductItem> _all = Array.Empty<ProductItem>();
     private IReadOnlyList<string> _specialtyKeys = Array.Empty<string>();
     private IReadOnlyList<string> _manufacturers = Array.Empty<string>();
-    private readonly Button _customerButton = new();
-    private CustomerListItem? _customer;
-    private readonly bool _canOrder;
     private bool _loaded;
     private bool _filling;
 
@@ -35,25 +33,20 @@ public sealed class ProductsPage : ContentPage
         _stock.Title = Texts.Get("app.products.stock");
         _stock.ItemsSource = new List<string> { Texts.Get("app.products.stockAll"), Texts.Get("app.products.inStock"), Texts.Get("app.products.outOfStock") };
         _stock.SelectedIndex = 0;
-        // Only roles that may place orders get the customer choice and the order buttons (a scientific rep cannot order).
-        _canOrder = MyPermissions.Has("orders.create");
-        _customerButton.IsVisible = _canOrder;
-        _customerButton.Text = Texts.Get("app.products.pickCustomer");
-        _customerButton.Clicked += async (_, _) => await Navigation.PushAsync(new CustomerPickPage(customer =>
-        {
-            _customer = customer;
-            _customerButton.Text = Texts.Get("app.products.orderFor", ("customer", customer.Name));
-        }));
         _specialty.SelectedIndexChanged += (_, _) => Render();
         _manufacturer.SelectedIndexChanged += (_, _) => Render();
         _stock.SelectedIndexChanged += (_, _) => Render();
+        var filters = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 6 };
+        filters.Add(_specialty, 0);
+        filters.Add(_stock, 1);
+        filters.Add(_manufacturer, 2);
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
             {
-                Padding = 16,
+                Padding = new Thickness(12, 8, 12, 24),
                 Spacing = 10,
-                Children = { _customerButton, _search, _specialty, _stock, _manufacturer, _spinner, _message, _results }
+                Children = { _search, filters, _spinner, _message, _gallery }
             }
         };
     }
@@ -123,44 +116,76 @@ public sealed class ProductsPage : ContentPage
         var manufacturer = _manufacturer.SelectedIndex > 0 && _manufacturer.SelectedIndex - 1 < _manufacturers.Count ? _manufacturers[_manufacturer.SelectedIndex - 1] : null;
         var stock = _stock.SelectedIndex switch { 1 => StockFilter.InStock, 2 => StockFilter.OutOfStock, _ => StockFilter.All };
         var shown = ProductFilter.Apply(_all, _search.Text, specialty, stock, manufacturer);
-        _results.Children.Clear();
+        _gallery.Children.Clear();
+        _gallery.RowDefinitions.Clear();
         _message.IsVisible = false;
         if (shown.Count == 0) Show(Texts.Get("app.products.none"));
-        var language = Texts.Language;
-        var api = TrackingHost.ProductsApi;
-        foreach (var product in shown)
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        for (var i = 0; i < shown.Count; i++)
         {
-            // Photo, name, scientific name, expiry day, price (owner request 2026-11-13).
-            var lines = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Fill };
-            lines.Children.Add(new Label { Text = product.DisplayName(language), FontAttributes = FontAttributes.Bold });
-            if (!string.IsNullOrWhiteSpace(product.ScientificName)) lines.Children.Add(new Label { Text = product.ScientificName, FontSize = 13, FontAttributes = FontAttributes.Italic });
-            if (product.ExpiryDate is { } expiry) lines.Children.Add(new Label { Text = Texts.Get("app.products.expires", ("date", expiry.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))), FontSize = 13 });
-            var price = product.PricesHidden ? null : $"{product.BasePrice.ToString("0.###", CultureInfo.InvariantCulture)} {product.Currency} / {product.Unit}";
-            if (price is not null) lines.Children.Add(new Label { Text = price, FontSize = 13, FontAttributes = FontAttributes.Bold });
-            if (product.StockQty is not null && !product.InStock) lines.Children.Add(new Label { Text = Texts.Get("app.products.outOfStock"), FontSize = 12, TextColor = Colors.Gray });
-            if (!product.Available) lines.Children.Add(new Label { Text = Texts.Get("app.products.unavailable"), FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Colors.OrangeRed });
-            var order = new Button { Text = Texts.Get("app.products.order"), FontSize = 13, HorizontalOptions = LayoutOptions.Start, IsEnabled = product.Available };
-            var captured = product;
-            order.Clicked += async (_, _) => await OrderAsync(captured);
-            if (_canOrder) lines.Children.Add(order);
-            var row = new HorizontalStackLayout { Spacing = 10 };
-            if (api?.PhotoUrl(product.PhotoKey) is { } url)
-                row.Children.Add(new Image { Source = ImageSource.FromUri(new Uri(url)), WidthRequest = 72, HeightRequest = 72, Aspect = Aspect.AspectFill });
-            row.Children.Add(lines);
-            _results.Children.Add(row);
+            if (i % 2 == 0) _gallery.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            _gallery.Add(Card(shown[i], today), i % 2, i / 2);
         }
     }
 
-    // The order page for the chosen customer with this product already in the list; without a customer the user is asked to choose one first.
-    private async Task OrderAsync(ProductItem product)
+    private View Card(ProductItem product, DateOnly today)
     {
-        if (_customer is not { } customer)
+        var lines = new VerticalStackLayout { Spacing = 3, Padding = new Thickness(10, 8, 10, 10) };
+        lines.Children.Add(new Label { Text = product.DisplayName(Texts.Language), FontAttributes = FontAttributes.Bold, FontSize = 14, MaxLines = 2, LineBreakMode = LineBreakMode.TailTruncation });
+        lines.Children.Add(new Label
         {
-            await DisplayAlertAsync(Texts.Get("app.products.title"), Texts.Get("app.products.needCustomer"), Texts.Get("app.ok"));
-            return;
+            Text = string.IsNullOrWhiteSpace(product.ScientificName) ? " " : product.ScientificName,   // a blank line keeps the cards of one row the same height
+            FontSize = 12, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray, MaxLines = 1, LineBreakMode = LineBreakMode.TailTruncation
+        });
+        if (product.ExpiryDate is { } expiry)
+        {
+            var status = product.ExpiryStatusOn(today);
+            lines.Children.Add(new Label
+            {
+                Text = status == ExpiryStatus.Expired ? Texts.Get("app.products.expired") + " · " + Day(expiry) : Texts.Get("app.products.expires", ("date", Day(expiry))),
+                FontSize = 12,
+                TextColor = status switch { ExpiryStatus.Expired => Colors.Red, ExpiryStatus.Soon => Colors.DarkOrange, _ => Colors.Gray }
+            });
         }
-        await Navigation.PushAsync(new OrderPage(customer.Id, customer.Name, null, product.Id));
+        else lines.Children.Add(new Label { Text = " ", FontSize = 12 });
+        lines.Children.Add(new Label
+        {
+            Text = product.PricesHidden ? " " : $"{Money(product.BasePrice)} {product.Currency}",
+            FontSize = 15, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#E52B50")
+        });
+        var card = new VerticalStackLayout { Spacing = 0, Children = { Photo(product, 130), lines } };
+        var border = new Border
+        {
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            Stroke = Color.FromArgb("#E2E8F0"),
+            StrokeThickness = 1,
+            BackgroundColor = Colors.White,
+            Padding = 0,
+            Content = card,
+            Opacity = product.Available ? 1 : 0.6
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await Navigation.PushAsync(new ProductDetailPage(product));
+        border.GestureRecognizers.Add(tap);
+        return border;
     }
+
+    // The photo on top of a card or the detail page; a grey tile when the product has none.
+    internal static View Photo(ProductItem product, double height)
+    {
+        if (TrackingHost.ProductsApi?.PhotoUrl(product.PhotoKey) is { } url)
+            return new Image { Source = ImageSource.FromUri(new Uri(url)), HeightRequest = height, Aspect = Aspect.AspectFill, BackgroundColor = Color.FromArgb("#F1F5F9") };
+        return new Grid
+        {
+            HeightRequest = height,
+            BackgroundColor = Color.FromArgb("#F1F5F9"),
+            Children = { new Label { Text = "💊", FontSize = height / 3, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, Opacity = 0.5 } }
+        };
+    }
+
+    internal static string Day(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    internal static string Money(decimal value) => value.ToString("#,##0.###", CultureInfo.InvariantCulture);
 
     private void Show(string text)
     {

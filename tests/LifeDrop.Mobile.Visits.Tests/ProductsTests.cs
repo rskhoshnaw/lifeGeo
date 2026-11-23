@@ -13,6 +13,17 @@ public class ProductsTests
         new(Guid.NewGuid(), code, "Name " + code, ckb, null, null, "box", "IQD", hidden ? 0m : 1500m, specialty, maker, null, inStock ? 5m : 0m, inStock, null, null, hidden);
 
     [Fact]
+    public void ExpiryStatusIsExpiredSoonOrFine()
+    {
+        var today = new DateOnly(2026, 11, 23);
+        Assert.Equal(ExpiryStatus.None, P("A").ExpiryStatusOn(today));
+        Assert.Equal(ExpiryStatus.Expired, (P("A") with { ExpiryDate = today.AddDays(-1) }).ExpiryStatusOn(today));
+        Assert.Equal(ExpiryStatus.Soon, (P("A") with { ExpiryDate = today }).ExpiryStatusOn(today));
+        Assert.Equal(ExpiryStatus.Soon, (P("A") with { ExpiryDate = today.AddDays(90) }).ExpiryStatusOn(today));
+        Assert.Equal(ExpiryStatus.Ok, (P("A") with { ExpiryDate = today.AddDays(91) }).ExpiryStatusOn(today));
+    }
+
+    [Fact]
     public void TheFiltersWorkTogetherAndTextMatchesCodeOrAnyName()
     {
         var items = new[] { P("A1", "pediatrics", "Pioneer", ckb: "پاراسیتامۆل"), P("A2", "pediatrics", "Samara", inStock: false), P("B1", "ent", "pioneer"), P("B2") };

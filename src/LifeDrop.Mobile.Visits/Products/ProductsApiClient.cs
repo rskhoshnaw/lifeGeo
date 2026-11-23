@@ -10,7 +10,12 @@ public sealed record ProductItem(Guid Id, string Code, string Name, string? Name
     {
         return Name;   // only the name is shown (owner decision 2026-11-18): the names in other languages are no longer used
     }
+
+    // How close the expiry day is: expired (before today), soon (within 90 days, the same limit as the panel warning) or fine.
+    public ExpiryStatus ExpiryStatusOn(DateOnly today) => ExpiryDate is not { } day ? ExpiryStatus.None : day < today ? ExpiryStatus.Expired : day <= today.AddDays(90) ? ExpiryStatus.Soon : ExpiryStatus.Ok;
 }
+
+public enum ExpiryStatus { None, Ok, Soon, Expired }
 
 public enum StockFilter { All, InStock, OutOfStock }
 
