@@ -1,6 +1,7 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
+import { expiryStatus, filterProducts, type ProductFilters } from './productView.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
@@ -12,6 +13,9 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [search, setSearch] = useState('')
   const [inactive, setInactive] = useState(false)
   const [editing, setEditing] = useState<Product | 'new' | null>(null)
+  const [view, setView] = useState<'gallery' | 'table'>('gallery')
+  const [filters, setFilters] = useState<ProductFilters>({ text: '', specialty: '', manufacturer: '', stock: '' })
+  const [details, setDetails] = useState<Product | null>(null)
   const [rulesFor, setRulesFor] = useState<Product | null>(null)
   const products = useLoad(useCallback(() => admin.products(canManage && inactive, search.trim()), [admin, canManage, inactive, search]))
   const quick = useAction(products.reload)
@@ -27,11 +31,38 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
     if (text && Number.isFinite(price) && price >= 0) void quick.run(() => admin.updateProduct(p.id, asInput(p, { basePrice: price })))
   }
 
+  const makers = [...new Set((products.data ?? []).map((p) => p.manufacturer?.trim()).filter((m): m is string => !!m))].sort((a, b) => a.localeCompare(b))
+  const shown = filterProducts(products.data ?? [], filters)
+
   return (
     <section className="space-y-6 p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-xl font-semibold">{t('web.catalog.title')}</h2>
         <input aria-label={t('web.catalog.search')} placeholder={t('web.catalog.search')} className="rounded border px-2 py-1 text-sm" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select aria-label={t('web.catalog.specialty')} className="rounded border px-2 py-1 text-sm" value={filters.specialty} onChange={(e) => setFilters({ ...filters, specialty: e.target.value })}>
+          <option value="">{t('web.catalog.allSpecialties')}</option>
+          {doctorSpecialties.map((x) => (
+            <option key={x} value={x}>{t(`specialty.${x}` as TextKey)}</option>
+          ))}
+        </select>
+        <select aria-label={t('web.catalog.manufacturer')} className="rounded border px-2 py-1 text-sm" value={filters.manufacturer} onChange={(e) => setFilters({ ...filters, manufacturer: e.target.value })}>
+          <option value="">{t('web.catalog.allManufacturers')}</option>
+          {makers.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+        <select aria-label={t('web.catalog.stock')} className="rounded border px-2 py-1 text-sm" value={filters.stock} onChange={(e) => setFilters({ ...filters, stock: e.target.value as ProductFilters['stock'] })}>
+          <option value="">{t('web.catalog.allStock')}</option>
+          <option value="in">{t('web.catalog.inStock')}</option>
+          <option value="out">{t('web.catalog.outOfStock')}</option>
+        </select>
+        <div className="inline-flex overflow-hidden rounded border text-sm" role="group">
+          {(['gallery', 'table'] as const).map((v) => (
+            <button key={v} type="button" aria-pressed={view === v} className={`px-3 py-1 ${view === v ? 'bg-slate-800 text-white' : ''}`} onClick={() => setView(v)}>
+              {t(`web.catalog.${v}`)}
+            </button>
+          ))}
+        </div>
         {canManage && (
           <>
             <label className="flex items-center gap-1 text-sm">
@@ -45,7 +76,38 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
         )}
       </div>
       {(products.error ?? quick.error) && <p role="alert" className="text-sm text-red-700">{products.error ?? quick.error}</p>}
-      {products.data && (
+      {products.data && view === 'gallery' && (
+        <>
+          {shown.length === 0 && <p className="text-sm text-slate-500">{t('web.catalog.noResults')}</p>}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {shown.map((p) => {
+              const status = expiryStatus(p.expiryDate)
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-label={p.name}
+                  onClick={() => setDetails(p)}
+                  className={`group overflow-hidden rounded-xl border bg-white text-start shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${p.status === 'inactive' || p.available === false ? 'opacity-60' : ''}`}
+                >
+                  <ProductPhoto admin={admin} product={p} className="h-40 w-full" />
+                  <div className="space-y-0.5 p-3">
+                    <div className="line-clamp-2 min-h-10 text-sm font-semibold">{p.name}</div>
+                    <div className="min-h-4 truncate text-xs italic text-slate-500">{p.scientificName ?? ''}</div>
+                    <div className={`min-h-4 text-xs ${status === 'expired' ? 'font-semibold text-red-600' : status === 'soon' ? 'text-orange-600' : 'text-slate-500'}`}>
+                      {p.expiryDate ? `${status === 'expired' ? `${t('web.catalog.expired')} · ` : `${t('web.catalog.expiry')}: `}${p.expiryDate.slice(0, 10)}` : ''}
+                    </div>
+                    <div className="pt-1 text-base font-bold text-rose-600">
+                      {money(p.basePrice)} {p.currency}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+      {products.data && view === 'table' && (
         <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b">
@@ -60,7 +122,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
             </tr>
           </thead>
           <tbody>
-            {products.data.map((p) => (
+            {shown.map((p) => (
               <tr key={p.id} className="border-b">
                 <td className="py-2">
                   {p.photoKey && <img src={admin.productPhotoUrl(p.photoKey)} alt="" className="me-2 inline h-8 w-8 rounded border object-cover" />}
@@ -102,6 +164,18 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </tbody>
         </table>
       )}
+      {details && (
+        <ProductDetails
+          admin={admin}
+          product={details}
+          canManage={canManage}
+          onClose={() => setDetails(null)}
+          onEdit={() => {
+            setEditing(details)
+            setDetails(null)
+          }}
+        />
+      )}
       {editing && (
         <ProductForm
           key={editing === 'new' ? 'new' : editing.id}
@@ -116,6 +190,65 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
       {rulesFor && <CityPrices key={rulesFor.id} admin={admin} product={rulesFor} canManage={canManage} />}
       {can(me, ...Permissions.customers) && <CustomerPrices admin={admin} canManage={canManage} />}
     </section>
+  )
+}
+
+function ProductPhoto({ admin, product, className }: { admin: AdminApi; product: Product; className: string }) {
+  return product.photoKey ? (
+    <img src={admin.productPhotoUrl(product.photoKey)} alt="" loading="lazy" className={`${className} bg-slate-100 object-cover`} />
+  ) : (
+    <div aria-hidden className={`${className} flex items-center justify-center bg-slate-100 text-4xl opacity-60`}>💊</div>
+  )
+}
+
+// Everything entered for one product, opened from the gallery card.
+function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { admin: AdminApi; product: Product; canManage: boolean; onClose: () => void; onEdit: () => void }) {
+  const status = expiryStatus(p.expiryDate)
+  const rows: [string, string | null | undefined, string?][] = [
+    [t('web.catalog.code'), p.code],
+    [t('web.catalog.specialty'), p.specialty ? t(`specialty.${p.specialty}` as TextKey) : null],
+    [t('web.catalog.manufacturer'), p.manufacturer],
+    [t('web.catalog.unit'), p.unit],
+    [
+      t('web.catalog.expiry'),
+      p.expiryDate ? `${p.expiryDate.slice(0, 10)}${status === 'expired' ? ` · ${t('web.catalog.expired')}` : status === 'soon' ? ` · ${t('web.catalog.expiresSoon')}` : ''}` : null,
+      status === 'expired' ? 'text-red-600' : status === 'soon' ? 'text-orange-600' : undefined,
+    ],
+    [t('web.catalog.stock'), p.stockQty == null ? null : p.inStock ? `${t('web.catalog.inStock')} (${money(p.stockQty)})` : t('web.catalog.outOfStock')],
+    [t('web.catalog.status'), `${t(`web.catalog.${p.status}`)}${p.available === false ? ` · ${t('web.catalog.unavailable')}` : ''}`],
+    [t('web.catalog.notes'), p.notes],
+  ]
+  return (
+    <div role="dialog" aria-modal="true" aria-label={t('web.catalog.details')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="max-h-full w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <ProductPhoto admin={admin} product={p} className="h-64 w-full" />
+        <div className="space-y-1 p-5">
+          <h3 className="text-xl font-semibold">{p.name}</h3>
+          {p.scientificName && <p className="italic text-slate-500">{p.scientificName}</p>}
+          <p className="pb-2 text-2xl font-bold text-rose-600">
+            {money(p.basePrice)} {p.currency} / {p.unit}
+          </p>
+          <dl className="divide-y text-sm">
+            {rows.filter(([, v]) => !!v).map(([label, value, color]) => (
+              <div key={label} className="flex gap-3 py-2">
+                <dt className="w-1/3 text-slate-500">{label}</dt>
+                <dd className={`w-2/3 whitespace-pre-wrap ${color ?? ''}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex justify-end gap-2 pt-3">
+            {canManage && (
+              <button type="button" className="rounded border px-3 py-1 text-sm" onClick={onEdit}>
+                {t('web.places.edit')}
+              </button>
+            )}
+            <button type="button" className="rounded bg-slate-800 px-3 py-1 text-sm text-white" onClick={onClose}>
+              {t('web.catalog.close')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

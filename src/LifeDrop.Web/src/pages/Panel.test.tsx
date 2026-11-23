@@ -450,6 +450,7 @@ describe('panel management screens', () => {
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await user.click(await screen.findByRole('button', { name: 'Table' }))   // the management buttons are in the table view; the gallery is the default
     await user.click(await screen.findByRole('button', { name: 'Change price PAR-500' }))
     await user.click(await screen.findByRole('button', { name: 'Deactivate PAR-500' }))
     const body = { name: 'Paracetamol 500', nameCkb: null, nameAr: null, nameEn: 'Paracetamol', unit: 'box', currency: 'IQD', basePrice: 1500 }
@@ -478,6 +479,7 @@ describe('panel management screens', () => {
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await user.click(await screen.findByRole('button', { name: 'Table' }))   // the management buttons are in the table view; the gallery is the default
     expect(await screen.findByText('1,500 IQD')).toBeInTheDocument()
 
     // A new product: names are trimmed only when saved
@@ -547,6 +549,7 @@ describe('panel management screens', () => {
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Products' }))
+    await user.click(await screen.findByRole('button', { name: 'Table' }))   // the management buttons are in the table view; the gallery is the default
     await screen.findByText('PAR-500')
     expect(screen.queryByRole('button', { name: 'New product' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit PAR-500' })).not.toBeInTheDocument()

@@ -29,6 +29,7 @@ public partial class HomePage : ContentPage
         CustomersBtn.Text = Texts.Get("app.home.customers");
         TelegramBtn.Text = Texts.Get("app.home.telegram");
         ProductsBtn.Text = Texts.Get("app.home.products");
+        OrderBtn.Text = Texts.Get("app.home.order");
         AccountBtn.Text = Texts.Get("app.home.account");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         StockBtn.Text = Texts.Get("app.home.stock");
@@ -66,6 +67,7 @@ public partial class HomePage : ContentPage
         ShowButton(MarketingBtn, MyPermissions.Has("marketing.use"));
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
+        ShowButton(OrderBtn, CompanyModules.Shows(hidden, "orders") && MyPermissions.Has("orders.create"));   // taking a customer order (separate from the product gallery)
         ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
         ShowButton(KpiBtn, MyPermissions.Has("visits.plan"));       // their own KPIs (plan step 5.29)
         Reflow();
@@ -126,6 +128,7 @@ public partial class HomePage : ContentPage
         CustomersBtn.IsEnabled = !isBusy;
         TelegramBtn.IsEnabled = !isBusy;
         ProductsBtn.IsEnabled = !isBusy;
+        OrderBtn.IsEnabled = !isBusy;
         AccountBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = StockBtn.IsEnabled = !isBusy;
         WholesalerBtn.IsEnabled = !isBusy;
@@ -387,6 +390,8 @@ public partial class HomePage : ContentPage
     private async void OnAccountClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new AccountPage());
 
     private async void OnProductsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new ProductsPage());
+
+    private async void OnOrderClicked(object? sender, EventArgs e) => await OrderEntry.StartAsync(Navigation);
 
     private async void OnTelegramClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new TelegramPage());
 
