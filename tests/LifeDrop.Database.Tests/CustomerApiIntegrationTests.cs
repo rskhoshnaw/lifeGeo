@@ -6690,6 +6690,52 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
+    public async Task CustomerSearch_AlsoFindsClinicAddressContactPlaceAndOwner()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), owner = Guid.NewGuid(), city = Guid.NewGuid(), quarter = Guid.NewGuid(), otherCity = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'boss@t1.test'), (@o, @t1, 'karwan.rep@t1.test');
+                INSERT INTO user_roles (tenant_id, user_id, role_id) SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES (@c, @t1, NULL, 'city', 'Sulaymaniyah'), (@oc, @t1, NULL, 'city', 'Duhok'), (@q, @t1, @c, 'neighbourhood', 'Bakrajo');
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, clinic_name, contact_name, address, place_id) VALUES
+                    (gen_random_uuid(), @t1, 'Pharmacy', 'A1', 'Alpha', 'no_location', NULL, 'Zagros Clinic', NULL, NULL, @oc),
+                    (gen_random_uuid(), @t1, 'Pharmacy', 'B1', 'Bravo', 'no_location', @o, NULL, 'Mr Hawre', 'Salim street 12', @q),
+                    (gen_random_uuid(), @t1, 'Pharmacy', 'C1', 'Charlie', 'no_location', NULL, NULL, NULL, NULL, NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("o", owner), ("c", city), ("oc", otherCity), ("q", quarter) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken(t1, manager, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<string> Codes(string path) =>
+            string.Join(",", (await client.GetFromJsonAsync<List<LifeDrop.Application.Customers.CustomerDto>>(path))!.Select(c => c.Code).OrderBy(c => c, StringComparer.Ordinal));
+
+        Assert.Equal("A1", await Codes("/customers?q=zagros"));        // clinic
+        Assert.Equal("B1", await Codes("/customers?q=hawre"));         // contact person
+        Assert.Equal("B1", await Codes("/customers?q=salim"));         // address
+        Assert.Equal("B1", await Codes("/customers?q=sulay"));         // a city name finds the customers below it (here in a neighbourhood)
+        Assert.Equal("A1", await Codes("/customers?q=duhok"));
+        Assert.Equal("B1", await Codes("/customers?q=karwan"));        // the owner's e-mail
+        Assert.Equal("", await Codes("/customers?q=nothing-like-this"));
+    }
+
+    [SkippableFact]
     public async Task Doctors_AreHiddenFromTheSalesRepButEveryOtherCustomerOfTheRegionIsVisible()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");

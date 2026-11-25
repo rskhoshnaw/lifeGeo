@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AdminApi, can, iraqToday, Permissions, type KpiReport, type LiveMapEntry, type Me } from '../api/admin.ts'
 import { LiveMapView } from '../components/LiveMapView.tsx'
+import { RouteHistoryPage } from './RouteHistoryPage.tsx'
 import { t, type TextKey } from '../i18n.ts'
 
 export const refreshMs = 60_000
@@ -33,17 +34,23 @@ const percent = (value: number | null) => (value === null ? t('web.reports.noVal
 export function TvPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const showTotals = can(me, ...Permissions.reports)
   const showMap = can(me, ...Permissions.liveMap)
-  const [view, setView] = useState<'totals' | 'map'>(showTotals ? 'totals' : 'map')
+  const showRoute = can(me, ...Permissions.routeHistory)   // route history of a day (owner request 2026-11-25): the same page as the panel's, TvDisplay already holds tracking.read
+  const views = ([showTotals && 'totals', showMap && 'map', showRoute && 'route'] as const).filter((v): v is 'totals' | 'map' | 'route' => !!v)
+  const [view, setView] = useState<'totals' | 'map' | 'route'>(views[0] ?? 'map')
+  const viewTitle = { totals: 'web.tv.title', map: 'web.tv.viewMap', route: 'web.tv.viewRoute' } as const
   useStayAwake()
   // The map view fills the screen under the title, so a TV (whose browser often shows no scroll bar) needs no scrolling; the totals view scrolls with a visible bar (index.css).
   return (
-    <section className={view === 'map' ? 'flex h-[calc(100vh-3.5rem)] flex-col gap-3 p-4' : 'space-y-6 p-8'}>
+    <section className={view === 'map' ? 'flex h-[calc(100vh-3.5rem)] flex-col gap-3 p-4' : view === 'route' ? 'space-y-4 p-4' : 'space-y-6 p-8'}>
       <div className="flex flex-wrap items-center gap-4">
-        <h2 className="text-3xl font-semibold">{t(view === 'map' ? 'web.tv.viewMap' : 'web.tv.title')}</h2>
-        {showTotals && showMap && (
+        <h2 className="text-3xl font-semibold">{t(viewTitle[view])}</h2>
+        {views.length > 1 && (
           <div className="flex gap-2" role="group">
-            <button className={`rounded border px-3 py-1 text-sm ${view === 'totals' ? 'bg-slate-900 text-white' : ''}`} aria-pressed={view === 'totals'} onClick={() => setView('totals')}>{t('web.tv.viewTotals')}</button>
-            <button className={`rounded border px-3 py-1 text-sm ${view === 'map' ? 'bg-slate-900 text-white' : ''}`} aria-pressed={view === 'map'} onClick={() => setView('map')}>{t('web.tv.viewMap')}</button>
+            {views.map((v) => (
+              <button key={v} className={`rounded border px-3 py-1 text-sm ${view === v ? 'bg-slate-900 text-white' : ''}`} aria-pressed={view === v} onClick={() => setView(v)}>
+                {t(v === 'totals' ? 'web.tv.viewTotals' : v === 'map' ? 'web.tv.viewMap' : 'web.tv.viewRoute')}
+              </button>
+            ))}
           </div>
         )}
         <button className="ms-auto rounded border px-3 py-1 text-sm" onClick={() => void document.documentElement.requestFullscreen?.()}>
@@ -52,6 +59,7 @@ export function TvPage({ admin, me }: { admin: AdminApi; me: Me }) {
       </div>
       {view === 'totals' && showTotals && <TvTotals admin={admin} me={me} />}
       {view === 'map' && showMap && <TvMap admin={admin} />}
+      {view === 'route' && showRoute && <RouteHistoryPage admin={admin} />}
     </section>
   )
 }

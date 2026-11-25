@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import App from '../App.tsx'
 import { ApiClient } from '../api/client.ts'
 import type { LiveMapEntry, Me } from '../api/admin.ts'
@@ -45,5 +46,14 @@ describe('TV screen account', () => {
     expect(screen.queryByRole('button', { name: 'Totals' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Full screen' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'LifeDrop' })).not.toBeInTheDocument()   // a screen account has no side menu
+  })
+
+  it('has the route history next to the live map, with the same tracking.read', async () => {
+    render(<App api={serve(me(['TvDisplay'], ['tracking.read']))} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Route history' }))
+    expect((await screen.findAllByRole('heading', { name: 'Route history' })).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Route history' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Live map' }))
+    expect(await screen.findByRole('list', { name: 'Map markers' })).toBeInTheDocument()
   })
 })
