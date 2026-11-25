@@ -153,7 +153,12 @@ public sealed class PostgresCustomerStore(NpgsqlDataSource dataSource) : ICustom
 
         sql += "\nWHERE " + ScopeFilter(scope) + (archived ? " AND archived_at IS NOT NULL" : " AND archived_at IS NULL");
         if (search is not null)
-            sql += "\nAND (name ILIKE @search ESCAPE '\\' OR code ILIKE @search ESCAPE '\\' OR phone ILIKE @search ESCAPE '\\' OR phone2 ILIKE @search ESCAPE '\\')";
+            // Owner request 2026-11-25: the text also finds the clinic, contact person, address, the place (any level, so a city name finds everything below it) and the owner's e-mail.
+            sql += "\nAND (name ILIKE @search ESCAPE '\\' OR code ILIKE @search ESCAPE '\\' OR phone ILIKE @search ESCAPE '\\' OR phone2 ILIKE @search ESCAPE '\\'"
+                + " OR clinic_name ILIKE @search ESCAPE '\\' OR contact_name ILIKE @search ESCAPE '\\' OR address ILIKE @search ESCAPE '\\'"
+                + " OR owner_user_id IN (SELECT u.id FROM users u WHERE u.email ILIKE @search ESCAPE '\\')"
+                + " OR place_id IN (WITH RECURSIVE hit AS (SELECT id FROM places WHERE name ILIKE @search ESCAPE '\\' OR name_ckb ILIKE @search ESCAPE '\\' OR name_ar ILIKE @search ESCAPE '\\' OR name_en ILIKE @search ESCAPE '\\'"
+                + " UNION ALL SELECT p.id FROM places p JOIN hit h ON p.parent_id = h.id) SELECT id FROM hit))";
         if (!string.IsNullOrWhiteSpace(filter?.Type)) sql += "\nAND lower(type) = lower(@fType)";
         if (filter?.PlaceId is not null)
             sql += "\nAND place_id IN (WITH RECURSIVE below AS (SELECT id FROM places WHERE id = @fPlace UNION ALL SELECT p.id FROM places p JOIN below b ON p.parent_id = b.id) SELECT id FROM below)";

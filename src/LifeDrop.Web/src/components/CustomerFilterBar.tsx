@@ -77,6 +77,7 @@ export function CustomerFilterBar({ admin, users, filters, onChange }: { admin: 
         <PlaceCascade
           admin={admin}
           path={path}
+          labelPrefix={`${t('web.customers.filtersTitle')}: `}
           onChange={(next) => {
             setPath(next)
             set({ placeId: next[next.length - 1] ?? '' })

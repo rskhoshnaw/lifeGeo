@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import App from '../App.tsx'
 import { ApiClient } from '../api/client.ts'
+// WebGL is not available in jsdom: the map of the customer card is replaced by an empty box.
+vi.mock('../components/CustomerLocationMap.tsx', () => ({ CustomerLocationMap: () => <div aria-label="Customer map" /> }))
 import { iraqToday, type Customer, type Place, type Device, type Me, type PlannedVisit, type UserSummary } from '../api/admin.ts'
 
 type Call = { method: string; path: string; body: unknown }
@@ -1287,10 +1289,25 @@ describe('panel management screens', () => {
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Customers' }))
-    await user.type(await screen.findByRole('textbox', { name: 'Search by name, code or phone' }), 's')
+    await user.type(await screen.findByRole('textbox', { name: 'Search: name, code, phone, clinic, address, city or owner' }), 's')
     expect(calls.some((c) => c.path.includes('q='))).toBe(false)
-    await user.type(screen.getByRole('textbox', { name: 'Search by name, code or phone' }), 'h')
+    await user.type(screen.getByRole('textbox', { name: 'Search: name, code, phone, clinic, address, city or owner' }), 'h')
     expect(await screen.findByText('S-7')).toBeInTheDocument()
+  })
+
+  it('opens the details of a customer right under its row and shows the city, phone and specialty columns', async () => {
+    const full = { ...customer, id: 'c9', approvalStatus: 'approved', phone: '0750 111 2233', specialty: 'ent', placePath: [{ id: 'p1', kind: 'city', name: 'Erbil' }] }
+    const { api } = server(manager, { '/customer-approvals': [], '/customers?limit=100': [full] })
+    const user = userEvent.setup()
+    render(<App api={api} />)
+    await user.click(await screen.findByRole('button', { name: 'Customers' }))
+    expect(await screen.findByText('0750 111 2233')).toBeInTheDocument()
+    expect(screen.getByText('Erbil')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: new RegExp(`Open ${customer.name}`) }))
+    const card = await screen.findByRole('region', { name: new RegExp(customer.name) })
+    expect(card.closest('tr')?.previousElementSibling).toHaveTextContent(customer.name)   // the card sits in the row right below the clicked customer
+    await user.click(screen.getByRole('button', { name: new RegExp(`Open ${customer.name}`) }))
+    expect(screen.queryByRole('region', { name: new RegExp(customer.name) })).toBeNull()
   })
 
   it('sends a manager message to a group or to chosen people and shows how many people it reached; others see no form', async () => {

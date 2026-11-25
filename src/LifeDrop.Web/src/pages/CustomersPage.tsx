@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import { AdminApi, can, errorMessage, Permissions, type Customer, type CustomerFilters, type Me, type UserSummary } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { Badge, type Tone } from '../components/Badge.tsx'
@@ -96,7 +96,7 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<CustomerFilters>({})
   const term = search.trim().length >= 2 ? search.trim() : ''
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)   // open from the start: managers search by city, owner, type and more (owner request 2026-11-25)
   const activeFilters = Object.values(filters).filter(Boolean).length
   const users = useLoad(useCallback(() => admin.users().catch(() => [] as UserSummary[]), [admin]))
   const first = useLoad(useCallback(() => admin.customers(undefined, archived, term, filters), [admin, archived, term, filters]))
@@ -111,7 +111,7 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
   const [historyFor, setHistoryFor] = useState<Customer | null>(null)
   const [ticked, setTicked] = useState<string[]>([])
   const items = [...(first.data ?? []), ...more]
-  const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, type: (c) => c.type, owner: (c) => c.ownerEmail ?? '', addedBy: (c) => c.createdByEmail ?? '', addedOn: (c) => c.createdAt, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
+  const sorted = useSort(items, { code: (c) => c.code, name: (c) => c.name, phone: (c) => c.phone ?? '', city: (c) => c.placePath?.[0]?.name ?? '', specialty: (c) => c.specialty ?? '', type: (c) => c.type, owner: (c) => c.ownerEmail ?? '', addedBy: (c) => c.createdByEmail ?? '', addedOn: (c) => c.createdAt, approval: (c) => c.approvalStatus, priority: (c) => t(`web.priority.${c.priority}`) })
 
   function reload() {
     setEditFor(null)
@@ -218,6 +218,9 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
               <SortTh id="code" className="py-2" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.code')}</SortTh>
               <SortTh id="name" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.name')}</SortTh>
               <SortTh id="type" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.type')}</SortTh>
+              <SortTh id="city" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.city')}</SortTh>
+              <SortTh id="phone" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.phone')}</SortTh>
+              <SortTh id="specialty" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.specialty')}</SortTh>
               <SortTh id="owner" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.owner')}</SortTh>
               <SortTh id="addedBy" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.addedBy')}</SortTh>
               <SortTh id="addedOn" sort={sorted.sort} onSort={sorted.toggle}>{t('web.customers.addedOn')}</SortTh>
@@ -228,7 +231,8 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
           </thead>
           <tbody>
             {(sorted.rows ?? items).map((customer) => (
-              <tr key={customer.id} className="border-b">
+              <Fragment key={customer.id}>
+              <tr className={`border-b ${openFor?.id === customer.id ? 'bg-slate-50' : ''}`}>
                 {(canPrioritise || canAssign) && (
                   <td>
                     <input
@@ -241,9 +245,14 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
                 )}
                 <td className="py-2">{customer.code}</td>
                 <td>
-                  <button className="text-start text-brand-700 underline" aria-label={t('web.customers.open', { customer: customer.name })} onClick={() => setOpenFor(customer)}>{customer.name}</button>
+                  <button className="text-start text-brand-700 underline" aria-expanded={openFor?.id === customer.id} aria-label={t('web.customers.open', { customer: customer.name })} onClick={() => setOpenFor(openFor?.id === customer.id ? null : customer)}>
+                    {openFor?.id === customer.id ? '▾ ' : '▸ '}{customer.name}
+                  </button>
                 </td>
                 <td>{customer.type}</td>
+                <td>{customer.placePath?.[0]?.name ?? '—'}</td>
+                <td dir="ltr" className="text-start">{customer.phone ?? '—'}</td>
+                <td>{customer.specialty ? t(`specialty.${customer.specialty}` as TextKey) : '—'}</td>
                 <td>{customer.ownerEmail ?? '—'}</td>
                 <td>{customer.createdByEmail ?? '—'}</td>
                 <td>{day.format(new Date(customer.createdAt))}</td>
@@ -276,23 +285,28 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
                   </button>
                 </td>
               </tr>
+              {openFor?.id === customer.id && (
+                <tr className="border-b bg-slate-50">
+                  <td colSpan={20} className="p-2">
+                    <CustomerCard
+                      key={customer.id}
+                      admin={admin}
+                      customer={customer}
+                      canEdit={canEdit && !archived}
+                      canMove={canMove && !archived}
+                      onEdit={() => setEditFor(customer)}
+                      onProfile={() => setProfileFor(customer)}
+                      onHours={() => setHoursFor(customer)}
+                      onHistory={() => setHistoryFor(customer)}
+                      onClose={() => setOpenFor(null)}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
-      )}
-      {openFor && (
-        <CustomerCard
-          key={openFor.id}
-          admin={admin}
-          customer={openFor}
-          canEdit={canEdit && !archived}
-          canMove={canMove && !archived}
-          onEdit={() => setEditFor(openFor)}
-          onProfile={() => setProfileFor(openFor)}
-          onHours={() => setHoursFor(openFor)}
-          onHistory={() => setHistoryFor(openFor)}
-          onClose={() => setOpenFor(null)}
-        />
       )}
       {editFor && <CustomerDetailsEditor key={editFor.id} admin={admin} customer={editFor} onClose={() => setEditFor(null)} onSaved={reload} />}
       {historyFor && <CustomerHistoryPanel key={historyFor.id} admin={admin} customer={historyFor} onClose={() => setHistoryFor(null)} />}
