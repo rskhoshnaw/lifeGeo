@@ -57,6 +57,14 @@ jobs:
     # Pinned workload set: newer sets carry iOS 27.0 which needs Xcode 27 (not on the image). Set 10.0.401 = iOS 26.5 + MAUI 10.0.20.
     - name: Install MAUI iOS workload (pinned set)
       run: |
+        # The runner image now carries .NET 11 workload manifests (sdk-manifests/11.0.100); next to the 10.0 ones they make the install fail with
+        # "Workload pack ... conflicts with manifest ..." (2026-11-26). This job builds with the 10.0 SDK only, so the 11 manifests are removed first.
+        for root in "$HOME/.dotnet" "$DOTNET_ROOT" /usr/local/share/dotnet; do
+          [ -d "$root/sdk-manifests" ] || continue
+          for dir in "$root"/sdk-manifests/11.*; do
+            [ -d "$dir" ] && { echo "Removing $dir"; rm -rf "$dir" || sudo rm -rf "$dir"; }
+          done
+        done
         dotnet workload install maui-ios --version 10.0.401
         dotnet --version
         dotnet workload list
