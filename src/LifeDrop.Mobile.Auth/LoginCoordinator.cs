@@ -54,6 +54,11 @@ public class LoginCoordinator : ILoginCoordinator
         var request = new LoginRequest(tenantCode, email, password, deviceId, deviceSecret);
 
         var response = await _apiClient.LoginAsync(request, cancellationToken);
+        if (response.Status == AuthStatus.DeviceNotApproved && response.ErrorCode == "DEVICE_UNKNOWN" && device is not null)
+        {
+            // The server does not know this device any more (a manager deleted it, or the phone restored old data): forget it so "Register" asks the server again.
+            try { await _store.ClearDeviceAsync(cancellationToken); } catch (Exception ex) when (ex is not OperationCanceledException) { }
+        }
         if (response.Status != AuthStatus.Success)
         {
             return new AuthResult<StoredSession>(response.Status, ErrorCode: response.ErrorCode, ErrorMessage: response.ErrorMessage, HttpStatusCode: response.HttpStatusCode);

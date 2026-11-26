@@ -196,6 +196,15 @@ public class RoleAssignmentDatabaseTests
             Assert.Equal("application/problem+json", pendingDeviceLogin.Content.Headers.ContentType?.MediaType);
             using (var problem = await pendingDeviceLogin.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
                 Assert.Equal("DEVICE_NOT_APPROVED", problem!.RootElement.GetProperty("code").GetString());
+            // A device id the server does not know for this user is told apart from a pending one, so the app can forget it and register again.
+            var unknownDeviceLogin = await client.PostAsJsonAsync("/auth/login", new
+            {
+                fieldLogin.TenantCode, fieldLogin.Email, fieldLogin.Password,
+                DeviceId = Guid.NewGuid(), DeviceSecret = deviceSecret
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, unknownDeviceLogin.StatusCode);
+            using (var unknownProblem = await unknownDeviceLogin.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>())
+                Assert.Equal("DEVICE_UNKNOWN", unknownProblem!.RootElement.GetProperty("code").GetString());
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
             Assert.Equal(HttpStatusCode.NoContent,
                 (await client.PostAsync($"/devices/{deviceId}/approve", null)).StatusCode);
@@ -296,7 +305,7 @@ public class RoleAssignmentDatabaseTests
             Assert.Equal(1, securityReader.GetInt64(0));
             Assert.Equal(1, securityReader.GetInt64(1));
             Assert.Equal(1, securityReader.GetInt64(2));
-            Assert.Equal(3, securityReader.GetInt64(3));
+            Assert.Equal(4, securityReader.GetInt64(3));
             await securityReader.CloseAsync();
 
             await using var mutateAudit = new NpgsqlCommand("DELETE FROM audit_logs", connection);

@@ -66,6 +66,16 @@ public sealed class PostgresDeviceAccessStore(NpgsqlDataSource dataSource) : IDe
             SHA256.HashData(supplied), stored);
     }
 
+    public async Task<bool> ExistsAsync(TenantId tenantId, UserId userId, Guid deviceId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM devices WHERE tenant_id=@tenant AND user_id=@user AND id=@device AND deleted_at IS NULL)", connection);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId.Value);
+        command.Parameters.AddWithValue("device", deviceId);
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
+    }
+
     public async Task RecordDeniedAsync(TenantId tenantId, UserId userId,
         CancellationToken cancellationToken)
     {

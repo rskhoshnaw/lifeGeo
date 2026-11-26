@@ -48,13 +48,38 @@ public class LoginCoordinatorTests
             SavedDevice = device;
             return Task.CompletedTask;
         }
-        public Task ClearDeviceAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public bool DeviceCleared { get; private set; }
+        public Task ClearDeviceAsync(CancellationToken cancellationToken = default) { DeviceCleared = true; DeviceToReturn = null; return Task.CompletedTask; }
         public Task<StoredSession?> LoadSessionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> MarkSessionRefreshingAsync(StoredSession expectedSession, StoredSession pendingSession, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> CommitSessionRefreshAsync(StoredSession pendingSession, StoredSession newSession, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task ClearSessionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ClearSessionIfMatchesAsync(StoredSession expectedSession, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task ClearAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task LoginAsync_ServerDoesNotKnowTheDevice_ForgetsItSoTheNextRegisterAsksTheServer()
+    {
+        var apiClient = new MockAuthApiClient { LoginAsyncHandler = _ => Task.FromResult(AuthResult<AuthTokens>.DeviceNotApproved("DEVICE_UNKNOWN")) };
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "Lifedrops", "user@test.com") };
+
+        var result = await new LoginCoordinator(apiClient, store).LoginAsync("Lifedrops", "user@test.com", "password");
+
+        Assert.Equal(AuthStatus.DeviceNotApproved, result.Status);
+        Assert.Equal("DEVICE_UNKNOWN", result.ErrorCode);
+        Assert.True(store.DeviceCleared);
+    }
+
+    [Fact]
+    public async Task LoginAsync_DevicePendingApproval_KeepsTheStoredDevice()
+    {
+        var apiClient = new MockAuthApiClient { LoginAsyncHandler = _ => Task.FromResult(AuthResult<AuthTokens>.DeviceNotApproved()) };
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "secret", "Lifedrops", "user@test.com") };
+
+        await new LoginCoordinator(apiClient, store).LoginAsync("Lifedrops", "user@test.com", "password");
+
+        Assert.False(store.DeviceCleared);
     }
 
     [Fact]
