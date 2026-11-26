@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { CustomerFilePage, customerFileHash, customerIdFromHash } from './CustomerFilePage.tsx'
 import type { AdminApi, Customer, Me } from '../api/admin.ts'
 
@@ -44,5 +45,35 @@ describe('customer file', () => {
     const admin = { customer: vi.fn().mockRejectedValue(new Error('404')), customerHistory: vi.fn().mockResolvedValue({ visits: [], orders: [] }), customerPayments: vi.fn().mockResolvedValue([]), customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [] }), customerSamples: vi.fn().mockResolvedValue([]), customerFollowUps: vi.fn().mockResolvedValue([]) } as unknown as AdminApi
     render(<CustomerFilePage admin={admin} customerId={id} me={me} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('not found')
+  })
+
+  it('has the actions of the customer, only those the reader may do, and the form is for this customer only', async () => {
+    const user = userEvent.setup()
+    const createFollowUp = vi.fn().mockResolvedValue(undefined)
+    const admin = {
+      customer: vi.fn().mockResolvedValue(customer),
+      customerHistory: vi.fn().mockResolvedValue({ visits: [], orders: [] }),
+      customerPayments: vi.fn().mockResolvedValue([]),
+      customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [] }),
+      customerSamples: vi.fn().mockResolvedValue([]),
+      customerFollowUps: vi.fn().mockResolvedValue([]),
+      customers: vi.fn().mockResolvedValue([]),
+      users: vi.fn().mockResolvedValue([]),
+      createFollowUp,
+    } as unknown as AdminApi
+    const reader = { ...me, permissions: ['customers.read', 'followups.create'] } as Me
+    render(<CustomerFilePage admin={admin} customerId={id} me={reader} />)
+    expect(await screen.findByRole('button', { name: 'New follow-up' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record payment' })).toBeNull()   // not allowed for this reader
+    expect(screen.queryByRole('button', { name: 'New order' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'New follow-up' }))
+    const chooser = screen.getByRole('combobox', { name: 'Customer' })
+    expect(chooser).toBeDisabled()
+    expect(chooser).toHaveValue(id)
+    await user.type(screen.getByRole('textbox', { name: 'Subject' }), 'Call back')
+    await user.click(screen.getByRole('button', { name: 'Save follow-up' }))
+    await vi.waitFor(() => expect(createFollowUp).toHaveBeenCalledTimes(1))
+    expect(createFollowUp.mock.calls[0]![0]).toMatchObject({ customerId: id, subject: 'Call back' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved.')
   })
 })

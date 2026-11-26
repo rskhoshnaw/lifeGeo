@@ -148,7 +148,8 @@ public sealed class TrackingRetention(IRouteHistoryStore store, TimeProvider clo
 }
 
 // The located customers of the caller's area for the map: the panel clusters them and draws the check-in circle (decision D6/1.5).
-public sealed record MapCustomerDto(Guid Id, string Code, string Name, string Type, double Latitude, double Longitude, int GeofenceRadiusMeters);
+// Mine: the reader owns the customer (the app map shows the user's own customers apart from the others of the area; step 5.52).
+public sealed record MapCustomerDto(Guid Id, string Code, string Name, string Type, double Latitude, double Longitude, int GeofenceRadiusMeters, bool Mine = false);
 
 public sealed class CustomerMap(ICustomerStore customers, IPermissionStore permissions)
 {
@@ -166,7 +167,7 @@ public sealed class CustomerMap(ICustomerStore customers, IPermissionStore permi
         {
             var page = await customers.ListAsync(tenantId, scope, 500, cursorAt, cursorId, cancellationToken);
             result.AddRange(page.Where(c => c.Latitude is not null && c.Longitude is not null)
-                .Select(c => new MapCustomerDto(c.Id, c.Code, c.Name, c.Type, c.Latitude!.Value, c.Longitude!.Value, c.GeofenceRadiusMeters)));
+                .Select(c => new MapCustomerDto(c.Id, c.Code, c.Name, c.Type, c.Latitude!.Value, c.Longitude!.Value, c.GeofenceRadiusMeters, c.OwnerUserId == actorId.Value)));
             if (page.Count < 500) break;
             cursorAt = page[^1].CreatedAt;
             cursorId = page[^1].Id;

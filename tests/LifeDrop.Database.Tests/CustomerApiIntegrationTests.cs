@@ -176,7 +176,8 @@ public class CustomerApiIntegrationTests
                 var m74 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0074_product_availability.sql"));
                 var m75 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0075_team_leader.sql"));
                 var m76 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0076_stock_follows_warehouses.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76;
+                var m77 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0077_owner_leader_alerts.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -6795,6 +6796,11 @@ public class CustomerApiIntegrationTests
         Assert.Equal("P1,P7,W1", await Codes());
         Assert.Equal("", await Codes("/customers?q=Dr.%20Ali"));
         Assert.Equal("P1,P7,W1", await Codes("/customers/map"));
+        // The map says which customers the reader owns (the app shows them apart from the others of the area; step 5.52): rep owns none of these, rep2 owns the pharmacy P1
+        Assert.All((await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.MapCustomerDto>>("/customers/map"))!, m => Assert.False(m.Mine));
+        As(rep2);
+        Assert.Equal("P1", string.Join(",", (await client.GetFromJsonAsync<List<LifeDrop.Application.Tracking.MapCustomerDto>>("/customers/map"))!.Where(m => m.Mine).Select(m => m.Code)));
+        As(rep);
         await AssertProblemAsync(await client.GetAsync($"/customers/{doctor}"), HttpStatusCode.NotFound, "NOT_FOUND");
         await AssertProblemAsync(await client.PutAsJsonAsync($"/customers/{doctor}", new { Type = "Pharmacy", Code = "D1", Name = "Renamed" }), HttpStatusCode.NotFound, "NOT_FOUND");
         // and cannot register one, or turn a customer into one

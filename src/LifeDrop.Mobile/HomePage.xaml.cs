@@ -30,6 +30,7 @@ public partial class HomePage : ContentPage
         TelegramBtn.Text = Texts.Get("app.home.telegram");
         ProductsBtn.Text = Texts.Get("app.home.products");
         OrderBtn.Text = Texts.Get("app.home.order");
+        MapBtn.Text = Texts.Get("app.home.map");
         AccountBtn.Text = Texts.Get("app.home.account");
         WarehouseBtn.Text = Texts.Get("app.home.warehouse");
         StockBtn.Text = Texts.Get("app.home.stock");
@@ -67,6 +68,7 @@ public partial class HomePage : ContentPage
         ShowButton(MarketingBtn, MyPermissions.Has("marketing.use"));
         ShowButton(DeliveriesBtn, CompanyModules.Shows(hidden, "warehouse") && MyPermissions.Has("delivery.work"));
         ShowButton(ProductsBtn, CompanyModules.Shows(hidden, "catalog"));
+        ShowButton(MapBtn, MyPermissions.Has("customers.read"));   // the user's customers on a map (step 5.52)
         ShowButton(OrderBtn, CompanyModules.Shows(hidden, "orders") && MyPermissions.Has("orders.create"));   // taking a customer order (separate from the product gallery)
         ShowButton(TargetsBtn, MyPermissions.Has("visits.plan"));   // the visitors (they plan their own visits)
         ShowButton(KpiBtn, MyPermissions.Has("visits.plan"));       // their own KPIs (plan step 5.29)
@@ -129,6 +131,7 @@ public partial class HomePage : ContentPage
         TelegramBtn.IsEnabled = !isBusy;
         ProductsBtn.IsEnabled = !isBusy;
         OrderBtn.IsEnabled = !isBusy;
+        MapBtn.IsEnabled = !isBusy;
         AccountBtn.IsEnabled = !isBusy;
         WarehouseBtn.IsEnabled = StockBtn.IsEnabled = !isBusy;
         WholesalerBtn.IsEnabled = !isBusy;
@@ -390,6 +393,8 @@ public partial class HomePage : ContentPage
     private async void OnAccountClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new AccountPage());
 
     private async void OnProductsClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new ProductsPage());
+
+    private async void OnMapClicked(object? sender, EventArgs e) => await Navigation.PushAsync(new CustomersMapPage());
 
     private async void OnOrderClicked(object? sender, EventArgs e) => await OrderEntry.StartAsync(Navigation);
 

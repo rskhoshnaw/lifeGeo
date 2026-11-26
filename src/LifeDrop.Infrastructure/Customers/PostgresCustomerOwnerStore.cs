@@ -45,6 +45,13 @@ public sealed class PostgresCustomerOwnerStore(NpgsqlDataSource dataSource) : IC
                 INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
                 SELECT gen_random_uuid(), @tenant, @actor, 'customer.owner_changed', changed.id::text, now() FROM changed
                 RETURNING 1
+            ),
+            told AS (
+                -- The new owner learns how many customers were given to them (step 5.52); nobody is told about what they did themselves.
+                INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
+                SELECT @tenant, @owner, 'customer.owner_changed', (SELECT count(*) FROM changed)::text, @actor
+                WHERE @owner <> @actor AND EXISTS (SELECT 1 FROM changed)
+                RETURNING 1
             )
             SELECT count(*) FROM changed
             """;

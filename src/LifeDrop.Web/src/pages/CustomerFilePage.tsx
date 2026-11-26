@@ -1,7 +1,14 @@
-import { useCallback, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { AdminApi, can, Permissions, type Customer, type Me } from '../api/admin.ts'
 import { Badge, type Tone } from '../components/Badge.tsx'
 import { useLoad } from '../components/useLoad.ts'
+import { CustomerDetailsEditor } from '../components/CustomerDetailsEditor.tsx'
+import { CustomerProfileEditor } from '../components/CustomerProfileEditor.tsx'
+import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
+import { NewFollowUp } from './FollowUpsPage.tsx'
+import { NewOrderForm } from './OrdersPage.tsx'
+import { RecordForm } from './PaymentsPage.tsx'
+import { NewSample } from './SamplesPage.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { unitLabel } from './productView.ts'
 
@@ -33,7 +40,31 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
   const balance = useLoad(useCallback(() => admin.customerBalance(customerId), [admin, customerId]))
   const samples = useLoad(useCallback(() => admin.customerSamples(customerId), [admin, customerId]))
   const followUps = useLoad(useCallback(() => admin.customerFollowUps(customerId), [admin, customerId]))
-  void me
+  const [panel, setPanel] = useState<'order' | 'payment' | 'sample' | 'followup' | 'edit' | 'profile' | 'hours' | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+  const manageFollowUps = can(me, ...Permissions.manageFollowUps)
+  const users = useLoad(useCallback(() => (manageFollowUps ? admin.users().catch(() => []) : Promise.resolve([])), [admin, manageFollowUps]))
+  const editable = can(me, ...Permissions.editCustomers)
+  const actions: { id: NonNullable<typeof panel>; label: string; allowed: boolean }[] = [
+    { id: 'order', label: t('web.c360.newOrder'), allowed: can(me, 'orders.create') },
+    { id: 'payment', label: t('web.c360.newPayment'), allowed: can(me, 'payments.record') },
+    { id: 'sample', label: t('web.c360.newSample'), allowed: can(me, 'samples.record') },
+    { id: 'followup', label: t('web.c360.newFollowUp'), allowed: can(me, ...Permissions.createFollowUps) },
+    { id: 'edit', label: t('web.customers.edit'), allowed: editable },
+    { id: 'profile', label: t('web.customers.profile'), allowed: editable },
+    { id: 'hours', label: t('web.customers.visitHours'), allowed: editable },
+  ]
+  // What a form changed shows in its list at once.
+  const refresh = (message?: string) => {
+    setDone(message ?? t('web.c360.saved'))
+    setPanel(null)
+    customer.reload()
+    history.reload()
+    payments.reload()
+    balance.reload()
+    samples.reload()
+    followUps.reload()
+  }
 
   if (customer.error) return <p role="alert" className="p-6 text-sm text-red-700">{t('web.c360.notFound')}</p>
   const c = customer.data
@@ -41,6 +72,21 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
   return (
     <div className="space-y-5 p-6">
       <h2 className="text-xl font-semibold">{t('web.c360.title', { customer: `${c.name} (${c.code})` })}</h2>
+      <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label={t('web.c360.actions')}>
+        {actions.filter((a) => a.allowed).map((a) => (
+          <button key={a.id} type="button" aria-pressed={panel === a.id} className={`rounded border px-3 py-1 text-sm ${panel === a.id ? 'bg-slate-800 text-white' : 'bg-white'}`} onClick={() => { setDone(null); setPanel(panel === a.id ? null : a.id) }}>
+            {a.label}
+          </button>
+        ))}
+      </div>
+      {done && <p role="status" className="text-sm text-green-700">{done}</p>}
+      {panel === 'order' && <NewOrderForm admin={admin} fixedCustomer={c} onPlaced={(message) => refresh(message)} />}
+      {panel === 'payment' && <RecordForm admin={admin} fixedCustomer={c} onSaved={(message) => refresh(message)} />}
+      {panel === 'sample' && <NewSample admin={admin} fixedCustomer={c} onRecorded={() => refresh()} />}
+      {panel === 'followup' && <NewFollowUp admin={admin} fixedCustomer={c} manage={manageFollowUps} users={users.data ?? []} onCreated={() => refresh()} />}
+      {panel === 'edit' && <CustomerDetailsEditor admin={admin} customer={c} onClose={() => setPanel(null)} onSaved={() => refresh()} />}
+      {panel === 'profile' && <CustomerProfileEditor admin={admin} customer={c} canEdit onClose={() => { setPanel(null); customer.reload() }} />}
+      {panel === 'hours' && <VisitWindowsEditor admin={admin} customer={c} canEdit onClose={() => setPanel(null)} />}
       <Info customer={c} />
 
       <Section title={t('web.history.visits')} error={history.error}>

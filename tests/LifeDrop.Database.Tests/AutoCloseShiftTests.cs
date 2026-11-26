@@ -34,12 +34,12 @@ public class AutoCloseShiftTests
             await using (var migrate = new NpgsqlCommand($"SET search_path TO {schema}, public; {all}", connection))
                 await migrate.ExecuteNonQueryAsync();
 
-            Guid t = Guid.NewGuid(), u1 = Guid.NewGuid(), u2 = Guid.NewGuid(), u3 = Guid.NewGuid();
+            Guid t = Guid.NewGuid(), u1 = Guid.NewGuid(), u2 = Guid.NewGuid(), u3 = Guid.NewGuid(), u4 = Guid.NewGuid(), region = Guid.NewGuid(), team = Guid.NewGuid();
             Guid d1 = Guid.NewGuid(), d2 = Guid.NewGuid(), d3 = Guid.NewGuid();
             Guid sSilent = Guid.NewGuid(), sBeating = Guid.NewGuid(), sRecent = Guid.NewGuid();
             await using (var seed = new NpgsqlCommand("""
                 INSERT INTO tenants(id,name,code) VALUES (@t,'T','t1');
-                INSERT INTO users(id,tenant_id,email) VALUES (@u1,@t,'a@t.test'), (@u2,@t,'b@t.test'), (@u3,@t,'c@t.test');
+                INSERT INTO users(id,tenant_id,email) VALUES (@u1,@t,'a@t.test'), (@u2,@t,'b@t.test'), (@u3,@t,'c@t.test'), (@u4,@t,'leader@t.test');
                 INSERT INTO devices (id, tenant_id, user_id, device_label, platform, install_id, app_version, secret_hash, status) VALUES
                   (@d1, @t, @u1, 'P1', 'android', 'i1', '1.0', '\x00', 'approved'),
                   (@d2, @t, @u2, 'P2', 'android', 'i2', '1.0', '\x00', 'approved'),
@@ -50,9 +50,16 @@ public class AutoCloseShiftTests
                   (@s2, @t, @u2, @d2, now() - interval '6 hours'),
                   (@s3, @t, @u3, @d3, now() - interval '20 minutes');
                 INSERT INTO shift_health (shift_id, tenant_id, user_id, seen_at) VALUES (@s2, @t, @u2, now() - interval '1 minute');
+                -- u3 is in a team whose leader is u4 (step 5.52)
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t, 'R');
+                INSERT INTO teams (id, tenant_id, region_id, name, leader_user_id) VALUES (@tm, @t, @r, 'Team', @u4);
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t, @u3, @tm), (@t, @u4, @tm);
+                -- five connection-error reports typed with u1's e-mail (any capitals and spaces), four with u2's
+                INSERT INTO client_error_reports (tenant_id, occurred_at, stage, error_kind, error_type, message, entered_email) SELECT @t, now(), 'login', 'dns', 'x', 'm', ' A@T.test ' FROM generate_series(1, 5);
+                INSERT INTO client_error_reports (tenant_id, occurred_at, stage, error_kind, error_type, message, entered_email) SELECT @t, now(), 'login', 'dns', 'x', 'm', 'b@t.test' FROM generate_series(1, 4);
                 """, connection))
             {
-                seed.Parameters.AddWithValue("t", t);
+                seed.Parameters.AddWithValue("t", t); seed.Parameters.AddWithValue("u4", u4); seed.Parameters.AddWithValue("r", region); seed.Parameters.AddWithValue("tm", team);
                 seed.Parameters.AddWithValue("u1", u1); seed.Parameters.AddWithValue("u2", u2); seed.Parameters.AddWithValue("u3", u3);
                 seed.Parameters.AddWithValue("d1", d1); seed.Parameters.AddWithValue("d2", d2); seed.Parameters.AddWithValue("d3", d3);
                 seed.Parameters.AddWithValue("s1", sSilent); seed.Parameters.AddWithValue("s2", sBeating); seed.Parameters.AddWithValue("s3", sRecent);
@@ -70,6 +77,12 @@ public class AutoCloseShiftTests
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
             await new PostgresAlertStore(dataSource).ScanAsync(new TenantId(t), now, DateOnly.FromDateTime(now.UtcDateTime), TimeOnly.FromDateTime(now.UtcDateTime), CancellationToken.None);
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'tracking.stopped'"));
+
+            // Step 5.52: the leader of u3's team is told about the quiet shift once (not again by the second scan); nobody else is. Five connection-error reports of one e-mail make one alert, four make none.
+            Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM notifications WHERE kind = 'team.shift_stopped' AND user_id = '{u4}' AND entity_id = '{sRecent}' AND actor_id = '{u3}'"));
+            Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM notifications WHERE kind = 'team.shift_stopped'"));
+            Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) FROM alerts WHERE kind = 'connection_errors' AND subject_user_id = '{u1}' AND detail = '5'"));
+            Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM alerts WHERE kind = 'connection_errors'"));
 
             // Plan step 5.20: a phone that is heard from again opens the shift the scan closed (points of the gap are then accepted); a shift ended by the user, or closed long ago, stays closed.
             var shifts = new LifeDrop.Infrastructure.Tracking.PostgresShiftStore(dataSource);

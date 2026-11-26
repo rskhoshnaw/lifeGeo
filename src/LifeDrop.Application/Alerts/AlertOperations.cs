@@ -39,6 +39,11 @@ public static class AlertRules
     public static readonly TimeSpan NudgeAfter = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan NudgeEvery = TimeSpan.FromMinutes(7);
     public static readonly TimeSpan AutoCloseSilence = TimeSpan.FromMinutes(30);
+    // The leader of the team is told about a silent shift of a member at most this often per shift (plan step 5.52).
+    public static readonly TimeSpan LeaderNudgeEvery = TimeSpan.FromMinutes(30);
+    // Five or more connection-error reports of one user within half an hour make an alert for the managers (plan step 5.52, owner decision 2026-11-26).
+    public const int ConnectionErrorLimit = 5;
+    public static readonly TimeSpan ConnectionErrorWindow = TimeSpan.FromMinutes(30);
     public static readonly string[] Categories = ["operational", "security"];
     public static readonly string[] Statuses = ["new", "seen", "handled"];
     public static readonly string[] Outcomes = ["valid", "suspicious", "fraud"];

@@ -134,7 +134,7 @@ export function customerFilterQuery(filters: CustomerFilters = {}): string {
 export interface Notification {
   id: string
   // manager.message (step 4.16): entityId is the text the manager wrote.
-  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply'
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply' | 'customer.owner_changed' | 'team.shift_stopped'
   entityId: string
   actorId: string
   actorEmail: string | null
@@ -623,7 +623,7 @@ export interface FollowUp {
 }
 export interface Alert {
   id: string
-  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch' | 'impossible_travel' | 'short_stay' | 'low_coverage' | 'stationary' | 'short_shift'
+  kind: 'followup_overdue' | 'visit_delayed' | 'visit_long_stay' | 'tracking_gap' | 'new_device' | 'gps_mocked' | 'impossible_speed' | 'clock_tamper' | 'outside_area' | 'poor_accuracy' | 'device_mismatch' | 'impossible_travel' | 'short_stay' | 'low_coverage' | 'stationary' | 'short_shift' | 'connection_errors'
   category: 'operational' | 'security'
   severity: 'info' | 'warning' | 'critical'
   subjectEmail: string | null

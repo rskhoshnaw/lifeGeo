@@ -294,6 +294,46 @@ public sealed class PostgresAlertStore(NpgsqlDataSource dataSource) : IAlertStor
             nudge.Parameters.Add(P("every", NpgsqlDbType.Interval, AlertRules.NudgeEvery));
             await nudge.ExecuteNonQueryAsync(cancellationToken);
         }
+        // The leader of the user's team is told too (step 5.52), once per shift and 30 minutes; a leader who is no longer a member of the team is not told.
+        await using (var leader = new NpgsqlCommand("""
+            INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
+            SELECT DISTINCT sh.tenant_id, t.leader_user_id, 'team.shift_stopped', sh.id::text, sh.user_id
+            FROM shifts sh
+            JOIN team_members tm ON tm.tenant_id = sh.tenant_id AND tm.user_id = sh.user_id
+            JOIN teams t ON t.tenant_id = tm.tenant_id AND t.id = tm.team_id AND t.leader_user_id IS NOT NULL AND t.leader_user_id <> sh.user_id
+            WHERE sh.tenant_id = @tenant AND sh.ended_at IS NULL
+              AND EXISTS (SELECT 1 FROM team_members lm WHERE lm.tenant_id = t.tenant_id AND lm.team_id = t.id AND lm.user_id = t.leader_user_id)
+              AND greatest(coalesce((SELECT max(p.captured_at) FROM tracking_points p WHERE p.shift_id = sh.id), sh.started_at),
+                           coalesce((SELECT h.seen_at FROM shift_health h WHERE h.shift_id = sh.id), sh.started_at)) + @after < @now
+              AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.tenant_id = sh.tenant_id AND n.user_id = t.leader_user_id AND n.kind = 'team.shift_stopped'
+                              AND n.entity_id = sh.id::text AND n.created_at > @now - @leaderEvery)
+            """, connection, transaction))
+        {
+            leader.Parameters.AddWithValue("tenant", tenantId.Value);
+            leader.Parameters.Add(P("now", NpgsqlDbType.TimestampTz, now));
+            leader.Parameters.Add(P("after", NpgsqlDbType.Interval, AlertRules.NudgeAfter));
+            leader.Parameters.Add(P("leaderEvery", NpgsqlDbType.Interval, AlertRules.LeaderNudgeEvery));
+            await leader.ExecuteNonQueryAsync(cancellationToken);
+        }
+        // Many connection errors of one person (they cannot sign in or the phone cannot reach the server): the managers who read alerts see it without opening the error list.
+        // One alert per user per half hour at most; the reports are matched to the user by the e-mail typed in the app.
+        await using (var errors = new NpgsqlCommand($"""
+            INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, dedupe_key, occurred_at)
+            SELECT u.tenant_id, 'connection_errors', 'operational', 'warning', u.id, {string.Format(RegionOf, "u.id")}, u.id::text, e.reports::text,
+                   'connection_errors:' || u.id || ':' || floor(extract(epoch FROM @now) / extract(epoch FROM @errorWindow)), e.last_report
+            FROM users u
+            JOIN LATERAL (SELECT count(*) AS reports, max(r.reported_at) AS last_report FROM client_error_reports r
+                          WHERE r.tenant_id = u.tenant_id AND lower(btrim(r.entered_email)) = lower(u.email) AND r.reported_at > @now - @errorWindow) e ON e.reports >= @errorLimit
+            WHERE u.tenant_id = @tenant AND u.email IS NOT NULL AND u.is_active
+            ON CONFLICT (tenant_id, dedupe_key) DO NOTHING
+            """, connection, transaction))
+        {
+            errors.Parameters.AddWithValue("tenant", tenantId.Value);
+            errors.Parameters.Add(P("now", NpgsqlDbType.TimestampTz, now));
+            errors.Parameters.Add(P("errorWindow", NpgsqlDbType.Interval, AlertRules.ConnectionErrorWindow));
+            errors.Parameters.AddWithValue("errorLimit", (long)AlertRules.ConnectionErrorLimit);
+            await errors.ExecuteNonQueryAsync(cancellationToken);
+        }
         // Security: a phone that waits for approval.
         await RunAsync($"""
             INSERT INTO alerts (tenant_id, kind, category, severity, subject_user_id, region_id, entity_id, detail, dedupe_key, occurred_at)

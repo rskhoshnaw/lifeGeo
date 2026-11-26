@@ -72,6 +72,29 @@ public class PlanChangeTests
     }
 
     [Fact]
+    public async Task SeveralVisitsMoveToOneDayOneByOneAndTheCountsAreTrue()
+    {
+        var (plan, api, v) = await LoadedAsync("A", "B", "C");
+        var (moved, failed, stopped) = await plan.PostponeManyAsync(new[] { v[0].Id, v[2].Id, v[0].Id }, Today.AddDays(2), "Holiday");   // a repeated id is moved once
+        Assert.Equal((2, 0, null), (moved, failed, stopped));
+        Assert.Equal(new[] { v[1].Id }, plan.Visits.Select(x => x.Id).ToArray());
+        Assert.Equal("Holiday", api.PostponedReason);
+
+        // a day in the past is refused for every visit: nothing moved, all counted as failed, nothing stopped
+        var (m2, f2, s2) = await plan.PostponeManyAsync(new[] { v[1].Id }, Today.AddDays(-1), null);
+        Assert.Equal((0, 1, null), (m2, f2, s2));
+    }
+
+    [Fact]
+    public async Task MovingSeveralStopsWhenTheSignInEnded()
+    {
+        var (plan, api, v) = await LoadedAsync("A", "B", "C");
+        api.Result = VisitActionResult.SessionExpired;
+        var (moved, failed, stopped) = await plan.PostponeManyAsync(new[] { v[0].Id, v[1].Id, v[2].Id }, Today.AddDays(1), null);
+        Assert.Equal((0, 3, VisitActionResult.SessionExpired), (moved, failed, stopped));   // the rest is not tried, and all three are reported as not moved
+    }
+
+    [Fact]
     public async Task Postpone_RemovesTheVisitFromTodayAndSendsDayAndTrimmedReason()
     {
         var (plan, api, v) = await LoadedAsync("A", "B");

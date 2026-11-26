@@ -27,6 +27,69 @@ public partial class DailyPlanPage : ContentPage
         AddBtn.Text = Texts.Get("app.plan.add");
         TodayBtn.Text = Texts.Get("app.plan.backToToday");
         PickDayBtn.Text = Texts.Get("app.plan.pickDay");
+        SelectBtn.Text = Texts.Get("app.plan.select");
+        MoveSelectedBtn.Text = Texts.Get("app.plan.moveSelected", ("count", "0"));
+    }
+
+    // "Move several": rows are ticked, then one day is chosen for all of them (a day off or a holiday).
+    private bool _selecting;
+
+    private void OnSelectClicked(object? sender, EventArgs e)
+    {
+        _selecting = !_selecting;
+        VisitList.SelectedItems?.Clear();
+        VisitList.SelectionMode = _selecting ? SelectionMode.Multiple : SelectionMode.Single;
+        SelectBtn.Text = Texts.Get(_selecting ? "app.cancel" : "app.plan.select");
+        UpdateSelectionBar();
+    }
+
+    private IReadOnlyList<VisitRow> SelectedRows() => VisitList.SelectedItems?.OfType<VisitRow>().Where(r => r.CanPostpone).ToList() ?? new List<VisitRow>();
+
+    private void UpdateSelectionBar()
+    {
+        var count = _selecting ? SelectedRows().Count : 0;
+        MoveSelectedBtn.IsVisible = _selecting && count > 0;
+        MoveSelectedBtn.Text = Texts.Get("app.plan.moveSelected", ("count", count.ToString()));
+    }
+
+    private async void OnMoveSelectedClicked(object? sender, EventArgs e)
+    {
+        var rows = SelectedRows();
+        if (_plan is null || rows.Count == 0) return;
+        var today = IraqTime.Today(TimeProvider.System);
+        var start = _plan.Date.AddDays(1) < today ? today : _plan.Date.AddDays(1);
+        await Navigation.PushAsync(new DayPickerPage(Texts.Get("app.plan.moveSelected", ("count", rows.Count.ToString())), today, today.AddDays(120), start, async day => await MoveManyAsync(rows, day)));
+    }
+
+    private async Task MoveManyAsync(IReadOnlyList<VisitRow> rows, DateOnly day)
+    {
+        if (_plan is null) return;
+        Spinner.IsVisible = Spinner.IsRunning = true;
+        (int Moved, int Failed, VisitActionResult? Stopped) outcome;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            outcome = await _plan.PostponeManyAsync(rows.Select(r => r.Visit.Id).ToList(), day, null, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = (0, rows.Count, VisitActionResult.NetworkError);
+        }
+        finally
+        {
+            Spinner.IsVisible = Spinner.IsRunning = false;
+        }
+        _selecting = false;
+        VisitList.SelectedItems?.Clear();
+        VisitList.SelectionMode = SelectionMode.Single;
+        SelectBtn.Text = Texts.Get("app.plan.select");
+        UpdateSelectionBar();
+        Render();
+        MessageLabel.Text = outcome.Stopped == VisitActionResult.SessionExpired ? Texts.Get("app.sessionEnded")
+            : outcome.Failed == 0 && outcome.Stopped is null ? Texts.Get("app.plan.movedMany", ("count", outcome.Moved.ToString()), ("date", day.ToString("dddd d MMMM", Texts.Culture)))
+            : Texts.Get("app.plan.movedSome", ("moved", outcome.Moved.ToString()), ("failed", outcome.Failed.ToString()));
+        MessageLabel.IsVisible = true;
+        if (outcome.Stopped == VisitActionResult.SessionExpired) ShowSessionEnded();
     }
 
     private DateOnly ShownDay => _plan?.Selected ?? IraqTime.Today(TimeProvider.System);
@@ -139,6 +202,11 @@ public partial class DailyPlanPage : ContentPage
 
     private async void OnVisitSelected(object? sender, SelectionChangedEventArgs e)
     {
+        if (_selecting)
+        {
+            UpdateSelectionBar();
+            return;
+        }
         if (e.CurrentSelection.FirstOrDefault() is not VisitRow row || _api is null) return;
         VisitList.SelectedItem = null;
         await Navigation.PushAsync(new VisitDetailsPage(new VisitLifecycle(_api, row.Visit, new MauiLocationSource(), outbox: TrackingHost.Outbox)));

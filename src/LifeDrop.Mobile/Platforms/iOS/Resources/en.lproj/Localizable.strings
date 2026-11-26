@@ -3,3 +3,5 @@
 "push_tracking_stopped" = "Location tracking has stopped. Open LifeDrop to continue your shift.";
 "push_feedback_new" = "You have new feedback to read.";
 "push_feedback_reply" = "A manager answered your feedback.";
+"push_customer_owner_changed" = "Customers were given to you. Open LifeDrop to see them.";
+"push_team_shift_stopped" = "A member of your team has stopped sending their position.";

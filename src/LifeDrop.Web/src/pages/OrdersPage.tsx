@@ -184,10 +184,11 @@ interface Line {
   quantity: string
 }
 
-function NewOrderForm({ admin, onPlaced }: { admin: AdminApi; onPlaced: (message: string) => void }) {
+// `fixedCustomer`: the order is for this customer only (opened from the customer's file).
+export function NewOrderForm({ admin, onPlaced, fixedCustomer }: { admin: AdminApi; onPlaced: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
   const warehouses = useLoad(useCallback(() => admin.warehouses(), [admin]))
-  const [customer, setCustomer] = useState('')
+  const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
   const [warehouse, setWarehouse] = useState('')
   const [lines, setLines] = useState<Line[]>([])
   const [productId, setProductId] = useState('')
@@ -235,9 +236,9 @@ function NewOrderForm({ admin, onPlaced }: { admin: AdminApi; onPlaced: (message
       <h3 className="font-semibold">{t('web.orders.new')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t('web.orders.customer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => { setCustomer(e.target.value); setLines([]) }}>
-          <option value="">{t('web.orders.chooseCustomer')}</option>
-          {approved.map((c) => (
+        <select aria-label={t('web.orders.customer')} className="rounded border px-2 py-1" disabled={!!fixedCustomer} value={customer} onChange={(e) => { setCustomer(e.target.value); setLines([]) }}>
+          {!fixedCustomer && <option value="">{t('web.orders.chooseCustomer')}</option>}
+          {(fixedCustomer ? [fixedCustomer] : approved).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
             </option>

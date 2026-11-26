@@ -21,7 +21,11 @@
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />
             <Label x:Name="MessageLabel" IsVisible="False" />
             <Button x:Name="RetryBtn" Clicked="OnRetryClicked" IsVisible="False" HorizontalOptions="Start" />
-            <Button x:Name="AddBtn" Clicked="OnAddClicked" HorizontalOptions="Start" />
+            <HorizontalStackLayout Spacing="8">
+                <Button x:Name="AddBtn" Clicked="OnAddClicked" HorizontalOptions="Start" />
+                <Button x:Name="SelectBtn" Clicked="OnSelectClicked" HorizontalOptions="Start" />
+                <Button x:Name="MoveSelectedBtn" Clicked="OnMoveSelectedClicked" HorizontalOptions="Start" IsVisible="False" />
+            </HorizontalStackLayout>
         </VerticalStackLayout>
 
         <RefreshView x:Name="Refresher" Grid.Row="2" Refreshing="OnRefreshing">

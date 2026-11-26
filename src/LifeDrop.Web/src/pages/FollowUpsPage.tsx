@@ -130,9 +130,10 @@ export function FollowUpsPage({ admin, me }: { admin: AdminApi; me: Me }) {
   )
 }
 
-function NewFollowUp({ admin, manage, users, onCreated }: { admin: AdminApi; manage: boolean; users: { id: string; email: string | null }[]; onCreated: () => void }) {
+// `fixedCustomer`: the form is for this customer only (opened from the customer's file).
+export function NewFollowUp({ admin, manage, users, onCreated, fixedCustomer }: { admin: AdminApi; manage: boolean; users: { id: string; email: string | null }[]; onCreated: () => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
-  const [customer, setCustomer] = useState('')
+  const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
   const [subject, setSubject] = useState('')
   const [due, setDue] = useState(iraqToday())
   const [assignee, setAssignee] = useState('')
@@ -146,7 +147,7 @@ function NewFollowUp({ admin, manage, users, onCreated }: { admin: AdminApi; man
     await action.run(async () => {
       await admin.createFollowUp({ customerId: customer, subject: subject.trim(), dueDate: due, assigneeId: assignee || null, clientRef })
       setSubject('')
-      setCustomer('')
+      setCustomer(fixedCustomer?.id ?? '')
       setAssignee('')
       setClientRef(crypto.randomUUID())
       onCreated()
@@ -158,9 +159,9 @@ function NewFollowUp({ admin, manage, users, onCreated }: { admin: AdminApi; man
       <h3 className="font-semibold">{t('web.followups.new')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t('web.followups.customer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => setCustomer(e.target.value)}>
-          <option value="">{t('web.followups.chooseCustomer')}</option>
-          {(customers.data ?? []).map((c) => (
+        <select aria-label={t('web.followups.customer')} className="rounded border px-2 py-1" disabled={!!fixedCustomer} value={customer} onChange={(e) => setCustomer(e.target.value)}>
+          {!fixedCustomer && <option value="">{t('web.followups.chooseCustomer')}</option>}
+          {(fixedCustomer ? [fixedCustomer] : (customers.data ?? [])).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
             </option>
