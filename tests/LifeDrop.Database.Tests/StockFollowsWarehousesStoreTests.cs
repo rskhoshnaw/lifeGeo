@@ -9,9 +9,9 @@ using Xunit;
 
 namespace LifeDrop.Database.Tests;
 
-// The total stock of a product is the sum of its warehouses (owner request 2026-11-13) against every migration in an isolated schema: a product counted in warehouses reports their
-// sum and what the open orders will take; an order for more than the warehouse has free is placed with a warning and never touches the old single figure (which still rules the
-// products that are not counted); cancelling gives the old figure back only for lines that took it; a failed delivery, or a short one, gives the goods back to the warehouse once.
+// The total stock of a product is the sum of its warehouses (owner request 2026-11-13; step 5.53: only the warehouses) against every migration in an isolated schema: a product counted in
+// warehouses reports their sum and what the open orders will take; an order for more than the warehouse has free is placed with a warning; the old single figure products.stock_qty is
+// never read, taken or given back any more (a product nobody counted has no limit); a failed delivery, or a short one, gives the goods back to the warehouse once.
 public class StockFollowsWarehousesStoreTests
 {
     [Fact]
@@ -74,10 +74,10 @@ public class StockFollowsWarehousesStoreTests
             NewOrder Order(Guid warehouse, params (Guid Product, string Code, decimal Quantity)[] lines) => new(customer, warehouse, null, Guid.NewGuid(), "IQD", 0, null,
                 lines.Select(l => new PricedLine(l.Product, l.Code, l.Code, "box", l.Quantity, 1, 1, 0, [])).ToList());
 
-            // The total of a counted product is the sum of its warehouses; the others keep the old figure.
+            // The total of a counted product is the sum of its warehouses; a product nobody counted has none, whatever the old figure says (step 5.53).
             var start = await Product(a);
             Assert.Equal((15m, 0m, true), (start.StockQty, start.ReservedQty, start.InStock));
-            Assert.Equal((3m, (decimal?)null), ((await Product(b)).StockQty, (await Product(b)).ReservedQty));
+            Assert.Equal(((decimal?)null, (decimal?)null, true), ((await Product(b)).StockQty, (await Product(b)).ReservedQty, (await Product(b)).InStock));
             Assert.Null((await Product(c)).StockQty);
 
             // Orders: 4 of 10 free is fine; 7 more is more than the 6 left free: placed anyway, with a warning, and the old figure of A (100) is never touched.
@@ -93,17 +93,17 @@ public class StockFollowsWarehousesStoreTests
             var row = (await orders.ListStockAsync(t, null, CancellationToken.None)).Single(r => r.WarehouseCode == "W1" && r.ProductCode == "A");
             Assert.Equal((10m, 11m), (row.Quantity, row.Reserved));
 
-            // A product that is not counted keeps the old figure: taken by the order, given back when it is cancelled; the counted one gives nothing back.
+            // A product that is not counted has no limit: two orders of 2 are placed although the old figure says 3, and nothing is taken or given back (the old figure stays 3).
             var (rb, orderB) = await orders.CreateAsync(t, repId, Order(w1, (b, "B", 2m)), CancellationToken.None);
             Assert.Equal(OrderResult.Success, rb);
-            Assert.Equal(1m, (await Product(b)).StockQty);
-            var (rOut, _) = await orders.CreateAsync(t, repId, Order(w1, (b, "B", 2m)), CancellationToken.None);
-            Assert.Equal(OrderResult.OutOfStock, rOut);
+            var (rb2, orderB2) = await orders.CreateAsync(t, repId, Order(w1, (b, "B", 2m)), CancellationToken.None);
+            Assert.Equal((OrderResult.Success, null), (rb2, orderB2!.StockWarnings));
+            Assert.Equal("3", await Scalar($"SELECT stock_qty::int FROM products WHERE id = '{b}'"));
             var scope = new AccessScope(DataScope.Tenant, repId, null);
             Assert.Equal(OrderResult.Success, await orders.CancelAsync(t, repId, orderB!.Id, scope, true, "changed mind", CancellationToken.None));
-            Assert.Equal(3m, (await Product(b)).StockQty);
+            Assert.Equal("3", await Scalar($"SELECT stock_qty::int FROM products WHERE id = '{b}'"));
             Assert.Equal(OrderResult.Success, await orders.CancelAsync(t, repId, second.Id, scope, true, "changed mind", CancellationToken.None));
-            Assert.Equal("100", await Scalar($"SELECT stock_qty::int FROM products WHERE id = '{a}'"));   // not given back: it was never taken
+            Assert.Equal("100", await Scalar($"SELECT stock_qty::int FROM products WHERE id = '{a}'"));   // never touched
 
             // Hand over the 4 of the first order: they leave W1 (10 -> 6); the delivery fails: they come back (6 -> 10), once.
             var staff = new UserId(officer);

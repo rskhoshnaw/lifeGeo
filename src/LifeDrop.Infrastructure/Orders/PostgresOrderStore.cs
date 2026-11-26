@@ -179,44 +179,21 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         if (warehouseStatus is null) return (OrderResult.NotFound, null);
         if (warehouseStatus != "active") return (OrderResult.InvalidData, null);
 
-        // A product counted in the chosen warehouse (owner request 2026-11-13): its stock there minus the open orders of that warehouse is what is free; an order for more is
-        // placed anyway and the sender is warned. Such a product does not touch the old single figure below.
-        // Plan step 4.41: any other product with a tracked stock (stock_qty not null) is locked, checked and reduced by what the order takes, in a fixed order so that two orders never wait on each other.
-        // Nothing is taken when one line is short (the whole transaction is rolled back); a product without a stock figure is not limited.
+        // A product counted in the chosen warehouse: its stock there minus the open orders of that warehouse is what is free; an order for more is placed anyway and the sender is warned
+        // (owner request 2026-11-13). A product nobody counted in that warehouse has no limit. Stock lives only in the warehouses (plan step 5.53): nothing is taken here, the hand-over takes it.
         var warnings = new List<string>();
-        var takenFromLegacy = new HashSet<Guid>();
         foreach (var taken in order.Lines.GroupBy(l => l.ProductId).OrderBy(g => g.Key))
         {
             var needed = taken.Sum(l => l.Quantity);
-            await using (var counted = new NpgsqlCommand("""
+            await using var counted = new NpgsqlCommand("""
                 SELECT ws.quantity - coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id
                                                WHERE o.tenant_id = ws.tenant_id AND o.warehouse_id = ws.warehouse_id AND oi.product_id = ws.product_id AND o.status IN ('placed', 'preparing', 'ready')), 0)
                 FROM warehouse_stock ws WHERE ws.tenant_id = @tenant AND ws.warehouse_id = @warehouse AND ws.product_id = @product
-                """, connection, transaction))
-            {
-                counted.Parameters.AddWithValue("tenant", tenantId.Value);
-                counted.Parameters.AddWithValue("warehouse", order.WarehouseId);
-                counted.Parameters.AddWithValue("product", taken.Key);
-                if (await counted.ExecuteScalarAsync(cancellationToken) is decimal free)
-                {
-                    if (free < needed) warnings.Add(taken.First().ProductCode);
-                    continue;
-                }
-            }
-            await using var stock = new NpgsqlCommand("SELECT stock_qty FROM products WHERE tenant_id = @tenant AND id = @product FOR UPDATE", connection, transaction);
-            stock.Parameters.AddWithValue("tenant", tenantId.Value);
-            stock.Parameters.AddWithValue("product", taken.Key);
-            var available = await stock.ExecuteScalarAsync(cancellationToken);
-            if (available is decimal quantity)
-            {
-                if (quantity < needed) return (OrderResult.OutOfStock, null);
-                await using var reduce = new NpgsqlCommand("UPDATE products SET stock_qty = stock_qty - @needed, updated_at = now() WHERE tenant_id = @tenant AND id = @product", connection, transaction);
-                reduce.Parameters.AddWithValue("tenant", tenantId.Value);
-                reduce.Parameters.AddWithValue("product", taken.Key);
-                reduce.Parameters.AddWithValue("needed", needed);
-                await reduce.ExecuteNonQueryAsync(cancellationToken);
-                takenFromLegacy.Add(taken.Key);
-            }
+                """, connection, transaction);
+            counted.Parameters.AddWithValue("tenant", tenantId.Value);
+            counted.Parameters.AddWithValue("warehouse", order.WarehouseId);
+            counted.Parameters.AddWithValue("product", taken.Key);
+            if (await counted.ExecuteScalarAsync(cancellationToken) is decimal free && free < needed) warnings.Add(taken.First().ProductCode);
         }
 
         long number;
@@ -271,7 +248,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
                 item.Parameters.AddWithValue("price", line.UnitPrice);
                 item.Parameters.AddWithValue("total", line.LineTotal);
                 item.Parameters.AddWithValue("discounts", JsonSerializer.Serialize(line.Discounts, Json));
-                item.Parameters.AddWithValue("legacy", takenFromLegacy.Contains(line.ProductId));
+                item.Parameters.AddWithValue("legacy", false);   // stock lives in the warehouses only (step 5.53)
                 await item.ExecuteNonQueryAsync(cancellationToken);
             }
         }
@@ -444,17 +421,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             update.Parameters.AddWithValue("id", orderId);
             await update.ExecuteNonQueryAsync(cancellationToken);
         }
-        // Plan step 4.41: what the order took from a tracked stock goes back.
-        await using (var restore = new NpgsqlCommand("""
-            UPDATE products p SET stock_qty = p.stock_qty + t.qty, updated_at = now()
-            FROM (SELECT product_id, sum(quantity) AS qty FROM order_items WHERE tenant_id = @tenant AND order_id = @id AND legacy_stock_taken GROUP BY product_id) t
-            WHERE p.tenant_id = @tenant AND p.id = t.product_id AND p.stock_qty IS NOT NULL
-            """, connection, transaction))
-        {
-            restore.Parameters.AddWithValue("tenant", tenantId.Value);
-            restore.Parameters.AddWithValue("id", orderId);
-            await restore.ExecuteNonQueryAsync(cancellationToken);
-        }
+        // Nothing is given back here: an order takes stock from its warehouse only at the hand-over, and a cancelled order has not reached it (plan step 5.53).
         await AddHistoryAsync(connection, transaction, tenantId, orderId, "cancelled", actorId, reason, cancellationToken);
         await AuditAsync(connection, transaction, tenantId, actorId, "order.cancelled", orderId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

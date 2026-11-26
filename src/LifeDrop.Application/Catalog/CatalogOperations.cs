@@ -34,6 +34,7 @@ public sealed record ProductDto(Guid Id, string Code, string Name, string? NameC
     public bool InStock => StockQty is null || StockQty - (ReservedQty ?? 0) > 0;
 }
 
+// StockQty is accepted for old clients and ignored: stock lives in the warehouses only (plan step 5.53).
 public sealed record ProductDetailsRequest(string? Specialty, string? Manufacturer, DateOnly? ExpiryDate, decimal? StockQty, string? Notes, string? ScientificName = null, bool? Available = null, decimal? MinStock = null);
 
 // Code is needed to create and ignored when editing (it never changes). Status: active (default) | inactive.

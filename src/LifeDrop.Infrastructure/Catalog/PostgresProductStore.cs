@@ -10,9 +10,9 @@ namespace LifeDrop.Infrastructure.Catalog;
 
 public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProductStore
 {
-    // The stock of a product counted in warehouses is the sum of their counted stock (owner request 2026-11-13), else the old single figure; Reserved is what the open orders
-    // of those warehouses will take (null for a product not counted anywhere).
-    private static string Total(string a) => $"COALESCE((SELECT sum(ws.quantity) FROM warehouse_stock ws JOIN warehouses w ON w.tenant_id = ws.tenant_id AND w.id = ws.warehouse_id WHERE ws.tenant_id = {a}.tenant_id AND ws.product_id = {a}.id AND w.status = 'active' AND w.kind = 'company' HAVING count(*) > 0), {a}.stock_qty)";
+    // The stock of a product is the sum of its counted stock in the active company warehouses (plan step 5.53: the old single figure products.stock_qty is no longer read);
+    // NULL for a product nobody counted anywhere. Reserved is what the open orders of those warehouses will take (null for a product not counted anywhere).
+    private static string Total(string a) => $"(SELECT sum(ws.quantity) FROM warehouse_stock ws JOIN warehouses w ON w.tenant_id = ws.tenant_id AND w.id = ws.warehouse_id WHERE ws.tenant_id = {a}.tenant_id AND ws.product_id = {a}.id AND w.status = 'active' AND w.kind = 'company' HAVING count(*) > 0)";
     private static string Reserved(string a) => $"CASE WHEN EXISTS (SELECT 1 FROM warehouse_stock x JOIN warehouses xw ON xw.tenant_id = x.tenant_id AND xw.id = x.warehouse_id WHERE x.tenant_id = {a}.tenant_id AND x.product_id = {a}.id AND xw.status = 'active' AND xw.kind = 'company') THEN (SELECT coalesce(sum(oi.quantity), 0) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id JOIN warehouse_stock ws ON ws.tenant_id = o.tenant_id AND ws.warehouse_id = o.warehouse_id AND ws.product_id = oi.product_id WHERE oi.tenant_id = {a}.tenant_id AND oi.product_id = {a}.id AND o.status IN ('placed', 'preparing', 'ready')) END";
     private static readonly string ProductColumns = $"id, code, name, name_ckb, name_ar, name_en, unit, currency, base_price, status, updated_at, specialty, manufacturer, expiry_date, {Total("products")}, notes, (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = products.tenant_id AND ph.product_id = products.id), scientific_name, available, min_stock, {Reserved("products")}";
 
@@ -83,7 +83,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         await using (var update = new NpgsqlCommand("""
-            UPDATE products SET specialty = @specialty, manufacturer = @manufacturer, expiry_date = @expiry, stock_qty = @stock, notes = @notes, scientific_name = @scientific, available = COALESCE(@available, available), min_stock = @minStock, updated_at = now()
+            UPDATE products SET specialty = @specialty, manufacturer = @manufacturer, expiry_date = @expiry, notes = @notes, scientific_name = @scientific, available = COALESCE(@available, available), min_stock = @minStock, updated_at = now()
             WHERE tenant_id = @tenant AND id = @id
             """, connection, transaction))
         {
@@ -92,7 +92,6 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
             update.Parameters.Add(new NpgsqlParameter("specialty", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Specialty ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("manufacturer", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Manufacturer ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("expiry", NpgsqlTypes.NpgsqlDbType.Date) { Value = (object?)details.ExpiryDate ?? DBNull.Value });
-            update.Parameters.Add(new NpgsqlParameter("stock", NpgsqlTypes.NpgsqlDbType.Numeric) { Value = (object?)details.StockQty ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("notes", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)details.Notes ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("available", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = (object?)details.Available ?? DBNull.Value });
             update.Parameters.Add(new NpgsqlParameter("minStock", NpgsqlTypes.NpgsqlDbType.Numeric) { Value = (object?)details.MinStock ?? DBNull.Value });
