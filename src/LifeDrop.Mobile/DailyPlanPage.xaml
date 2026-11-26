@@ -6,7 +6,16 @@
 
     <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
 
-        <Label x:Name="DateLabel" Grid.Row="0" Style="{StaticResource SubHeadline}" HorizontalOptions="Start" />
+        <!-- The day on screen: back / next day, and a date to choose (owner request 2026-11-26: see and plan other days) -->
+        <VerticalStackLayout Grid.Row="0" Spacing="6">
+            <Label x:Name="DateLabel" Style="{StaticResource SubHeadline}" HorizontalOptions="Start" />
+            <HorizontalStackLayout Spacing="8">
+                <Button x:Name="PrevBtn" Text="◀" Clicked="OnPrevDay" />
+                <Button x:Name="TodayBtn" Clicked="OnToday" />
+                <Button x:Name="NextBtn" Text="▶" Clicked="OnNextDay" />
+                <Button x:Name="PickDayBtn" Clicked="OnPickDay" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
 
         <VerticalStackLayout Grid.Row="1" Spacing="8">
             <ActivityIndicator x:Name="Spinner" IsRunning="False" IsVisible="False" />

@@ -112,7 +112,8 @@ public sealed class PlanGenerator(IPlanGenerationStore store, IPermissionStore p
         if (tenantId.IsEmpty || actorId.IsEmpty) return (PlanGenerationResult.Forbidden, null);
         var order = request.Order ?? "least_recent";
         if (request.AssignedUserId == Guid.Empty || request.ScheduleDate == default || request.ScheduleDate < IraqCalendar.Today(clock) ||
-            (request.PlaceId is null && request.RegionId is null && string.IsNullOrWhiteSpace(request.Query) && request.Area is null && request.CustomerIds is null) || !IsValidArea(request.Area) || request.Query?.Trim().Length > 60 || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
+            // No place, region, text, area or chosen customers: only for the user's own plan (owner request 2026-11-26: the add-to-plan page lists the user's customers when it opens); a plan for another user always needs one.
+            (request.PlaceId is null && request.RegionId is null && string.IsNullOrWhiteSpace(request.Query) && request.Area is null && request.CustomerIds is null && request.AssignedUserId is { } other && other != actorId.Value) || !IsValidArea(request.Area) || request.Query?.Trim().Length > 60 || request.PlaceId == Guid.Empty || request.RegionId == Guid.Empty ||
             request.Count is < 1 or > MaxCount || !Orders.Contains(order) ||
             !VisitPlanningContract.TryParseType(request.VisitType, out _) || !VisitPlanningContract.TryParsePriority(request.Priority, out _) ||
             (request.CustomerIds is { } ids && (ids.Count == 0 || ids.Count > MaxCount || ids.Any(i => i == Guid.Empty))))

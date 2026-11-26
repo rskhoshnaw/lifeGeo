@@ -44,6 +44,10 @@ public sealed class DailyPlan
     public DailyPlanState State { get; private set; } = DailyPlanState.Idle;
     public IReadOnlyList<PlannedVisit> Visits { get; private set; } = Array.Empty<PlannedVisit>();
     public DateOnly Date { get; private set; }
+    // The day the user wants to see (owner request 2026-11-26: see and plan other days, not only today). Null = today. Only today's plan is kept for offline use.
+    public DateOnly? Selected { get; private set; }
+
+    public void SelectDay(DateOnly? day) => Selected = day is { } d && d == IraqTime.Today(_clock) ? null : day;
     public PlanLoadStatus? Error { get; private set; }
     // True when an error is shown over visits from an earlier successful load.
     public bool IsStale => State == DailyPlanState.Error && Visits.Count > 0;
@@ -67,7 +71,8 @@ public sealed class DailyPlan
         if (State == DailyPlanState.Loading) return false;
         var previous = State;
         State = DailyPlanState.Loading;
-        var today = IraqTime.Today(_clock);
+        var today = Selected ?? IraqTime.Today(_clock);   // the day on screen
+        var isToday = Selected is null;
         try
         {
             var result = await _api.GetDailyPlanAsync(today, cancellationToken);
@@ -76,14 +81,14 @@ public sealed class DailyPlan
                 Date = today;
                 Visits = result.Visits;
                 Error = null;
-                _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(today, result.Visits.ToList()), Json));
+                if (isToday) _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(today, result.Visits.ToList()), Json));
                 State = Visits.Count == 0 ? DailyPlanState.Empty : DailyPlanState.Loaded;
             }
             else
             {
                 // A new day must not show yesterday's visits as today's.
                 if (Date != today) Visits = Array.Empty<PlannedVisit>();
-                if (Visits.Count == 0 && ReadCache(today) is { } cached)
+                if (isToday && Visits.Count == 0 && ReadCache(today) is { } cached)
                 {
                     Date = today;
                     Visits = cached;
@@ -131,7 +136,7 @@ public sealed class DailyPlan
     // Moves a visit to another day (for example when the customer is not available); it leaves today's list.
     public async Task<VisitActionResult> PostponeAsync(Guid visitId, DateOnly newDay, string? reason, CancellationToken cancellationToken = default)
     {
-        if (newDay <= Date) return VisitActionResult.InvalidData;
+        if (newDay == Date || newDay < IraqTime.Today(_clock)) return VisitActionResult.InvalidData;   // any later day, or an earlier one that is not in the past
         var result = await _api.PostponeAsync(visitId, newDay, string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(), cancellationToken);
         if (result == VisitActionResult.Success)
         {
@@ -178,8 +183,10 @@ public sealed class DailyPlan
         return notes;
     }
 
-    private void CacheVisits() =>
-        _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(Date, Visits.ToList()), Json));
+    private void CacheVisits()
+    {
+        if (Selected is null) _cache?.Write(CacheKey, System.Text.Json.JsonSerializer.Serialize(new CachedPlan(Date, Visits.ToList()), Json));
+    }
 
     private IReadOnlyList<PlannedVisit>? ReadCache(DateOnly today)
     {

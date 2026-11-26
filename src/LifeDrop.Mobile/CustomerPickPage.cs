@@ -77,8 +77,9 @@ public sealed class CustomerPickPage : ContentPage
                 var button = new Button { Text = $"{item.Code} · {item.Name}" + (string.IsNullOrWhiteSpace(item.Phone) ? "" : $" · {item.Phone}"), HorizontalOptions = LayoutOptions.Fill };
                 button.Clicked += async (_, _) =>
                 {
+                    var navigation = Navigation;
+                    await navigation.PopAsync();   // first close this page, then let the caller open the next one (the other way round the new page was popped and the list came back)
                     _picked(captured);
-                    await Navigation.PopAsync();
                 };
                 _results.Children.Add(button);
             }

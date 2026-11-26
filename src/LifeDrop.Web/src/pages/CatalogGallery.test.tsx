@@ -31,4 +31,22 @@ describe('product gallery', () => {
     expect(dialog).toHaveTextContent('Pioneer')
     expect(dialog).toHaveTextContent('Expired')
   })
+
+  it('has Save and new product: the product is created and the form opens empty for the next one', async () => {
+    const manager = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage'] } as Me
+    const createProduct = vi.fn().mockResolvedValue({})
+    const api = { products: vi.fn().mockResolvedValue([]), productPhotoUrl: (k: string) => k, createProduct } as unknown as AdminApi
+    const user = userEvent.setup()
+    render(<CatalogPage admin={api} me={manager} />)
+    await user.click(await screen.findByRole('button', { name: 'New product' }))
+    await user.type(screen.getByRole('textbox', { name: 'Code' }), 'P-1')
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'First product')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit' }), 'box')
+    await user.type(screen.getByRole('spinbutton', { name: 'Base price' }), '1500')
+    await user.click(screen.getByRole('button', { name: 'Save and new product' }))
+    await vi.waitFor(() => expect(createProduct).toHaveBeenCalledTimes(1))
+    expect(createProduct.mock.calls[0]![0]).toMatchObject({ code: 'P-1', name: 'First product', unit: 'box', basePrice: 1500 })
+    expect(await screen.findByRole('textbox', { name: 'Code' })).toHaveValue('')   // an empty form is there again
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+  })
 })

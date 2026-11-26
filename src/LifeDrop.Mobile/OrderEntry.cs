@@ -5,5 +5,5 @@ namespace LifeDrop.Mobile;
 public static class OrderEntry
 {
     public static Task StartAsync(INavigation navigation) =>
-        navigation.PushAsync(new CustomerPickPage(customer => _ = navigation.PushAsync(new OrderPage(customer.Id, customer.Name))));
+        navigation.PushAsync(new CustomerPickPage(async customer => await navigation.PushAsync(new OrderPage(customer.Id, customer.Name))));
 }

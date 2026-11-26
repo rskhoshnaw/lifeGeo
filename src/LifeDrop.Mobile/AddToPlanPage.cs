@@ -127,7 +127,9 @@ public sealed class AddToPlanPage : ContentPage
         catch (OperationCanceledException)
         {
             Show(Texts.Get("app.timeout"));
+            return;
         }
+        await SearchAsync();   // the page opens with the user's customers; place, text and area narrow them (owner request 2026-11-26)
     }
 
     // The drawn area (null = none) is searched together with the place and the text.

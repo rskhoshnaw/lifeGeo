@@ -25,6 +25,31 @@ public partial class DailyPlanPage : ContentPage
         Title = Texts.Get("app.plan.title");
         RetryBtn.Text = Texts.Get("app.tryAgain");
         AddBtn.Text = Texts.Get("app.plan.add");
+        TodayBtn.Text = Texts.Get("app.plan.backToToday");
+        PickDayBtn.Text = Texts.Get("app.plan.pickDay");
+    }
+
+    private DateOnly ShownDay => _plan?.Selected ?? IraqTime.Today(TimeProvider.System);
+
+    private async Task ShowDayAsync(DateOnly day)
+    {
+        if (_plan is null) return;
+        var today = IraqTime.Today(TimeProvider.System);
+        if (day < today.AddDays(-30)) day = today.AddDays(-30);   // the past is only for looking back a month
+        _plan.SelectDay(day);
+        await LoadAsync();
+    }
+
+    private async void OnPrevDay(object? sender, EventArgs e) => await ShowDayAsync(ShownDay.AddDays(-1));
+
+    private async void OnNextDay(object? sender, EventArgs e) => await ShowDayAsync(ShownDay.AddDays(1));
+
+    private async void OnToday(object? sender, EventArgs e) => await ShowDayAsync(IraqTime.Today(TimeProvider.System));
+
+    private async void OnPickDay(object? sender, EventArgs e)
+    {
+        var today = IraqTime.Today(TimeProvider.System);
+        await Navigation.PushAsync(new DayPickerPage(Texts.Get("app.plan.pickDay"), today.AddDays(-30), today.AddDays(120), ShownDay, async day => await ShowDayAsync(day)));
     }
 
     protected override async void OnAppearing()
@@ -64,15 +89,29 @@ public partial class DailyPlanPage : ContentPage
         if (_plan is null || (sender as BindableObject)?.BindingContext is not VisitRow row) return;
         var choices = DailyPlan.PostponeChoices(_plan.Date);
         var labels = choices.Select(d => d.ToString("dddd d MMMM", Texts.Culture)).ToArray();
-        var picked = await DisplayActionSheet(Texts.Get("app.plan.postponeTitle"), Texts.Get("app.cancel"), null, labels);
-        var index = picked is null ? -1 : Array.IndexOf(labels, picked);
+        var other = Texts.Get("app.plan.otherDay");
+        var picked = await DisplayActionSheet(Texts.Get("app.plan.postponeTitle"), Texts.Get("app.cancel"), null, labels.Append(other).ToArray());
+        if (picked is null) return;
+        if (picked == other)
+        {
+            // Any day from tomorrow on (up to four months): a page with a date to choose.
+            var visitRow = row;
+            var today = IraqTime.Today(TimeProvider.System);
+            await Navigation.PushAsync(new DayPickerPage(Texts.Get("app.plan.postponeTitle"), today, today.AddDays(120), _plan.Date.AddDays(1) < today ? today : _plan.Date.AddDays(1),
+                async day => await ChangeAsync(visitRow, (plan, visit) => plan.PostponeAsync(visit.Visit.Id, day, null))));
+            return;
+        }
+        var index = Array.IndexOf(labels, picked);
         if (index < 0) return;
         await ChangeAsync(sender, (plan, visit) => plan.PostponeAsync(visit.Visit.Id, choices[index], null));
     }
 
-    private async Task ChangeAsync(object? sender, Func<DailyPlan, VisitRow, Task<VisitActionResult>> change)
+    private Task ChangeAsync(object? sender, Func<DailyPlan, VisitRow, Task<VisitActionResult>> change) =>
+        (sender as BindableObject)?.BindingContext is VisitRow row ? ChangeAsync(row, change) : Task.CompletedTask;
+
+    private async Task ChangeAsync(VisitRow row, Func<DailyPlan, VisitRow, Task<VisitActionResult>> change)
     {
-        if (_plan is null || (sender as BindableObject)?.BindingContext is not VisitRow row) return;
+        if (_plan is null) return;
         var plan = _plan;
         Spinner.IsVisible = Spinner.IsRunning = true;
         VisitActionResult result;
@@ -143,7 +182,12 @@ public partial class DailyPlanPage : ContentPage
     private void Render()
     {
         var plan = _plan!;
-        if (plan.Date != default) DateLabel.Text = Texts.Get("app.plan.today", ("date", plan.Date.ToString("dddd d MMMM yyyy", Texts.Culture)));
+        if (plan.Date != default)
+        {
+            var text = plan.Date.ToString("dddd d MMMM yyyy", Texts.Culture);
+            DateLabel.Text = plan.Selected is null ? Texts.Get("app.plan.today", ("date", text)) : text;
+            TodayBtn.IsVisible = plan.Selected is not null;
+        }
         VisitList.ItemsSource = plan.Visits.Select((v, i) => ToRow(v, i, plan.Visits.Count)).ToList();
         MessageLabel.Text = plan.Message;
         MessageLabel.IsVisible = plan.Message is not null;

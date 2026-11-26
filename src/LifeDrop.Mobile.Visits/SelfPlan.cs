@@ -33,21 +33,26 @@ public sealed class SelfPlanner(ISelfPlanApiClient api)
     public IReadOnlyCollection<Guid> Selected => _selected;
     public VisitActionResult Result { get; private set; } = VisitActionResult.Success;
 
-    // A search needs a place or at least two letters, so the whole customer list is never fetched by accident.
-    public static bool CanSearch(Guid? placeId, string? text, IReadOnlyList<AreaPoint>? area = null) =>
-        placeId is not null || (text?.Trim().Length ?? 0) >= MinTextLength || AreaDrawing.IsValid(area);
+    // Without any criteria the list is the user's customers (the server limits the number); only a single letter, or a drawn area that is not a shape yet, is refused.
+    public static bool CanSearch(Guid? placeId, string? text, IReadOnlyList<AreaPoint>? area = null)
+    {
+        var length = text?.Trim().Length ?? 0;
+        if (length == 1) return false;
+        if (area is not null && !AreaDrawing.IsValid(area)) return placeId is not null || length >= MinTextLength;
+        return true;
+    }
 
     public async Task<VisitActionResult> SearchAsync(DateOnly day, Guid? placeId, string? text, IReadOnlyList<AreaPoint>? area = null, CancellationToken cancellationToken = default)
     {
         _selected.Clear();
         var trimmed = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         if (trimmed is { Length: > MaxTextLength }) trimmed = trimmed[..MaxTextLength];
-        if (area is not null && !AreaDrawing.IsValid(area)) area = null;
         if (!CanSearch(placeId, trimmed, area))
         {
             Candidates = Array.Empty<SelfPlanCandidate>();
             return Result = VisitActionResult.InvalidData;
         }
+        if (area is not null && !AreaDrawing.IsValid(area)) area = null;
         var query = new SelfPlanQuery(day, placeId, trimmed, area);
         var (result, candidates) = await api.SearchAsync(query, cancellationToken);
         Result = result;

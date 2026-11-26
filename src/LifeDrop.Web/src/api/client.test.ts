@@ -102,3 +102,48 @@ describe('ApiClient', () => {
     expect(sessionStorage.length).toBe(0)
   })
 })
+
+// Two tabs of the panel (a customer file opens in its own tab) share one sign-in: a new refresh token reaches the other tab, and signing out too.
+describe('ApiClient in two tabs', () => {
+  class FakeChannel {
+    static all: FakeChannel[] = []
+    onmessage: ((event: MessageEvent) => void) | null = null
+    readonly name: string
+    constructor(name: string) {
+      this.name = name
+      FakeChannel.all.push(this)
+    }
+    postMessage(data: unknown) {
+      for (const other of FakeChannel.all) if (other !== this) other.onmessage?.({ data } as MessageEvent)
+    }
+  }
+
+  it('passes a rotated refresh token and a sign-out to the other tab', async () => {
+    const original = globalThis.BroadcastChannel
+    globalThis.BroadcastChannel = FakeChannel as unknown as typeof BroadcastChannel
+    try {
+      const store = (): Storage => {
+        const map = new Map<string, string>()
+        return { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => void map.set(k, v), removeItem: (k) => void map.delete(k), clear: () => map.clear(), key: () => null, length: 0 } as Storage
+      }
+      const [storeA, storeB] = [store(), store()]
+      storeA.setItem('lifedrop.refresh', 'refresh-0')
+      storeA.setItem('lifedrop.account', JSON.stringify({ tenantCode: 'T1', email: 'a@b.c' }))
+      storeB.setItem('lifedrop.refresh', 'refresh-0')   // the copy the new tab got when it opened
+      storeB.setItem('lifedrop.account', JSON.stringify({ tenantCode: 'T1', email: 'a@b.c' }))
+      const fetcher = (async (input: RequestInfo | URL) => (String(input).endsWith('/auth/refresh') ? json(200, tokens(1)) : json(200, {}))) as typeof fetch
+      const tabA = new ApiClient('https://api.test', fetcher, storeA)
+      new ApiClient('https://api.test', fetcher, storeB)
+
+      await tabA.request('/me')   // tab A has no access token yet, so it refreshes and rotates the token
+      expect(storeA.getItem('lifedrop.refresh')).toBe('refresh-1')
+      expect(storeB.getItem('lifedrop.refresh')).toBe('refresh-1')   // tab B now holds the same one, so it will not replay the old one
+
+      await tabA.logout()
+      expect(storeB.getItem('lifedrop.refresh')).toBeNull()
+    } finally {
+      globalThis.BroadcastChannel = original
+      FakeChannel.all = []
+    }
+  })
+})

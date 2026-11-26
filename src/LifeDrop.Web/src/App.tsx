@@ -17,6 +17,7 @@ import { OrdersPage } from './pages/OrdersPage.tsx'
 import { ReportsPage } from './pages/ReportsPage.tsx'
 import { FormsPage } from './pages/FormsPage.tsx'
 import { isTvOnly, TvPage } from './pages/TvPage.tsx'
+import { CustomerFilePage, customerIdFromHash } from './pages/CustomerFilePage.tsx'
 import { PlatformPage } from './pages/PlatformPage.tsx'
 import { RouteHistoryPage } from './pages/RouteHistoryPage.tsx'
 import { AlertsPage } from './pages/AlertsPage.tsx'
@@ -58,7 +59,19 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
   const admin = useMemo(() => new AdminApi(api), [api])
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('home')
+  const [tab, setTabState] = useState<Tab>('home')
+  // A customer's file lives in the address (#/customer/<id>) so it can open in its own tab; choosing a menu item leaves it.
+  const [fileOf, setFileOf] = useState<string | null>(() => customerIdFromHash(window.location.hash))
+  useEffect(() => {
+    const onHash = () => setFileOf(customerIdFromHash(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const setTab = (next: Tab) => {
+    if (fileOf) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    setFileOf(null)
+    setTabState(next)
+  }
   const [unread, setUnread] = useState(0)
   const [alertCount, setAlertCount] = useState(0)
   const [, setWording] = useState('')
@@ -147,34 +160,35 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       kiosk={me ? isTvOnly(me) : false}
     >
       {error && <p role="alert" className="p-6 text-sm text-red-700">{error}</p>}
-      {tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}
-      {me && tab === 'account' && <AccountPage admin={admin} me={me} />}
-      {me && tab === 'users' && <UsersPage admin={admin} me={me} />}
-      {me && tab === 'devices' && <DevicesPage admin={admin} />}
-      {me && tab === 'customers' && <CustomersPage admin={admin} me={me} />}
-      {me && tab === 'map' && <LiveMapPage admin={admin} />}
-      {me && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
-      {me && tab === 'places' && <PlacesPage admin={admin} />}
-      {me && tab === 'catalog' && <CatalogPage admin={admin} me={me} />}
-      {me && tab === 'orders' && <OrdersPage admin={admin} me={me} />}
-      {me && tab === 'payments' && <PaymentsPage admin={admin} me={me} />}
-      {me && tab === 'samples' && <SamplesPage admin={admin} me={me} />}
-      {me && tab === 'followups' && <FollowUpsPage admin={admin} me={me} />}
-      {me && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}
-      {me && tab === 'route' && <RouteHistoryPage admin={admin} />}
-      {me && tab === 'reports' && <ReportsPage admin={admin} />}
-      {me && tab === 'feedback' && <FeedbackPage admin={admin} />}
-      {me && tab === 'targets' && <TargetsPage admin={admin} me={me} />}
-      {me && tab === 'warehouse' && <WarehousePage admin={admin} />}
-      {me && tab === 'wholesaler' && <WholesalerPage admin={admin} />}
-      {me && tab === 'marketing' && <MarketingPage admin={admin} me={me} />}
-      {me && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
-      {me && tab === 'audit' && <AuditPage admin={admin} />}
-      {me && tab === 'clientErrors' && <ClientErrorsPage admin={admin} />}
-      {me && tab === 'tv' && <TvPage admin={admin} me={me} />}
-      {me && tab === 'forms' && <FormsPage admin={admin} />}
-      {me && tab === 'platform' && <PlatformPage admin={admin} />}
-      {me && tab === 'notifications' && <NotificationsPage admin={admin} me={me} onChanged={refreshUnread} />}
+      {me && fileOf && can(me, ...Permissions.customers) && <CustomerFilePage key={fileOf} admin={admin} customerId={fileOf} me={me} />}
+      {!fileOf && tab === 'home' && <HomePage account={account} shortcuts={tabs.filter((x) => x.visible && x.id !== 'home')} onOpen={(id) => setTab(id as Tab)} />}
+      {me && !fileOf && tab === 'account' && <AccountPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'users' && <UsersPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'devices' && <DevicesPage admin={admin} />}
+      {me && !fileOf && tab === 'customers' && <CustomersPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'map' && <LiveMapPage admin={admin} />}
+      {me && !fileOf && tab === 'visits' && <VisitsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'places' && <PlacesPage admin={admin} />}
+      {me && !fileOf && tab === 'catalog' && <CatalogPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'orders' && <OrdersPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'payments' && <PaymentsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'samples' && <SamplesPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'followups' && <FollowUpsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}
+      {me && !fileOf && tab === 'route' && <RouteHistoryPage admin={admin} />}
+      {me && !fileOf && tab === 'reports' && <ReportsPage admin={admin} />}
+      {me && !fileOf && tab === 'feedback' && <FeedbackPage admin={admin} />}
+      {me && !fileOf && tab === 'targets' && <TargetsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'warehouse' && <WarehousePage admin={admin} />}
+      {me && !fileOf && tab === 'wholesaler' && <WholesalerPage admin={admin} />}
+      {me && !fileOf && tab === 'marketing' && <MarketingPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'regions' && <RegionsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'audit' && <AuditPage admin={admin} />}
+      {me && !fileOf && tab === 'clientErrors' && <ClientErrorsPage admin={admin} />}
+      {me && !fileOf && tab === 'tv' && <TvPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'forms' && <FormsPage admin={admin} />}
+      {me && !fileOf && tab === 'platform' && <PlatformPage admin={admin} />}
+      {me && !fileOf && tab === 'notifications' && <NotificationsPage admin={admin} me={me} onChanged={refreshUnread} />}
     </Shell>
   )
 }
