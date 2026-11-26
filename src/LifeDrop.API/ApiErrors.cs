@@ -12,6 +12,8 @@ public static class ApiErrors
 
     // Specific codes returned by endpoints.
     public const string DeviceNotApproved = "DEVICE_NOT_APPROVED";
+    // The phone sent a device id the server does not know for this user (deleted by a manager, or never registered here): the app forgets it and registers again.
+    public const string DeviceUnknown = "DEVICE_UNKNOWN";
     public const string DuplicateCode = "DUPLICATE_CODE";
     public const string InvalidState = "INVALID_STATE";
     public const string InvalidData = "INVALID_DATA";

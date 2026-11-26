@@ -17,6 +17,8 @@ public interface IDeviceAccessStore
         RegisterDeviceRequest request, CancellationToken cancellationToken);
     Task<bool> IsApprovedAsync(TenantId tenantId, UserId userId, Guid deviceId,
         string deviceSecret, CancellationToken cancellationToken);
+    // True while the device exists for this user and is not deleted (any status). A phone holding an id for which this is false has stale local credentials.
+    Task<bool> ExistsAsync(TenantId tenantId, UserId userId, Guid deviceId, CancellationToken cancellationToken) => Task.FromResult(true);
     Task RecordDeniedAsync(TenantId tenantId, UserId userId,
         CancellationToken cancellationToken);
     Task<DeviceChangeResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid deviceId,

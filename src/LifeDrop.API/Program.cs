@@ -354,6 +354,8 @@ public partial class Program
                 {
                     await devices.RecordDeniedAsync(identity.TenantId, identity.UserId,
                         cancellationToken);
+                    if (request.DeviceId is { } sent && sent != Guid.Empty && !await devices.ExistsAsync(identity.TenantId, identity.UserId, sent, cancellationToken))
+                        return ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.DeviceUnknown);
                     return ApiErrors.Problem(StatusCodes.Status403Forbidden, ApiErrors.DeviceNotApproved);
                 }
                 deviceId = request.DeviceId;

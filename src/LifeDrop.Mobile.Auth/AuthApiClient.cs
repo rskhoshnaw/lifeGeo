@@ -122,6 +122,10 @@ public sealed class AuthApiClient : IAuthApiClient
             if (response.StatusCode == HttpStatusCode.Forbidden)
             {
                 var error = await TryReadErrorAsync(response, cancellationToken);
+                if (string.Equals(error?.Code, "DEVICE_UNKNOWN", StringComparison.OrdinalIgnoreCase))
+                {
+                    return AuthResult<AuthTokens>.DeviceNotApproved("DEVICE_UNKNOWN");
+                }
                 if (string.Equals(error?.Code, "DEVICE_NOT_APPROVED", StringComparison.OrdinalIgnoreCase))
                 {
                     return AuthResult<AuthTokens>.DeviceNotApproved(error?.Code ?? "DEVICE_NOT_APPROVED");
