@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "يستخدم GeoTrack الكاميرا لمسح رمز QR الخاص بشركتك عند تسجيل الدخول ولالتقاط صورة تُرفقها بملاحظاتك أو بمرتجع عميل.";
+"NSPhotoLibraryUsageDescription" = "يتيح لك GeoTrack اختيار صورة من مكتبتك لإرفاقها بملاحظاتك أو بمرتجع عميل.";
+"NSLocationWhenInUseUsageDescription" = "يستخدم GeoTrack موقعك لتسجيل حضورك عند العميل وتسجيل زيارتك.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "يسجّل GeoTrack موقعك أثناء نوبة عملك، حتى عند إغلاق التطبيق أو إطفاء الشاشة، ليرى مديرك مكانك. يتوقف عند إنهاء النوبة.";

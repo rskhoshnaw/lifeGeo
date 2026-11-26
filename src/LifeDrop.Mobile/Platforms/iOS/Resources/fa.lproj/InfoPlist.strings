@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "GeoTrack از دوربین برای اسکن QR شرکت هنگام ورود و گرفتن عکسی که به بازخورد یا مرجوعی مشتری پیوست می‌کنید استفاده می‌کند.";
+"NSPhotoLibraryUsageDescription" = "GeoTrack به شما اجازه می‌دهد عکسی از گالری برای پیوست به بازخورد یا مرجوعی مشتری انتخاب کنید.";
+"NSLocationWhenInUseUsageDescription" = "GeoTrack از موقعیت شما برای ثبت حضور نزد مشتری و ثبت بازدیدتان استفاده می‌کند.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "GeoTrack در طول شیفت کاری، حتی وقتی برنامه بسته است یا صفحه خاموش است، موقعیت شما را ثبت می‌کند تا مدیرتان ببیند کجا هستید. با پایان شیفت متوقف می‌شود.";
