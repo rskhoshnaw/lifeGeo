@@ -159,7 +159,7 @@ public sealed class OrderPage : ContentPage
         {
             SetBusy(false);
         }
-        _warehouse.ItemsSource = _draft.Warehouses.Select(w => $"{w.Code} · {w.Name}").ToList();
+        _warehouse.ItemsSource = _draft.Warehouses.Select(w => w.IsWholesaler ? $"{w.Code} · {w.Name} ({Texts.Get("app.order.wholesaler")})" : $"{w.Code} · {w.Name}").ToList();
         if (_draft.WarehouseId is { } id) _warehouse.SelectedIndex = _draft.Warehouses.ToList().FindIndex(w => w.Id == id);
         ShowProducts();
         Show(!_draft.PricesKnown ? Texts.Get("app.order.offline") : _draft.Warehouses.Count == 0 ? Texts.Get("app.order.noWarehouse") : _draft.Products.Count == 0 ? Texts.Get("app.order.noProducts") : null);

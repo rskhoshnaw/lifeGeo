@@ -11914,5 +11914,41 @@
   "ckb": "قبوڵ نەکرا",
   "ar": "غير مقبول",
   "fa": "پذیرفته نشد"
+ },
+ "web.orders.wholesalerCustomer": {
+  "en": "Wholesaler (customer)",
+  "ckb": "مەزەخە (کڕیار)",
+  "ar": "مذخر (العميل)",
+  "fa": "مذخر (مشتری)"
+ },
+ "web.users.orderCities": {
+  "en": "Cities for orders",
+  "ckb": "شارەکانی داواکاری",
+  "ar": "مدن الطلبات",
+  "fa": "شهرهای سفارش"
+ },
+ "web.users.saveOrderCities": {
+  "en": "Save the order cities",
+  "ckb": "هەڵگرتنی شارەکانی داواکاری",
+  "ar": "حفظ مدن الطلبات",
+  "fa": "ذخیرهٔ شهرهای سفارش"
+ },
+ "web.users.orderCitiesHint": {
+  "en": "Nothing chosen: all warehouses are offered.",
+  "ckb": "هیچ هەڵنەبژێردرابێت: هەموو کۆگاکان پیشان دەدرێن.",
+  "ar": "بلا اختيار: تُعرض كل المخازن.",
+  "fa": "هیچ انتخاب نشود: همهٔ انبارها نشان داده می‌شوند."
+ },
+ "app.order.wholesaler": {
+  "en": "wholesaler",
+  "ckb": "مەزەخە",
+  "ar": "مذخر",
+  "fa": "مذخر"
+ },
+ "web.orders.linkCustomer": {
+  "en": "Link {name} to a wholesaler customer",
+  "ckb": "بەستنەوەی {name} بە کڕیاری مەزەخە",
+  "ar": "ربط {name} بعميل مذخر",
+  "fa": "اتصال {name} به مشتری مذخر"
  }
 }

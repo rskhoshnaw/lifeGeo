@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { AdminApi, can, Permissions, type Me, type Role, type UserSummary } from '../api/admin.ts'
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react'
+import { AdminApi, can, Permissions, type Me, type Place, type Role, type UserSummary } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { RolesPanel } from '../components/RolesPanel.tsx'
@@ -203,6 +203,7 @@ export function UserEditor({ user, roles, self, admin, onClose, onChanged }: { u
           </div>
         </>
       )}
+      <UserCities admin={admin} userId={user.id} />
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.users.city')} placeholder={t('web.users.city')} className="rounded border px-2 py-1" maxLength={80} value={city} onChange={(e) => setCity(e.target.value)} />
         <button className="rounded border px-2 py-1" disabled={action.busy} onClick={() => void action.run(() => admin.setUserCity(user.id, city.trim() || null))}>
@@ -260,5 +261,45 @@ function AssignRole({ user, roles, busy, onAssign }: { user: UserSummary; roles:
         {t('web.action.assign')}
       </button>
     </>
+  )
+}
+
+// Step 5.59: the cities a sales person works in. At an order he is offered the warehouses and wholesalers of these cities (nothing chosen = all of them).
+function UserCities({ admin, userId }: { admin: AdminApi; userId: string }) {
+  const [cities, setCities] = useState<Place[]>([])
+  const [chosen, setChosen] = useState<string[]>([])
+  const [saved, setSaved] = useState<string[]>([])
+  const action = useAction(async () => {})
+  useEffect(() => {
+    let live = true
+    Promise.resolve()
+      .then(() => Promise.all([admin.places(null), admin.userCities(userId)]))
+      .then(([all, mine]) => {
+        if (!live) return
+        setCities(all)
+        setChosen(mine)
+        setSaved(mine)
+      })
+      .catch(() => {})   // the user may not read places; the block then stays empty
+    return () => { live = false }
+  }, [admin, userId])
+  if (cities.length === 0) return null
+  const same = chosen.length === saved.length && chosen.every((id) => saved.includes(id))
+  return (
+    <fieldset className="flex flex-wrap items-center gap-2">
+      <legend className="font-medium">{t('web.users.orderCities')}</legend>
+      {cities.map((c) => (
+        <label key={c.id} className="inline-flex items-center gap-1">
+          <input type="checkbox" checked={chosen.includes(c.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, c.id] : chosen.filter((id) => id !== c.id))} />
+          {c.name}
+        </label>
+      ))}
+      <button className="rounded border px-2 py-1" disabled={action.busy || same} aria-label={t('web.users.saveOrderCities')}
+        onClick={() => void action.run(async () => { await admin.setUserCities(userId, chosen); setSaved(chosen) })}>
+        {t('web.places.save')}
+      </button>
+      {action.error && <span role="alert" className="text-red-700">{action.error}</span>}
+      <span className="text-xs text-slate-500">{t('web.users.orderCitiesHint')}</span>
+    </fieldset>
   )
 }

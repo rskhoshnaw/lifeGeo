@@ -572,7 +572,7 @@ describe('panel management screens', () => {
     const { api, calls } = server(rep2, {
       '/orders?limit=50': [{ ...order, items: [] }],
       '/orders/o1': order,
-      '/warehouses': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }],
+      '/warehouses/for-order': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }],
       '/customers?limit=100': [{ ...customer, approvalStatus: 'approved' }],
       [`/customers/c1/prices?date=${iraqToday()}`]: [price('pr1', 'PAR-500', 'IQD', 1620), price('pr2', 'AMX-250', 'USD', 4), { ...price('pr3', 'OLD-1', 'IQD', 5), available: false }],
     }, { '/orders': json({ id: 'o2', number: 'O-000002', currency: 'IQD', total: 3240, replayed: false }, 201) })
@@ -913,7 +913,7 @@ describe('panel management screens', () => {
 
   it('lets the sales manager add and switch off warehouses', async () => {
     const seller: Me = { id: 'm', email: 'sm@t1', roles: ['SalesManager'], permissions: ['orders.read', 'orders.create', 'warehouses.manage', 'orders.cancel', 'customers.read'] }
-    const { api, calls } = server(seller, { '/orders?limit=50': [], '/warehouses': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [] })
+    const { api, calls } = server(seller, { '/orders?limit=50': [], '/warehouses': [], '/warehouses/for-order': [], '/warehouses?includeInactive=true': [{ id: 'w1', code: 'W1', name: 'Erbil warehouse', status: 'active' }], '/customers?limit=100': [] })
     const user = userEvent.setup()
     render(<App api={api} />)
     await user.click(await screen.findByRole('button', { name: 'Orders' }))

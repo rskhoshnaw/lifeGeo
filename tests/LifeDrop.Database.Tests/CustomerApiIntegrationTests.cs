@@ -181,7 +181,8 @@ public class CustomerApiIntegrationTests
                 var m79 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0079_returns.sql"));
                 var m80 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0080_return_photos_refunds.sql"));
                 var m81 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0081_damaged_stock_partial_returns.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81;
+                var m82 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0082_wholesaler_customer_user_cities.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81 + m82;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5392,6 +5393,86 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = true })).StatusCode);
         As(rep);
         Assert.Equal(HttpStatusCode.Created, (await Place(null, (tracked, 1m))).StatusCode);
+    }
+
+    // Plan step 5.59: a wholesaler warehouse is a customer of type wholesaler; a sales person is offered (and may order from) the warehouses of his cities only.
+    [SkippableFact]
+    public async Task Orders_WholesalerIsACustomerAndTheVisitorSeesOnlyTheWarehousesOfHisCities()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), region = Guid.NewGuid(), erbil = Guid.NewGuid(), basra = Guid.NewGuid(), pharmacy = Guid.NewGuid(), wh1 = Guid.NewGuid(), wh2 = Guid.NewGuid(), product = Guid.NewGuid();
+        Guid wholesalerErbil = Guid.NewGuid(), wholesalerBasra = Guid.NewGuid(), whErbil = Guid.NewGuid(), whBasra = Guid.NewGuid(), whNoCity = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'm@t1'), (@rep, @t1, 'rep@t1');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil');
+                INSERT INTO places (id, tenant_id, kind, name) VALUES (@erbil, @t1, 'city', 'Erbil'), (@basra, @t1, 'city', 'Basra');
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status, owner_user_id) VALUES
+                    (@ph, @t1, 'Pharmacy', 'C1', 'Pharmacy 1', @r, 'approved', @rep),
+                    (@we, @t1, 'Wholesaler', 'W1', 'Wholesaler Erbil', @r, 'approved', @m),
+                    (@wb, @t1, 'Wholesaler', 'W2', 'Wholesaler Basra', @r, 'approved', @m);
+                INSERT INTO warehouses (id, tenant_id, code, name, kind, city_id) VALUES (@wc, @t1, 'WC', 'No city', 'company', NULL);
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES (@p, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("rep", rep), ("r", region), ("erbil", erbil), ("basra", basra), ("ph", pharmacy), ("we", wholesalerErbil), ("wb", wholesalerBasra), ("wc", whNoCity), ("p", product) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+
+        // The manager makes the wholesaler warehouses from the wholesaler customers and a company warehouse of Basra; a customer of another type, a second link and a company warehouse with a customer are refused
+        As(manager);
+        async Task<HttpResponseMessage> Post(object body) => await client.PostAsJsonAsync("/warehouses", body);
+        Assert.Equal(HttpStatusCode.Created, (await Post(new { Code = "WE", Name = "Wholesaler Erbil", Kind = "wholesaler", CityId = erbil, CustomerId = wholesalerErbil })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await Post(new { Code = "WB", Name = "Wholesaler Basra", Kind = "wholesaler", CityId = basra, CustomerId = wholesalerBasra })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await Post(new { Code = "CB", Name = "Company Basra", CityId = basra })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(new { Code = "X1", Name = "x", Kind = "wholesaler", CustomerId = pharmacy })).StatusCode);          // a pharmacy is not a wholesaler
+        Assert.Equal(HttpStatusCode.Conflict, (await Post(new { Code = "X2", Name = "x", Kind = "wholesaler", CustomerId = wholesalerErbil })).StatusCode);       // already a warehouse
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(new { Code = "X3", Name = "x", CustomerId = wholesalerBasra })).StatusCode);                          // a company warehouse has no customer
+        Assert.Equal(HttpStatusCode.NotFound, (await Post(new { Code = "X4", Name = "x", Kind = "wholesaler", CustomerId = Guid.NewGuid() })).StatusCode);
+        var all = (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses"))!;
+        Assert.Equal("Wholesaler Erbil", all.Single(w => w.Code == "WE").CustomerName);
+
+        // Without a city a person sees every warehouse; the rep is given Erbil: the Erbil wholesaler and the warehouse without a city, not Basra's
+        As(rep);
+        Assert.Equal(new[] { "CB", "WC", "WB", "WE" }.OrderBy(x => x), (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses/for-order"))!.Select(w => w.Code).OrderBy(x => x));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/users/{rep}/cities", new { CityIds = new[] { erbil } })).StatusCode);   // a rep cannot give himself cities
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/users/{rep}/cities", new { CityIds = new[] { erbil } })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/users/{rep}/cities", new { CityIds = new[] { Guid.NewGuid() } })).StatusCode);   // not a city
+        Assert.Equal(new[] { erbil }, await client.GetFromJsonAsync<List<Guid>>($"/users/{rep}/cities"));
+        As(rep);
+        Assert.Equal(new[] { "WC", "WE" }, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses/for-order"))!.Select(w => w.Code).OrderBy(x => x).ToArray());
+
+        // An order to the Erbil wholesaler goes through; an order to the Basra one is refused by the server too
+        var erbilWarehouse = all.Single(w => w.Code == "WE").Id;
+        var basraWarehouse = all.Single(w => w.Code == "WB").Id;
+        Task<HttpResponseMessage> Order(Guid warehouse) => client.PostAsJsonAsync("/orders", new { CustomerId = pharmacy, WarehouseId = warehouse, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = product, Quantity = 2m } } });
+        Assert.Equal(HttpStatusCode.Created, (await Order(erbilWarehouse)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(basraWarehouse)).StatusCode);
+
+        // Giving the cities back (an empty list) shows everything again
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/users/{rep}/cities", new { CityIds = Array.Empty<Guid>() })).StatusCode);
+        As(rep);
+        Assert.Equal(4, (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseDto>>("/warehouses/for-order"))!.Count);
+        Assert.Equal(HttpStatusCode.Created, (await Order(basraWarehouse)).StatusCode);
     }
 
     [SkippableFact]

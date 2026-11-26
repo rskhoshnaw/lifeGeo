@@ -22,8 +22,9 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT w.id, w.code, w.name, w.status, w.kind, w.city_id, pl.name, w.address, w.phone FROM warehouses w
+            SELECT w.id, w.code, w.name, w.status, w.kind, w.city_id, pl.name, w.address, w.phone, w.customer_id, c.name FROM warehouses w
             LEFT JOIN places pl ON pl.tenant_id = w.tenant_id AND pl.id = w.city_id
+            LEFT JOIN customers c ON c.tenant_id = w.tenant_id AND c.id = w.customer_id
             WHERE w.tenant_id = @tenant AND (@all OR w.status = 'active') ORDER BY w.code COLLATE "C"
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
@@ -31,8 +32,106 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         var items = new List<WarehouseDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) items.Add(new WarehouseDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8)));
+            reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
         return items;
+    }
+
+    // Plan step 5.59: the warehouses an order of this person may go to: active, and without a city, or in one of his cities (all when he has no city).
+    public async Task<IReadOnlyList<WarehouseDto>> ListWarehousesForUserAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            SELECT w.id, w.code, w.name, w.status, w.kind, w.city_id, pl.name, w.address, w.phone, w.customer_id, c.name FROM warehouses w
+            LEFT JOIN places pl ON pl.tenant_id = w.tenant_id AND pl.id = w.city_id
+            LEFT JOIN customers c ON c.tenant_id = w.tenant_id AND c.id = w.customer_id
+            WHERE w.tenant_id = @tenant AND w.status = 'active' AND {AllowedCities}
+            ORDER BY w.kind COLLATE "C", w.code COLLATE "C"
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId);
+        var items = new List<WarehouseDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) items.Add(new WarehouseDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
+        return items;
+    }
+
+    private const string AllowedCities = """
+        (w.city_id IS NULL OR NOT EXISTS (SELECT 1 FROM user_cities uc WHERE uc.tenant_id = w.tenant_id AND uc.user_id = @user)
+         OR EXISTS (SELECT 1 FROM user_cities uc WHERE uc.tenant_id = w.tenant_id AND uc.user_id = @user AND uc.city_id = w.city_id))
+        """;
+
+    public async Task<bool> WarehouseAllowedForUserAsync(TenantId tenantId, Guid userId, Guid warehouseId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        // A warehouse that does not exist is answered later by the order itself (NotFound); only a real one outside the cities is refused here.
+        await using var command = new NpgsqlCommand($"""
+            SELECT NOT EXISTS (SELECT 1 FROM warehouses w WHERE w.tenant_id = @tenant AND w.id = @warehouse)
+                OR EXISTS (SELECT 1 FROM warehouses w WHERE w.tenant_id = @tenant AND w.id = @warehouse AND {AllowedCities})
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("warehouse", warehouseId);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    public async Task<IReadOnlyList<Guid>> ListUserCitiesAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT city_id FROM user_cities WHERE tenant_id = @tenant AND user_id = @user ORDER BY city_id", connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId);
+        var ids = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) ids.Add(reader.GetGuid(0));
+        return ids;
+    }
+
+    public async Task<bool> ReplaceUserCitiesAsync(TenantId tenantId, UserId actorId, Guid userId, IReadOnlyList<Guid> cityIds, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        if (!await ExistsAsync(connection, transaction, "SELECT 1 FROM users WHERE tenant_id = @tenant AND id = @id", tenantId, userId, cancellationToken)) return false;
+        await using (var delete = new NpgsqlCommand("DELETE FROM user_cities WHERE tenant_id = @tenant AND user_id = @user", connection, transaction))
+        {
+            delete.Parameters.AddWithValue("tenant", tenantId.Value);
+            delete.Parameters.AddWithValue("user", userId);
+            await delete.ExecuteNonQueryAsync(cancellationToken);
+        }
+        foreach (var city in cityIds)
+        {
+            await using var insert = new NpgsqlCommand("INSERT INTO user_cities (tenant_id, user_id, city_id) VALUES (@tenant, @user, @city)", connection, transaction);
+            insert.Parameters.AddWithValue("tenant", tenantId.Value);
+            insert.Parameters.AddWithValue("user", userId);
+            insert.Parameters.AddWithValue("city", city);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, "user.cities_set", userId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    // The customer a wholesaler warehouse is: must exist, be of type wholesaler, not archived, and not be the customer of another warehouse.
+    public async Task<OrderResult> CheckWholesalerCustomerAsync(TenantId tenantId, Guid customerId, Guid? exceptWarehouse, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT c.type, c.archived_at IS NOT NULL, EXISTS (SELECT 1 FROM warehouses w WHERE w.tenant_id = c.tenant_id AND w.customer_id = c.id AND w.id IS DISTINCT FROM @except)
+            FROM customers c WHERE c.tenant_id = @tenant AND c.id = @id
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("id", customerId);
+        command.Parameters.Add(new NpgsqlParameter("except", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)exceptWarehouse ?? DBNull.Value });
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return OrderResult.NotFound;
+        if (reader.GetString(0) != "Wholesaler" || reader.GetBoolean(1)) return OrderResult.InvalidData;
+        return reader.GetBoolean(2) ? OrderResult.Conflict : OrderResult.Success;
     }
 
     public async Task<Guid?> CreateWarehouseAsync(TenantId tenantId, UserId actorId, SaveWarehouseRequest warehouse, CancellationToken cancellationToken)
@@ -41,7 +140,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         var id = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand("""
-            INSERT INTO warehouses (id, tenant_id, code, name, status, kind, created_by, city_id, address, phone) VALUES (@id, @tenant, @code, @name, @status, @kind, @actor, @city, @address, @phone)
+            INSERT INTO warehouses (id, tenant_id, code, name, status, kind, created_by, city_id, address, phone, customer_id) VALUES (@id, @tenant, @code, @name, @status, @kind, @actor, @city, @address, @phone, @customer)
             ON CONFLICT (tenant_id, code) DO NOTHING
             """, connection, transaction))
         {
@@ -65,7 +164,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         await using (var update = new NpgsqlCommand("""
-            UPDATE warehouses SET name = @name, status = @status, city_id = @city, address = @address, phone = @phone, updated_at = now() WHERE tenant_id = @tenant AND id = @id
+            UPDATE warehouses SET name = @name, status = @status, city_id = @city, address = @address, phone = @phone, customer_id = CASE WHEN kind = 'wholesaler' THEN @customer END, updated_at = now() WHERE tenant_id = @tenant AND id = @id
             """, connection, transaction))
         {
             update.Parameters.AddWithValue("tenant", tenantId.Value);
@@ -86,6 +185,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         command.Parameters.Add(new NpgsqlParameter("city", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)warehouse.CityId ?? DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter("address", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)warehouse.Address ?? DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter("phone", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)warehouse.Phone ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("customer", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)warehouse.CustomerId ?? DBNull.Value });
     }
 
     public async Task<bool> CityExistsAsync(TenantId tenantId, Guid cityId, CancellationToken cancellationToken)

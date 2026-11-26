@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { AdminApi, can, errorMessage, iraqToday, Permissions, type EffectivePrice, type Me, type Order, type Place, type Warehouse } from '../api/admin.ts'
+import { AdminApi, can, errorMessage, iraqToday, Permissions, type Customer, type EffectivePrice, type Me, type Order, type Place, type Warehouse } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { WarehouseStock } from '../components/WarehouseStock.tsx'
@@ -187,7 +187,7 @@ interface Line {
 // `fixedCustomer`: the order is for this customer only (opened from the customer's file).
 export function NewOrderForm({ admin, onPlaced, fixedCustomer }: { admin: AdminApi; onPlaced: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
-  const warehouses = useLoad(useCallback(() => admin.warehouses(), [admin]))
+  const warehouses = useLoad(useCallback(() => admin.warehousesForOrder(), [admin]))
   const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
   const [warehouse, setWarehouse] = useState('')
   const [lines, setLines] = useState<Line[]>([])
@@ -307,7 +307,7 @@ export function NewOrderForm({ admin, onPlaced, fixedCustomer }: { admin: AdminA
   )
 }
 
-function Warehouses({ admin }: { admin: AdminApi }) {
+export function Warehouses({ admin }: { admin: AdminApi }) {
   const list = useLoad(useCallback(() => admin.warehouses(true), [admin]))
   const action = useAction(list.reload)
   const [code, setCode] = useState('')
@@ -316,6 +316,12 @@ function Warehouses({ admin }: { admin: AdminApi }) {
   const [cityId, setCityId] = useState('')
   const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
+  // A wholesaler warehouse is a customer of type Wholesaler (step 5.59): the list of those customers, and the chosen one.
+  const [wholesalers, setWholesalers] = useState<Customer[]>([])
+  const [customerId, setCustomerId] = useState('')
+  useEffect(() => {
+    admin.customers(undefined, false, '', { type: 'Wholesaler' }).then(setWholesalers, () => setWholesalers([]))
+  }, [admin])
   // The cities for the warehouse form; the list stays empty when the user may not read places.
   const [cities, setCities] = useState<Place[]>([])
   useEffect(() => {
@@ -326,7 +332,8 @@ function Warehouses({ admin }: { admin: AdminApi }) {
   function add(e: FormEvent) {
     e.preventDefault()
     void action.run(async () => {
-      await admin.createWarehouse(code.trim(), name.trim(), kind, { cityId, address: address.trim(), phone: phone.trim() })
+      await admin.createWarehouse(code.trim(), name.trim(), kind, { cityId, address: address.trim(), phone: phone.trim(), customerId: kind === 'wholesaler' ? customerId : '' })
+      setCustomerId('')
       setCode('')
       setName('')
       setAddress('')
@@ -334,7 +341,7 @@ function Warehouses({ admin }: { admin: AdminApi }) {
     })
   }
 
-  const toggle = (w: Warehouse) => void action.run(() => admin.updateWarehouse(w.id, w.name, w.status === 'active' ? 'inactive' : 'active', { cityId: w.cityId, address: w.address, phone: w.phone }))
+  const toggle = (w: Warehouse) => void action.run(() => admin.updateWarehouse(w.id, w.name, w.status === 'active' ? 'inactive' : 'active', { cityId: w.cityId, address: w.address, phone: w.phone, customerId: w.customerId }))
 
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
@@ -344,8 +351,17 @@ function Warehouses({ admin }: { admin: AdminApi }) {
         <div key={w.id} className="flex items-center gap-3 border-b py-1">
           <span className="min-w-20">{w.code}</span>
           <span className="flex-1">
-            {w.name} {w.cityName && <em>[{w.cityName}] </em>}{w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
+            {w.name} {w.cityName && <em>[{w.cityName}] </em>}{w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}{w.customerName ? `: ${w.customerName}` : ''}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
           </span>
+          {w.kind === 'wholesaler' && !w.customerId && (
+            <select aria-label={t('web.orders.linkCustomer', { name: w.name })} className="rounded border px-2 py-1" value="" disabled={action.busy}
+              onChange={(e) => e.target.value && void action.run(() => admin.updateWarehouse(w.id, w.name, w.status, { cityId: w.cityId, address: w.address, phone: w.phone, customerId: e.target.value }))}>
+              <option value="">{t('web.orders.wholesalerCustomer')}</option>
+              {wholesalers.filter((c) => !(list.data ?? []).some((x) => x.customerId === c.id)).map((c) => (
+                <option key={c.id} value={c.id}>{c.code} · {c.name}</option>
+              ))}
+            </select>
+          )}
           <button className="rounded border px-2 py-1" aria-label={t('web.orders.staffOf', { name: w.name })} onClick={() => setStaffFor(staffFor?.id === w.id ? null : w)}>
             {t('web.orders.staff')}
           </button>
@@ -362,6 +378,18 @@ function Warehouses({ admin }: { admin: AdminApi }) {
           <option value="company">{t('web.orders.kind.company')}</option>
           <option value="wholesaler">{t('web.orders.kind.wholesaler')}</option>
         </select>
+        {kind === 'wholesaler' && (
+          <select aria-label={t('web.orders.wholesalerCustomer')} className="rounded border px-2 py-1" value={customerId} onChange={(e) => {
+            const picked = wholesalers.find((c) => c.id === e.target.value)
+            setCustomerId(e.target.value)
+            if (picked && !name.trim()) setName(picked.name)
+          }}>
+            <option value="">{t('web.orders.wholesalerCustomer')}</option>
+            {wholesalers.map((c) => (
+              <option key={c.id} value={c.id}>{c.code} · {c.name}</option>
+            ))}
+          </select>
+        )}
         <select aria-label={t('web.orders.warehouseCity')} className="rounded border px-2 py-1" value={cityId} onChange={(e) => setCityId(e.target.value)}>
           <option value="">{t('web.orders.warehouseCity')}</option>
           {cities.map((c) => (

@@ -69,3 +69,5 @@ GRANT SELECT, INSERT ON return_photos TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON warehouse_damaged_stock TO lifedrop_app;
 GRANT SELECT, INSERT ON warehouse_writeoffs TO lifedrop_app;
 GRANT UPDATE ON return_items TO lifedrop_app;
+-- Step 5.59: the cities of a sales person (replaced as a whole, so rows are inserted and deleted).
+GRANT SELECT, INSERT, DELETE ON user_cities TO lifedrop_app;
