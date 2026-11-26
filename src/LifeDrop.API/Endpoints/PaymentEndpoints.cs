@@ -114,6 +114,7 @@ public static class PaymentEndpoints
         PaymentResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         PaymentResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         PaymentResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
+        PaymentResult.RefundTooMuch => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.RefundTooMuch),
         _ => Results.Forbid()
     };
 }

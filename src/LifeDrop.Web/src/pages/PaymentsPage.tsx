@@ -47,7 +47,7 @@ export function PaymentsPage({ admin, me }: { admin: AdminApi; me: Me }) {
       </div>
       {(first.error || error) && <p role="alert" className="text-sm text-red-700">{first.error ?? error}</p>}
       {saved && <p role="status" className="text-sm text-green-800">{saved}</p>}
-      {can(me, ...Permissions.recordPayments) && <RecordForm admin={admin} onSaved={(message) => { setSaved(message); refresh() }} />}
+      {can(me, ...Permissions.recordPayments) && <RecordForm admin={admin} canRefund={can(me, ...Permissions.managePayments)} onSaved={(message) => { setSaved(message); refresh() }} />}
       {first.data?.length === 0 && <p className="text-slate-600">{t('web.payments.none')}</p>}
       {items.length > 0 && (
         <table className="w-full text-start text-sm">
@@ -71,7 +71,7 @@ export function PaymentsPage({ admin, me }: { admin: AdminApi; me: Me }) {
                 </td>
                 <td>{t(`web.payments.method.${p.method}` as TextKey)}</td>
                 <td>
-                  {money(p.amount)} {p.currency}
+                  {p.direction === 'out' ? `${t('web.payments.refundMark')} ` : ''}{money(p.amount)} {p.currency}
                 </td>
                 <td>{t(`web.payments.status.${p.status}` as TextKey)}</td>
                 <td>{p.createdAt.slice(0, 10)}</td>
@@ -141,9 +141,11 @@ function PaymentDetails({ admin, me, paymentId, onChanged }: { admin: AdminApi; 
               )}
               {open && (
                 <>
-                  <button className="rounded border px-3 py-1" disabled={action.busy} onClick={() => close('correct')}>
-                    {t('web.payments.correct')}
-                  </button>
+                  {p.direction !== 'out' && (
+                    <button className="rounded border px-3 py-1" disabled={action.busy} onClick={() => close('correct')}>
+                      {t('web.payments.correct')}
+                    </button>
+                  )}
                   <button className="rounded border px-3 py-1" disabled={action.busy} onClick={() => close('void')}>
                     {t('web.payments.void')}
                   </button>
@@ -181,7 +183,7 @@ function PaymentDetails({ admin, me, paymentId, onChanged }: { admin: AdminApi; 
 }
 
 // `fixedCustomer`: the form is for this customer only (opened from the customer's file).
-export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi; onSaved: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string } }) {
+export function RecordForm({ admin, onSaved, fixedCustomer, canRefund = false }: { admin: AdminApi; onSaved: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string }; canRefund?: boolean }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
   const orders = useLoad(useCallback(() => admin.orders(), [admin]))
   const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
@@ -191,6 +193,8 @@ export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi;
   const [amount, setAmount] = useState('')
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
+  // Money paid BACK to the customer (step 5.55): the finance manager only, never against an order, at most what the customer has coming back (the server checks it).
+  const [refund, setRefund] = useState(false)
   // One reference per form: a retry of a lost answer returns the same payment instead of a second one.
   const [clientRef, setClientRef] = useState(() => crypto.randomUUID())
   const action = useAction()
@@ -201,7 +205,7 @@ export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi;
   async function save(e: FormEvent) {
     e.preventDefault()
     const result = await action.run(() =>
-      admin.recordPayment({ customerId: customer, orderId: order || null, method, currency, amount: Number(amount), reference: reference.trim() || null, note: note.trim() || null, clientRef }),
+      admin.recordPayment({ customerId: customer, orderId: refund ? null : order || null, method, currency, amount: Number(amount), reference: reference.trim() || null, note: note.trim() || null, clientRef, ...(refund ? { direction: 'out' as const } : {}) }),
     )
     if (!result) return
     onSaved(t('web.payments.saved', { number: result.number }))
@@ -210,12 +214,13 @@ export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi;
     setAmount('')
     setReference('')
     setNote('')
+    setRefund(false)
     setClientRef(crypto.randomUUID())
   }
 
   return (
     <form onSubmit={(e) => void save(e)} className="space-y-2 rounded border p-3 text-sm">
-      <h3 className="font-semibold">{t('web.payments.record')}</h3>
+      <h3 className="font-semibold">{refund ? t('web.payments.refund') : t('web.payments.record')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <select aria-label={t('web.payments.customer')} className="rounded border px-2 py-1" disabled={!!fixedCustomer} value={customer} onChange={(e) => { setCustomer(e.target.value); setOrder('') }}>
@@ -226,7 +231,13 @@ export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi;
             </option>
           ))}
         </select>
-        <select aria-label={t('web.payments.order')} className="rounded border px-2 py-1" value={order} onChange={(e) => setOrder(e.target.value)}>
+        {canRefund && (
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={refund} onChange={(e) => setRefund(e.target.checked)} />
+            {t('web.payments.refundCheck')}
+          </label>
+        )}
+        <select aria-label={t('web.payments.order')} className="rounded border px-2 py-1" disabled={refund} value={refund ? '' : order} onChange={(e) => setOrder(e.target.value)}>
           <option value="">{t('web.payments.noOrder')}</option>
           {customerOrders.map((o) => (
             <option key={o.id} value={o.id}>

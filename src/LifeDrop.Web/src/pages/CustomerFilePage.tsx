@@ -9,7 +9,7 @@ import { NewFollowUp } from './FollowUpsPage.tsx'
 import { NewOrderForm } from './OrdersPage.tsx'
 import { RecordForm } from './PaymentsPage.tsx'
 import { NewSample } from './SamplesPage.tsx'
-import { NewReturnForm, ReturnLinesTable } from './ReturnsPage.tsx'
+import { NewReturnForm, ReturnLinesTable, ReturnPhotos } from './ReturnsPage.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { unitLabel } from './productView.ts'
 
@@ -85,7 +85,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
       </div>
       {done && <p role="status" className="text-sm text-green-700">{done}</p>}
       {panel === 'order' && <NewOrderForm admin={admin} fixedCustomer={c} onPlaced={(message) => refresh(message)} />}
-      {panel === 'payment' && <RecordForm admin={admin} fixedCustomer={c} onSaved={(message) => refresh(message)} />}
+      {panel === 'payment' && <RecordForm admin={admin} fixedCustomer={c} canRefund={can(me, ...Permissions.managePayments)} onSaved={(message) => refresh(message)} />}
       {panel === 'return' && <NewReturnForm admin={admin} fixedCustomer={c} onSent={(message) => refresh(message)} />}
       {panel === 'sample' && <NewSample admin={admin} fixedCustomer={c} onRecorded={() => refresh()} />}
       {panel === 'followup' && <NewFollowUp admin={admin} fixedCustomer={c} manage={manageFollowUps} users={users.data ?? []} onCreated={() => refresh()} />}
@@ -171,7 +171,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
             {balance.data.items.map((b) => (
               <li key={b.currency} className="rounded border bg-slate-50 px-3 py-2">
                 <div className="font-semibold">{b.currency}: {t('web.payments.balance')} {money(b.balance)}</div>
-                <div className="text-slate-600">{t('web.payments.delivered')} {money(b.delivered)} · {(b.returned ?? 0) > 0 ? `${t('web.c360.returned')} ${money(b.returned ?? 0)} · ` : ''}{t('web.payments.confirmedTotal')} {money(b.confirmed)} · {t('web.payments.collectedTotal')} {money(b.collected)}</div>
+                <div className="text-slate-600">{t('web.payments.delivered')} {money(b.delivered)} · {(b.returned ?? 0) > 0 ? `${t('web.c360.returned')} ${money(b.returned ?? 0)} · ` : ''}{(b.refunded ?? 0) > 0 ? `${t('web.payments.refundMark')} ${money(b.refunded ?? 0)} · ` : ''}{t('web.payments.confirmedTotal')} {money(b.confirmed)} · {t('web.payments.collectedTotal')} {money(b.collected)}</div>
               </li>
             ))}
           </ul>
@@ -218,6 +218,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
               <span>{r.pricesHidden ? '—' : `${money(r.total)} ${r.currency}`}</span>
             </div>
             <ReturnLinesTable r={r} />
+            <ReturnPhotos admin={admin} r={r} />
           </div>
         ))}
       </Section>

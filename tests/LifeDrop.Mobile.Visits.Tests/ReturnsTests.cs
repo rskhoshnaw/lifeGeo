@@ -132,4 +132,59 @@ public class ReturnsTests
         Assert.Equal($"/returns/{mine.Id}/cancel", handler.Last!.RequestUri!.AbsolutePath);
         Assert.Equal(VisitActionResult.ServerError, (await Client(new Handler(_ => Json(HttpStatusCode.OK, """[{"id":"00000000-0000-0000-0000-000000000000"}]"""))).ListMineAsync(null, null)).Result);
     }
+
+    [Fact]
+    public void ChoosingAnotherOrderDropsTheLinesOfTheOldList()
+    {
+        var draft = new ReturnDraft(Guid.NewGuid());
+        var order = Guid.NewGuid();
+        draft.SetQuantity(P1, "2");
+        draft.ChooseOrder(order);
+        Assert.Equal((order, 0), (draft.OrderId, draft.LineCount));   // the products of another list are gone
+        draft.SetQuantity(P2, "1");
+        draft.ChooseOrder(order);                                      // the same order again keeps the lines
+        Assert.Equal(1, draft.LineCount);
+        draft.ChooseOrder(null);
+        Assert.Equal((null, 0), (draft.OrderId, draft.LineCount));
+    }
+
+    [Fact]
+    public async Task TheDeliveredOrdersAndTheirLinesAreReadAndTheOrderGoesWithTheReturn()
+    {
+        var order = Guid.NewGuid();
+        var list = $$"""[{"id":"{{order}}","number":"O-000001","currency":"IQD","total":5000,"pricesHidden":false,"createdAt":"2026-11-10T08:00:00+00:00"}]""";
+        var detail = $$"""
+            {"id":"{{order}}","number":"O-000001","currency":"IQD","total":5000,"pricesHidden":false,"createdAt":"2026-11-10T08:00:00+00:00",
+             "items":[{"productId":"{{P1}}","productCode":"P1","productName":"Paracetamol","unit":"box","quantity":5,"deliveredQuantity":4},
+                      {"productId":"{{P2}}","productCode":"P2","productName":"Vitamin C","unit":"box","quantity":2,"deliveredQuantity":0}]}
+            """;
+        var created = """{"id":"11111111-1111-1111-1111-111111111111","number":"R-000002","currency":"IQD","total":1000,"replayed":false}""";
+        var handler = new Handler(r => r.RequestUri!.AbsolutePath.EndsWith("/orders") ? Json(HttpStatusCode.OK, list)
+            : r.RequestUri.AbsolutePath.StartsWith("/orders/") ? Json(HttpStatusCode.OK, detail) : Json(HttpStatusCode.Created, created));
+        var client = Client(handler);
+        var customer = Guid.NewGuid();
+        var (result, orders) = await client.ListDeliveredOrdersAsync(customer);
+        Assert.Equal(VisitActionResult.Success, result);
+        Assert.Equal("O-000001", orders.Single().Number);
+        Assert.Contains($"customerId={customer}", handler.Last!.RequestUri!.Query);
+        Assert.Contains("status=delivered", handler.Last.RequestUri.Query);
+        var (_, lines) = await client.GetOrderLinesAsync(order);
+        Assert.Equal(new[] { ("P1", 4m) }, lines.Select(l => (l.Code, l.Delivered)).ToArray());   // a line nothing of which was delivered cannot come back
+        await client.CreateAsync(customer, order, null, Guid.NewGuid(), null, [new ReturnLineInput(P1, 1m, "damaged", "damaged")]);
+        using var body = JsonDocument.Parse(handler.Body!);
+        Assert.Equal(order, body.RootElement.GetProperty("orderId").GetGuid());
+    }
+
+    [Fact]
+    public async Task ThePictureGoesAsItsOwnBytesWithItsType()
+    {
+        var handler = new Handler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var id = Guid.NewGuid();
+        var result = await Client(handler).AddPhotoAsync(id, [1, 2, 3, 4], "image/jpeg");
+        Assert.Equal(VisitActionResult.Success, result);
+        Assert.Equal($"/returns/{id}/photos", handler.Last!.RequestUri!.AbsolutePath);
+        Assert.Equal("image/jpeg", handler.Last.Content!.Headers.ContentType!.MediaType);
+        Assert.Equal("\u0001\u0002\u0003\u0004", handler.Body);
+        Assert.Equal(VisitActionResult.Conflict, await Client(new Handler(_ => Json(HttpStatusCode.Conflict, """{"code":"TOO_MANY_PHOTOS"}"""))).AddPhotoAsync(id, [1], "image/png"));
+    }
 }

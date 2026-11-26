@@ -22,7 +22,8 @@ internal sealed class OrdersHttp(HttpClient httpClient, IAuthSession session)
         {
             using var request = new HttpRequestMessage(method, path);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Data);
-            if (body is not null) request.Content = JsonContent.Create(body);
+            if (body is HttpContent raw) request.Content = raw;   // a picture goes as its own bytes
+            else if (body is not null) request.Content = JsonContent.Create(body);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {

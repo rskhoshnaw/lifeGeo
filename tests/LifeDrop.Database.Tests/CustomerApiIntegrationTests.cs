@@ -179,7 +179,8 @@ public class CustomerApiIntegrationTests
                 var m77 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0077_owner_leader_alerts.sql"));
                 var m78 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0078_stock_in_warehouses.sql"));
                 var m79 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0079_returns.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79;
+                var m80 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0080_return_photos_refunds.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5533,6 +5534,53 @@ public class CustomerApiIntegrationTests
         // A cancelled or rejected return frees what it asked for on the order: 2 more of p1 could now be asked (4 - 2 approved - 2 approved = 0, so still none), p2 has 1 of 2 taken by an approved one
         As(rep);
         Assert.Equal(HttpStatusCode.Created, (await Create(c1, order, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "other" })).StatusCode);
+
+        // Pictures of the goods (step 5.55): only the author, three at most, while it is requested; whoever may read the return reads them; they are never served across regions
+        As(rep);
+        var r5 = await Created(await Create(c1, null, w1, null, new { ProductId = p1, Quantity = 1m, Reason = "damaged" }));
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 };
+        ByteArrayContent Image(byte[] bytes, string type = "image/png") { var c = new ByteArrayContent(bytes); c.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(type); return c; }
+        for (var n = 0; n < 3; n++) Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/returns/{r5.Id}/photos", Image(png))).StatusCode);
+        await AssertProblemAsync(await client.PostAsync($"/returns/{r5.Id}/photos", Image(png)), HttpStatusCode.Conflict, "TOO_MANY_PHOTOS");
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await client.PostAsync($"/returns/{r5.Id}/photos", Image(png, "text/plain"))).StatusCode);   // only pictures
+        As(manager);
+        await AssertProblemAsync(await client.PostAsync($"/returns/{r5.Id}/photos", Image(png)), HttpStatusCode.Forbidden, "FORBIDDEN");   // not the author
+        var withPhotos = await Get(r5.Id);
+        Assert.Equal(3, withPhotos.PhotoIds!.Count);
+        var served = await client.GetAsync($"/returns/{r5.Id}/photos/{withPhotos.PhotoIds[0]}");
+        Assert.Equal(("image/png", png.Length), (served.Content.Headers.ContentType?.MediaType, (await served.Content.ReadAsByteArrayAsync()).Length));
+        As(repOther);
+        await AssertProblemAsync(await client.GetAsync($"/returns/{r5.Id}/photos/{withPhotos.PhotoIds[0]}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        As(rep);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r5.Id}/cancel", new { Note = "mistake" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsync($"/returns/{r5.Id}/photos", Image(png)), HttpStatusCode.Conflict, "CONFLICT");   // decided: no more pictures
+
+        // Refunds (step 5.55): money back to the customer. Nothing is owed to the customer until they have paid: the customer paid nothing yet, so no refund
+        As(finance);
+        Task<HttpResponseMessage> Refund(decimal amount, Guid? orderId = null) => client.PostAsJsonAsync("/payments", new { CustomerId = c1, OrderId = orderId, Method = "cash", Currency = "IQD", Amount = amount, ClientRef = Guid.NewGuid(), Direction = "out" });
+        await AssertProblemAsync(await Refund(100m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");
+        // The customer pays the 5000 they were delivered; with the 4500 of approved returns, 4500 is owed back
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/payments", new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 5000m, ClientRef = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(-4500m, await Balance());   // 5000 delivered - 4500 returned - 5000 paid = -4500: the customer is owed 4500
+        As(finance);   // Balance() reads as the sales manager
+        await AssertProblemAsync(await Refund(4600m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");
+        await AssertProblemAsync(await Refund(100m, order), HttpStatusCode.BadRequest, "INVALID_DATA");   // a refund is never against an order
+        As(rep);
+        await AssertProblemAsync(await Refund(100m), HttpStatusCode.Forbidden, "FORBIDDEN");             // only the finance manager pays money back
+        As(finance);
+        var refundResponse = await Refund(4000m);
+        Assert.Equal(HttpStatusCode.Created, refundResponse.StatusCode);
+        var refund = (await refundResponse.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
+        Assert.Equal("confirmed", refund.Status);
+        var after = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!.Items.Single();
+        Assert.Equal((5000m, 5000m, 4500m, 4000m, -500m), (after.Delivered, after.Confirmed, after.Returned, after.Refunded, after.Balance));   // balance = 5000 - 4500 - 5000 + 4000 = -500
+        await AssertProblemAsync(await Refund(600m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");        // only 500 is left to give back
+        Assert.Equal(HttpStatusCode.Created, (await Refund(500m)).StatusCode);
+        // A refund is voided, never corrected; voiding the 4000 leaves only the 500: 5000 - 4500 - 5000 + 500 = -4000
+        As(finance);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/payments/{refund.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 1m, Reason = "x" }), HttpStatusCode.Conflict, "CONFLICT");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/payments/{refund.Id}/void", new { Reason = "paid by mistake" })).StatusCode);
+        Assert.Equal(-4000m, (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!.Items.Single().Balance);
     }
 
     [SkippableFact]

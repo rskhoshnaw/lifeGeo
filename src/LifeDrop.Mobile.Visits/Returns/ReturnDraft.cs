@@ -13,6 +13,17 @@ public sealed class ReturnDraft(Guid customerId)
 
     public Guid CustomerId { get; } = customerId;
     public Guid? WarehouseId { get; set; }
+    // The delivered order the goods come back from, or none (then today's price of the customer is used).
+    public Guid? OrderId { get; private set; }
+    public const int MaxPhotos = 3;
+
+    // Another order (or none) is another list of products: the lines written so far are dropped.
+    public void ChooseOrder(Guid? orderId)
+    {
+        if (OrderId == orderId) return;
+        OrderId = orderId;
+        _lines.Clear();
+    }
     public string? Note { get; set; }
     // One reference for every retry of this return, so a lost answer never makes two.
     public Guid ClientRef { get; } = Guid.NewGuid();

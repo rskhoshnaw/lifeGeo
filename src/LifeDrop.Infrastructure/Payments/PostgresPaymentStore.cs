@@ -32,6 +32,12 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
             }
         }
 
+        // A refund (step 5.55) is never more than the credit the customer has in that currency; the customer row is locked so two refunds cannot both take the same credit.
+        if (payment.Direction == "out")
+        {
+            var credit = await CreditAsync(connection, transaction, tenantId, payment.CustomerId, payment.Currency, true, cancellationToken);
+            if (payment.Amount > credit) return (PaymentResult.RefundTooMuch, null);
+        }
         var check = await CheckOrderAsync(connection, transaction, tenantId, payment, cancellationToken);
         var detached = false;
         if (check != PaymentResult.Success)
@@ -56,6 +62,29 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         await AuditAsync(connection, transaction, tenantId, actorId, detached ? "payment.recorded_detached" : status == "confirmed" ? "payment.recorded_confirmed" : "payment.recorded", created.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (PaymentResult.Success, created);
+    }
+
+    // What the customer has to get back in a currency: approved returns + confirmed payments in - refunds - what was delivered (never below zero).
+    private static async Task<decimal> CreditAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, Guid customerId, string currency, bool lockCustomer, CancellationToken cancellationToken)
+    {
+        if (lockCustomer)
+        {
+            await using var lockRow = new NpgsqlCommand("SELECT 1 FROM customers WHERE tenant_id = @tenant AND id = @customer FOR UPDATE", connection, transaction);
+            lockRow.Parameters.AddWithValue("tenant", tenantId.Value);
+            lockRow.Parameters.AddWithValue("customer", customerId);
+            await lockRow.ExecuteScalarAsync(cancellationToken);
+        }
+        await using var command = new NpgsqlCommand("""
+            SELECT coalesce((SELECT sum(total) FROM returns WHERE tenant_id = @tenant AND customer_id = @customer AND status = 'approved' AND currency = @currency), 0)
+                 + coalesce((SELECT sum(amount) FROM payments WHERE tenant_id = @tenant AND customer_id = @customer AND status = 'confirmed' AND direction = 'in' AND currency = @currency), 0)
+                 - coalesce((SELECT sum(amount) FROM payments WHERE tenant_id = @tenant AND customer_id = @customer AND status = 'confirmed' AND direction = 'out' AND currency = @currency), 0)
+                 - coalesce((SELECT sum(i.delivered_quantity * i.unit_price) FROM orders o JOIN order_items i ON i.tenant_id = o.tenant_id AND i.order_id = o.id
+                             WHERE o.tenant_id = @tenant AND o.customer_id = @customer AND o.status = 'delivered' AND o.currency = @currency), 0)
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("customer", customerId);
+        command.Parameters.AddWithValue("currency", currency);
+        return Math.Max(0m, Convert.ToDecimal(await command.ExecuteScalarAsync(cancellationToken)));
     }
 
     private static async Task<PaymentResult> CheckOrderAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, NewPayment payment, CancellationToken cancellationToken)
@@ -85,9 +114,9 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         var id = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand("""
             INSERT INTO payments (id, tenant_id, number, customer_id, order_id, method, currency, amount, reference, note, status, received_by, recorded_by,
-                confirmed_by, confirmed_at, replaces_payment_id, client_ref)
+                confirmed_by, confirmed_at, replaces_payment_id, client_ref, direction)
             VALUES (@id, @tenant, @number, @customer, @order, @method, @currency, @amount, @reference, @note, @status, @actor, @actor,
-                CASE WHEN @status = 'confirmed' THEN @actor END, CASE WHEN @status = 'confirmed' THEN now() END, @replaces, @ref)
+                CASE WHEN @status = 'confirmed' THEN @actor END, CASE WHEN @status = 'confirmed' THEN now() END, @replaces, @ref, @direction)
             """, connection, transaction))
         {
             insert.Parameters.AddWithValue("id", id);
@@ -104,6 +133,7 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
             insert.Parameters.AddWithValue("actor", actorId.Value);
             insert.Parameters.Add(new NpgsqlParameter("replaces", NpgsqlDbType.Uuid) { Value = (object?)replaces ?? DBNull.Value });
             insert.Parameters.AddWithValue("ref", payment.ClientRef);
+            insert.Parameters.AddWithValue("direction", payment.Direction);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         await HistoryAsync(connection, transaction, tenantId, actorId, id, status, replaces is null ? null : "correction", cancellationToken);
@@ -126,7 +156,7 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
 
     private const string Columns = """
         p.id, p.number, p.customer_id, c.code, c.name, p.order_id, o.number, p.method, p.currency, p.amount, p.reference, p.note, p.status, p.received_by, ru.email,
-        p.recorded_by, cu.email, p.confirmed_at, p.closed_reason, p.replaces_payment_id, nx.id, p.created_at
+        p.recorded_by, cu.email, p.confirmed_at, p.closed_reason, p.replaces_payment_id, nx.id, p.created_at, p.direction
         """;
 
     private const string Joins = """
@@ -149,7 +179,7 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         r.IsDBNull(6) ? null : "O-" + r.GetInt64(6).ToString("D6"), r.GetString(7), r.GetString(8), r.GetDecimal(9), r.IsDBNull(10) ? null : r.GetString(10), r.IsDBNull(11) ? null : r.GetString(11),
         r.GetString(12), r.GetGuid(13), r.IsDBNull(14) ? null : r.GetString(14), r.GetGuid(15), r.IsDBNull(16) ? null : r.GetString(16),
         r.IsDBNull(17) ? null : r.GetFieldValue<DateTimeOffset>(17), r.IsDBNull(18) ? null : r.GetString(18), r.IsDBNull(19) ? null : r.GetGuid(19), r.IsDBNull(20) ? null : r.GetGuid(20),
-        r.GetFieldValue<DateTimeOffset>(21));
+        r.GetFieldValue<DateTimeOffset>(21), null, r.GetString(22));
 
     public async Task<IReadOnlyList<PaymentDto>> ListAsync(TenantId tenantId, UserId actorId, PaymentView view, Guid? regionId, Guid? customerId, string? status, int limit,
         DateTimeOffset? before, Guid? beforeId, CancellationToken cancellationToken)
@@ -263,7 +293,8 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         Guid customer;
         string? status;
-        await using (var lockRow = new NpgsqlCommand("SELECT status, customer_id FROM payments WHERE tenant_id = @tenant AND id = @id FOR UPDATE", connection, transaction))
+        string direction;
+        await using (var lockRow = new NpgsqlCommand("SELECT status, customer_id, direction FROM payments WHERE tenant_id = @tenant AND id = @id FOR UPDATE", connection, transaction))
         {
             lockRow.Parameters.AddWithValue("tenant", tenantId.Value);
             lockRow.Parameters.AddWithValue("id", paymentId);
@@ -271,8 +302,9 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
             if (!await reader.ReadAsync(cancellationToken)) return (PaymentResult.NotFound, null);
             status = reader.GetString(0);
             customer = reader.GetGuid(1);
+            direction = reader.GetString(2);
         }
-        if (status is not ("collected" or "confirmed")) return (PaymentResult.Conflict, null);
+        if (status is not ("collected" or "confirmed") || direction != "in") return (PaymentResult.Conflict, null);   // a refund is voided, never corrected
         var payment = replacement with { CustomerId = customer };
         var check = await CheckOrderAsync(connection, transaction, tenantId, payment, cancellationToken);
         if (check != PaymentResult.Success) return (check, null);
@@ -295,15 +327,16 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
                 GROUP BY o.currency),
             paid AS (
                 SELECT currency,
-                       sum(amount) FILTER (WHERE status = 'confirmed') AS confirmed,
-                       sum(amount) FILTER (WHERE status = 'collected') AS collected
+                       sum(amount) FILTER (WHERE status = 'confirmed' AND direction = 'in') AS confirmed,
+                       sum(amount) FILTER (WHERE status = 'collected' AND direction = 'in') AS collected,
+                       sum(amount) FILTER (WHERE status = 'confirmed' AND direction = 'out') AS refunded
                 FROM payments WHERE tenant_id = @tenant AND customer_id = @customer GROUP BY currency),
             returned AS (
                 SELECT currency, sum(total) AS value FROM returns WHERE tenant_id = @tenant AND customer_id = @customer AND status = 'approved' GROUP BY currency),
             money AS (
-                SELECT coalesce(d.currency, p.currency) AS currency, coalesce(d.value, 0) AS delivered, coalesce(p.confirmed, 0) AS confirmed, coalesce(p.collected, 0) AS collected
+                SELECT coalesce(d.currency, p.currency) AS currency, coalesce(d.value, 0) AS delivered, coalesce(p.confirmed, 0) AS confirmed, coalesce(p.collected, 0) AS collected, coalesce(p.refunded, 0) AS refunded
                 FROM delivered d FULL OUTER JOIN paid p ON p.currency = d.currency)
-            SELECT coalesce(m.currency, r.currency), coalesce(m.delivered, 0), coalesce(m.confirmed, 0), coalesce(m.collected, 0), coalesce(r.value, 0)
+            SELECT coalesce(m.currency, r.currency), coalesce(m.delivered, 0), coalesce(m.confirmed, 0), coalesce(m.collected, 0), coalesce(r.value, 0), coalesce(m.refunded, 0)
             FROM money m FULL OUTER JOIN returned r ON r.currency = m.currency
             ORDER BY 1
             """, connection, transaction);
@@ -316,7 +349,8 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
             var delivered = reader.GetDecimal(1);
             var confirmed = reader.GetDecimal(2);
             var returned = reader.GetDecimal(4);
-            items.Add(new BalanceItemDto(reader.GetString(0), delivered, confirmed, reader.GetDecimal(3), delivered - returned - confirmed, returned));
+            var refunded = reader.GetDecimal(5);
+            items.Add(new BalanceItemDto(reader.GetString(0), delivered, confirmed, reader.GetDecimal(3), delivered - returned - confirmed + refunded, returned, refunded));
         }
         return items;
     }
