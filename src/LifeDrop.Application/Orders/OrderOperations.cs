@@ -24,7 +24,9 @@ public sealed record WarehouseDto(Guid Id, string Code, string Name, string Stat
 // The stock of one product in one warehouse; every active product of every active company warehouse is listed, Counted false (quantity 0) until somebody set it.
 public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, string WarehouseName, Guid? CityId, string? CityName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted = true, DateOnly? ExpiryDate = null, decimal? MinStock = null,
     // What the open orders of this warehouse (placed, preparing, ready) will take; Quantity - Reserved is what is free.
-    decimal Reserved = 0);
+    decimal Reserved = 0,
+    // The product photo (the key of /product-photos/{key}); the app shows the stock as cards with photos.
+    string? PhotoKey = null);
 
 public sealed record SetStockRequest(decimal? Quantity);
 // Kind is chosen when the warehouse is created (company when empty) and cannot be changed later: orders may already follow its rules.

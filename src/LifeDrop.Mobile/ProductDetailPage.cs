@@ -44,7 +44,7 @@ public sealed class ProductDetailPage : ContentPage
         if (!string.IsNullOrWhiteSpace(product.ScientificName))
             head.Children.Add(new Label { Text = product.ScientificName, FontSize = 15, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray });
         if (!product.PricesHidden)
-            head.Children.Add(new Label { Text = $"{ProductsPage.Money(product.BasePrice)} {product.Currency} / {product.Unit}", FontSize = 20, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#E52B50") });
+            head.Children.Add(new Label { Text = $"{ProductsPage.Money(product.BasePrice)} {product.Currency} / {UnitText.Label(product.Unit)}", FontSize = 20, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#E52B50") });
         if (!product.Available)
             head.Children.Add(new Label { Text = Texts.Get("app.products.unavailable"), FontAttributes = FontAttributes.Bold, TextColor = Colors.OrangeRed });
 
@@ -52,7 +52,7 @@ public sealed class ProductDetailPage : ContentPage
         Row(rows, "web.catalog.code", product.Code);
         if (!string.IsNullOrWhiteSpace(product.Specialty)) Row(rows, "web.catalog.specialty", Texts.Get("specialty." + product.Specialty));
         Row(rows, "web.catalog.manufacturer", product.Manufacturer);
-        Row(rows, "web.catalog.unit", product.Unit);
+        Row(rows, "web.catalog.unit", UnitText.Label(product.Unit));
         if (product.ExpiryDate is { } expiry)
         {
             var status = product.ExpiryStatusOn(today);

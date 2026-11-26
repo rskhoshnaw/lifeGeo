@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { AdminApi } from '../api/admin.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { unitLabel } from './productView.ts'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 
@@ -70,7 +71,7 @@ export function WholesalerPage({ admin }: { admin: AdminApi }) {
                 <td>
                   {o.lines.map((l) => (
                     <div key={l.productCode}>
-                      {money(l.quantity)} {l.unit}
+                      {money(l.quantity)} {unitLabel(l.unit)}
                     </div>
                   ))}
                 </td>

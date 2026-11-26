@@ -26,7 +26,7 @@ public static class ProductFilter
     {
         var query = text?.Trim();
         return items.Where(p =>
-                (string.IsNullOrEmpty(query) || Contains(p.Code, query) || Contains(p.Name, query) || Contains(p.NameCkb, query) || Contains(p.NameAr, query) || Contains(p.NameEn, query)) &&
+                (string.IsNullOrEmpty(query) || Contains(p.Code, query) || Contains(p.Name, query) || Contains(p.NameCkb, query) || Contains(p.NameAr, query) || Contains(p.NameEn, query) || Contains(p.ScientificName, query) || Contains(p.Manufacturer, query)) &&
                 (string.IsNullOrEmpty(specialty) || p.Specialty == specialty) &&
                 (stock == StockFilter.All || (stock == StockFilter.InStock) == p.InStock) &&
                 (string.IsNullOrEmpty(manufacturer) || string.Equals(p.Manufacturer, manufacturer, StringComparison.OrdinalIgnoreCase)))

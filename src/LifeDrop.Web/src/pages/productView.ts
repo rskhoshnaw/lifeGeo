@@ -1,3 +1,10 @@
+import { t, type TextKey } from '../i18n.ts'
+
+// The units of a product (owner decision 2026-11-18): the English word is what is stored; every screen shows it in the panel language. A unit an older product has that is not in the list is shown as it is.
+export const productUnits = ['box', 'strip', 'bottle', 'vial', 'ampoule', 'tube', 'sachet', 'pack', 'carton', 'piece'] as const
+export type ProductUnit = (typeof productUnits)[number]
+export const unitLabel = (unit: string | null | undefined): string => (unit && (productUnits as readonly string[]).includes(unit) ? t(`web.unit.${unit}` as TextKey) : (unit ?? ''))
+
 // How close a product's expiry day is: expired (before today), soon (within 90 days, the limit of the stock warning) or fine.
 export type ExpiryStatus = 'none' | 'ok' | 'soon' | 'expired'
 

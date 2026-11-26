@@ -81,7 +81,7 @@ public sealed class WarehouseOrderPage(Guid orderId) : ContentPage
         {
             var box = new VerticalStackLayout { Spacing = 4 };
             box.Children.Add(new Label { Text = $"{line.Code} · {line.Name}", FontAttributes = FontAttributes.Bold });
-            box.Children.Add(new Label { Text = Texts.Get("app.warehouse.ordered", ("quantity", Format(line.Quantity)), ("unit", line.Unit)) });
+            box.Children.Add(new Label { Text = Texts.Get("app.warehouse.ordered", ("quantity", Format(line.Quantity)), ("unit", UnitText.Label(line.Unit))) });
             if (order.Status == "preparing")
             {
                 var quantity = new Entry { Keyboard = Keyboard.Numeric, Placeholder = Format(line.Quantity), WidthRequest = 120, HorizontalOptions = LayoutOptions.Start };

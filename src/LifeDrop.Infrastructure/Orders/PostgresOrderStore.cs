@@ -101,7 +101,8 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
             SELECT w.id, w.code, w.name, w.city_id, pl.name, p.id, p.code, p.name, p.unit, coalesce(s.quantity, 0), s.quantity IS NOT NULL, p.expiry_date, p.min_stock,
-                   coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id WHERE o.tenant_id = w.tenant_id AND o.warehouse_id = w.id AND oi.product_id = p.id AND o.status IN ('placed', 'preparing', 'ready')), 0)
+                   coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id WHERE o.tenant_id = w.tenant_id AND o.warehouse_id = w.id AND oi.product_id = p.id AND o.status IN ('placed', 'preparing', 'ready')), 0),
+                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id)
             FROM warehouses w
             JOIN products p ON p.tenant_id = w.tenant_id
             LEFT JOIN warehouse_stock s ON s.tenant_id = w.tenant_id AND s.warehouse_id = w.id AND s.product_id = p.id
@@ -118,7 +119,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new WarehouseStockDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetGuid(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetDecimal(9), reader.GetBoolean(10),
-                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.GetDecimal(13)));
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.GetDecimal(13), reader.IsDBNull(14) ? null : reader.GetString(14)));
         return items;
     }
 

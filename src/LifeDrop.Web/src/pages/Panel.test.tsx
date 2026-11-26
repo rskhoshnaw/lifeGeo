@@ -529,7 +529,7 @@ describe('panel management screens', () => {
     // What a customer pays that day comes from the server, with the discounts
     await user.selectOptions(screen.getByLabelText('Customer', { selector: 'select' }), 'c1')
     fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-10-06' } })
-    expect(await screen.findByText('1,620 IQD / box')).toBeInTheDocument()
+    expect(await screen.findByText('1,620 IQD / Box')).toBeInTheDocument()
     expect(screen.getByText('1,800 IQD (city price)')).toBeInTheDocument()
     expect(await screen.findByText('Several discounts', { exact: false })).toBeInTheDocument()
 

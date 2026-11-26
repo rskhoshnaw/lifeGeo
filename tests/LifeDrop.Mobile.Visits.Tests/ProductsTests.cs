@@ -13,6 +13,23 @@ public class ProductsTests
         new(Guid.NewGuid(), code, "Name " + code, ckb, null, null, "box", "IQD", hidden ? 0m : 1500m, specialty, maker, null, inStock ? 5m : 0m, inStock, null, null, hidden);
 
     [Fact]
+    public void TheTextAlsoFindsTheScientificNameAndTheManufacturer()
+    {
+        var items = new[] { P("A1", maker: "Pioneer") with { ScientificName = "Acetaminophen" }, P("B1", maker: "Samara") };
+        Assert.Equal(new[] { "A1" }, ProductFilter.Apply(items, "acetamin", null, StockFilter.All, null).Select(p => p.Code).ToArray());
+        Assert.Equal(new[] { "B1" }, ProductFilter.Apply(items, "samara", null, StockFilter.All, null).Select(p => p.Code).ToArray());
+    }
+
+    [Fact]
+    public void UnitsAreShownInTheUsersLanguageAndUnknownOnesAsTheyAre()
+    {
+        Assert.Equal("Box", UnitText.Label("box"));
+        Assert.Equal("Box", UnitText.Label(" BOX "));
+        Assert.Equal("tablet-strip", UnitText.Label("tablet-strip"));
+        Assert.Equal("", UnitText.Label(null));
+    }
+
+    [Fact]
     public void ExpiryStatusIsExpiredSoonOrFine()
     {
         var today = new DateOnly(2026, 11, 23);

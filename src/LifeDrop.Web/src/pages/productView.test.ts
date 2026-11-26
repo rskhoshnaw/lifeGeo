@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expiryStatus, filterProducts } from './productView.ts'
+import { expiryStatus, filterProducts, unitLabel } from './productView.ts'
 
 describe('expiryStatus', () => {
   const today = new Date(2026, 10, 23)
@@ -25,5 +25,14 @@ describe('filterProducts', () => {
     expect(filterProducts(items, { ...none, manufacturer: 'PIONEER' }).map((p) => p.code)).toEqual(['A1'])
     expect(filterProducts(items, { ...none, stock: 'out' }).map((p) => p.code)).toEqual(['B1'])
     expect(filterProducts(items, { ...none, specialty: 'ent', stock: 'in' })).toHaveLength(0)
+  })
+})
+
+describe('unitLabel', () => {
+  it('shows a listed unit in the panel language and any other unit as it is', () => {
+    expect(unitLabel('box')).toBe('Box')
+    expect(unitLabel('ampoule')).toBe('Ampoule')
+    expect(unitLabel('tablet-strip')).toBe('tablet-strip')   // an older product's own word
+    expect(unitLabel(null)).toBe('')
   })
 })
