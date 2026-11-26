@@ -20,3 +20,8 @@ The logo in `src/LifeDrop.Mobile/Resources/AppIcon/appiconfg.png` (transparent, 
 
 ## Export compliance
 `Info.plist` declares `ITSAppUsesNonExemptEncryption = false`: the iOS app uses only the encryption of the operating system (HTTPS and the Keychain) and no algorithm of its own, so App Store Connect does not ask about it for each build. If encryption of our own is ever added to the iOS app, change this key and answer Apple's questions again.
+
+## Privacy (step 5.57)
+- `src/LifeDrop.Web/public/privacy.html` is the public privacy policy (camera/photos for feedback and returns are stored on the server).
+- `Platforms/iOS/Resources/PrivacyInfo.xcprivacy` declares what the app collects (precise location, e-mail, device id, photos, user content, phone number, name; all app functionality, no tracking). Keep it in step with the policy; when the app collects something new, add it in both.
+- Permission prompts are translated in `<lang>.lproj/InfoPlist.strings` (en, fa, ar, ckb); `Info.plist` holds the English default.

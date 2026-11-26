@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "GeoTrack uses the camera to scan your company QR code when you sign in and to take a photo you attach to your feedback or to a customer return.";
+"NSPhotoLibraryUsageDescription" = "GeoTrack lets you choose a photo from your library to attach to your feedback or to a customer return.";
+"NSLocationWhenInUseUsageDescription" = "GeoTrack uses your location to check you in at a customer and to record your visit.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "GeoTrack records your position during your work shift, also when the app is closed or the screen is off, so your manager sees where you are. It stops when you end the shift.";
