@@ -3,6 +3,7 @@ import { AdminApi, can, Permissions, type Customer, type Me } from '../api/admin
 import { Badge, type Tone } from '../components/Badge.tsx'
 import { useLoad } from '../components/useLoad.ts'
 import { t, type TextKey } from '../i18n.ts'
+import { unitLabel } from './productView.ts'
 
 const when = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', dateStyle: 'short', timeStyle: 'short' })
 const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' })
@@ -175,7 +176,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
                   <tr key={s.id} className="border-b">
                     <td className="py-1">{when.format(new Date(s.createdAt))}</td>
                     <td>{s.productName}</td>
-                    <td>{money(s.quantity)} {s.unit}</td>
+                    <td>{money(s.quantity)} {unitLabel(s.unit)}</td>
                     <td>{s.recipientName ?? '—'}</td>
                     <td>{s.distributedByEmail ?? '—'}</td>
                     <td>{t(`web.samples.status.${s.status}` as TextKey)}</td>

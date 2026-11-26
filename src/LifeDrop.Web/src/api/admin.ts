@@ -409,6 +409,7 @@ export interface WarehouseStockRow {
   expiryDate?: string | null
   minStock?: number | null
   reserved?: number
+  photoKey?: string | null
 }
 export interface WarehousePlace {
   cityId?: string | null

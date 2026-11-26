@@ -69,7 +69,7 @@ public static class WholesalerReport
         {
             html.Append("<tr><td>").Append(E(order.CustomerName)).Append("</td><td>").Append(E(order.Address)).Append("</td><td>")
                 .Append(string.Join("<br>", order.Lines.Select(l => E(l.ProductName)))).Append("</td><td>")
-                .Append(string.Join("<br>", order.Lines.Select(l => E(l.Quantity.ToString("0.###", CultureInfo.InvariantCulture) + " " + l.Unit)))).Append("</td><td>")
+                .Append(string.Join("<br>", order.Lines.Select(l => E(l.Quantity.ToString("0.###", CultureInfo.InvariantCulture) + " " + UnitText.Label(l.Unit))))).Append("</td><td>")
                 .Append(order.CreatedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append("</td><td>")
                 .Append(E(order.Total.ToString("0.###", CultureInfo.InvariantCulture) + " " + order.Currency)).Append("</td><td>").Append(E(order.Phone)).Append("</td></tr>");
         }

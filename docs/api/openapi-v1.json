@@ -29163,6 +29163,12 @@
             ],
             "format": "double",
             "default": 0
+          },
+          "photoKey": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

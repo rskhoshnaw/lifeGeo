@@ -36,7 +36,7 @@ describe('WarehouseStock', () => {
     const basra = screen.getByText('W2 · Basra warehouse').closest('tr')!
     expect(within(basra).getByText('1 / 2')).toBeInTheDocument()
     const cough = screen.getByText('A · Cough syrup', { selector: 'td' }).closest('tr')!
-    expect(within(cough).getByText('14 box')).toBeInTheDocument()   // 10 in Erbil + 4 in Basra
+    expect(within(cough).getByText('14 Box')).toBeInTheDocument()   // 10 in Erbil + 4 in Basra
     expect(within(cough).getByText('Erbil: 10 · Basra: 4')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument()   // a reader cannot change anything
   })
@@ -55,8 +55,7 @@ describe('WarehouseStock', () => {
   })
 
   it('shows the products of a warehouse as cards with photos or as a table, finds them and counts them', async () => {
-    const { fake, saved } = admin(rows)
-    ;(fake as unknown as { products: () => Promise<unknown[]> }).products = async () => [{ id: 'a', photoKey: 'a.jpg' }]
+    const { fake, saved } = admin(rows.map((r) => (r.productId === 'a' ? { ...r, photoKey: 'a.jpg' } : r)))
     ;(fake as unknown as { productPhotoUrl: (k: string) => string }).productPhotoUrl = (k) => `/p/${k}`
     const user = userEvent.setup()
     const { container } = render(<WarehouseStock admin={fake} canEdit />)
@@ -88,8 +87,8 @@ describe('WarehouseStock', () => {
     ]
     render(<WarehouseStock admin={admin(warn).fake} canEdit={false} />)
     const low = (await screen.findByText('Low stock')).closest('div')!
-    expect(within(low).getByText(/Cough syrup — 2 box/)).toBeInTheDocument()
-    expect(within(low).getByText(/Vitamin C — 2 box/)).toBeInTheDocument()
+    expect(within(low).getByText(/Cough syrup — 2 Box/)).toBeInTheDocument()
+    expect(within(low).getByText(/Vitamin C — 2 Box/)).toBeInTheDocument()
     expect(within(low).queryByText(/Plenty/)).not.toBeInTheDocument()          // above the limit
     expect(within(low).queryByText(/Never counted/)).not.toBeInTheDocument()   // not counted: nothing to warn about
     const expiring = screen.getByText('Expires within 90 days').closest('div')!

@@ -64,7 +64,7 @@ public sealed class WholesalerOrdersPage : ContentPage
 
     private View Card(WholesalerOrderItem order)
     {
-        var lines = string.Join("\n", order.Lines.Select(l => $"{l.ProductName} × {l.Quantity:0.###} {l.Unit}"));
+        var lines = string.Join("\n", order.Lines.Select(l => $"{l.ProductName} × {l.Quantity:0.###} {UnitText.Label(l.Unit)}"));
         var details = string.Join("\n", new[] { order.WholesalerName, order.Address, order.Phone, $"{order.Total:0.###} {order.Currency}", lines }.Where(s => !string.IsNullOrWhiteSpace(s)));
         var sent = new Button { Text = Texts.Get("app.wholesaler.dispatch") };
         sent.Clicked += async (_, _) => await DispatchAsync(order);

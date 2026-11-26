@@ -89,7 +89,7 @@ public sealed class DeliveryPage(Guid orderId) : ContentPage
         {
             var box = new VerticalStackLayout { Spacing = 4 };
             box.Children.Add(new Label { Text = $"{line.Code} · {line.Name}", FontAttributes = FontAttributes.Bold });
-            box.Children.Add(new Label { Text = Texts.Get("app.delivery.prepared", ("quantity", Format(line.Prepared)), ("unit", line.Unit)) });
+            box.Children.Add(new Label { Text = Texts.Get("app.delivery.prepared", ("quantity", Format(line.Prepared)), ("unit", UnitText.Label(line.Unit))) });
             if (delivering)
             {
                 var quantity = new Entry { Keyboard = Keyboard.Numeric, Placeholder = Format(line.Prepared), WidthRequest = 120, HorizontalOptions = LayoutOptions.Start };

@@ -735,5 +735,5 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /orders/{id}/cancel` | Gives the old figure back only for lines that took it. |
 | `POST /warehouse/orders/{id}/handover` | Takes the goods off the warehouse stock (and marks the order). |
 | `POST /deliveries/{id}/deliver`, `POST /deliveries/{id}/fail` | A failed delivery gives all of them back to the warehouse stock, a short delivery the difference; once; not for orders handed over before 5.42. |
-| `GET /warehouses/stock` | Rows also carry `reserved`. |
+| `GET /warehouses/stock` | Rows also carry `reserved` and `photoKey` (step 5.51, null without a photo). |
 

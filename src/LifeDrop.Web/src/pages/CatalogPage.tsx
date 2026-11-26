@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
-import { expiryStatus, filterProducts, type ProductFilters } from './productView.ts'
+import { expiryStatus, filterProducts, productUnits, unitLabel, type ProductFilters, type ProductUnit } from './productView.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
@@ -130,7 +130,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   {p.code}
                 </td>
                 <td>{p.name}</td>
-                <td>{p.unit}</td>
+                <td>{unitLabel(p.unit)}</td>
                 <td>
                   {money(p.basePrice)} {p.currency}
                 </td>
@@ -210,7 +210,7 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
     [t('web.catalog.code'), p.code],
     [t('web.catalog.specialty'), p.specialty ? t(`specialty.${p.specialty}` as TextKey) : null],
     [t('web.catalog.manufacturer'), p.manufacturer],
-    [t('web.catalog.unit'), p.unit],
+    [t('web.catalog.unit'), unitLabel(p.unit)],
     [
       t('web.catalog.expiry'),
       p.expiryDate ? `${p.expiryDate.slice(0, 10)}${status === 'expired' ? ` · ${t('web.catalog.expired')}` : status === 'soon' ? ` · ${t('web.catalog.expiresSoon')}` : ''}` : null,
@@ -228,7 +228,7 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
           <h3 className="text-xl font-semibold">{p.name}</h3>
           {p.scientificName && <p className="italic text-slate-500">{p.scientificName}</p>}
           <p className="pb-2 text-2xl font-bold text-rose-600">
-            {money(p.basePrice)} {p.currency} / {p.unit}
+            {money(p.basePrice)} {p.currency} / {unitLabel(p.unit)}
           </p>
           <dl className="divide-y text-sm">
             {rows.filter(([, v]) => !!v).map(([label, value, color]) => (
@@ -255,8 +255,6 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
 }
 
 // The units of a product (owner decision 2026-11-18); the English word is what is stored, the list shows it in the panel language. A unit an older product already has stays selectable.
-const productUnits = ['box', 'strip', 'bottle', 'vial', 'ampoule', 'tube', 'sachet', 'pack', 'carton', 'piece'] as const
-type ProductUnit = (typeof productUnits)[number]
 
 function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Product | null; onDone: (saveAndNew?: boolean) => void }) {
   const [code, setCode] = useState(product?.code ?? '')
@@ -521,7 +519,7 @@ function CustomerPrices({ admin, canManage }: { admin: AdminApi; canManage: bool
                 </td>
                 <td>{p.discounts.map(discountText).join(' ')}</td>
                 <td className="font-semibold">
-                  {money(p.price)} {p.currency} / {p.unit}
+                  {money(p.price)} {p.currency} / {unitLabel(p.unit)}
                 </td>
               </tr>
             ))}

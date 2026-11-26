@@ -23,7 +23,7 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         await using var command = new NpgsqlCommand($"""
             SELECT {ProductColumns} FROM products
             WHERE (@all OR status = 'active')
-              AND (@q::text IS NULL OR code ILIKE @q ESCAPE '\' OR name ILIKE @q ESCAPE '\' OR name_ckb ILIKE @q ESCAPE '\' OR name_ar ILIKE @q ESCAPE '\' OR name_en ILIKE @q ESCAPE '\')
+              AND (@q::text IS NULL OR code ILIKE @q ESCAPE '\' OR name ILIKE @q ESCAPE '\' OR name_ckb ILIKE @q ESCAPE '\' OR name_ar ILIKE @q ESCAPE '\' OR name_en ILIKE @q ESCAPE '\' OR scientific_name ILIKE @q ESCAPE '\' OR manufacturer ILIKE @q ESCAPE '\')
             ORDER BY code COLLATE "C"
             LIMIT 1000
             """, connection, transaction);

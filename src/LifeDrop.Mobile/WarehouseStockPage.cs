@@ -16,6 +16,8 @@ public sealed class WarehouseStockPage : ContentPage
     private IReadOnlyList<WarehouseStockItem> _all = Array.Empty<WarehouseStockItem>();
     private List<Guid> _warehouseIds = new();
     private bool _filling;
+    private bool _cards = true;   // photos in two columns (default) or the plain list
+    private readonly Button _viewButton = new() { FontSize = 13, HorizontalOptions = LayoutOptions.Start };
 
     public WarehouseStockPage()
     {
@@ -25,7 +27,12 @@ public sealed class WarehouseStockPage : ContentPage
         _warehouse.SelectedIndexChanged += (_, _) => Render();
         _search.Placeholder = Texts.Get("app.products.search");
         _search.TextChanged += (_, _) => Render();
-        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { _warehouse, _search, _spinner, _message, _rows } } };
+        _viewButton.Clicked += (_, _) =>
+        {
+            _cards = !_cards;
+            Render();
+        };
+        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { _warehouse, _search, _viewButton, _spinner, _message, _rows } } };
     }
 
     protected override async void OnAppearing()
@@ -81,23 +88,74 @@ public sealed class WarehouseStockPage : ContentPage
     {
         if (_filling) return;
         _rows.Children.Clear();
+        _viewButton.Text = Texts.Get(_cards ? "web.catalog.table" : "web.catalog.gallery");
         if (_warehouse.SelectedIndex < 0 || _warehouse.SelectedIndex >= _warehouseIds.Count) return;
         var id = _warehouseIds[_warehouse.SelectedIndex];
         var text = (_search.Text ?? "").Trim();
-        foreach (var item in _all.Where(i => i.WarehouseId == id && (text.Length == 0 || i.ProductCode.Contains(text, StringComparison.OrdinalIgnoreCase) || i.ProductName.Contains(text, StringComparison.OrdinalIgnoreCase))))
+        var shown = _all.Where(i => i.WarehouseId == id && (text.Length == 0 || i.ProductCode.Contains(text, StringComparison.OrdinalIgnoreCase) || i.ProductName.Contains(text, StringComparison.OrdinalIgnoreCase))).ToList();
+        if (_cards) RenderCards(shown);
+        else RenderList(shown);
+    }
+
+    // The plain list: code and name, the unit under it, the quantity box and the save button.
+    private void RenderList(IReadOnlyList<WarehouseStockItem> shown)
+    {
+        foreach (var item in shown)
         {
-            var quantity = new Entry { Keyboard = Keyboard.Numeric, WidthRequest = 90, Text = item.Quantity.ToString("0.###", CultureInfo.InvariantCulture), HorizontalTextAlignment = TextAlignment.Center };
-            var save = new Button { Text = Texts.Get("app.stock.save"), FontSize = 13 };
-            var captured = item;
-            save.Clicked += async (_, _) => await SaveAsync(captured, quantity, save);
+            var (quantity, save) = Controls(item);
             var title = new Label { Text = $"{item.ProductCode} · {item.ProductName}", FontAttributes = FontAttributes.Bold };
-            var status = new Label { Text = item.Counted ? item.Unit : Texts.Get("app.stock.notCounted"), FontSize = 12 };
+            var status = new Label { Text = item.Counted ? UnitText.Label(item.Unit) : Texts.Get("app.stock.notCounted"), FontSize = 12 };
             var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 8 };
             grid.Add(new VerticalStackLayout { Children = { title, status } }, 0);
             grid.Add(quantity, 1);
             grid.Add(save, 2);
             _rows.Children.Add(grid);
         }
+    }
+
+    // Cards, two to a row: the photo whole on top, the name, what is free (not taken by open orders), the quantity box and the save button.
+    private void RenderCards(IReadOnlyList<WarehouseStockItem> shown)
+    {
+        var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 10, RowSpacing = 10 };
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        for (var i = 0; i < shown.Count; i++)
+        {
+            var item = shown[i];
+            if (i % 2 == 0) grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var (quantity, save) = Controls(item);
+            var product = new ProductItem(item.ProductId, item.ProductCode, item.ProductName, null, null, null, item.Unit, "", 0m, null, null, item.ExpiryDate, item.Quantity, item.Quantity > 0, null, item.PhotoKey, true);
+            var info = new VerticalStackLayout { Spacing = 3, Padding = new Thickness(8, 6, 8, 8) };
+            info.Children.Add(new Label { Text = item.ProductName, FontAttributes = FontAttributes.Bold, FontSize = 14, MaxLines = 2, LineBreakMode = LineBreakMode.TailTruncation });
+            info.Children.Add(new Label { Text = $"{item.ProductCode} · {(item.Counted ? UnitText.Label(item.Unit) : Texts.Get("app.stock.notCounted"))}", FontSize = 12, TextColor = Colors.Gray });
+            if (item.ExpiryDate is { } expiry && product.ExpiryStatusOn(today) is ExpiryStatus.Expired or ExpiryStatus.Soon)
+                info.Children.Add(new Label { Text = ProductsPage.Day(expiry), FontSize = 12, TextColor = product.ExpiryStatusOn(today) == ExpiryStatus.Expired ? Colors.Red : Colors.DarkOrange });
+            info.Children.Add(new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 6, Children = { quantity, SetColumn(save) } });
+            var card = new Border
+            {
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+                Stroke = Color.FromArgb("#E2E8F0"),
+                StrokeThickness = 1,
+                BackgroundColor = Colors.White,
+                Padding = 0,
+                Content = new VerticalStackLayout { Spacing = 0, Children = { ProductsPage.Photo(product, 110), info } }
+            };
+            grid.Add(card, i % 2, i / 2);
+        }
+        _rows.Children.Add(grid);
+    }
+
+    private static View SetColumn(View view)
+    {
+        Grid.SetColumn(view, 1);
+        return view;
+    }
+
+    private (Entry Quantity, Button Save) Controls(WarehouseStockItem item)
+    {
+        var quantity = new Entry { Keyboard = Keyboard.Numeric, WidthRequest = 90, Text = item.Quantity.ToString("0.###", CultureInfo.InvariantCulture), HorizontalTextAlignment = TextAlignment.Center };
+        var save = new Button { Text = Texts.Get("app.stock.save"), FontSize = 13 };
+        save.Clicked += async (_, _) => await SaveAsync(item, quantity, save);
+        return (quantity, save);
     }
 
     private async Task SaveAsync(WarehouseStockItem item, Entry box, Button button)

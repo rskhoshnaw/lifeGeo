@@ -62,11 +62,13 @@ public class WarehouseStockStoreTests
             var store = new PostgresOrderStore(dataSource);
             var t = new TenantId(tenant);
             var mgr = new UserId(manager);
+            await InTenant(connection, tenant, $"INSERT INTO product_photos(tenant_id,product_id,photo_key,content_type,data) VALUES ('{tenant}','{a}','0123456789abcdef0123456789abcdef','image/png','\\x89504e47'::bytea);");
 
             // The managers: every active product in both company warehouses, nothing counted yet; the wholesaler and the inactive product are left out.
             var start = await store.ListStockAsync(t, null, CancellationToken.None);
             Assert.Equal(new[] { "W1/A", "W1/B", "W2/A", "W2/B" }, start.Select(r => $"{r.WarehouseCode}/{r.ProductCode}").ToArray());
             Assert.All(start, r => Assert.False(r.Counted));
+            Assert.Equal(new[] { "0123456789abcdef0123456789abcdef", null, "0123456789abcdef0123456789abcdef", null }, start.Select(r => r.PhotoKey).ToArray());   // the photo of a product comes with its stock rows (the app shows cards with photos)
             Assert.Equal(new[] { "Erbil", "Erbil", "Basra", "Basra" }, start.Select(r => r.CityName).ToArray());
 
             Assert.Equal(OrderResult.Success, await store.SetStockAsync(t, mgr, w1, a, 12.5m, null, CancellationToken.None));

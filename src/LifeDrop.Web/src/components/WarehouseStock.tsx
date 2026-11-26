@@ -3,6 +3,7 @@ import { AdminApi, type WarehouseStockRow } from '../api/admin.ts'
 import { expiryStatus } from '../pages/productView.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from './useLoad.ts'
+import { unitLabel } from '../pages/productView.ts'
 
 const number = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 
@@ -24,19 +25,10 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
   const action = useAction(stock.reload)
   const [open, setOpen] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
-  // The products of the opened warehouse as cards with photos or as a table (owner request 2026-11-26); the photos come from the product list, which a warehouse worker may not read: then the cards show no photo.
+  // The products of the opened warehouse as cards with photos or as a table (owner request 2026-11-26); the photo comes with every stock row.
   const [view, setView] = useState<'gallery' | 'table'>('gallery')
   const [find, setFind] = useState('')
   const [onlyOpen, setOnlyOpen] = useState(false)   // only the products not counted yet
-  const catalogue = useLoad(useCallback(async () => {
-    try {
-      return await admin.products(false)
-    } catch {
-      return []   // no right to read the product list: the cards have no photo
-    }
-  }, [admin]))
-  const photos = useMemo(() => new Map((catalogue.data ?? []).map((p) => [p.id, p.photoKey ?? null])), [catalogue.data])
-
   const warehouses = useMemo(() => {
     const map = new Map<string, WarehouseSummary>()
     for (const r of stock.data ?? []) {
@@ -94,7 +86,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
           <strong>{t('web.stock.low')}</strong>
           <ul>
             {low.map((r) => (
-              <li key={`${r.warehouseId}:${r.productId}`}>{r.warehouseName}: {r.productCode} · {r.productName} — {number(r.quantity)} {r.unit}</li>
+              <li key={`${r.warehouseId}:${r.productId}`}>{r.warehouseName}: {r.productCode} · {r.productName} — {number(r.quantity)} {unitLabel(r.unit)}</li>
             ))}
           </ul>
         </div>
@@ -159,7 +151,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
           {view === 'gallery' ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {shownRows.map((r) => {
-                const photo = photos.get(r.productId)
+                const photo = r.photoKey
                 const status = expiryStatus(r.expiryDate)
                 return (
                   <div key={r.productId} className="overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -172,13 +164,13 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
                         <div className="flex items-center gap-1">
                           <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-full min-w-0 rounded border px-2 py-1" value={draftOf(r)}
                             onChange={(e) => setDrafts({ ...drafts, [`${r.warehouseId}:${r.productId}`]: e.target.value })} />
-                          <span className="text-xs">{r.unit}</span>
+                          <span className="text-xs">{unitLabel(r.unit)}</span>
                           <button className="rounded border px-2 py-1" aria-label={t('web.stock.saveOf', { name: r.productName })} disabled={action.busy || draftOf(r).trim() === '' || Number(draftOf(r)) === r.quantity} onClick={() => void save(r)}>
                             {t('web.stock.save')}
                           </button>
                         </div>
                       ) : (
-                        <div className="font-bold">{r.counted ? `${number(r.quantity)} ${r.unit}` : t('web.stock.notCounted')}</div>
+                        <div className="font-bold">{r.counted ? `${number(r.quantity)} ${unitLabel(r.unit)}` : t('web.stock.notCounted')}</div>
                       )}
                     </div>
                   </div>
@@ -194,13 +186,13 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
                     <>
                       <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={draftOf(r)}
                         onChange={(e) => setDrafts({ ...drafts, [`${r.warehouseId}:${r.productId}`]: e.target.value })} />
-                      <span className="w-12">{r.unit}</span>
+                      <span className="w-12">{unitLabel(r.unit)}</span>
                       <button className="rounded border px-2 py-1" aria-label={t('web.stock.saveOf', { name: r.productName })} disabled={action.busy || draftOf(r).trim() === '' || Number(draftOf(r)) === r.quantity} onClick={() => void save(r)}>
                         {t('web.stock.save')}
                       </button>
                     </>
                   ) : (
-                    <span>{r.counted ? `${number(r.quantity)} ${r.unit}` : t('web.stock.notCounted')}</span>
+                    <span>{r.counted ? `${number(r.quantity)} ${unitLabel(r.unit)}` : t('web.stock.notCounted')}</span>
                   )}
                 </div>
               ))}
@@ -222,7 +214,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
             {products.map((p) => (
               <tr key={p.id} className="border-b">
                 <td className="py-1">{p.code} · {p.name}</td>
-                <td>{number(p.total)} {p.unit}</td>
+                <td>{number(p.total)} {unitLabel(p.unit)}</td>
                 <td>{p.where.join(' · ') || '—'}</td>
               </tr>
             ))}

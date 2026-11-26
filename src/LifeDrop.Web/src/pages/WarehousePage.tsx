@@ -3,6 +3,7 @@ import { AdminApi, type Order } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { WarehouseStock } from '../components/WarehouseStock.tsx'
+import { unitLabel } from './productView.ts'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 const filters = ['', 'placed', 'preparing', 'ready', 'handed_over', 'cancelled']
@@ -114,7 +115,7 @@ function WorkOrder({ admin, orderId, onChanged }: { admin: AdminApi; orderId: st
                     {l.productCode} · {l.productName}
                   </td>
                   <td>
-                    {money(l.quantity)} {l.unit}
+                    {money(l.quantity)} {unitLabel(l.unit)}
                   </td>
                   <td>
                     {o.status === 'preparing' ? (

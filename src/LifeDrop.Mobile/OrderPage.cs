@@ -174,7 +174,7 @@ public sealed class OrderPage : ContentPage
             if (!_byProduct.TryGetValue(p.ProductId, out var row))
             {
                 var discount = !_draft.PricesKnown || _draft.PricesHidden ? "" : p.Price < p.ListPrice ? $" ({Format(p.ListPrice)} → {Format(p.Price)})" : $" {Format(p.Price)}";
-                row = new OrderRow(p, $"{p.Code} · {p.DisplayName(language)}", _draft.PricesHidden ? p.Unit : $"{p.Unit}{discount} {p.Currency}");
+                row = new OrderRow(p, $"{p.Code} · {p.DisplayName(language)}", _draft.PricesHidden ? UnitText.Label(p.Unit) : $"{UnitText.Label(p.Unit)}{discount} {p.Currency}");
                 if (_draft.QuantityOf(p.ProductId) > 0) row.Quantity = _draft.QuantityOf(p.ProductId).ToString(CultureInfo.InvariantCulture);
                 _byProduct[p.ProductId] = row;
             }

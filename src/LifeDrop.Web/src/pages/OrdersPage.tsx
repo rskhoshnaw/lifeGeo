@@ -3,6 +3,7 @@ import { AdminApi, can, errorMessage, iraqToday, Permissions, type EffectivePric
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
 import { WarehouseStock } from '../components/WarehouseStock.tsx'
+import { unitLabel } from './productView.ts'
 
 const money = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 })
 const discountText = (d: { kind: 'percent' | 'amount'; value: number }) => (d.kind === 'percent' ? `-${money(d.value)}%` : `-${money(d.value)}`)
@@ -140,7 +141,7 @@ function OrderDetails({ admin, me, orderId, onChanged }: { admin: AdminApi; me: 
                     {l.productCode} · {l.productName}
                   </td>
                   <td>
-                    {money(l.quantity)} {l.unit}
+                    {money(l.quantity)} {unitLabel(l.unit)}
                   </td>
                   <td>{money(l.unitPrice)}</td>
                   <td>{l.discounts.map(discountText).join(' ')}</td>

@@ -4,6 +4,7 @@ import { t, type TextKey } from '../i18n.ts'
 import { downloadText } from '../components/download.ts'
 import { targetLines, targetsCsv, type TargetView } from '../components/targetReport.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { unitLabel } from './productView.ts'
 
 const views: { value: TargetView; label: TextKey }[] = [
   { value: 'visitor', label: 'web.targets.byVisitor' },
@@ -53,8 +54,8 @@ export function TargetsPage({ admin, me }: { admin: AdminApi; me: Me }) {
             {lines.map((l) => (
               <tr key={l.key} className="border-b">
                 <td className="py-2">{l.label}</td>
-                <td>{l.target > 0 ? `${l.target}${l.unit ? ` ${l.unit}` : ''}` : '—'}</td>
-                <td>{`${l.actual}${l.unit ? ` ${l.unit}` : ''}`}</td>
+                <td>{l.target > 0 ? `${l.target}${l.unit ? ` ${unitLabel(l.unit)}` : ''}` : '—'}</td>
+                <td>{`${l.actual}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`}</td>
                 <td>{l.percent === null ? '—' : <strong className={l.percent >= 100 ? 'text-green-700' : l.percent < 50 ? 'text-red-700' : ''}>{l.percent}%</strong>}</td>
                 <td>{l.untargeted > 0 ? l.untargeted : '—'}</td>
               </tr>
@@ -99,7 +100,7 @@ export function TargetForm({ admin, month, onChanged }: { admin: AdminApi; month
       <select aria-label={t('web.targets.product')} className="rounded border px-2 py-1" required value={productId} onChange={(e) => setProductId(e.target.value)}>
         <option value="">{t('web.targets.chooseProduct')}</option>
         {(products.data ?? []).map((p: Product) => (
-          <option key={p.id} value={p.id}>{`${p.code} · ${p.name} (${p.unit})`}</option>
+          <option key={p.id} value={p.id}>{`${p.code} · ${p.name} (${unitLabel(p.unit)})`}</option>
         ))}
       </select>
       <input aria-label={t('web.targets.quantity')} placeholder={t('web.targets.quantity')} className="rounded border px-2 py-1" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />

@@ -21,6 +21,8 @@ public sealed class ProductsPage : ContentPage
     private IReadOnlyList<string> _manufacturers = Array.Empty<string>();
     private bool _loaded;
     private bool _filling;
+    private bool _cards = true;   // cards in two columns (default) or one compact line per product
+    private readonly Button _viewButton = new() { FontSize = 13, HorizontalOptions = LayoutOptions.Start };
 
     public ProductsPage()
     {
@@ -33,6 +35,11 @@ public sealed class ProductsPage : ContentPage
         _stock.Title = Texts.Get("app.products.stock");
         _stock.ItemsSource = new List<string> { Texts.Get("app.products.stockAll"), Texts.Get("app.products.inStock"), Texts.Get("app.products.outOfStock") };
         _stock.SelectedIndex = 0;
+        _viewButton.Clicked += (_, _) =>
+        {
+            _cards = !_cards;
+            Render();
+        };
         _specialty.SelectedIndexChanged += (_, _) => Render();
         _manufacturer.SelectedIndexChanged += (_, _) => Render();
         _stock.SelectedIndexChanged += (_, _) => Render();
@@ -46,7 +53,7 @@ public sealed class ProductsPage : ContentPage
             {
                 Padding = new Thickness(12, 8, 12, 24),
                 Spacing = 10,
-                Children = { _search, filters, _spinner, _message, _gallery }
+                Children = { _search, filters, _viewButton, _spinner, _message, _gallery }
             }
         };
     }
@@ -118,11 +125,21 @@ public sealed class ProductsPage : ContentPage
         var shown = ProductFilter.Apply(_all, _search.Text, specialty, stock, manufacturer);
         _gallery.Children.Clear();
         _gallery.RowDefinitions.Clear();
+        _viewButton.Text = Texts.Get(_cards ? "web.catalog.table" : "web.catalog.gallery");
+        _gallery.ColumnDefinitions.Clear();
+        _gallery.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        if (_cards) _gallery.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         _message.IsVisible = false;
         if (shown.Count == 0) Show(Texts.Get("app.products.none"));
         var today = DateOnly.FromDateTime(DateTime.Today);
         for (var i = 0; i < shown.Count; i++)
         {
+            if (!_cards)
+            {
+                _gallery.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                _gallery.Add(Line(shown[i], today, shown, i), 0, i);
+                continue;
+            }
             if (i % 2 == 0) _gallery.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             _gallery.Add(Card(shown[i], today, shown, i), i % 2, i / 2);
         }
@@ -168,6 +185,30 @@ public sealed class ProductsPage : ContentPage
         tap.Tapped += async (_, _) => await Navigation.PushAsync(new ProductDetailPage(shown, index));
         border.GestureRecognizers.Add(tap);
         return border;
+    }
+
+    // One compact line per product (the "table" view): a small photo, the name with the scientific name and the expiry day, and the price on the right.
+    private View Line(ProductItem product, DateOnly today, IReadOnlyList<ProductItem> shown, int index)
+    {
+        var text = new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center };
+        text.Children.Add(new Label { Text = product.DisplayName(Texts.Language), FontAttributes = FontAttributes.Bold, FontSize = 14, MaxLines = 1, LineBreakMode = LineBreakMode.TailTruncation });
+        if (!string.IsNullOrWhiteSpace(product.ScientificName))
+            text.Children.Add(new Label { Text = product.ScientificName, FontSize = 12, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray, MaxLines = 1, LineBreakMode = LineBreakMode.TailTruncation });
+        if (product.ExpiryDate is { } expiry)
+        {
+            var status = product.ExpiryStatusOn(today);
+            text.Children.Add(new Label { Text = Texts.Get("app.products.expires", ("date", Day(expiry))), FontSize = 12, TextColor = status switch { ExpiryStatus.Expired => Colors.Red, ExpiryStatus.Soon => Colors.DarkOrange, _ => Colors.Gray } });
+        }
+        var row = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 10, Padding = new Thickness(0, 6) };
+        row.Add(new Border { StrokeThickness = 0, WidthRequest = 56, HeightRequest = 56, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 }, Content = Photo(product, 56) }, 0);
+        row.Add(text, 1);
+        if (!product.PricesHidden)
+            row.Add(new Label { Text = $"{Money(product.BasePrice)} {product.Currency}", FontAttributes = FontAttributes.Bold, FontSize = 14, TextColor = Color.FromArgb("#E52B50"), VerticalOptions = LayoutOptions.Center }, 2);
+        var holder = new VerticalStackLayout { Opacity = product.Available ? 1 : 0.6, Children = { row, new BoxView { HeightRequest = 1, Color = Color.FromArgb("#E2E8F0") } } };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await Navigation.PushAsync(new ProductDetailPage(shown, index));
+        holder.GestureRecognizers.Add(tap);
+        return holder;
     }
 
     // The photo on top of a card or the detail page; a grey tile when the product has none.

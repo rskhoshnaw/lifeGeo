@@ -99,8 +99,8 @@ public sealed class MyTargetsPage : ContentPage
     {
         var stack = new VerticalStackLayout { Spacing = 4 };
         stack.Children.Add(new Label { Text = $"{row.ProductCode} · {row.ProductName}", FontAttributes = FontAttributes.Bold });
-        stack.Children.Add(new Label { Text = row.Target is { } target ? Texts.Get("app.targets.target", ("value", Number(target)), ("unit", row.Unit)) : Texts.Get("app.targets.noTarget") });
-        stack.Children.Add(new Label { Text = Texts.Get("app.targets.delivered", ("value", Number(row.Actual)), ("unit", row.Unit)) });
+        stack.Children.Add(new Label { Text = row.Target is { } target ? Texts.Get("app.targets.target", ("value", Number(target)), ("unit", UnitText.Label(row.Unit))) : Texts.Get("app.targets.noTarget") });
+        stack.Children.Add(new Label { Text = Texts.Get("app.targets.delivered", ("value", Number(row.Actual)), ("unit", UnitText.Label(row.Unit))) });
         if (TargetProgress.Percent(row.Target, row.Actual) is { } percent)
         {
             stack.Children.Add(new ProgressBar { Progress = TargetProgress.Fill(row.Target, row.Actual) });

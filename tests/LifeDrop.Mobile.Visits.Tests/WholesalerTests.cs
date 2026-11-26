@@ -23,7 +23,7 @@ public class WholesalerTests
         Assert.Contains("Shifa &lt;b&gt;&amp;&lt;/b&gt;", html);
         Assert.DoesNotContain("<b>", html);
         Assert.Contains("Paracetamol<br>Amoxicillin", html);
-        Assert.Contains("10 box<br>2.5 box", html);
+        Assert.Contains("10 Box<br>2.5 Box", html);
         Assert.Contains("2026-10-26", html);
         Assert.Contains("15000 IQD", html);
     }

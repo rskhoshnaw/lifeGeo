@@ -2,6 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, errorMessage, iraqToday, Permissions, type Me, type Sample } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { useAction, useLoad } from '../components/useLoad.ts'
+import { unitLabel } from './productView.ts'
 
 // Pharma samples (plan step 2.6): what reps gave to customers. Reps record them in the app; here managers read the list and void a record with a reason.
 export function SamplesPage({ admin, me }: { admin: AdminApi; me: Me }) {
@@ -67,7 +68,7 @@ export function SamplesPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   {s.productCode} · {s.productName}
                 </td>
                 <td>
-                  {s.quantity} {s.unit}
+                  {s.quantity} {unitLabel(s.unit)}
                 </td>
                 <td>{s.recipientName ?? ''}</td>
                 <td>{s.batchNumber ?? ''}</td>

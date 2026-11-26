@@ -5032,6 +5032,10 @@ public class CustomerApiIntegrationTests
         var withDetails = (await Products()).Single(p => p.Code == "PAR-500");
         Assert.Equal(("pediatrics", "Pioneer", new DateOnly(2027, 3, 31), 12.5m, "Keep cool", true), (withDetails.Specialty, withDetails.Manufacturer, withDetails.ExpiryDate, withDetails.StockQty, withDetails.Notes, withDetails.InStock));
         Assert.Equal("Acetaminophen", withDetails.ScientificName);   // trimmed, and kept when the main fields are edited
+        // The search text also finds the scientific name and the manufacturer (owner request 2026-11-26)
+        Assert.Equal(new[] { "PAR-500" }, (await Products("?q=acetamin")).Select(p => p.Code).ToArray());
+        Assert.Equal(new[] { "PAR-500" }, (await Products("?q=pioneer")).Select(p => p.Code).ToArray());
+        Assert.Empty(await Products("?q=nonexistent-word"));
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { StockQty = 0m, Available = false, MinStock = 2.5m })).StatusCode);
         var cleared = (await Products()).Single(p => p.Code == "PAR-500");
         Assert.Equal((false, 2.5m), (cleared.Available, cleared.MinStock));   // listed but marked unavailable (it is not orderable)
