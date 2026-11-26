@@ -134,7 +134,7 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
         await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
         await using var command = new NpgsqlCommand("""
             SELECT i.product_id, sum(i.quantity) FROM returns r JOIN return_items i ON i.tenant_id = r.tenant_id AND i.return_id = r.id
-            WHERE r.tenant_id = @tenant AND r.order_id = @order AND r.status IN ('requested', 'approved') GROUP BY i.product_id
+            WHERE r.tenant_id = @tenant AND r.order_id = @order AND r.status IN ('requested', 'approved') AND i.decision IS DISTINCT FROM 'rejected' GROUP BY i.product_id
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("order", orderId);
@@ -222,7 +222,7 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
         if (items.Count == 0) return items;
         var lines = new Dictionary<Guid, List<ReturnLineDto>>();
         await using (var command = new NpgsqlCommand("""
-            SELECT return_id, line_no, product_id, product_code, product_name, unit, quantity, unit_price, line_total, reason, destination, stock_applied
+            SELECT return_id, line_no, product_id, product_code, product_name, unit, quantity, unit_price, line_total, reason, destination, stock_applied, decision
             FROM return_items WHERE tenant_id = @tenant AND return_id = ANY(@ids) ORDER BY return_id, line_no
             """, connection, transaction))
         {
@@ -234,7 +234,7 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
                 var id = reader.GetGuid(0);
                 if (!lines.TryGetValue(id, out var list)) lines[id] = list = [];
                 list.Add(new ReturnLineDto(reader.GetInt32(1), reader.GetGuid(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7),
-                    reader.GetDecimal(8), reader.GetString(9), reader.GetString(10), reader.IsDBNull(11) ? null : reader.GetBoolean(11)));
+                    reader.GetDecimal(8), reader.GetString(9), reader.GetString(10), reader.IsDBNull(11) ? null : reader.GetBoolean(11), reader.IsDBNull(12) ? null : reader.GetString(12)));
             }
         }
         var photos = new Dictionary<Guid, List<Guid>>();
@@ -253,32 +253,76 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
         return items.Select(i => i with { Items = lines.GetValueOrDefault(i.Id) ?? [], PhotoIds = photos.GetValueOrDefault(i.Id) ?? [] }).ToList();
     }
 
-    public async Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, string? note, CancellationToken cancellationToken)
+    public async Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, string? note, IReadOnlyList<int>? lines, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
         var locked = await LockAsync(connection, transaction, tenantId, returnId, cancellationToken);
         if (locked is null) return ReturnResult.NotFound;
         if (locked.Value.Status != "requested") return ReturnResult.Conflict;
-        // The goods that go back to a warehouse are added where that warehouse already counts the product; where it does not, nothing is added (stock_applied false) so a product nobody
-        // counted does not become limited by a small return.
+        // Row by row (plan step 5.56): the chosen lines are approved, the others rejected; a number that is not a line of this return is refused. Null = every line.
+        int lineCount;
+        await using (var count = new NpgsqlCommand("SELECT count(*) FROM return_items WHERE tenant_id = @tenant AND return_id = @id", connection, transaction))
+        {
+            count.Parameters.AddWithValue("tenant", tenantId.Value);
+            count.Parameters.AddWithValue("id", returnId);
+            lineCount = Convert.ToInt32(await count.ExecuteScalarAsync(cancellationToken));
+        }
+        if (lines is not null && lines.Any(n => n < 1 || n > lineCount)) return ReturnResult.InvalidData;
+        await using (var decide = new NpgsqlCommand("""
+            UPDATE return_items SET decision = CASE WHEN @all OR line_no = ANY(@lines) THEN 'approved' ELSE 'rejected' END
+            WHERE tenant_id = @tenant AND return_id = @id
+            """, connection, transaction))
+        {
+            decide.Parameters.AddWithValue("tenant", tenantId.Value);
+            decide.Parameters.AddWithValue("id", returnId);
+            decide.Parameters.AddWithValue("all", lines is null);
+            decide.Parameters.Add(new NpgsqlParameter("lines", NpgsqlDbType.Array | NpgsqlDbType.Integer) { Value = (lines ?? []).ToArray() });
+            await decide.ExecuteNonQueryAsync(cancellationToken);
+        }
+        // The credit is what the approved lines are worth.
+        await using (var total = new NpgsqlCommand("UPDATE returns SET total = (SELECT coalesce(sum(line_total), 0) FROM return_items WHERE tenant_id = @tenant AND return_id = @id AND decision = 'approved') WHERE tenant_id = @tenant AND id = @id", connection, transaction))
+        {
+            total.Parameters.AddWithValue("tenant", tenantId.Value);
+            total.Parameters.AddWithValue("id", returnId);
+            await total.ExecuteNonQueryAsync(cancellationToken);
+        }
         if (locked.Value.Warehouse is { } warehouse)
         {
-            await using var stock = new NpgsqlCommand("""
+            // Goods that go back are added to the sellable stock where that warehouse already counts the product; where it does not, nothing is added (stock_applied false) so a product nobody
+            // counted does not become limited by a small return.
+            await using (var stock = new NpgsqlCommand("""
                 WITH applied AS (
                     UPDATE warehouse_stock s SET quantity = s.quantity + i.quantity, updated_at = now(), updated_by = @actor
                     FROM return_items i
-                    WHERE i.tenant_id = @tenant AND i.return_id = @id AND i.destination = 'warehouse'
+                    WHERE i.tenant_id = @tenant AND i.return_id = @id AND i.destination = 'warehouse' AND i.decision = 'approved'
                       AND s.tenant_id = @tenant AND s.warehouse_id = @warehouse AND s.product_id = i.product_id
                     RETURNING i.id)
                 UPDATE return_items i SET stock_applied = (i.id IN (SELECT id FROM applied))
-                WHERE i.tenant_id = @tenant AND i.return_id = @id AND i.destination = 'warehouse'
+                WHERE i.tenant_id = @tenant AND i.return_id = @id AND i.destination = 'warehouse' AND i.decision = 'approved'
+                """, connection, transaction))
+            {
+                stock.Parameters.AddWithValue("tenant", tenantId.Value);
+                stock.Parameters.AddWithValue("actor", actorId.Value);
+                stock.Parameters.AddWithValue("id", returnId);
+                stock.Parameters.AddWithValue("warehouse", warehouse);
+                await stock.ExecuteNonQueryAsync(cancellationToken);
+            }
+            // Damaged and expired goods are held apart in the same warehouse (never in the stock that can be sold).
+            await using var damaged = new NpgsqlCommand("""
+                WITH moved AS (
+                    UPDATE return_items SET stock_applied = true
+                    WHERE tenant_id = @tenant AND return_id = @id AND destination = 'damaged' AND decision = 'approved'
+                    RETURNING product_id, quantity)
+                INSERT INTO warehouse_damaged_stock (tenant_id, warehouse_id, product_id, quantity, updated_by)
+                SELECT @tenant, @warehouse, product_id, sum(quantity), @actor FROM moved GROUP BY product_id
+                ON CONFLICT (tenant_id, warehouse_id, product_id) DO UPDATE SET quantity = warehouse_damaged_stock.quantity + EXCLUDED.quantity, updated_at = now(), updated_by = EXCLUDED.updated_by
                 """, connection, transaction);
-            stock.Parameters.AddWithValue("tenant", tenantId.Value);
-            stock.Parameters.AddWithValue("actor", actorId.Value);
-            stock.Parameters.AddWithValue("id", returnId);
-            stock.Parameters.AddWithValue("warehouse", warehouse);
-            await stock.ExecuteNonQueryAsync(cancellationToken);
+            damaged.Parameters.AddWithValue("tenant", tenantId.Value);
+            damaged.Parameters.AddWithValue("actor", actorId.Value);
+            damaged.Parameters.AddWithValue("id", returnId);
+            damaged.Parameters.AddWithValue("warehouse", warehouse);
+            await damaged.ExecuteNonQueryAsync(cancellationToken);
         }
         await DecideAsync(connection, transaction, tenantId, actorId, returnId, "approved", note, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -399,7 +443,7 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
             FROM returns r
             JOIN customers c ON c.tenant_id = r.tenant_id AND c.id = r.customer_id
             JOIN return_items i ON i.tenant_id = r.tenant_id AND i.return_id = r.id
-            WHERE r.tenant_id = @tenant AND r.status = 'approved' AND i.destination = 'damaged' AND {ViewFilter(view)}
+            WHERE r.tenant_id = @tenant AND r.status = 'approved' AND i.destination = 'damaged' AND i.decision IS DISTINCT FROM 'rejected' AND {ViewFilter(view)}
               AND (r.decided_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to
             GROUP BY i.product_id, i.product_code, i.product_name, i.unit, i.reason, r.currency
             ORDER BY i.product_code COLLATE "C", i.reason, r.currency

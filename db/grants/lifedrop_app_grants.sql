@@ -65,3 +65,7 @@ GRANT SELECT, INSERT ON return_items TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON return_counters TO lifedrop_app;
 -- Step 5.55: pictures of the goods on a return (only added and read).
 GRANT SELECT, INSERT ON return_photos TO lifedrop_app;
+-- Step 5.56: damaged and expired goods held apart in a warehouse, and the history of write-offs into it.
+GRANT SELECT, INSERT, UPDATE ON warehouse_damaged_stock TO lifedrop_app;
+GRANT SELECT, INSERT ON warehouse_writeoffs TO lifedrop_app;
+GRANT UPDATE ON return_items TO lifedrop_app;

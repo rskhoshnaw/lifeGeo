@@ -11824,5 +11824,95 @@
   "ckb": "داواکارییەکە نەخوێندرایەوە.",
   "ar": "تعذرت قراءة الطلب.",
   "fa": "سفارش خوانده نشد."
+ },
+ "web.returns.approveSelected": {
+  "en": "Approve the {count} ticked of {total} (reject the rest)",
+  "ckb": "پەسەندکردنی {count} دیاریکراو لە {total} (ئەوانی تر ڕەتبکەرەوە)",
+  "ar": "الموافقة على {count} المحددة من {total} (ورفض الباقي)",
+  "fa": "تأیید {count} مورد تیک‌خورده از {total} (بقیه رد شود)"
+ },
+ "web.returns.lineRejected": {
+  "en": "rejected",
+  "ckb": "ڕەتکراوە",
+  "ar": "مرفوض",
+  "fa": "رد شده"
+ },
+ "web.stock.damaged": {
+  "en": "Damaged / expired",
+  "ckb": "خراپ / بەسەرچوو",
+  "ar": "تالف / منتهي",
+  "fa": "خراب / منقضی"
+ },
+ "web.stock.writeOff": {
+  "en": "Write off",
+  "ckb": "دەرچوون بۆ خراپ",
+  "ar": "شطب",
+  "fa": "خروج به خراب"
+ },
+ "web.stock.writeOffQty": {
+  "en": "Quantity to write off",
+  "ckb": "بڕی دەرچوو",
+  "ar": "الكمية المشطوبة",
+  "fa": "تعداد خروجی"
+ },
+ "web.stock.writeOffDo": {
+  "en": "Move to damaged / expired",
+  "ckb": "بگوازرێتەوە بۆ خراپ / بەسەرچوو",
+  "ar": "انقل إلى التالف / المنتهي",
+  "fa": "انتقال به خراب / منقضی"
+ },
+ "web.stock.reason.expired": {
+  "en": "Expired",
+  "ckb": "بەسەرچوو",
+  "ar": "منتهي الصلاحية",
+  "fa": "منقضی"
+ },
+ "web.stock.reason.damaged": {
+  "en": "Damaged",
+  "ckb": "خراپ",
+  "ar": "تالف",
+  "fa": "خراب"
+ },
+ "web.stock.expiredNow": {
+  "en": "Expired: write off",
+  "ckb": "بەسەرچووە: دەربکە",
+  "ar": "منتهي: اشطب",
+  "fa": "منقضی: خروج"
+ },
+ "web.stock.setDamaged": {
+  "en": "Thrown away: set the figure",
+  "ckb": "فڕێدرا: ژمارەکە دابنێ",
+  "ar": "أُتلف: عيّن الرقم",
+  "fa": "دور ریخته شد: عدد را تنظیم کنید"
+ },
+ "web.stock.damagedPrompt": {
+  "en": "How much damaged / expired is left in this warehouse?",
+  "ckb": "چەند کاڵای خراپ / بەسەرچوو لەم کۆگایە ماوە؟",
+  "ar": "كم بقي من التالف / المنتهي في هذا المستودع؟",
+  "fa": "چه مقدار کالای خراب / منقضی در این انبار مانده است؟"
+ },
+ "web.stock.writeOffNote": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (ئارەزووی)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "توضیح (اختیاری)"
+ },
+ "web.catalog.previous": {
+  "en": "Previous",
+  "ckb": "پێشوو",
+  "ar": "السابق",
+  "fa": "قبلی"
+ },
+ "web.catalog.next": {
+  "en": "Next",
+  "ckb": "دواتر",
+  "ar": "التالي",
+  "fa": "بعدی"
+ },
+ "app.return.lineRejected": {
+  "en": "not accepted",
+  "ckb": "قبوڵ نەکرا",
+  "ar": "غير مقبول",
+  "fa": "پذیرفته نشد"
  }
 }

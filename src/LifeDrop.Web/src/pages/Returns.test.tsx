@@ -108,7 +108,31 @@ describe('customer returns page', () => {
     await user.selectOptions(within(form).getByRole('combobox', { name: 'Product' }), product)
     await user.type(within(form).getByRole('textbox', { name: 'Quantity' }), '1')
     await user.click(within(form).getByRole('button', { name: 'Add line' }))
+    expect(within(form).getByRole('button', { name: 'Send for approval' })).toBeDisabled()   // the warehouse is always needed, also for damaged goods (they are held apart in it)
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Warehouse for goods that go back' }), 'w1')
     await user.click(within(form).getByRole('button', { name: 'Send for approval' }))
-    expect(createReturn.mock.calls[0]![0]).toMatchObject({ customerId: 'c1', orderId: 'o1', items: [{ productId: 'p1', quantity: 1 }] })
+    expect(createReturn.mock.calls[0]![0]).toMatchObject({ customerId: 'c1', orderId: 'o1', warehouseId: 'w1', items: [{ productId: 'p1', quantity: 1 }] })
+  })
+
+  it('approves only the ticked lines row by row and rejects the rest', async () => {
+    const approveReturn = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('only the vitamins')
+    render(<ReturnsPage admin={admin({ approveReturn })} me={manager} />)
+    await user.click(await screen.findByRole('button', { name: /Goods R-000001/ }))
+    expect(screen.queryByRole('button', { name: /Approve the/ })).toBeNull()   // every line is ticked at first: nothing to narrow down
+    await user.click(screen.getByRole('checkbox', { name: 'Approve Paracetamol' }))   // untick the damaged line
+    await user.click(screen.getByRole('button', { name: 'Approve the 1 ticked of 2 (reject the rest)' }))
+    expect(approveReturn).toHaveBeenCalledWith('r1', 'only the vitamins', [2])
+  })
+
+  it('shows which lines of a decided return were rejected', async () => {
+    const decided = ret({ status: 'approved', decidedAt: '2026-11-14T08:00:00Z', decidedByEmail: 'm@t1', items: [
+      { ...ret().items[0]!, decision: 'rejected' }, { ...ret().items[1]!, decision: 'approved', stockApplied: true }] })
+    const user = userEvent.setup()
+    render(<ReturnsPage admin={admin({ returns: vi.fn().mockResolvedValue([decided]) })} me={manager} />)
+    await user.click(await screen.findByRole('button', { name: /Goods R-000001/ }))
+    expect(screen.getByText(/rejected/, { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).toBeNull()   // nothing to tick any more
   })
 })

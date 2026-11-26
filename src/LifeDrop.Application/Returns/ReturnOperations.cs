@@ -20,11 +20,14 @@ public sealed record ReturnItemRequest(Guid? ProductId, decimal? Quantity, strin
 
 // WarehouseId is needed when a line goes back to a warehouse. ClientRef makes a retry of a lost answer return the same return.
 public sealed record CreateReturnRequest(Guid? CustomerId, Guid? OrderId, Guid? WarehouseId, string? Note, Guid? ClientRef, IReadOnlyList<ReturnItemRequest>? Items);
-public sealed record DecideReturnRequest(string? Note);
+// Lines (plan step 5.56): the line numbers to approve; the others are rejected. Null approves every line. Only used by approve.
+public sealed record DecideReturnRequest(string? Note, IReadOnlyList<int>? Lines = null);
 
 // StockApplied: for an approved 'warehouse' line, whether the quantity was added to the warehouse (false when that warehouse does not count the product); null otherwise.
 public sealed record ReturnLineDto(int LineNo, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, decimal UnitPrice, decimal LineTotal,
-    string Reason, string Destination, bool? StockApplied);
+    string Reason, string Destination, bool? StockApplied,
+    // Plan step 5.56: approved | rejected when the sales manager decided line by line (null while undecided).
+    string? Decision = null);
 
 // Number: "R-000001". Status: requested | approved | rejected | cancelled. PricesHidden: the reader must not see prices (every amount is 0).
 public sealed record ReturnDto(Guid Id, string Number, Guid CustomerId, string CustomerCode, string CustomerName, Guid? OrderId, string? OrderNumber, Guid? WarehouseId, string? WarehouseName,
@@ -59,7 +62,8 @@ public interface IReturnStore
         CancellationToken cancellationToken);
     Task<ReturnDto?> GetAsync(TenantId tenantId, UserId actorId, ReturnView view, Guid? regionId, Guid returnId, CancellationToken cancellationToken);
     // requested -> approved: the 'warehouse' lines go back on the stock where the warehouse counts the product; the author is told. Conflict: not requested any more.
-    Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, string? note, CancellationToken cancellationToken);
+    // `lines`: the line numbers to approve (the others are rejected), null = all. InvalidData: a number that is not a line of the return.
+    Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, string? note, IReadOnlyList<int>? lines, CancellationToken cancellationToken);
     // requested -> rejected with a reason; the author is told.
     Task<ReturnResult> RejectAsync(TenantId tenantId, UserId actorId, Guid returnId, string reason, CancellationToken cancellationToken);
     // requested -> cancelled, only by its author (Forbidden for anyone else).
@@ -96,8 +100,8 @@ public sealed class ReturnService(IReturnStore store, IProductStore products, IO
             items.Select(i => i.ProductId).Distinct().Count() != items.Count)
             return (ReturnResult.InvalidData, null);
         var wanted = items.Select(i => (Item: i, Destination: i.Destination ?? DefaultDestination(i.Reason!))).ToList();
-        // A line that goes back to a warehouse needs the warehouse.
-        if (wanted.Any(w => w.Destination == "warehouse") && request.WarehouseId is null) return (ReturnResult.InvalidData, null);
+        // The warehouse is always needed: goods that go back are added to its stock, damaged and expired goods are held apart in the same warehouse (plan step 5.56).
+        if (request.WarehouseId is null) return (ReturnResult.InvalidData, null);
 
         var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken);
         if (customer is null) return (ReturnResult.NotFound, null);
@@ -171,9 +175,10 @@ public sealed class ReturnService(IReturnStore store, IProductStore products, IO
     public async Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, DecideReturnRequest request, CancellationToken cancellationToken)
     {
         var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
-        if (note?.Length > 500) return ReturnResult.InvalidData;
+        var chosen = request.Lines?.Distinct().ToList();
+        if (note?.Length > 500 || chosen is not null && (chosen.Count == 0 || chosen.Any(n => n < 1 || n > MaxLines))) return ReturnResult.InvalidData;
         var denied = await CheckDeciderAsync(tenantId, actorId, returnId, cancellationToken);
-        return denied ?? await store.ApproveAsync(tenantId, actorId, returnId, note, cancellationToken);
+        return denied ?? await store.ApproveAsync(tenantId, actorId, returnId, note, chosen, cancellationToken);
     }
 
     public async Task<ReturnResult> RejectAsync(TenantId tenantId, UserId actorId, Guid returnId, DecideReturnRequest request, CancellationToken cancellationToken)

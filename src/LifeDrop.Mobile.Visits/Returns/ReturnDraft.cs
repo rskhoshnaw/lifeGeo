@@ -75,7 +75,8 @@ public sealed class ReturnDraft(Guid customerId)
     }
 
     public int LineCount => _lines.Count;
-    public bool NeedsWarehouse => _lines.Values.Any(l => l.Destination == "warehouse");
+    // Every line is held in a warehouse (goods that go back to stock, or damaged / expired ones kept apart in the same warehouse), so any line needs one (step 5.56).
+    public bool NeedsWarehouse => _lines.Count > 0;
     // Something to send, and a warehouse when a line goes back to one.
     public bool CanSend => _lines.Count > 0 && (!NeedsWarehouse || WarehouseId is not null);
 

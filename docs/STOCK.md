@@ -17,3 +17,6 @@
 ## Rules to remember
 - A warehouse that is made inactive no longer counts in totals; its numbers stay and come back when it is active again.
 - Never type stock into the product form: the field is gone; the number comes from the warehouses.
+
+## Damaged bucket (5.56)
+`warehouse_damaged_stock` holds damaged and expired goods per warehouse; it is not sold and not counted in `quantity`.

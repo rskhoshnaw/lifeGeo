@@ -26,9 +26,13 @@ public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, s
     // What the open orders of this warehouse (placed, preparing, ready) will take; Quantity - Reserved is what is free.
     decimal Reserved = 0,
     // The product photo (the key of /product-photos/{key}); the app shows the stock as cards with photos.
-    string? PhotoKey = null);
+    string? PhotoKey = null,
+    // Plan step 5.56: damaged and expired goods held apart in this warehouse (not part of Quantity).
+    decimal Damaged = 0);
 
 public sealed record SetStockRequest(decimal? Quantity);
+// Moves sellable stock into the damaged/expired goods of the warehouse (plan step 5.56). Reason: expired | damaged.
+public sealed record WriteOffRequest(decimal? Quantity, string? Reason, string? Note);
 // Kind is chosen when the warehouse is created (company when empty) and cannot be changed later: orders may already follow its rules.
 public sealed record SaveWarehouseRequest(string? Code, string? Name, string? Status = null, string? Kind = null, Guid? CityId = null, string? Address = null, string? Phone = null);
 
@@ -101,6 +105,12 @@ public interface IOrderStore
     Task<IReadOnlyList<WarehouseStockDto>> ListStockAsync(TenantId tenantId, Guid? onlyStaffOf, CancellationToken cancellationToken);
     // Sets the quantity (an upsert). NotFound: no such active warehouse or product, or (with onlyStaffOf) the user does not work in that warehouse. Audit warehouse.stock_set.
     Task<OrderResult> SetStockAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, Guid? onlyStaffOf, CancellationToken cancellationToken);
+    // Plan step 5.56. Write-off: sellable stock -> damaged/expired goods of the warehouse (NotFound: no such warehouse/product/stock, or not the user's warehouse; Conflict: more than the stock; audit
+    // warehouse.write_off). Set: the damaged/expired figure after the goods were thrown away (an upsert; audit warehouse.damaged_set).
+    Task<OrderResult> WriteOffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, string reason, string? note, Guid? onlyStaffOf, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+    Task<OrderResult> SetDamagedAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, Guid? onlyStaffOf, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 
     // NotFound: warehouse or visit missing. InvalidData: warehouse inactive or the visit is not usable. Replays the order of an earlier send with
     // the same ClientRef (same creator and customer; else Conflict). Writes the order, its lines, the number and the audit row in one transaction.
@@ -183,6 +193,28 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         if (!manager && await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
         if (warehouseId == Guid.Empty || productId == Guid.Empty || request.Quantity is not { } quantity || quantity < 0 || quantity > MaxStock || decimal.Round(quantity, 3) != quantity) return OrderResult.InvalidData;
         return await store.SetStockAsync(tenantId, actorId, warehouseId, productId, quantity, manager ? null : actorId.Value, cancellationToken);
+    }
+
+    public async Task<OrderResult> WriteOffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, WriteOffRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (tenantId.IsEmpty || actorId.IsEmpty) return OrderResult.Forbidden;
+        var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is not null;
+        if (!manager && await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        if (warehouseId == Guid.Empty || productId == Guid.Empty || request.Quantity is not { } quantity || quantity <= 0 || quantity > MaxStock || decimal.Round(quantity, 3) != quantity ||
+            request.Reason is not ("expired" or "damaged") || note?.Length > 300) return OrderResult.InvalidData;
+        return await store.WriteOffAsync(tenantId, actorId, warehouseId, productId, quantity, request.Reason, note, manager ? null : actorId.Value, cancellationToken);
+    }
+
+    public async Task<OrderResult> SetDamagedAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, SetStockRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (tenantId.IsEmpty || actorId.IsEmpty) return OrderResult.Forbidden;
+        var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is not null;
+        if (!manager && await ScopeAsync(tenantId, actorId, PermissionKeys.WarehouseWork, cancellationToken) is null) return OrderResult.Forbidden;
+        if (warehouseId == Guid.Empty || productId == Guid.Empty || request.Quantity is not { } quantity || quantity < 0 || quantity > MaxStock || decimal.Round(quantity, 3) != quantity) return OrderResult.InvalidData;
+        return await store.SetDamagedAsync(tenantId, actorId, warehouseId, productId, quantity, manager ? null : actorId.Value, cancellationToken);
     }
 
     public async Task<(OrderResult Result, Guid? Id)> CreateWarehouseAsync(TenantId tenantId, UserId actorId, SaveWarehouseRequest request, CancellationToken cancellationToken)

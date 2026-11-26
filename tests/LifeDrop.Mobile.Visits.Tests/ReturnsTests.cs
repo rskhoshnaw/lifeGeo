@@ -30,7 +30,10 @@ public class ReturnsTests
         Assert.False(draft.CanSend);                                  // nothing yet
         Assert.True(draft.SetQuantity(P1, "2"));
         Assert.Equal(("damaged", "damaged"), (draft.ReasonOf(P1), draft.DestinationOf(P1)));   // a new line starts as damaged
-        Assert.True(draft.CanSend);                                   // goods that go apart need no warehouse
+        Assert.False(draft.CanSend);                                  // damaged goods are kept in the warehouse too: one must be chosen (step 5.56)
+        draft.WarehouseId = draft.Warehouses[0].Id;
+        Assert.True(draft.CanSend);
+        draft.WarehouseId = null;
         Assert.True(draft.SetReason(P1, "wrong_item"));               // the reason sets the usual place
         Assert.Equal("warehouse", draft.DestinationOf(P1));
         Assert.True(draft.NeedsWarehouse);
@@ -38,7 +41,7 @@ public class ReturnsTests
         draft.WarehouseId = draft.Warehouses[1].Id;
         Assert.True(draft.CanSend);
         Assert.True(draft.SetDestination(P1, "damaged"));             // the user may change the place of one line
-        Assert.False(draft.NeedsWarehouse);
+        Assert.True(draft.NeedsWarehouse);                            // ... but every line still sits in a warehouse
     }
 
     [Fact]

@@ -95,4 +95,32 @@ describe('WarehouseStock', () => {
     expect(within(expiring).getByText(new RegExp(`Cough syrup — ${soon}`))).toBeInTheDocument()
     expect(within(expiring).queryByText(/Vitamin C/)).not.toBeInTheDocument()
   })
+
+  it('shows the damaged and expired goods of a warehouse, writes an expired product off into them and sets the figure after the goods were thrown away', async () => {
+    const past = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+    const rows2 = [row({ quantity: 6, counted: true, expiryDate: past, damaged: 2 }), row({ productId: 'b', productCode: 'B', productName: 'Vitamin C', quantity: 4, counted: true })]
+    const writeOffStock = vi.fn().mockResolvedValue(undefined)
+    const setDamagedStock = vi.fn().mockResolvedValue(undefined)
+    const fake = { warehouseStock: async () => rows2, setWarehouseStock: async () => {}, writeOffStock, setDamagedStock } as unknown as AdminApi
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('0')
+    const user = userEvent.setup()
+    render(<WarehouseStock admin={fake} canEdit />)
+    await user.click(await screen.findByRole('button', { name: 'Stock of Erbil warehouse' }))
+    expect(screen.getByText(/Damaged \/ expired: 2 Box/)).toBeInTheDocument()                    // held apart, not part of the 6 that can be sold
+    expect(screen.getByRole('button', { name: 'Write off Vitamin C' })).toBeInTheDocument()       // any counted product can be written off
+    await user.click(screen.getByRole('button', { name: 'Expired: write off Cough syrup' }))     // the expired one offers it with the whole quantity
+    await user.click(screen.getByRole('button', { name: 'Move to damaged / expired' }))
+    expect(writeOffStock).toHaveBeenCalledWith('w1', 'a', 6, 'expired', null)
+    await user.click(screen.getByRole('button', { name: 'Thrown away: set the figure Cough syrup' }))
+    expect(setDamagedStock).toHaveBeenCalledWith('w1', 'a', 0)
+  })
+
+  it('offers no write-off to a reader', async () => {
+    const fake = { warehouseStock: async () => [row({ quantity: 6, counted: true, damaged: 2 })] } as unknown as AdminApi
+    const user = userEvent.setup()
+    render(<WarehouseStock admin={fake} canEdit={false} />)
+    await user.click(await screen.findByRole('button', { name: 'Stock of Erbil warehouse' }))
+    expect(screen.getByText(/Damaged \/ expired: 2 Box/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Write off|Expired: write off/ })).toBeNull()
+  })
 })

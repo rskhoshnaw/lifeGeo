@@ -102,7 +102,8 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         await using var command = new NpgsqlCommand("""
             SELECT w.id, w.code, w.name, w.city_id, pl.name, p.id, p.code, p.name, p.unit, coalesce(s.quantity, 0), s.quantity IS NOT NULL, p.expiry_date, p.min_stock,
                    coalesce((SELECT sum(oi.quantity) FROM order_items oi JOIN orders o ON o.tenant_id = oi.tenant_id AND o.id = oi.order_id WHERE o.tenant_id = w.tenant_id AND o.warehouse_id = w.id AND oi.product_id = p.id AND o.status IN ('placed', 'preparing', 'ready')), 0),
-                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id)
+                   (SELECT ph.photo_key FROM product_photos ph WHERE ph.tenant_id = p.tenant_id AND ph.product_id = p.id),
+                   coalesce((SELECT d.quantity FROM warehouse_damaged_stock d WHERE d.tenant_id = w.tenant_id AND d.warehouse_id = w.id AND d.product_id = p.id), 0)
             FROM warehouses w
             JOIN products p ON p.tenant_id = w.tenant_id
             LEFT JOIN warehouse_stock s ON s.tenant_id = w.tenant_id AND s.warehouse_id = w.id AND s.product_id = p.id
@@ -119,7 +120,7 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
         while (await reader.ReadAsync(cancellationToken))
             items.Add(new WarehouseStockDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetGuid(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetDecimal(9), reader.GetBoolean(10),
-                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.GetDecimal(13), reader.IsDBNull(14) ? null : reader.GetString(14)));
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateOnly>(11), reader.IsDBNull(12) ? null : reader.GetDecimal(12), reader.GetDecimal(13), reader.IsDBNull(14) ? null : reader.GetString(14), reader.GetDecimal(15)));
         return items;
     }
 
@@ -144,6 +145,73 @@ public sealed class PostgresOrderStore(NpgsqlDataSource dataSource) : IOrderStor
             if (await upsert.ExecuteNonQueryAsync(cancellationToken) == 0) return OrderResult.NotFound;
         }
         await AuditAsync(connection, transaction, tenantId, actorId, "warehouse.stock_set", warehouseId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return OrderResult.Success;
+    }
+
+    public async Task<OrderResult> WriteOffAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, string reason, string? note, Guid? onlyStaffOf, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        decimal current;
+        // The row of the stock is locked so two write-offs cannot take the same goods; a warehouse worker only reaches the warehouses they work in.
+        await using (var lockRow = new NpgsqlCommand("""
+            SELECT s.quantity FROM warehouse_stock s JOIN warehouses w ON w.tenant_id = s.tenant_id AND w.id = s.warehouse_id
+            WHERE s.tenant_id = @tenant AND s.warehouse_id = @warehouse AND s.product_id = @product AND w.status = 'active' AND w.kind = 'company'
+              AND (@staff::uuid IS NULL OR EXISTS (SELECT 1 FROM warehouse_staff ws WHERE ws.tenant_id = w.tenant_id AND ws.warehouse_id = w.id AND ws.user_id = @staff))
+            FOR UPDATE OF s
+            """, connection, transaction))
+        {
+            lockRow.Parameters.AddWithValue("tenant", tenantId.Value);
+            lockRow.Parameters.AddWithValue("warehouse", warehouseId);
+            lockRow.Parameters.AddWithValue("product", productId);
+            lockRow.Parameters.Add(new NpgsqlParameter("staff", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)onlyStaffOf ?? DBNull.Value });
+            if (await lockRow.ExecuteScalarAsync(cancellationToken) is not decimal found) return OrderResult.NotFound;
+            current = found;
+        }
+        if (quantity > current) return OrderResult.Conflict;
+        await using (var move = new NpgsqlCommand("""
+            UPDATE warehouse_stock SET quantity = quantity - @qty, updated_at = now(), updated_by = @actor WHERE tenant_id = @tenant AND warehouse_id = @warehouse AND product_id = @product;
+            INSERT INTO warehouse_damaged_stock (tenant_id, warehouse_id, product_id, quantity, updated_by) VALUES (@tenant, @warehouse, @product, @qty, @actor)
+            ON CONFLICT (tenant_id, warehouse_id, product_id) DO UPDATE SET quantity = warehouse_damaged_stock.quantity + EXCLUDED.quantity, updated_at = now(), updated_by = EXCLUDED.updated_by;
+            INSERT INTO warehouse_writeoffs (tenant_id, warehouse_id, product_id, quantity, reason, note, created_by) VALUES (@tenant, @warehouse, @product, @qty, @reason, @note, @actor);
+            """, connection, transaction))
+        {
+            move.Parameters.AddWithValue("tenant", tenantId.Value);
+            move.Parameters.AddWithValue("warehouse", warehouseId);
+            move.Parameters.AddWithValue("product", productId);
+            move.Parameters.AddWithValue("actor", actorId.Value);
+            move.Parameters.Add(new NpgsqlParameter("qty", NpgsqlTypes.NpgsqlDbType.Numeric) { Value = quantity });
+            move.Parameters.AddWithValue("reason", reason);
+            move.Parameters.Add(new NpgsqlParameter("note", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)note ?? DBNull.Value });
+            await move.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, "warehouse.write_off", warehouseId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return OrderResult.Success;
+    }
+
+    public async Task<OrderResult> SetDamagedAsync(TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, decimal quantity, Guid? onlyStaffOf, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
+        await using (var upsert = new NpgsqlCommand("""
+            INSERT INTO warehouse_damaged_stock (tenant_id, warehouse_id, product_id, quantity, updated_by)
+            SELECT w.tenant_id, w.id, p.id, @qty, @actor FROM warehouses w JOIN products p ON p.tenant_id = w.tenant_id
+            WHERE w.tenant_id = @tenant AND w.id = @warehouse AND w.status = 'active' AND w.kind = 'company' AND p.id = @product
+              AND (@staff::uuid IS NULL OR EXISTS (SELECT 1 FROM warehouse_staff ws WHERE ws.tenant_id = w.tenant_id AND ws.warehouse_id = w.id AND ws.user_id = @staff))
+            ON CONFLICT (tenant_id, warehouse_id, product_id) DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = now(), updated_by = EXCLUDED.updated_by
+            """, connection, transaction))
+        {
+            upsert.Parameters.AddWithValue("tenant", tenantId.Value);
+            upsert.Parameters.AddWithValue("warehouse", warehouseId);
+            upsert.Parameters.AddWithValue("product", productId);
+            upsert.Parameters.AddWithValue("actor", actorId.Value);
+            upsert.Parameters.Add(new NpgsqlParameter("qty", NpgsqlTypes.NpgsqlDbType.Numeric) { Value = quantity });
+            upsert.Parameters.Add(new NpgsqlParameter("staff", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)onlyStaffOf ?? DBNull.Value });
+            if (await upsert.ExecuteNonQueryAsync(cancellationToken) == 0) return OrderResult.NotFound;
+        }
+        await AuditAsync(connection, transaction, tenantId, actorId, "warehouse.damaged_set", warehouseId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return OrderResult.Success;
     }
