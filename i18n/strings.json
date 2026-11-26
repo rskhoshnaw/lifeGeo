@@ -12124,5 +12124,11 @@
   "ckb": "داخستن",
   "ar": "إغلاق",
   "fa": "بستن"
+ },
+ "app.stock.damaged": {
+  "en": "Damaged / expired: {quantity} {unit}",
+  "ckb": "خراب / بەسەرچوو: {quantity} {unit}",
+  "ar": "تالف / منتهي: {quantity} {unit}",
+  "fa": "خراب / منقضی: {quantity} {unit}"
  }
 }

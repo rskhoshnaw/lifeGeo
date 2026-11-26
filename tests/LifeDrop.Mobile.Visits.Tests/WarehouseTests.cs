@@ -76,6 +76,17 @@ public class WarehouseTests
     private static WarehouseApiClient Client(Handler handler) => new(new HttpClient(handler) { BaseAddress = new Uri("https://api.test") }, new Session());
 
     [Fact]
+    public async Task TheStockCardsCarryTheDamagedQuantityOfTheWarehouse()
+    {
+        var w = Guid.NewGuid();
+        var p = Guid.NewGuid();
+        var stock = new Handler(_ => Json(HttpStatusCode.OK, $$"""[{"warehouseId":"{{w}}","warehouseName":"Erbil","productId":"{{p}}","productCode":"A","productName":"Cough","unit":"box","quantity":6,"counted":true,"damaged":2}]"""));
+        var (result, items) = await Client(stock).GetStockAsync();
+        Assert.Equal(VisitActionResult.Success, result);
+        Assert.Equal((6m, 2m), (items.Single().Quantity, items.Single().Damaged));   // 6 can be sold, 2 are damaged / expired and held apart
+    }
+
+    [Fact]
     public async Task TheClientReadsOrdersAndSendsTheStepsWithoutPrices()
     {
         var id = Guid.NewGuid();
