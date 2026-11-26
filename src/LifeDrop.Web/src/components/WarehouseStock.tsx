@@ -20,6 +20,54 @@ interface WarehouseSummary {
 
 // Stock per warehouse and per product (owner request 2026-11-13): the managers see every warehouse, a warehouse worker only his own (the server decides).
 // Each warehouse has its own row of figures; "edit" opens its products so the quantities can be counted and saved. Below, every product with the total of all warehouses.
+// The damaged and expired goods of one product in a warehouse (step 5.56): how many are held apart, and for those who may edit: write sellable stock off into them (an expired product offers it
+// with the whole quantity) and set the figure after the goods were thrown away.
+function DamagedControls({ admin, r, canEdit, onChanged }: { admin: AdminApi; r: WarehouseStockRow; canEdit: boolean; onChanged: () => void }) {
+  const action = useAction(onChanged)
+  const [open, setOpen] = useState(false)
+  const expired = r.counted && r.quantity > 0 && expiryStatus(r.expiryDate) === 'expired'
+  const [quantity, setQuantity] = useState(String(r.quantity))
+  const [reason, setReason] = useState<'expired' | 'damaged'>(expired ? 'expired' : 'damaged')
+  const [note, setNote] = useState('')
+  const damaged = r.damaged ?? 0
+  if (!canEdit && damaged === 0) return null
+  return (
+    <div className="space-y-1 text-xs">
+      {damaged > 0 && <div className="font-medium text-amber-800">{t('web.stock.damaged')}: {number(damaged)} {unitLabel(r.unit)}</div>}
+      {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
+      {canEdit && (
+        <div className="flex flex-wrap items-center justify-center gap-1">
+          {r.counted && r.quantity > 0 && (
+            <button type="button" className={`rounded border px-2 py-0.5 ${expired ? 'border-red-400 text-red-700' : ''}`} aria-label={`${expired ? t('web.stock.expiredNow') : t('web.stock.writeOff')} ${r.productName}`} onClick={() => { setQuantity(String(r.quantity)); setOpen(!open) }}>
+              {expired ? t('web.stock.expiredNow') : t('web.stock.writeOff')}
+            </button>
+          )}
+          {damaged > 0 && (
+            <button type="button" className="rounded border px-2 py-0.5" aria-label={`${t('web.stock.setDamaged')} ${r.productName}`} disabled={action.busy}
+              onClick={() => { const text = window.prompt(t('web.stock.damagedPrompt'), String(damaged)); if (text !== null && Number.isFinite(Number(text)) && Number(text) >= 0) void action.run(() => admin.setDamagedStock(r.warehouseId, r.productId, Number(text))) }}>
+              {t('web.stock.setDamaged')}
+            </button>
+          )}
+        </div>
+      )}
+      {open && (
+        <div className="space-y-1 rounded border bg-slate-50 p-1">
+          <input aria-label={`${t('web.stock.writeOffQty')} ${r.productName}`} type="number" min={0} step="any" className="w-full rounded border px-1 py-0.5" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <select aria-label={`${t('web.returns.reason')} ${r.productName}`} className="w-full rounded border px-1 py-0.5" value={reason} onChange={(e) => setReason(e.target.value as 'expired' | 'damaged')}>
+            <option value="expired">{t('web.stock.reason.expired')}</option>
+            <option value="damaged">{t('web.stock.reason.damaged')}</option>
+          </select>
+          <input aria-label={`${t('web.stock.writeOffNote')} ${r.productName}`} placeholder={t('web.stock.writeOffNote')} maxLength={300} className="w-full rounded border px-1 py-0.5" value={note} onChange={(e) => setNote(e.target.value)} />
+          <button type="button" className="rounded border px-2 py-0.5" disabled={action.busy || !(Number(quantity) > 0) || Number(quantity) > r.quantity}
+            onClick={() => void action.run(async () => { await admin.writeOffStock(r.warehouseId, r.productId, Number(quantity), reason, note.trim() || null); setOpen(false) })}>
+            {t('web.stock.writeOffDo')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: boolean }) {
   const stock = useLoad(useCallback(() => admin.warehouseStock(), [admin]))
   const action = useAction(stock.reload)
@@ -172,6 +220,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
                       ) : (
                         <div className="font-bold">{r.counted ? `${number(r.quantity)} ${unitLabel(r.unit)}` : t('web.stock.notCounted')}</div>
                       )}
+                      <DamagedControls admin={admin} r={r} canEdit={canEdit} onChanged={stock.reload} />
                     </div>
                   </div>
                 )
@@ -180,7 +229,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
           ) : (
             <div className="space-y-1">
               {shownRows.map((r) => (
-                <div key={r.productId} className="flex items-center gap-3">
+                <div key={r.productId} className="flex flex-wrap items-center gap-3">
                   <span className="flex-1">{r.productCode} · {r.productName}{(r.reserved ?? 0) > 0 && <em className="text-slate-600"> ({t('web.stock.reserved', { reserved: number(r.reserved ?? 0), free: number(r.quantity - (r.reserved ?? 0)) })})</em>}</span>
                   {canEdit ? (
                     <>
@@ -194,6 +243,7 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
                   ) : (
                     <span>{r.counted ? `${number(r.quantity)} ${unitLabel(r.unit)}` : t('web.stock.notCounted')}</span>
                   )}
+                  <DamagedControls admin={admin} r={r} canEdit={canEdit} onChanged={stock.reload} />
                 </div>
               ))}
             </div>

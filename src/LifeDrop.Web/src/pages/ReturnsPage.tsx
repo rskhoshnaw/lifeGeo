@@ -28,6 +28,10 @@ export function ReturnsPage({ admin, me }: { admin: AdminApi; me: Me }) {
     const note = window.prompt(t('web.returns.approveNote'))
     if (note !== null) void action.run(() => admin.approveReturn(r.id, note.trim() || null))
   }
+  function approveLines(r: CustomerReturn, lines: number[]) {
+    const note = window.prompt(t('web.returns.approveNote'))
+    if (note !== null) void action.run(() => admin.approveReturn(r.id, note.trim() || null, lines))
+  }
   function reject(r: CustomerReturn) {
     const reason = window.prompt(t('web.returns.rejectReason'))?.trim()
     if (reason) void action.run(() => admin.rejectReturn(r.id, reason))
@@ -81,7 +85,7 @@ export function ReturnsPage({ admin, me }: { admin: AdminApi; me: Me }) {
           <tbody>
             {list.data.map((r) => (
               <ReturnRow key={r.id} admin={admin} r={r} me={me} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
-                onApprove={canApprove ? () => approve(r) : undefined} onReject={canApprove ? () => reject(r) : undefined} onCancel={r.createdBy === me.id ? () => cancel(r) : undefined} busy={action.busy} />
+                onApprove={canApprove ? () => approve(r) : undefined} onApproveLines={canApprove ? (lines) => approveLines(r, lines) : undefined} onReject={canApprove ? () => reject(r) : undefined} onCancel={r.createdBy === me.id ? () => cancel(r) : undefined} busy={action.busy} />
             ))}
           </tbody>
         </table>
@@ -91,11 +95,13 @@ export function ReturnsPage({ admin, me }: { admin: AdminApi; me: Me }) {
   )
 }
 
-export function ReturnLinesTable({ r }: { r: CustomerReturn }) {
+// `pick` (step 5.56): the line numbers the sales manager has ticked to approve; the table then has a tick box in front of every line.
+export function ReturnLinesTable({ r, pick }: { r: CustomerReturn; pick?: { selected: ReadonlySet<number>; onToggle: (lineNo: number) => void } }) {
   return (
     <table className="w-full text-start text-sm">
       <thead>
         <tr className="border-b">
+          {pick && <th />}
           <th className="py-1">{t('web.returns.product')}</th>
           <th>{t('web.returns.quantity')}</th>
           <th>{t('web.returns.reason')}</th>
@@ -105,8 +111,13 @@ export function ReturnLinesTable({ r }: { r: CustomerReturn }) {
       </thead>
       <tbody>
         {r.items.map((l) => (
-          <tr key={l.lineNo} className="border-b">
-            <td className="py-1">{l.productName}</td>
+          <tr key={l.lineNo} className={`border-b ${l.decision === 'rejected' ? 'text-slate-400 line-through' : ''}`}>
+            {pick && (
+              <td>
+                <input type="checkbox" aria-label={`${t('web.returns.approve')} ${l.productName}`} checked={pick.selected.has(l.lineNo)} onChange={() => pick.onToggle(l.lineNo)} />
+              </td>
+            )}
+            <td className="py-1">{l.productName}{l.decision === 'rejected' && <span className="ms-1 no-underline">· {t('web.returns.lineRejected')}</span>}</td>
             <td>{money(l.quantity)} {unitLabel(l.unit)}</td>
             <td>{t(`web.returns.reason.${l.reason}` as TextKey)}</td>
             <td>
@@ -121,10 +132,14 @@ export function ReturnLinesTable({ r }: { r: CustomerReturn }) {
   )
 }
 
-function ReturnRow({ admin, r, open, onToggle, onApprove, onReject, onCancel, busy }: {
-  admin: AdminApi; r: CustomerReturn; me: Me; open: boolean; onToggle: () => void; onApprove?: () => void; onReject?: () => void; onCancel?: () => void; busy: boolean
+function ReturnRow({ admin, r, open, onToggle, onApprove, onApproveLines, onReject, onCancel, busy }: {
+  admin: AdminApi; r: CustomerReturn; me: Me; open: boolean; onToggle: () => void; onApprove?: () => void; onApproveLines?: (lines: number[]) => void; onReject?: () => void; onCancel?: () => void; busy: boolean
 }) {
   const requested = r.status === 'requested'
+  // Row by row (step 5.56): every line starts ticked; "Approve selected" approves the ticked ones and rejects the others.
+  const [selected, setSelected] = useState<Set<number>>(() => new Set(r.items.map((l) => l.lineNo)))
+  const toggle = (lineNo: number) => setSelected((s) => { const next = new Set(s); if (next.has(lineNo)) next.delete(lineNo); else next.add(lineNo); return next })
+  const picking = requested && onApproveLines !== undefined
   return (
     <>
       <tr className="border-b">
@@ -147,7 +162,12 @@ function ReturnRow({ admin, r, open, onToggle, onApprove, onReject, onCancel, bu
           <td colSpan={7} className="p-3">
             {r.orderNumber && <p className="mb-1 text-xs text-slate-600">{t('web.returns.order')}: {r.orderNumber}{r.warehouseName ? ` · ${r.warehouseName}` : ''}</p>}
             {r.note && <p className="mb-1 text-sm">{r.note}</p>}
-            <ReturnLinesTable r={r} />
+            <ReturnLinesTable r={r} pick={picking ? { selected, onToggle: toggle } : undefined} />
+            {picking && selected.size > 0 && selected.size < r.items.length && (
+              <button className="mt-2 rounded border px-3 py-1" disabled={busy} onClick={() => onApproveLines([...selected].sort((a, b) => a - b))}>
+                {t('web.returns.approveSelected', { count: selected.size, total: r.items.length })}
+              </button>
+            )}
             <ReturnPhotos admin={admin} r={r} />
             {r.decidedAt && <p className="mt-2 text-xs text-slate-600">{t('web.returns.decision')}: {t(`web.returns.status.${r.status}` as TextKey)} · {r.decidedByEmail ?? '—'} · {when.format(new Date(r.decidedAt))}{r.decisionNote ? ` — ${r.decisionNote}` : ''}</p>}
           </td>
@@ -189,8 +209,8 @@ export function NewReturnForm({ admin, onSent, fixedCustomer }: { admin: AdminAp
     ? order.items.map((l) => ({ id: l.productId, label: `${l.productCode} · ${l.productName} (${money(l.deliveredQuantity ?? l.quantity)})` }))
     : orderId ? [] : (products.data ?? []).map((p) => ({ id: p.id, label: `${p.code} · ${p.name}` }))
   const nameOf = (id: string) => choices.find((c) => c.id === id)?.label ?? id
-  const needsWarehouse = lines.some((l) => l.destination === 'warehouse')
-  const ready = customer !== '' && lines.length > 0 && (!needsWarehouse || warehouse !== '')
+  // The warehouse is always needed: goods that go back join its stock, damaged and expired goods are held apart in it (step 5.56).
+  const ready = customer !== '' && lines.length > 0 && warehouse !== ''
 
   function addLine(e: FormEvent) {
     e.preventDefault()

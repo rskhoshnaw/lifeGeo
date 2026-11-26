@@ -180,7 +180,8 @@ public class CustomerApiIntegrationTests
                 var m78 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0078_stock_in_warehouses.sql"));
                 var m79 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0079_returns.sql"));
                 var m80 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0080_return_photos_refunds.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80;
+                var m81 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0081_damaged_stock_partial_returns.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5494,7 +5495,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { Note = "ok" })).StatusCode);
         var approved = await Get(r1.Id);
         Assert.Equal(("approved", "ok"), (approved.Status, approved.DecisionNote));
-        Assert.Equal(new bool?[] { null, false }, approved.Items.Select(i => i.StockApplied).ToArray());
+        Assert.Equal(new bool?[] { true, false }, approved.Items.Select(i => i.StockApplied).ToArray());   // the damaged line was put in the warehouse apart; the p2 line could not go on the shelf
         Assert.Equal(10m, await Stock());
         Assert.Equal(2500m, await Balance());
         await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { }), HttpStatusCode.Conflict, "CONFLICT");
@@ -5535,6 +5536,38 @@ public class CustomerApiIntegrationTests
         As(rep);
         Assert.Equal(HttpStatusCode.Created, (await Create(c1, order, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "other" })).StatusCode);
 
+        // Damaged and expired goods are held apart in the warehouse of the return (step 5.56): R1 approved 2 damaged boxes of p1 into W1; the sellable stock of W1 was not touched
+        async Task<LifeDrop.Application.Orders.WarehouseStockDto> Row(Guid product) { As(manager); return (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.WarehouseStockDto>>("/warehouses/stock"))!.Single(r => r.WarehouseId == w1 && r.ProductId == product); }
+        var afterReturns = await Row(p1);
+        Assert.Equal((12m, 2m), (afterReturns.Quantity, afterReturns.Damaged));   // 10 counted + 2 that came back to the shelf (R2); 2 damaged apart (R1)
+
+        // Row by row: a manager approves only the second line of a return; the first stays rejected and counts for nothing
+        As(rep);
+        var r6 = await Created(await Create(c1, null, w1, null, new { ProductId = p1, Quantity = 2m, Reason = "damaged" }, new { ProductId = p2, Quantity = 1m, Reason = "customer_request" }));
+        Assert.Equal(2000m + 500m, r6.Total);
+        As(manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r6.Id}/approve", new { Lines = new[] { 9 } }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r6.Id}/approve", new { Lines = Array.Empty<int>() }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r6.Id}/approve", new { Note = "only the vitamins", Lines = new[] { 2 } })).StatusCode);
+        var partial = await Get(r6.Id);
+        Assert.Equal(("approved", 500m), (partial.Status, partial.Total));                                     // the credit is the approved line only
+        Assert.Equal(new[] { "rejected", "approved" }, partial.Items.Select(i => i.Decision).ToArray());
+        Assert.Equal((12m, 2m), ((await Row(p1)).Quantity, (await Row(p1)).Damaged));                          // the rejected damaged line was not put in the warehouse
+        Assert.Equal(0m, await Balance());                                                                   // 5000 delivered - 2500 - 2000 - 500 approved
+
+        // Writing sellable stock off into the damaged goods (expired or damaged), and the figure after the goods were thrown away
+        As(manager);
+        Task<HttpResponseMessage> WriteOff(object body, Guid product) => client.PostAsJsonAsync($"/warehouses/{w1}/stock/{product}/write-off", body);
+        Assert.Equal(HttpStatusCode.NoContent, (await WriteOff(new { Quantity = 3m, Reason = "expired", Note = "past its date" }, p1)).StatusCode);
+        Assert.Equal((9m, 5m), ((await Row(p1)).Quantity, (await Row(p1)).Damaged));                          // 12 - 3 sellable, 2 + 3 apart
+        await AssertProblemAsync(await WriteOff(new { Quantity = 100m, Reason = "expired" }, p1), HttpStatusCode.Conflict, "CONFLICT");     // more than the stock
+        await AssertProblemAsync(await WriteOff(new { Quantity = 1m, Reason = "stolen" }, p1), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await WriteOff(new { Quantity = 1m, Reason = "expired" }, p2), HttpStatusCode.NotFound, "NOT_FOUND");     // p2 was never counted in W1
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/warehouses/{w1}/damaged/{p1}", new { Quantity = 1m })).StatusCode);
+        Assert.Equal((9m, 1m), ((await Row(p1)).Quantity, (await Row(p1)).Damaged));
+        As(rep);
+        await AssertProblemAsync(await WriteOff(new { Quantity = 1m, Reason = "expired" }, p1), HttpStatusCode.Forbidden, "FORBIDDEN");
+
         // Pictures of the goods (step 5.55): only the author, three at most, while it is requested; whoever may read the return reads them; they are never served across regions
         As(rep);
         var r5 = await Created(await Create(c1, null, w1, null, new { ProductId = p1, Quantity = 1m, Reason = "damaged" }));
@@ -5561,9 +5594,9 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await Refund(100m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");
         // The customer pays the 5000 they were delivered; with the 4500 of approved returns, 4500 is owed back
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/payments", new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 5000m, ClientRef = Guid.NewGuid() })).StatusCode);
-        Assert.Equal(-4500m, await Balance());   // 5000 delivered - 4500 returned - 5000 paid = -4500: the customer is owed 4500
+        Assert.Equal(-5000m, await Balance());   // 5000 delivered - 5000 returned - 5000 paid = -5000: the customer is owed 5000
         As(finance);   // Balance() reads as the sales manager
-        await AssertProblemAsync(await Refund(4600m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");
+        await AssertProblemAsync(await Refund(5100m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");
         await AssertProblemAsync(await Refund(100m, order), HttpStatusCode.BadRequest, "INVALID_DATA");   // a refund is never against an order
         As(rep);
         await AssertProblemAsync(await Refund(100m), HttpStatusCode.Forbidden, "FORBIDDEN");             // only the finance manager pays money back
@@ -5573,14 +5606,14 @@ public class CustomerApiIntegrationTests
         var refund = (await refundResponse.Content.ReadFromJsonAsync<LifeDrop.Application.Payments.CreatedPaymentDto>())!;
         Assert.Equal("confirmed", refund.Status);
         var after = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!.Items.Single();
-        Assert.Equal((5000m, 5000m, 4500m, 4000m, -500m), (after.Delivered, after.Confirmed, after.Returned, after.Refunded, after.Balance));   // balance = 5000 - 4500 - 5000 + 4000 = -500
-        await AssertProblemAsync(await Refund(600m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");        // only 500 is left to give back
+        Assert.Equal((5000m, 5000m, 5000m, 4000m, -1000m), (after.Delivered, after.Confirmed, after.Returned, after.Refunded, after.Balance));   // balance = 5000 - 5000 - 5000 + 4000 = -1000
+        await AssertProblemAsync(await Refund(1100m), HttpStatusCode.Conflict, "REFUND_TOO_MUCH");       // only 1000 is left to give back
         Assert.Equal(HttpStatusCode.Created, (await Refund(500m)).StatusCode);
-        // A refund is voided, never corrected; voiding the 4000 leaves only the 500: 5000 - 4500 - 5000 + 500 = -4000
+        // A refund is voided, never corrected; voiding the 4000 leaves only the 500: 5000 - 5000 - 5000 + 500 = -4500
         As(finance);
         await AssertProblemAsync(await client.PostAsJsonAsync($"/payments/{refund.Id}/correct", new { Method = "cash", Currency = "IQD", Amount = 1m, Reason = "x" }), HttpStatusCode.Conflict, "CONFLICT");
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/payments/{refund.Id}/void", new { Reason = "paid by mistake" })).StatusCode);
-        Assert.Equal(-4000m, (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!.Items.Single().Balance);
+        Assert.Equal(-4500m, (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!.Items.Single().Balance);
     }
 
     [SkippableFact]

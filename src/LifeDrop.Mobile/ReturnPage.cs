@@ -275,10 +275,10 @@ public sealed class ReturnPage : ContentPage
                 return;
             }
             // The pictures follow the return (it must exist first); a picture that does not go is reported, the return itself is already sent.
-            var failed = 0;
+            // A picture is optional and never an error (owner, step 5.56): one that cannot be uploaded is skipped, the return is registered with the same message.
             foreach (var (data, contentType) in _photos)
-                if (await api.AddPhotoAsync(created!.Id, data, contentType, cts.Token) != VisitActionResult.Success) failed++;
-            await DisplayAlertAsync(Texts.Get("app.return.title"), Texts.Get("app.return.sent", ("number", created!.Number)) + (failed > 0 ? "\n" + Texts.Get("app.return.photoFailed", ("count", failed.ToString(CultureInfo.InvariantCulture))) : ""), Texts.Get("app.ok"));
+                _ = await api.AddPhotoAsync(created!.Id, data, contentType, cts.Token);
+            await DisplayAlertAsync(Texts.Get("app.return.title"), Texts.Get("app.return.sent", ("number", created!.Number)), Texts.Get("app.ok"));
             await Navigation.PopAsync();
         }
         catch (OperationCanceledException)

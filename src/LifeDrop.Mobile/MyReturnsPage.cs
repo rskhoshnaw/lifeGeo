@@ -86,7 +86,8 @@ public sealed class MyReturnsPage : ContentPage
             foreach (var line in item.Lines)
             {
                 var text = $"{line.ProductName} × {line.Quantity.ToString("0.###", CultureInfo.InvariantCulture)} {UnitText.Label(line.Unit)} · {Texts.Get("app.return.reason." + line.Reason)} → {Texts.Get("app.return.dest." + line.Destination)}";
-                if (item.Status == "approved" && line.Destination == "warehouse" && line.StockApplied == false) text += " · " + Texts.Get("app.return.notOnShelf");
+                if (line.Decision == "rejected") text += " · " + Texts.Get("app.return.lineRejected");
+                if (item.Status == "approved" && line.Decision != "rejected" && line.Destination == "warehouse" && line.StockApplied == false) text += " · " + Texts.Get("app.return.notOnShelf");
                 stack.Children.Add(new Label { Text = text, FontSize = 12 });
             }
             if (!string.IsNullOrWhiteSpace(item.DecisionNote)) stack.Children.Add(new Label { Text = Texts.Get("app.return.decision", ("text", item.DecisionNote)), FontSize = 12, FontAttributes = FontAttributes.Italic });

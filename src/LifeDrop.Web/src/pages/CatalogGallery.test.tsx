@@ -32,6 +32,22 @@ describe('product gallery', () => {
     expect(dialog).toHaveTextContent('Expired')
   })
 
+  it('moves between the products from the details with Previous / Next and the arrow keys, and wraps around', async () => {
+    render(<CatalogPage admin={admin} me={me} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Name A' }))
+    const dialog = () => screen.getByRole('dialog')
+    expect(dialog()).toHaveTextContent('1 / 2')
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(dialog()).toHaveTextContent('Name B')
+    expect(dialog()).toHaveTextContent('2 / 2')
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))   // wraps to the first
+    expect(dialog()).toHaveTextContent('1 / 2')
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(dialog()).toHaveTextContent('2 / 2')
+    await userEvent.keyboard('{ArrowRight}')   // left-to-right page: right arrow = next
+    expect(dialog()).toHaveTextContent('1 / 2')
+  })
+
   it('has Save and new product: the product is created and the form opens empty for the next one', async () => {
     const manager = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage'] } as Me
     const createProduct = vi.fn().mockResolvedValue({})

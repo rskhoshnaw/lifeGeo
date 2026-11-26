@@ -5,7 +5,7 @@ namespace LifeDrop.Mobile.Visits;
 // Customer returns from the phone (plan step 5.54). Online only: a return exists only after the server accepts it; the sales manager then approves or rejects it.
 public sealed record ReturnLineInput(Guid ProductId, decimal Quantity, string Reason, string Destination);
 public sealed record CreatedReturn(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
-public sealed record ReturnLineItem(Guid ProductId, string ProductName, string Unit, decimal Quantity, decimal LineTotal, string Reason, string Destination, bool? StockApplied);
+public sealed record ReturnLineItem(Guid ProductId, string ProductName, string Unit, decimal Quantity, decimal LineTotal, string Reason, string Destination, bool? StockApplied, string? Decision = null);
 // Status: requested | approved | rejected | cancelled. DecisionNote: what the manager (or the author, on cancel) wrote.
 public sealed record MyReturn(Guid Id, string Number, string CustomerName, string Status, string Currency, decimal Total, bool PricesHidden, string? DecisionNote, DateTimeOffset CreatedAt,
     IReadOnlyList<ReturnLineItem> Lines);
@@ -80,7 +80,7 @@ public sealed class ReturnsApiClient : IReturnsApiClient
         if (result != VisitActionResult.Success) return (result, Array.Empty<MyReturn>());
         if (items is null || items.Any(r => r is null || r.Id == Guid.Empty || string.IsNullOrWhiteSpace(r.Number) || string.IsNullOrWhiteSpace(r.Status))) return (VisitActionResult.ServerError, Array.Empty<MyReturn>());
         return (result, items.Select(r => new MyReturn(r.Id, r.Number!, r.CustomerName ?? "", r.Status!, r.Currency ?? "", r.Total, r.PricesHidden, r.DecisionNote, r.CreatedAt,
-            (r.Items ?? []).Select(l => new ReturnLineItem(l.ProductId, l.ProductName ?? "", l.Unit ?? "", l.Quantity, l.LineTotal, l.Reason ?? "", l.Destination ?? "", l.StockApplied)).ToList())).ToList());
+            (r.Items ?? []).Select(l => new ReturnLineItem(l.ProductId, l.ProductName ?? "", l.Unit ?? "", l.Quantity, l.LineTotal, l.Reason ?? "", l.Destination ?? "", l.StockApplied, l.Decision)).ToList())).ToList());
     }
 
     public async Task<VisitActionResult> CancelAsync(Guid returnId, string reason, CancellationToken cancellationToken = default) =>
@@ -89,6 +89,6 @@ public sealed class ReturnsApiClient : IReturnsApiClient
     private sealed record OrderLineDto(Guid ProductId, string? ProductCode, string? ProductName, string? Unit, decimal Quantity, decimal? DeliveredQuantity);
     private sealed record OrderDto(Guid Id, string? Number, string? Currency, decimal Total, bool PricesHidden, DateTimeOffset CreatedAt, List<OrderLineDto>? Items);
     private sealed record CreatedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed);
-    private sealed record LineDto(Guid ProductId, string? ProductName, string? Unit, decimal Quantity, decimal LineTotal, string? Reason, string? Destination, bool? StockApplied);
+    private sealed record LineDto(Guid ProductId, string? ProductName, string? Unit, decimal Quantity, decimal LineTotal, string? Reason, string? Destination, bool? StockApplied, string? Decision = null);
     private sealed record ReturnDto(Guid Id, string? Number, string? CustomerName, string? Status, string? Currency, decimal Total, bool PricesHidden, string? DecisionNote, DateTimeOffset CreatedAt, List<LineDto>? Items);
 }

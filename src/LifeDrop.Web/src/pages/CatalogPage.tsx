@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { expiryStatus, filterProducts, productUnits, unitLabel, type ProductFilters, type ProductUnit } from './productView.ts'
@@ -16,7 +16,8 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [newCount, setNewCount] = useState(0)   // a new key empties the form after "Save and new product"
   const [view, setView] = useState<'gallery' | 'table'>('gallery')
   const [filters, setFilters] = useState<ProductFilters>({ text: '', specialty: '', manufacturer: '', stock: '' })
-  const [details, setDetails] = useState<Product | null>(null)
+  // The product whose details are open, as an id: the details have Previous / Next over the products on screen (owner request 2026-11-27)
+  const [detailsId, setDetailsId] = useState<string | null>(null)
   const [rulesFor, setRulesFor] = useState<Product | null>(null)
   const products = useLoad(useCallback(() => admin.products(canManage && inactive, search.trim()), [admin, canManage, inactive, search]))
   const quick = useAction(products.reload)
@@ -34,6 +35,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
 
   const makers = [...new Set((products.data ?? []).map((p) => p.manufacturer?.trim()).filter((m): m is string => !!m))].sort((a, b) => a.localeCompare(b))
   const shown = filterProducts(products.data ?? [], filters)
+  const detailsIndex = detailsId ? shown.findIndex((p) => p.id === detailsId) : -1
 
   return (
     <section className="space-y-6 p-6">
@@ -101,7 +103,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   key={p.id}
                   type="button"
                   aria-label={p.name}
-                  onClick={() => setDetails(p)}
+                  onClick={() => setDetailsId(p.id)}
                   className={`group overflow-hidden rounded-xl border bg-white text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${p.status === 'inactive' || p.available === false ? 'opacity-60' : ''}`}
                 >
                   <ProductPhoto admin={admin} product={p} className="h-40 w-full" />
@@ -178,15 +180,17 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </tbody>
         </table>
       )}
-      {details && (
+      {detailsIndex >= 0 && (
         <ProductDetails
           admin={admin}
-          product={details}
+          product={shown[detailsIndex]!}
           canManage={canManage}
-          onClose={() => setDetails(null)}
+          position={{ index: detailsIndex, count: shown.length }}
+          onMove={(delta) => setDetailsId(shown[(detailsIndex + delta + shown.length) % shown.length]!.id)}
+          onClose={() => setDetailsId(null)}
           onEdit={() => {
-            setEditing(details)
-            setDetails(null)
+            setEditing(shown[detailsIndex]!)
+            setDetailsId(null)
           }}
         />
       )}
@@ -205,7 +209,18 @@ function ProductPhoto({ admin, product, className }: { admin: AdminApi; product:
 }
 
 // Everything entered for one product, opened from the gallery card.
-function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { admin: AdminApi; product: Product; canManage: boolean; onClose: () => void; onEdit: () => void }) {
+function ProductDetails({ admin, product: p, canManage, position, onMove, onClose, onEdit }: { admin: AdminApi; product: Product; canManage: boolean; position: { index: number; count: number }; onMove: (delta: number) => void; onClose: () => void; onEdit: () => void }) {
+  // The arrow keys also move (in a right-to-left page the left arrow is "next"); Escape closes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const rtl = document.documentElement.dir === 'rtl'
+      if (e.key === 'ArrowRight') onMove(rtl ? -1 : 1)
+      else if (e.key === 'ArrowLeft') onMove(rtl ? 1 : -1)
+      else if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onMove, onClose])
   const status = expiryStatus(p.expiryDate)
   const rows: [string, string | null | undefined, string?][] = [
     [t('web.catalog.code'), p.code],
@@ -239,7 +254,14 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
               </div>
             ))}
           </dl>
-          <div className="flex justify-end gap-2 pt-3">
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
+            {position.count > 1 && (
+              <>
+                <button type="button" className="rounded border px-3 py-1 text-sm" aria-label={t('web.catalog.previous')} onClick={() => onMove(-1)}>‹ {t('web.catalog.previous')}</button>
+                <span className="text-xs text-slate-500">{position.index + 1} / {position.count}</span>
+                <button type="button" className="rounded border px-3 py-1 text-sm" aria-label={t('web.catalog.next')} onClick={() => onMove(1)}>{t('web.catalog.next')} ›</button>
+              </>
+            )}
             {canManage && (
               <button type="button" className="rounded border px-3 py-1 text-sm" onClick={onEdit}>
                 {t('web.places.edit')}

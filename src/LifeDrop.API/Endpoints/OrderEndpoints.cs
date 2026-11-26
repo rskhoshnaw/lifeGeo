@@ -63,6 +63,29 @@ public static class OrderEndpoints
             .WithName("SetWarehouseStock").WithTags("Warehouse").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Damaged and expired goods held apart in a warehouse (plan step 5.56): write sellable stock off into them, or set the figure after the goods were thrown away.
+        app.MapPost("/warehouses/{warehouseId:guid}/stock/{productId:guid}/write-off", async (Guid warehouseId, Guid productId, WriteOffRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.WriteOffAsync(tenantId, actorId, warehouseId, productId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("WriteOffWarehouseStock").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/warehouses/{warehouseId:guid}/damaged/{productId:guid}", async (Guid warehouseId, Guid productId, SetStockRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetDamagedAsync(tenantId, actorId, warehouseId, productId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetWarehouseDamagedStock").WithTags("Warehouse").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // Staff of a warehouse (plan step 2.3): who works where, set by the sales manager.
         app.MapGet("/warehouses/{warehouseId:guid}/staff", async (Guid warehouseId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

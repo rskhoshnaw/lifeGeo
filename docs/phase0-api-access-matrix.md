@@ -777,3 +777,6 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /payments` with `direction: "out"` | `payments.manage` (else 403), no `orderId` (400) | A refund: recorded as `confirmed`; 409 `REFUND_TOO_MUCH` when more than the customer's credit (approved returns + confirmed payments in − refunds − delivered, same currency). `PaymentDto.direction`. |
 | `POST /payments/{id}/void`, `/correct` | as before | A refund can be voided; correcting one is 409. |
 | `GET /customers/{id}/balance` | as before | Items carry `refunded`; `balance = delivered − returned − confirmed + refunded`. |
+| `POST /returns/{id}/approve` (5.56) | `returns.approve` | Body `{note?, lines?: [lineNo]}`; without `lines` everything is approved, with them only those lines (others `decision: rejected`, total recomputed); at least one line. |
+| `POST /warehouses/{w}/stock/{p}/write-off` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity, reason, note?}` moves sellable stock into the warehouse's damaged bucket; 409 when more than in stock. |
+| `PUT /warehouses/{w}/damaged/{p}` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity}` sets the damaged bucket (after the goods were thrown away). |

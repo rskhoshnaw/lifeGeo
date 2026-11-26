@@ -21,3 +21,9 @@
 **Refunds — money back to the customer (step 5.55):** when approved returns and payments are more than was delivered, the customer is owed money. The **finance manager** records it in *Payments* (tick *Refund*), or from the customer's file: a confirmed payment with direction *out*, never against an order, at most the customer's credit (`REFUND_TOO_MUCH` otherwise; the credit is approved returns + confirmed payments − refunds − delivered, per currency). It is voided like any payment, never corrected. The balance counts it: `Balance = Delivered − Returned − Confirmed + Refunded`.
 
 **Not built (decide if needed):** a separate "damaged goods" warehouse (they are recorded and reported, not stocked), partial approval of a return line (approve all or reject all).
+
+## Step 5.56
+- Damaged / expired goods are kept **in the warehouse of the return** (`warehouse_damaged_stock`), apart from the sellable quantity; every return names a warehouse.
+- Approve everything, or choose lines (`lines` in the approve body); rejected lines count nowhere (total, quotas, damaged report).
+- Expired goods in stock are moved to the damaged bucket with `write-off`; after throwing them away the figure is set with `PUT .../damaged`.
+- A picture is optional; the app never shows an error for one that cannot be sent.

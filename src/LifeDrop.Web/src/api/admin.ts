@@ -410,6 +410,7 @@ export interface WarehouseStockRow {
   minStock?: number | null
   reserved?: number
   photoKey?: string | null
+  damaged?: number
 }
 export interface WarehousePlace {
   cityId?: string | null
@@ -603,6 +604,7 @@ export interface ReturnLine {
   reason: ReturnReason
   destination: ReturnDestination
   stockApplied: boolean | null
+  decision?: 'approved' | 'rejected' | null
 }
 export interface CustomerReturn {
   id: string
@@ -1401,6 +1403,10 @@ export class AdminApi {
   // Stock per warehouse and product (the managers: all warehouses; a warehouse worker: his own).
   warehouseStock = () => this.get<WarehouseStockRow[]>('/warehouses/stock')
   setWarehouseStock = (warehouseId: string, productId: string, quantity: number) => this.send('PUT', `/warehouses/${warehouseId}/stock/${productId}`, { quantity })
+  // Damaged and expired goods held apart in a warehouse (step 5.56): write sellable stock off into them, or set their figure after the goods were thrown away.
+  writeOffStock = (warehouseId: string, productId: string, quantity: number, reason: 'expired' | 'damaged', note: string | null) =>
+    this.post(`/warehouses/${warehouseId}/stock/${productId}/write-off`, { quantity, reason, note })
+  setDamagedStock = (warehouseId: string, productId: string, quantity: number) => this.send('PUT', `/warehouses/${warehouseId}/damaged/${productId}`, { quantity })
   orders = (before?: Order) =>
     this.get<Order[]>(before ? `/orders?limit=50&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : '/orders?limit=50')
   order = (id: string) => this.get<Order>(`/orders/${id}`)
@@ -1566,7 +1572,8 @@ export class AdminApi {
   returns = (status: string, customerId?: string, before?: CustomerReturn, mine = false) =>
     this.get<CustomerReturn[]>(`/returns?limit=50${status ? `&status=${status}` : ''}${customerId ? `&customerId=${customerId}` : ''}${mine ? '&mine=true' : ''}${before ? `&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : ''}`)
   createReturn = (value: NewReturnInput) => this.postJson<{ id: string; number: string; currency: string; total: number; replayed: boolean }>('/returns', value)
-  approveReturn = (id: string, note: string | null) => this.post(`/returns/${id}/approve`, { note })
+  // `lines`: the line numbers to approve (the others are rejected); leave it out to approve every line (step 5.56).
+  approveReturn = (id: string, note: string | null, lines?: number[]) => this.post(`/returns/${id}/approve`, { note, ...(lines ? { lines } : {}) })
   rejectReturn = (id: string, reason: string) => this.post(`/returns/${id}/reject`, { note: reason })
   cancelReturn = (id: string, reason: string) => this.post(`/returns/${id}/cancel`, { note: reason })
   // A picture of the goods of a return needs the sign-in, so it is fetched with it and shown from a local address (the page revokes it when it is done).
