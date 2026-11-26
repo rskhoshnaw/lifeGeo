@@ -74,7 +74,7 @@ public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, de
     IReadOnlyList<string>? StockWarnings = null);
 
 // OutOfStock (plan step 4.41): a product whose stock is tracked has less than the order asks for; nothing is taken.
-public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock }
+public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock, WarehouseNotAllowed }
 
 // Delivery (plan step 2.4). Location: what the phone knows about where it is (all optional; a fake position is refused).
 public sealed record DeliveryLocation(double? Latitude, double? Longitude, double? AccuracyMeters = null, bool IsMocked = false);
@@ -296,7 +296,7 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
             return (OrderResult.InvalidData, null);
 
         // Plan step 5.59: only a warehouse of the caller's cities (or without a city); the phone offers only these, this is the check behind it.
-        if (!await store.WarehouseAllowedForUserAsync(tenantId, actorId.Value, request.WarehouseId.Value, cancellationToken)) return (OrderResult.InvalidData, null);
+        if (!await store.WarehouseAllowedForUserAsync(tenantId, actorId.Value, request.WarehouseId.Value, cancellationToken)) return (OrderResult.WarehouseNotAllowed, null);
 
         // The customer must be inside the caller's area and approved.
         var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken);

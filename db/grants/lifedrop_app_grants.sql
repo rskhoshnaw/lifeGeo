@@ -71,3 +71,6 @@ GRANT SELECT, INSERT ON warehouse_writeoffs TO lifedrop_app;
 GRANT UPDATE ON return_items TO lifedrop_app;
 -- Step 5.59: the cities of a sales person (replaced as a whole, so rows are inserted and deleted).
 GRANT SELECT, INSERT, DELETE ON user_cities TO lifedrop_app;
+-- Step 5.60: transfers of goods between warehouses (a transfer is closed by updating it; the lines get their received quantity).
+GRANT SELECT, INSERT, UPDATE ON stock_transfers, stock_transfer_counters TO lifedrop_app;
+GRANT SELECT, INSERT, UPDATE ON stock_transfer_items TO lifedrop_app;

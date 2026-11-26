@@ -182,7 +182,8 @@ public class CustomerApiIntegrationTests
                 var m80 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0080_return_photos_refunds.sql"));
                 var m81 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0081_damaged_stock_partial_returns.sql"));
                 var m82 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0082_wholesaler_customer_user_cities.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81 + m82;
+                var m83 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0083_stock_transfers.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81 + m82 + m83;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5396,6 +5397,124 @@ public class CustomerApiIntegrationTests
     }
 
     // Plan step 5.59: a wholesaler warehouse is a customer of type wholesaler; a sales person is offered (and may order from) the warehouses of his cities only.
+    // Plan step 5.60: goods move between warehouses in two steps (send, then confirm what arrived); damaged goods stay damaged; workers only work with their own warehouses.
+    [SkippableFact]
+    public async Task Transfers_SendConfirmCancelBetweenWarehousesAndTheStockFollows()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), erbilWorker = Guid.NewGuid(), basraWorker = Guid.NewGuid(), otherWorker = Guid.NewGuid(), rep = Guid.NewGuid();
+        Guid erbil = Guid.NewGuid(), basra = Guid.NewGuid(), wholesaler = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'm@t1'), (@e, @t1, 'e@t1'), (@b, @t1, 'b@t1'), (@o, @t1, 'o@t1'), (@r, @t1, 'r@t1');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @e, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @b, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @o, id FROM roles WHERE tenant_id = @t1 AND name = 'WarehouseManager'
+                UNION ALL SELECT @t1, @r, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO warehouses (id, tenant_id, code, name, kind) VALUES (@we, @t1, 'WE', 'Erbil central', 'company'), (@wb, @t1, 'WB', 'Basra', 'company'), (@ww, @t1, 'WW', 'Wholesaler', 'wholesaler');
+                INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES (@t1, @we, @e), (@t1, @wb, @b);
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 500);
+                INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, quantity) VALUES (@t1, @we, @p1, 10);
+                INSERT INTO warehouse_damaged_stock (tenant_id, warehouse_id, product_id, quantity) VALUES (@t1, @wb, @p1, 3);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("e", erbilWorker), ("b", basraWorker), ("o", otherWorker), ("r", rep), ("we", erbil), ("wb", basra), ("ww", wholesaler), ("p1", p1), ("p2", p2) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<decimal> Qty(string table, Guid warehouse, Guid product)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var set = new NpgsqlCommand($"SELECT set_config('app.current_tenant', '{t1}', false)", conn);
+            await set.ExecuteNonQueryAsync();
+            await using var q = new NpgsqlCommand($"SELECT coalesce((SELECT quantity FROM {table} WHERE warehouse_id = '{warehouse}' AND product_id = '{product}'), 0)", conn);
+            return Convert.ToDecimal(await q.ExecuteScalarAsync());
+        }
+        Task<HttpResponseMessage> Send(Guid from, Guid to, Guid? clientRef, params object[] items) => client.PostAsJsonAsync("/transfers", new { FromWarehouseId = from, ToWarehouseId = to, ClientRef = clientRef ?? Guid.NewGuid(), Note = " back ", Items = items });
+        async Task<LifeDrop.Application.Transfers.TransferDto> Get(Guid id) => (await client.GetFromJsonAsync<LifeDrop.Application.Transfers.TransferDto>($"/transfers/{id}"))!;
+
+        // A sales rep has no warehouse right at all
+        As(rep);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(basra, erbil, null, new { ProductId = p1, Quantity = 1m, Bucket = "damaged" })).StatusCode);
+
+        // The Basra worker sends 2 damaged boxes to the central warehouse; they leave Basra at once, and a retry of a lost answer returns the same transfer
+        As(basraWorker);
+        var reference = Guid.NewGuid();
+        var sent = await Send(basra, erbil, reference, new { ProductId = p1, Quantity = 2m, Bucket = "damaged" });
+        Assert.Equal(HttpStatusCode.Created, sent.StatusCode);
+        var first = (await sent.Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!;
+        Assert.Equal("T-000001", first.Number);
+        Assert.Equal(1m, await Qty("warehouse_damaged_stock", basra, p1));
+        var again = await Send(basra, erbil, reference, new { ProductId = p1, Quantity = 2m, Bucket = "damaged" });
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(first.Id, (await again.Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!.Id);
+        Assert.Equal(1m, await Qty("warehouse_damaged_stock", basra, p1));   // not sent twice
+
+        // Not more than the warehouse holds, not from a warehouse he does not work in, not to a wholesaler, not to itself, not an empty or double list
+        await AssertProblemAsync(await Send(basra, erbil, null, new { ProductId = p1, Quantity = 5m, Bucket = "damaged" }), HttpStatusCode.Conflict, "TRANSFER_TOO_MUCH");
+        await AssertProblemAsync(await Send(basra, erbil, null, new { ProductId = p2, Quantity = 1m, Bucket = "sellable" }), HttpStatusCode.Conflict, "TRANSFER_TOO_MUCH");   // nothing counted
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(erbil, basra, null, new { ProductId = p1, Quantity = 1m, Bucket = "sellable" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Send(basra, wholesaler, null, new { ProductId = p1, Quantity = 1m, Bucket = "damaged" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(basra, basra, null, new { ProductId = p1, Quantity = 1m, Bucket = "damaged" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(basra, erbil, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(basra, erbil, null, new { ProductId = p1, Quantity = 1m, Bucket = "damaged" }, new { ProductId = p1, Quantity = 1m, Bucket = "damaged" })).StatusCode);
+        Assert.Equal(1m, await Qty("warehouse_damaged_stock", basra, p1));
+
+        // Only the two warehouses see it; a worker of another warehouse sees nothing
+        Assert.Single((await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers"))!);
+        As(otherWorker);
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers"))!);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/transfers/{first.Id}")).StatusCode);
+
+        // The sender cannot confirm it; the central worker confirms that only 1.5 of the 2 arrived: damaged goods arrive as damaged goods
+        As(basraWorker);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { })).StatusCode);
+        As(erbilWorker);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { Lines = new[] { new { LineNo = 1, ReceivedQuantity = 3m } } })).StatusCode);   // more than was sent
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { Note = "one broke", Lines = new[] { new { LineNo = 1, ReceivedQuantity = 1.5m } } })).StatusCode);
+        Assert.Equal(1.5m, await Qty("warehouse_damaged_stock", erbil, p1));
+        Assert.Equal(10m, await Qty("warehouse_stock", erbil, p1));   // the damaged goods never touch what can be sold
+        var received = await Get(first.Id);
+        Assert.Equal(("received", 1.5m, "one broke"), (received.Status, received.Items.Single().ReceivedQuantity, received.CloseNote));
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { })).StatusCode);   // not twice
+        Assert.Equal(1.5m, await Qty("warehouse_damaged_stock", erbil, p1));
+
+        // The central worker sends 4 boxes to Basra and takes them back (cancel): the stock returns, and a cancelled transfer cannot be received
+        var toBasra = (await (await Send(erbil, basra, null, new { ProductId = p1, Quantity = 4m, Bucket = "sellable" })).Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!;
+        Assert.Equal(6m, await Qty("warehouse_stock", erbil, p1));
+        As(basraWorker);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync($"/transfers/{toBasra.Id}/cancel", new { })).StatusCode);   // only the sender cancels
+        As(erbilWorker);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{toBasra.Id}/cancel", new { Note = "wrong city" })).StatusCode);
+        Assert.Equal(10m, await Qty("warehouse_stock", erbil, p1));
+        As(basraWorker);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/transfers/{toBasra.Id}/receive", new { })).StatusCode);
+
+        // A manager works with every warehouse: sends 2 boxes to Basra (the product is counted there from now on) and confirms them in full
+        As(manager);
+        var byManager = (await (await Send(erbil, basra, null, new { ProductId = p1, Quantity = 2m, Bucket = "sellable" })).Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!;
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{byManager.Id}/receive", new { })).StatusCode);
+        Assert.Equal((8m, 2m), (await Qty("warehouse_stock", erbil, p1), await Qty("warehouse_stock", basra, p1)));
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers"))!.Count);
+        Assert.Single((await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers?status=cancelled"))!);
+    }
+
     [SkippableFact]
     public async Task Orders_WholesalerIsACustomerAndTheVisitorSeesOnlyTheWarehousesOfHisCities()
     {
@@ -5465,7 +5584,7 @@ public class CustomerApiIntegrationTests
         var basraWarehouse = all.Single(w => w.Code == "WB").Id;
         Task<HttpResponseMessage> Order(Guid warehouse) => client.PostAsJsonAsync("/orders", new { CustomerId = pharmacy, WarehouseId = warehouse, ClientRef = Guid.NewGuid(), Items = new[] { new { ProductId = product, Quantity = 2m } } });
         Assert.Equal(HttpStatusCode.Created, (await Order(erbilWarehouse)).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Order(basraWarehouse)).StatusCode);
+        await AssertProblemAsync(await Order(basraWarehouse), HttpStatusCode.Conflict, "WAREHOUSE_NOT_ALLOWED");
 
         // Giving the cities back (an empty list) shows everything again
         As(manager);

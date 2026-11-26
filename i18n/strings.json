@@ -11950,5 +11950,179 @@
   "ckb": "بەستنەوەی {name} بە کڕیاری مەزەخە",
   "ar": "ربط {name} بعميل مذخر",
   "fa": "اتصال {name} به مشتری مذخر"
+ },
+ "app.result.WarehouseNotAllowed": {
+  "en": "This warehouse is not in your cities (any more), so the order was not accepted. Open the order, choose a warehouse of your cities and send it again, or remove it.",
+  "ckb": "ئەم کۆگایە لە شارەکانی تۆدا نییە (چیتر)، بۆیە داواکاری قبوڵ نەکرا. داواکارییەکە بکەرەوە، کۆگایەکی شارەکانی خۆت هەڵبژێرە و دووبارە بینێرە، یان بیسڕەوە.",
+  "ar": "هذا المخزن ليس ضمن مدنك (بعد الآن)، لذلك لم يُقبل الطلب. افتح الطلب واختر مخزنًا من مدنك وأرسله مرة أخرى، أو احذفه.",
+  "fa": "این انبار در شهرهای شما نیست (دیگر نیست)، برای همین سفارش پذیرفته نشد. سفارش را باز کنید، انباری از شهرهای خودتان انتخاب کنید و دوباره بفرستید، یا آن را حذف کنید."
+ },
+ "web.tab.transfers": {
+  "en": "Transfers",
+  "ckb": "گواستنەوە",
+  "ar": "النقل",
+  "fa": "انتقال بین انبارها"
+ },
+ "web.transfers.title": {
+  "en": "Transfers between warehouses",
+  "ckb": "گواستنەوەی کاڵا لە نێوان کۆگاکان",
+  "ar": "نقل البضائع بين المخازن",
+  "fa": "انتقال کالا بین انبارها"
+ },
+ "web.transfers.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.transfers.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.transfers.status.sent": {
+  "en": "On the road",
+  "ckb": "لە ڕێگادایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "web.transfers.status.received": {
+  "en": "Received",
+  "ckb": "وەرگیرا",
+  "ar": "تم الاستلام",
+  "fa": "دریافت شد"
+ },
+ "web.transfers.status.cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنرایەوە",
+  "ar": "ملغى",
+  "fa": "لغو شد"
+ },
+ "web.transfers.new": {
+  "en": "New transfer",
+  "ckb": "گواستنەوەی نوێ",
+  "ar": "نقل جديد",
+  "fa": "انتقال جدید"
+ },
+ "web.transfers.none": {
+  "en": "No transfers.",
+  "ckb": "هیچ گواستنەوەیەک نییە.",
+  "ar": "لا توجد عمليات نقل.",
+  "fa": "انتقالی نیست."
+ },
+ "web.transfers.from": {
+  "en": "From warehouse",
+  "ckb": "لە کۆگای",
+  "ar": "من مخزن",
+  "fa": "از انبار"
+ },
+ "web.transfers.to": {
+  "en": "To warehouse",
+  "ckb": "بۆ کۆگای",
+  "ar": "إلى مخزن",
+  "fa": "به انبار"
+ },
+ "web.transfers.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "یادداشت"
+ },
+ "web.transfers.send": {
+  "en": "Send",
+  "ckb": "ناردن",
+  "ar": "إرسال",
+  "fa": "ارسال"
+ },
+ "web.transfers.damaged": {
+  "en": "damaged / expired",
+  "ckb": "خراپ / بەسەرچوو",
+  "ar": "تالف / منتهي",
+  "fa": "خراب / منقضی"
+ },
+ "web.transfers.nothingToSend": {
+  "en": "This warehouse holds nothing to send.",
+  "ckb": "ئەم کۆگایە هیچی نییە بۆ ناردن.",
+  "ar": "هذا المخزن لا يحتوي على شيء للإرسال.",
+  "fa": "این انبار چیزی برای ارسال ندارد."
+ },
+ "web.transfers.sendQty": {
+  "en": "Quantity of {name} to send",
+  "ckb": "ژمارەی {name} بۆ ناردن",
+  "ar": "كمية {name} للإرسال",
+  "fa": "تعداد {name} برای ارسال"
+ },
+ "web.transfers.sendDamagedQty": {
+  "en": "Damaged quantity of {name} to send",
+  "ckb": "ژمارەی خراپی {name} بۆ ناردن",
+  "ar": "الكمية التالفة من {name} للإرسال",
+  "fa": "تعداد خرابِ {name} برای ارسال"
+ },
+ "web.transfers.receive": {
+  "en": "Receive",
+  "ckb": "وەرگرتن",
+  "ar": "استلام",
+  "fa": "دریافت"
+ },
+ "web.transfers.receiveOf": {
+  "en": "Receive {number}",
+  "ckb": "وەرگرتنی {number}",
+  "ar": "استلام {number}",
+  "fa": "دریافت {number}"
+ },
+ "web.transfers.cancel": {
+  "en": "Cancel",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "لغو"
+ },
+ "web.transfers.cancelOf": {
+  "en": "Cancel {number}",
+  "ckb": "هەڵوەشاندنەوەی {number}",
+  "ar": "إلغاء {number}",
+  "fa": "لغو {number}"
+ },
+ "web.transfers.cancelNote": {
+  "en": "Why is it cancelled? (optional)",
+  "ckb": "بۆچی هەڵدەوەشێتەوە؟ (دڵخواز)",
+  "ar": "لماذا يُلغى؟ (اختياري)",
+  "fa": "چرا لغو می‌شود؟ (اختیاری)"
+ },
+ "web.transfers.receiveTitle": {
+  "en": "Receive {number}: what arrived?",
+  "ckb": "وەرگرتنی {number}: چی گەیشت؟",
+  "ar": "استلام {number}: ماذا وصل؟",
+  "fa": "دریافت {number}: چه چیزی رسید؟"
+ },
+ "web.transfers.sentQty": {
+  "en": "sent {quantity}",
+  "ckb": "نێردرا {quantity}",
+  "ar": "أُرسل {quantity}",
+  "fa": "فرستاده شده {quantity}"
+ },
+ "web.transfers.arrivedOf": {
+  "en": "Arrived quantity of {name}",
+  "ckb": "ژمارەی گەیشتووی {name}",
+  "ar": "الكمية الواصلة من {name}",
+  "fa": "تعداد رسیده از {name}"
+ },
+ "web.transfers.arrived": {
+  "en": "arrived {quantity}",
+  "ckb": "گەیشت {quantity}",
+  "ar": "وصل {quantity}",
+  "fa": "رسید {quantity}"
+ },
+ "web.transfers.confirmReceive": {
+  "en": "Confirm receipt",
+  "ckb": "پشتڕاستکردنەوەی وەرگرتن",
+  "ar": "تأكيد الاستلام",
+  "fa": "تأیید دریافت"
+ },
+ "web.transfers.close": {
+  "en": "Close",
+  "ckb": "داخستن",
+  "ar": "إغلاق",
+  "fa": "بستن"
  }
 }

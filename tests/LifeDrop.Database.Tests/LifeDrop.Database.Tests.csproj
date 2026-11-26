@@ -98,6 +98,7 @@
     <None Include="../../db/migrations/0080_return_photos_refunds.sql" Link="0080_return_photos_refunds.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0081_damaged_stock_partial_returns.sql" Link="0081_damaged_stock_partial_returns.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/migrations/0082_wholesaler_customer_user_cities.sql" Link="0082_wholesaler_customer_user_cities.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/migrations/0083_stock_transfers.sql" Link="0083_stock_transfers.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../db/grants/lifedrop_app_grants.sql" Link="lifedrop_app_grants.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -416,6 +416,34 @@ export interface WarehouseStockRow {
   photoKey?: string | null
   damaged?: number
 }
+export interface TransferLine {
+  lineNo: number
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  bucket: 'sellable' | 'damaged'
+  quantity: number
+  receivedQuantity: number | null
+}
+export interface Transfer {
+  id: string
+  number: string
+  fromWarehouseId: string
+  fromWarehouseCode: string
+  fromWarehouseName: string
+  toWarehouseId: string
+  toWarehouseCode: string
+  toWarehouseName: string
+  status: 'sent' | 'received' | 'cancelled'
+  note: string | null
+  createdByEmail: string | null
+  createdAt: string
+  closedByEmail: string | null
+  closedAt: string | null
+  closeNote: string | null
+  items: TransferLine[]
+}
 export interface WarehousePlace {
   cityId?: string | null
   address?: string | null
@@ -1405,6 +1433,12 @@ export class AdminApi {
   createWarehouse = (code: string, name: string, kind: 'company' | 'wholesaler' = 'company', place: WarehousePlace = {}) =>
     this.post('/warehouses', { code, name, ...(kind === 'company' ? {} : { kind }), ...placeBody(place) })
   updateWarehouse = (id: string, name: string, status: 'active' | 'inactive', place: WarehousePlace = {}) => this.send('PUT', `/warehouses/${id}`, { name, status, ...placeBody(place) })
+  // Transfers of goods between warehouses (step 5.60): send, then the receiver confirms what arrived; the sender may cancel until then.
+  transfers = (status = '') => this.get<Transfer[]>(`/transfers${status ? `?status=${status}` : ''}`)
+  createTransfer = (input: { fromWarehouseId: string; toWarehouseId: string; note: string | null; items: { productId: string; quantity: number; bucket: 'sellable' | 'damaged' }[] }) =>
+    this.post('/transfers', { ...input, clientRef: crypto.randomUUID() })
+  receiveTransfer = (id: string, lines: { lineNo: number; receivedQuantity: number }[], note: string | null) => this.send('POST', `/transfers/${id}/receive`, { note, lines })
+  cancelTransfer = (id: string, note: string | null) => this.send('POST', `/transfers/${id}/cancel`, { note })
   // Step 5.59: the cities a sales person works in (empty = all warehouses are offered), and the warehouses an order may go to.
   userCities = (userId: string) => this.get<string[]>(`/users/${userId}/cities`)
   setUserCities = (userId: string, cityIds: string[]) => this.send('PUT', `/users/${userId}/cities`, { cityIds })

@@ -49,6 +49,8 @@ public enum VisitActionResult
     OutOfStock,
     // Plan step 5.54: a return asks for more than the order delivered (minus what other returns already take).
     ReturnTooMuch,
+    // Plan step 5.60: the warehouse of an order is not in the user's cities (any more).
+    WarehouseNotAllowed,
     // Plan step 4.46: the current password given when changing one's own password is wrong.
     WrongPassword
 }

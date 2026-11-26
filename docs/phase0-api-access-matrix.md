@@ -785,3 +785,15 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `GET /users/{id}/cities` (5.59) | `user.manageroles` / `system.admin`, or the user himself | City ids. |
 | `PUT /users/{id}/cities` (5.59) | `user.manageroles` / `system.admin` | `{cityIds}` replaces the list (cities only, at most 100); 400 not a city; 404 no user. Audit `user.cities_set`. |
 | `POST/PUT /warehouses` `customerId` (5.59) | `warehouses.manage` | Only for `kind: wholesaler`: a live customer of type `Wholesaler`, one warehouse per customer (400 other type / company warehouse, 404 unknown, 409 taken). `POST /orders` to a warehouse outside the caller's cities: 400. |
+
+Transfers between warehouses (step 5.60, migration 0083). `warehouses.manage` works with every warehouse; `warehouse.work` only with the warehouses the user works in (`warehouse_staff`); anyone else 403. Both warehouses must be active company warehouses.
+
+| Endpoint | Permission / scope | Notes | Audit |
+|---|---|---|---|
+| `POST /transfers` | as above; a worker must work in the sending warehouse (403 otherwise) | `{fromWarehouseId, toWarehouseId, clientRef, note?, items:[{productId, quantity, bucket: sellable|damaged}]}`; takes the goods out of the sender at once; 201 `{id, number}` or 200 with `replayed` for the same `clientRef`; 400 bad data / same warehouse / double line; 404 warehouse (or a wholesaler); 409 `TRANSFER_TOO_MUCH` | `transfer.sent` |
+| `GET /transfers?status=&warehouseId=&limit=` | as above | Newest first; a worker sees transfers of his warehouses (sending or receiving) | — |
+| `GET /transfers/{id}` | as above | 404 for a transfer of other warehouses | — |
+| `POST /transfers/{id}/receive` | the receiving warehouse's worker or a manager | `{note?, lines?:[{lineNo, receivedQuantity}]}`; a line left out arrives in full; more than sent: 400; adds to the receiver in the same bucket; 404 (also for another worker), 409 not `sent` | `transfer.received` |
+| `POST /transfers/{id}/cancel` | the sending warehouse's worker or a manager | `{note?}`; gives the goods back; 404, 409 not `sent` | `transfer.cancelled` |
+
+`POST /orders`: a warehouse outside the caller's cities now answers 409 `WAREHOUSE_NOT_ALLOWED` (was 400, step 5.59).
