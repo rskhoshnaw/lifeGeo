@@ -67,7 +67,7 @@ public static class ReturnEndpoints
             }
             var result = await service.AddPhotoAsync(tenantId, actorId, returnId, context.Request.ContentType, buffer.ToArray(), cancellationToken);
             return result == ReturnResult.Success ? Results.NoContent() : ToError(result);
-        }).RequireAuthorization()
+        }).RequireAuthorization().RequireRateLimiting("upload")
             .WithName("AddReturnPhoto").WithTags("Returns").Accepts<byte[]>("image/jpeg", "image/png", "image/webp").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 

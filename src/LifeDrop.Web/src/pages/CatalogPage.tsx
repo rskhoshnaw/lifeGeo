@@ -1,3 +1,4 @@
+import { compressImage } from '../lib/compressImage.ts'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
@@ -325,7 +326,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         scientificName: scientific.trim() || null,
         available, minStock: minStock.trim() === '' ? null : Number(minStock),
       })
-      if (photo) await admin.setProductPhoto(id, photo)
+      if (photo) await admin.setProductPhoto(id, await compressImage(photo))   // made smaller first (best quality within about 400 KB)
       else if (dropPhoto && product?.photoKey) await admin.removeProductPhoto(id)
     })
   }

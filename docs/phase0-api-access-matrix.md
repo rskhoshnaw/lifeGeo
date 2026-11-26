@@ -780,3 +780,4 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /returns/{id}/approve` (5.56) | `returns.approve` | Body `{note?, lines?: [lineNo]}`; without `lines` everything is approved, with them only those lines (others `decision: rejected`, total recomputed); at least one line. |
 | `POST /warehouses/{w}/stock/{p}/write-off` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity, reason, note?}` moves sellable stock into the warehouse's damaged bucket; 409 when more than in stock. |
 | `PUT /warehouses/{w}/damaged/{p}` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity}` sets the damaged bucket (after the goods were thrown away). |
+| Picture uploads (5.58): `PUT /products/{id}/photo`, `POST /feedback/{id}/photos`, `POST /returns/{id}/photos` | as before | Extra limit `upload`: 30 per minute per signed-in session (`RateLimit:UploadsPerMinute`, 3..1000); 429 beyond it. |

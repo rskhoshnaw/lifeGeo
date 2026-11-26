@@ -69,7 +69,7 @@ public static class CatalogEndpoints
             }
             var result = await service.SetPhotoAsync(tenantId, actorId, productId, buffer.ToArray(), cancellationToken);
             return result == CatalogResult.Success ? Results.NoContent() : ToError(result);
-        }).RequireAuthorization()
+        }).RequireAuthorization().RequireRateLimiting("upload")
             .Accepts<byte[]>("image/jpeg", "image/png", "image/webp", "application/octet-stream")
             .WithName("SetProductPhoto").WithTags("Catalog").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
