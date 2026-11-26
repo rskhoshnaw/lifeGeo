@@ -252,7 +252,7 @@ public sealed class FeedbackPage : ContentPage
     }
 }
 
-// A picture for the server: JPEG, PNG or WEBP of at most 3 MB. On the phone it is made smaller first (1600 pixels on the long side, JPEG), because a camera photo is much bigger.
+// A picture for the server: JPEG, PNG or WEBP of at most 3 MB. On the phone it is made smaller first (JPEG, at most about 400 KB, the best quality that fits; see PhotoCompression), because a camera photo is much bigger.
 internal static class FeedbackPhotos
 {
     public static async Task<(byte[]? Data, string? ContentType, string? ErrorKey)> PrepareAsync(FileResult file)
@@ -273,7 +273,8 @@ internal static class FeedbackPhotos
             var image = PlatformImage.FromStream(new MemoryStream(bytes));
             if (image is not null)
             {
-                bytes = image.Downsize(1600f, true).AsBytes(ImageFormat.Jpeg, 0.8f);
+                // The finest step that gives at most 400 KB is used (PhotoCompression); the original stays when a step cannot be made.
+                bytes = PhotoCompression.Choose(step => image.Downsize((float)step.LongSide, true).AsBytes(ImageFormat.Jpeg, step.Quality));
                 type = "image/jpeg";
                 reencoded = true;
             }

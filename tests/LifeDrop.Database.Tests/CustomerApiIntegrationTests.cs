@@ -2977,6 +2977,26 @@ public class CustomerApiIntegrationTests
         return (schemaBlock, factory);
     }
 
+    // Plan step 5.58: picture uploads have their own limit per signed-in session; the 4th upload of a session within a minute gets 429, another session and other requests are not affected.
+    [SkippableFact]
+    public async Task PictureUploads_HaveTheirOwnLimitPerSession()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        using var client = factory.WithWebHostBuilder(b => b.UseSetting("RateLimit:UploadsPerMinute", "3")).CreateClient();
+        async Task<HttpStatusCode> Put(string token)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Put, $"/products/{Guid.NewGuid()}/photo") { Content = new ByteArrayContent([1, 2, 3]) };
+            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            return (await client.SendAsync(request)).StatusCode;
+        }
+        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, await Put("session-one"));   // not signed in: refused by sign-in, but it counts
+        Assert.Equal(HttpStatusCode.TooManyRequests, await Put("session-one"));
+        Assert.Equal(HttpStatusCode.Unauthorized, await Put("session-two"));                             // another session has its own allowance
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, (await client.GetAsync("/health")).StatusCode);   // other requests are not limited by it
+    }
+
     [SkippableFact]
     public async Task FlexiblePlan_OwnerAndManagersReorderAndPostponeWithinScopeAndAudit()
     {

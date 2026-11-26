@@ -23,6 +23,10 @@ public class DatabaseSecurityState
 
 public partial class Program
 {
+    // The limiter runs before the sign-in is read, so a session is told apart by a short hash of its bearer token (nothing of it is kept or logged).
+    internal static string UploadSessionKey(string authorization) =>
+        authorization.Length == 0 ? "anonymous" : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(authorization)), 0, 8);
+
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -210,6 +214,9 @@ public partial class Program
                 options.ForwardLimit = 1;
             });
         var permitPerMinute = Math.Clamp(builder.Configuration.GetValue("RateLimit:PerMinute", 100), 20, 10_000);
+        // Picture uploads (feedback, returns, product photos) have their own, smaller limit per signed-in session (plan step 5.58): the pictures are the heaviest requests and one stuck phone
+        // retrying them must not fill the disk or the line of the whole office (the global limit counts per address, and an office shares one).
+        var uploadsPerMinute = Math.Clamp(builder.Configuration.GetValue("RateLimit:UploadsPerMinute", 30), 3, 1_000);
         builder.Services.AddRateLimiter(options =>
         {
             options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -222,6 +229,14 @@ public partial class Program
                         QueueLimit = 0
                     }));
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("upload", context => RateLimitPartition.GetFixedWindowLimiter(
+                (context.Connection.RemoteIpAddress?.ToString() ?? "unknown") + ":" + UploadSessionKey(context.Request.Headers.Authorization.ToString()),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = uploadsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
             options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions

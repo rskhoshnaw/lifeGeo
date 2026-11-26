@@ -56,7 +56,7 @@ public static class FeedbackEndpoints
             }
             var result = await service.AddPhotoAsync(tenantId, actorId, id, context.Request.ContentType, buffer.ToArray(), cancellationToken);
             return result == FeedbackResult.Success ? Results.NoContent() : ToError(result);
-        }).RequireAuthorization()
+        }).RequireAuthorization().RequireRateLimiting("upload")
             .WithName("AddFeedbackPhoto").WithTags("Feedback").Accepts<byte[]>("image/jpeg", "image/png", "image/webp").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
 
