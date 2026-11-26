@@ -32,7 +32,10 @@ public sealed class WarehouseStockPage : ContentPage
             _cards = !_cards;
             Render();
         };
-        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { _warehouse, _search, _viewButton, _spinner, _message, _rows } } };
+        // Goods between warehouses (step 5.61): list, receive, send.
+        var transfers = new Button { Text = Texts.Get("app.transfers.open"), FontSize = 13, HorizontalOptions = LayoutOptions.Start };
+        transfers.Clicked += async (_, _) => await Navigation.PushAsync(new TransfersPage());
+        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 12, Spacing = 8, Children = { transfers, _warehouse, _search, _viewButton, _spinner, _message, _rows } } };
     }
 
     protected override async void OnAppearing()
@@ -129,6 +132,9 @@ public sealed class WarehouseStockPage : ContentPage
             info.Children.Add(new Label { Text = $"{item.ProductCode} · {(item.Counted ? UnitText.Label(item.Unit) : Texts.Get("app.stock.notCounted"))}", FontSize = 12, TextColor = Colors.Gray });
             if (item.ExpiryDate is { } expiry && product.ExpiryStatusOn(today) is ExpiryStatus.Expired or ExpiryStatus.Soon)
                 info.Children.Add(new Label { Text = ProductsPage.Day(expiry), FontSize = 12, TextColor = product.ExpiryStatusOn(today) == ExpiryStatus.Expired ? Colors.Red : Colors.DarkOrange });
+            // Damaged / expired goods of this warehouse are held apart from the quantity that can be sold (step 5.56).
+            if (item.Damaged > 0)
+                info.Children.Add(new Label { Text = Texts.Get("app.stock.damaged", ("quantity", item.Damaged.ToString("0.###", CultureInfo.InvariantCulture)), ("unit", UnitText.Label(item.Unit))), FontSize = 12, TextColor = Colors.Red });
             info.Children.Add(new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 6, Children = { quantity, SetColumn(save) } });
             var card = new Border
             {

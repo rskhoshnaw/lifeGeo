@@ -183,7 +183,8 @@ public class CustomerApiIntegrationTests
                 var m81 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0081_damaged_stock_partial_returns.sql"));
                 var m82 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0082_wholesaler_customer_user_cities.sql"));
                 var m83 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0083_stock_transfers.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81 + m82 + m83;
+                var m84 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0084_transfer_notifications.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79 + m80 + m81 + m82 + m83 + m84;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5446,6 +5447,15 @@ public class CustomerApiIntegrationTests
             await using var q = new NpgsqlCommand($"SELECT coalesce((SELECT quantity FROM {table} WHERE warehouse_id = '{warehouse}' AND product_id = '{product}'), 0)", conn);
             return Convert.ToDecimal(await q.ExecuteScalarAsync());
         }
+        async Task<long> Notices(string kind, Guid user)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var set = new NpgsqlCommand($"SELECT set_config('app.current_tenant', '{t1}', false)", conn);
+            await set.ExecuteNonQueryAsync();
+            await using var q = new NpgsqlCommand($"SELECT count(*) FROM notifications WHERE kind = '{kind}' AND user_id = '{user}'", conn);
+            return Convert.ToInt64(await q.ExecuteScalarAsync());
+        }
         Task<HttpResponseMessage> Send(Guid from, Guid to, Guid? clientRef, params object[] items) => client.PostAsJsonAsync("/transfers", new { FromWarehouseId = from, ToWarehouseId = to, ClientRef = clientRef ?? Guid.NewGuid(), Note = " back ", Items = items });
         async Task<LifeDrop.Application.Transfers.TransferDto> Get(Guid id) => (await client.GetFromJsonAsync<LifeDrop.Application.Transfers.TransferDto>($"/transfers/{id}"))!;
 
@@ -5465,6 +5475,8 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, again.StatusCode);
         Assert.Equal(first.Id, (await again.Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!.Id);
         Assert.Equal(1m, await Qty("warehouse_damaged_stock", basra, p1));   // not sent twice
+        // The people of the receiving warehouse are told once (not the sender, not the retry); the manager works in no warehouse and is not told
+        Assert.Equal((1L, 0L, 0L), (await Notices("transfer.sent", erbilWorker), await Notices("transfer.sent", basraWorker), await Notices("transfer.sent", manager)));
 
         // Not more than the warehouse holds, not from a warehouse he does not work in, not to a wholesaler, not to itself, not an empty or double list
         await AssertProblemAsync(await Send(basra, erbil, null, new { ProductId = p1, Quantity = 5m, Bucket = "damaged" }), HttpStatusCode.Conflict, "TRANSFER_TOO_MUCH");
@@ -5489,6 +5501,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { Lines = new[] { new { LineNo = 1, ReceivedQuantity = 3m } } })).StatusCode);   // more than was sent
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{first.Id}/receive", new { Note = "one broke", Lines = new[] { new { LineNo = 1, ReceivedQuantity = 1.5m } } })).StatusCode);
         Assert.Equal(1.5m, await Qty("warehouse_damaged_stock", erbil, p1));
+        Assert.Equal(1L, await Notices("transfer.received", basraWorker));   // the sender is told it arrived
         Assert.Equal(10m, await Qty("warehouse_stock", erbil, p1));   // the damaged goods never touch what can be sold
         var received = await Get(first.Id);
         Assert.Equal(("received", 1.5m, "one broke"), (received.Status, received.Items.Single().ReceivedQuantity, received.CloseNote));
@@ -5503,14 +5516,23 @@ public class CustomerApiIntegrationTests
         As(erbilWorker);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{toBasra.Id}/cancel", new { Note = "wrong city" })).StatusCode);
         Assert.Equal(10m, await Qty("warehouse_stock", erbil, p1));
+        Assert.Equal(1L, await Notices("transfer.cancelled", basraWorker));   // the receiver is told that it will not come
         As(basraWorker);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/transfers/{toBasra.Id}/receive", new { })).StatusCode);
 
-        // A manager works with every warehouse: sends 2 boxes to Basra (the product is counted there from now on) and confirms them in full
+        // A manager works with every warehouse: sends 2 boxes to Basra (the product is counted there from now on) and confirms them in full.
+        // He works in both warehouses himself here (one person with several jobs): he is never told about what he did himself.
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var staff = new NpgsqlCommand($"SELECT set_config('app.current_tenant', '{t1}', false); INSERT INTO warehouse_staff (tenant_id, warehouse_id, user_id) VALUES ('{t1}', '{erbil}', '{manager}'), ('{t1}', '{basra}', '{manager}')", conn);
+            await staff.ExecuteNonQueryAsync();
+        }
         As(manager);
         var byManager = (await (await Send(erbil, basra, null, new { ProductId = p1, Quantity = 2m, Bucket = "sellable" })).Content.ReadFromJsonAsync<LifeDrop.Application.Transfers.CreatedTransferDto>())!;
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/transfers/{byManager.Id}/receive", new { })).StatusCode);
         Assert.Equal((8m, 2m), (await Qty("warehouse_stock", erbil, p1), await Qty("warehouse_stock", basra, p1)));
+        Assert.Equal((0L, 0L), (await Notices("transfer.sent", manager), await Notices("transfer.received", manager)));
         Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers"))!.Count);
         Assert.Single((await client.GetFromJsonAsync<List<LifeDrop.Application.Transfers.TransferDto>>("/transfers?status=cancelled"))!);
     }

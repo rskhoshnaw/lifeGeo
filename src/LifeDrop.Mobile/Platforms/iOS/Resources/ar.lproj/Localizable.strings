@@ -7,3 +7,6 @@
 "push_team_shift_stopped" = "عضو في فريقك توقف عن إرسال موقعه.";
 "push_return_new" = "هناك مرتجع بانتظار موافقتك.";
 "push_return_decided" = "تم البتّ في مرتجعك. افتح LifeDrop لعرضه.";
+"push_transfer_sent" = "بضائع في الطريق إلى مخزنك. افتح LifeDrop لتأكيدها عند وصولها.";
+"push_transfer_received" = "تم استلام البضائع التي أرسلتها.";
+"push_transfer_cancelled" = "أُلغي نقل كان متجهًا إلى مخزنك.";

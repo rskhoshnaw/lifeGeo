@@ -26,6 +26,7 @@ public static class TrackingHost
     private static IChannelsApiClient? _channels;
     private static IOrdersApiClient? _orders;
     private static IReturnsApiClient? _returns;
+    private static ITransfersApiClient? _transfers;
     private static IProductsApiClient? _products;
     private static IAccountApiClient? _account;
     private static IWarehouseApiClient? _warehouse;
@@ -154,6 +155,11 @@ public static class TrackingHost
         get { lock (Gate) return _products; }
     }
 
+    public static ITransfersApiClient? TransfersApi
+    {
+        get { lock (Gate) return _transfers; }
+    }
+
     public static IReturnsApiClient? ReturnsApi
     {
         get { lock (Gate) return _returns; }
@@ -195,6 +201,7 @@ public static class TrackingHost
             _channels = new ChannelsApiClient(http, session);
             _orders = new OrdersApiClient(http, session);
             _returns = new ReturnsApiClient(http, session);
+            _transfers = new TransfersApiClient(http, session);
             _products = new ProductsApiClient(http, session);
             _account = new AccountApiClient(http, session);
             _warehouse = new WarehouseApiClient(http, session);
@@ -269,6 +276,7 @@ public static class TrackingHost
             _channels = null;
             _orders = null;
             _returns = null;
+            _transfers = null;
             _warehouse = null;
             _wholesaler = null;
             _marketing = null;

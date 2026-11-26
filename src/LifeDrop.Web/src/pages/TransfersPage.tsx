@@ -99,7 +99,7 @@ function ReceiveForm({ transfer, busy, onSave, onCancel }: { transfer: Transfer;
 }
 
 function NewTransfer({ admin, onDone }: { admin: AdminApi; onDone: () => void }) {
-  const warehouses = useLoad(useCallback(() => admin.warehouses(), [admin]))
+  const warehouses = useLoad(useCallback(() => admin.transferWarehouses(), [admin]))
   const stock = useLoad(useCallback(() => admin.warehouseStock(), [admin]))
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -107,8 +107,8 @@ function NewTransfer({ admin, onDone }: { admin: AdminApi; onDone: () => void })
   const [sellable, setSellable] = useState<Record<string, string>>({})
   const [damaged, setDamaged] = useState<Record<string, string>>({})
   const action = useAction(async () => {})
-  // Only company warehouses hold stock; the sending list is what the caller may send from (the stock endpoint already limits a worker to his own warehouses).
-  const company = (warehouses.data ?? []).filter((w) => w.kind !== 'wholesaler')
+  // The server lists only company warehouses (a wholesaler keeps no stock); the sending list is what the caller may send from (the stock endpoint already limits a worker to his own warehouses).
+  const company = warehouses.data ?? []
   const mine = new Set((stock.data ?? []).map((r) => r.warehouseId))
   const rows: WarehouseStockRow[] = (stock.data ?? []).filter((r) => r.warehouseId === from && (r.quantity > 0 || (r.damaged ?? 0) > 0))
   const items = rows.flatMap((r) => [

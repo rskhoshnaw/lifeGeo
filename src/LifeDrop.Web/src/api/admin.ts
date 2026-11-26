@@ -134,7 +134,7 @@ export function customerFilterQuery(filters: CustomerFilters = {}): string {
 export interface Notification {
   id: string
   // manager.message (step 4.16): entityId is the text the manager wrote.
-  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply' | 'customer.owner_changed' | 'team.shift_stopped' | 'return.new' | 'return.decided'
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply' | 'customer.owner_changed' | 'team.shift_stopped' | 'return.new' | 'return.decided' | 'transfer.sent' | 'transfer.received' | 'transfer.cancelled'
   entityId: string
   actorId: string
   actorEmail: string | null
@@ -1435,6 +1435,8 @@ export class AdminApi {
   updateWarehouse = (id: string, name: string, status: 'active' | 'inactive', place: WarehousePlace = {}) => this.send('PUT', `/warehouses/${id}`, { name, status, ...placeBody(place) })
   // Transfers of goods between warehouses (step 5.60): send, then the receiver confirms what arrived; the sender may cancel until then.
   transfers = (status = '') => this.get<Transfer[]>(`/transfers${status ? `?status=${status}` : ''}`)
+  // The active company warehouses goods can be sent to (a warehouse worker may not read the warehouse list).
+  transferWarehouses = () => this.get<{ id: string; code: string; name: string; cityName: string | null }[]>('/transfers/warehouses')
   createTransfer = (input: { fromWarehouseId: string; toWarehouseId: string; note: string | null; items: { productId: string; quantity: number; bucket: 'sellable' | 'damaged' }[] }) =>
     this.post('/transfers', { ...input, clientRef: crypto.randomUUID() })
   receiveTransfer = (id: string, lines: { lineNo: number; receivedQuantity: number }[], note: string | null) => this.send('POST', `/transfers/${id}/receive`, { note, lines })
