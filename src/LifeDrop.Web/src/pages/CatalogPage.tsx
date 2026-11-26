@@ -76,6 +76,19 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           </>
         )}
       </div>
+      {/* The form of a new or edited product is right under the toolbar (owner request 2026-11-27), not below the list */}
+      {editing && (
+        <ProductForm
+          key={editing === 'new' ? `new-${newCount}` : editing.id}
+          admin={admin}
+          product={editing === 'new' ? null : editing}
+          onDone={(next) => {
+            if (next) setNewCount((n) => n + 1)
+            setEditing(next ? 'new' : null)
+            products.reload()
+          }}
+        />
+      )}
       {(products.error ?? quick.error) && <p role="alert" className="text-sm text-red-700">{products.error ?? quick.error}</p>}
       {products.data && view === 'gallery' && (
         <>
@@ -89,7 +102,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
                   type="button"
                   aria-label={p.name}
                   onClick={() => setDetails(p)}
-                  className={`group overflow-hidden rounded-xl border bg-white text-start shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${p.status === 'inactive' || p.available === false ? 'opacity-60' : ''}`}
+                  className={`group overflow-hidden rounded-xl border bg-white text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${p.status === 'inactive' || p.available === false ? 'opacity-60' : ''}`}
                 >
                   <ProductPhoto admin={admin} product={p} className="h-40 w-full" />
                   <div className="space-y-0.5 p-3">
@@ -177,18 +190,6 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
           }}
         />
       )}
-      {editing && (
-        <ProductForm
-          key={editing === 'new' ? `new-${newCount}` : editing.id}
-          admin={admin}
-          product={editing === 'new' ? null : editing}
-          onDone={(next) => {
-            if (next) setNewCount((n) => n + 1)
-            setEditing(next ? 'new' : null)
-            products.reload()
-          }}
-        />
-      )}
       {rulesFor && <CityPrices key={rulesFor.id} admin={admin} product={rulesFor} canManage={canManage} />}
       {can(me, ...Permissions.customers) && <CustomerPrices admin={admin} canManage={canManage} />}
     </section>
@@ -224,7 +225,7 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
     <div role="dialog" aria-modal="true" aria-label={t('web.catalog.details')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="max-h-full w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <ProductPhoto admin={admin} product={p} className="h-64 w-full" />
-        <div className="space-y-1 p-5">
+        <div className="space-y-1 p-5 text-center">
           <h3 className="text-xl font-semibold">{p.name}</h3>
           {p.scientificName && <p className="italic text-slate-500">{p.scientificName}</p>}
           <p className="pb-2 text-2xl font-bold text-rose-600">

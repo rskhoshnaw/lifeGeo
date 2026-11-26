@@ -754,3 +754,16 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /orders/{id}/cancel` | Releases the reservation only (the goods never left the warehouse). |
 | `PUT /products/{id}/details` | `stockQty` is accepted (old clients) and ignored. |
 | `GET /products` | `stockQty` = sum of the counted stock of the active company warehouses, null when none counted; no fallback to the old figure. |
+
+## Customer returns (step 5.54, migration 0079, `docs/RETURNS.md`)
+
+| Route | Permission / rule | Notes |
+| --- | --- | --- |
+| `POST /returns` | `returns.create`; the customer inside the caller's area (404); `OrderId` = a delivered order of that customer (400/404) | Body `customerId`, optional `orderId`, `warehouseId` (needed when a line goes back; an active company warehouse), `clientRef`, `note` (≤500), `items` 1-100 `{productId, quantity (>0, 3 decimals), reason, destination?}`; destination defaults from the reason. 201 `{id, number, currency, total, replayed}`, 200 for a retry of the same `clientRef`; 409 `RETURN_TOO_MUCH` (more than delivered minus other open/approved returns), 409 `CURRENCY_MISMATCH`, 409 `CONFLICT`. Prices are the server's. Audit `return.created`; notice `return.new` to the managers in scope. |
+| `GET /returns?customerId=&status=&mine=&limit=&before=&beforeId=` | `returns.read` (tenant: all, region: the region's customers + own, own: written by the caller) or `returns.create` (own) | Newest first, lines included; prices masked for readers who must not see them. |
+| `GET /returns/{id}` | same scope; 404 outside it | |
+| `POST /returns/{id}/approve` | `returns.approve` inside its data scope | `{note?}`; 204; 409 when not `requested`. `warehouse` lines are added to the chosen warehouse's stock only where it counts the product (`stockApplied`). Audit `return.approved`; notice `return.decided` to the author. |
+| `POST /returns/{id}/reject` | `returns.approve` | `{note}` required; 204; audit `return.rejected`; notice to the author. |
+| `POST /returns/{id}/cancel` | `returns.create`, only the author, only while `requested` | `{note}` required; 204; 403 for another user; 409 when decided. Audit `return.cancelled`. |
+| `GET /returns/damaged?from=&to=` | `returns.read` (scope) | Approved lines with destination `damaged`, per product, reason and currency (Iraq days, at most 366). |
+| `GET /customers/{id}/balance` | as before | Items carry `returned` (approved returns); `balance = delivered − returned − confirmed`. |

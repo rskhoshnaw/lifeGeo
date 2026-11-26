@@ -26,6 +26,7 @@ public sealed class CustomerPage : ContentPage
     private readonly PlacePickerView _places = new();
     private readonly Button _save = new();
     private readonly Button _order = new();
+    private readonly Button _return = new();
     private readonly Button _payment = new();
     private readonly Button _sample = new();
     private readonly Button _followUp = new();
@@ -52,6 +53,8 @@ public sealed class CustomerPage : ContentPage
         _save.IsEnabled = false;
         _order.Text = Texts.Get("app.order.button");
         _order.Clicked += async (_, _) => await Navigation.PushAsync(new OrderPage(_customerId, _titleLabel.Text));
+        _return.Text = Texts.Get("app.return.button");
+        _return.Clicked += async (_, _) => await Navigation.PushAsync(new ReturnPage(_customerId, _titleLabel.Text));
         _payment.Text = Texts.Get("app.payment.button");
         _payment.Clicked += async (_, _) => await Navigation.PushAsync(new PaymentPage(_customerId, _titleLabel.Text));
         _sample.Text = Texts.Get("app.sample.button");
@@ -66,6 +69,7 @@ public sealed class CustomerPage : ContentPage
         // Parts of the product this company switched off (plan step 4.48) have no button.
         var hidden = CompanyModules.Parse(Preferences.Get("HiddenModules", ""));
         _order.IsVisible = CompanyModules.Shows(hidden, "orders");
+        _return.IsVisible = CompanyModules.Shows(hidden, "orders") && MyPermissions.Has("returns.create");
         _payment.IsVisible = CompanyModules.Shows(hidden, "payments");
         _sample.IsVisible = CompanyModules.Shows(hidden, "samples");
         _followUp.IsVisible = CompanyModules.Shows(hidden, "followups");
@@ -82,7 +86,7 @@ public sealed class CustomerPage : ContentPage
                     _titleLabel, _typeLabel, new CaptionedField("app.customer.doctorName", _name), _doctor, new CaptionedField("app.customer.phone", new PhoneWithWhatsApp(_phone)), new CaptionedField("app.customer.address", _address),
                     new CaptionedField("app.customer.contactName", _contactName), new CaptionedField("app.customer.notes", _notes), _flags,
                     new Label { Text = Texts.Get("app.customer.place"), FontAttributes = FontAttributes.Bold },
-                    _places, _save, _setLocation, _history, _order, _payment, _sample, _followUp, _spinner, _message
+                    _places, _save, _setLocation, _history, _order, _return, _payment, _sample, _followUp, _spinner, _message
                 }
             }
         };

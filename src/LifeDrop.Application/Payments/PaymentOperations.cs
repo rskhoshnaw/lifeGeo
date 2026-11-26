@@ -32,7 +32,8 @@ public sealed record CreatedPaymentDto(Guid Id, string Number, string Status, bo
 
 // Delivered: the value of what was delivered (delivered quantity x unit price of delivered orders). Confirmed: payments the finance manager has. Collected:
 // money a visitor took and has not given in yet. Balance = Delivered - Confirmed (what the customer still owes).
-public sealed record BalanceItemDto(string Currency, decimal Delivered, decimal Confirmed, decimal Collected, decimal Balance);
+// Returned: the credit of the approved returns of the customer (plan step 5.54); Balance = Delivered - Returned - Confirmed.
+public sealed record BalanceItemDto(string Currency, decimal Delivered, decimal Confirmed, decimal Collected, decimal Balance, decimal Returned = 0);
 public sealed record CustomerBalanceDto(Guid CustomerId, IReadOnlyList<BalanceItemDto> Items);
 
 public enum PaymentResult { Success, Forbidden, NotFound, InvalidData, Conflict }

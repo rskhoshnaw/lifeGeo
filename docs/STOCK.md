@@ -10,7 +10,7 @@
 
 ## Before the warehouses start (migration 0078)
 1. `deploy/update.sh` (or `backup.sh` then `setup-db.sh`) runs migration 0078. It copies every old figure into `legacy_stock_backup` and, for a product not counted in any warehouse yet, puts `stock_qty + what its open orders took` into the first active company warehouse by code. Running it again changes nothing.
-2. Check what happened: `psql -d lifedrop -f scripts/db/stock-migration-report.sql` — (1) old figures that could not move (a company with no company warehouse: count them by hand), (2) figures that moved and where, (3) products nobody counted.
+2. Check what happened: `/opt/lifedrop/deploy/stock-report.sh` (it runs `scripts/db/stock-migration-report.sql` inside the database container; the server has no `psql`) — (1) old figures that could not move (a company with no company warehouse: count them by hand), (2) figures that moved and where, (3) products nobody counted.
 3. Create the warehouses (one per city) and give each worker their warehouse (Warehouse tab, staff) **before** the first count. Count every product once; until a product is counted somewhere it has no limit.
 4. With no old stock in the system the migration is empty (the report shows no rows): nothing to check.
 

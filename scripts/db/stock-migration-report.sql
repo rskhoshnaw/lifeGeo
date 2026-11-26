@@ -1,4 +1,4 @@
--- Report of the stock migration (plan step 5.53, migration 0078). Run on the server database: psql -d lifedrop -f scripts/db/stock-migration-report.sql
+-- Report of the stock migration (plan step 5.53, migration 0078). On the server run deploy/stock-report.sh (it feeds this file to psql inside the database container).
 -- 1. Old figures that could not be moved to a warehouse (no active company warehouse): count them in a warehouse by hand.
 SELECT t.code AS company, p.code AS product, b.stock_qty, b.open_orders_qty
 FROM legacy_stock_backup b JOIN products p ON p.tenant_id = b.tenant_id AND p.id = b.product_id JOIN tenants t ON t.id = b.tenant_id

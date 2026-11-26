@@ -64,6 +64,10 @@ public static class PermissionKeys
     public const string PaymentsRecord = "payments.record";
     public const string PaymentsManage = "payments.manage";
     public const string PaymentsRead = "payments.read";
+    // Customer returns (plan step 5.54): create (rep, sales manager, supervisor), read (managers; supervisor: the region), approve (sales manager).
+    public const string ReturnsCreate = "returns.create";
+    public const string ReturnsRead = "returns.read";
+    public const string ReturnsApprove = "returns.approve";
     public const string SamplesRecord = "samples.record";
     public const string NotificationsSend = "notifications.send";
     public const string SamplesManage = "samples.manage";

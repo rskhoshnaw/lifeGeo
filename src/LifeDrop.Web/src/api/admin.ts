@@ -134,7 +134,7 @@ export function customerFilterQuery(filters: CustomerFilters = {}): string {
 export interface Notification {
   id: string
   // manager.message (step 4.16): entityId is the text the manager wrote.
-  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply' | 'customer.owner_changed' | 'team.shift_stopped'
+  kind: 'customer.profile_changed' | 'customer.location_changed' | 'manager.message' | 'tracking.stopped' | 'feedback.new' | 'feedback.reply' | 'customer.owner_changed' | 'team.shift_stopped' | 'return.new' | 'return.decided'
   entityId: string
   actorId: string
   actorEmail: string | null
@@ -581,6 +581,65 @@ export interface BalanceItem {
   confirmed: number
   collected: number
   balance: number
+  returned?: number
+}
+// Customer returns (step 5.54). Destination: warehouse (back on the shelf) or damaged (damaged/expired goods, counted apart). Status: requested, approved, rejected, cancelled.
+export type ReturnReason = 'damaged' | 'expired' | 'wrong_item' | 'customer_request' | 'other'
+export type ReturnDestination = 'warehouse' | 'damaged'
+export const returnReasons: ReturnReason[] = ['damaged', 'expired', 'wrong_item', 'customer_request', 'other']
+export interface ReturnLine {
+  lineNo: number
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+  reason: ReturnReason
+  destination: ReturnDestination
+  stockApplied: boolean | null
+}
+export interface CustomerReturn {
+  id: string
+  number: string
+  customerId: string
+  customerCode: string
+  customerName: string
+  orderId: string | null
+  orderNumber: string | null
+  warehouseId: string | null
+  warehouseName: string | null
+  status: 'requested' | 'approved' | 'rejected' | 'cancelled'
+  currency: 'IQD' | 'USD'
+  total: number
+  note: string | null
+  createdBy: string
+  createdByEmail: string | null
+  decisionNote: string | null
+  decidedByEmail: string | null
+  decidedAt: string | null
+  createdAt: string
+  items: ReturnLine[]
+  pricesHidden?: boolean
+}
+export interface NewReturnInput {
+  customerId: string
+  orderId: string | null
+  warehouseId: string | null
+  note: string | null
+  clientRef: string
+  items: { productId: string; quantity: number; reason: ReturnReason; destination: ReturnDestination }[]
+}
+export interface DamagedGoods {
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  reason: string
+  quantity: number
+  value: number
+  currency: string
 }
 export interface CustomerBalance {
   customerId: string
@@ -1168,6 +1227,9 @@ export const Permissions = {
   manageTeams: ['teams.manage'],
   liveMap: ['tracking.read', 'tracking.summary'],
   routeHistory: ['tracking.read'],
+  returns: ['returns.read', 'returns.create', 'returns.approve'],
+  approveReturns: ['returns.approve'],
+  createReturns: ['returns.create'],
   reports: ['reports.read'],
   feedback: ['feedback.manage'],
   targets: ['targets.read'],
@@ -1197,6 +1259,7 @@ export function errorMessage(error: unknown): string {
       if (error.code === 'CUSTOMER_NOT_APPROVED') return t('web.error.customerNotApproved')
       if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
       if (error.code === 'OUT_OF_STOCK') return t('web.error.outOfStock')
+      if (error.code === 'RETURN_TOO_MUCH') return t('web.error.returnTooMuch')
       return t('web.error.conflict')
     case 429:
       return t('web.error.tooMany')
@@ -1493,6 +1556,14 @@ export class AdminApi {
   routeDays = (userId: string, month: string) => this.get<RouteDay[]>(`/tracking/days?userId=${userId}&month=${month}`)
   customerHistory = (customerId: string) => this.get<CustomerHistory>(`/customers/${customerId}/history`)
   // One customer's file (owner request 2026-11-26): the customer and what the lists of payments, samples and follow-ups hold for it.
+  // Customer returns (step 5.54): written in the field, decided by the sales manager; `mine` lists only what the caller wrote.
+  returns = (status: string, customerId?: string, before?: CustomerReturn, mine = false) =>
+    this.get<CustomerReturn[]>(`/returns?limit=50${status ? `&status=${status}` : ''}${customerId ? `&customerId=${customerId}` : ''}${mine ? '&mine=true' : ''}${before ? `&before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : ''}`)
+  createReturn = (value: NewReturnInput) => this.postJson<{ id: string; number: string; currency: string; total: number; replayed: boolean }>('/returns', value)
+  approveReturn = (id: string, note: string | null) => this.post(`/returns/${id}/approve`, { note })
+  rejectReturn = (id: string, reason: string) => this.post(`/returns/${id}/reject`, { note: reason })
+  cancelReturn = (id: string, reason: string) => this.post(`/returns/${id}/cancel`, { note: reason })
+  damagedGoods = (from: string, to: string) => this.get<DamagedGoods[]>(`/returns/damaged?from=${from}&to=${to}`)
   customer = (customerId: string) => this.get<Customer>(`/customers/${customerId}`)
   customerPayments = (customerId: string) => this.get<Payment[]>(`/payments?limit=100&customerId=${customerId}`)
   customerSamples = (customerId: string) => this.get<Sample[]>(`/samples?limit=100&customerId=${customerId}`)

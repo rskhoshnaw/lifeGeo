@@ -5,3 +5,5 @@
 "push_feedback_reply" = "بەڕێوەبەرێک وەڵامی ڕەخنە یان پێشنیارەکەتی دایەوە.";
 "push_customer_owner_changed" = "کڕیار دران پێت. LifeDrop بکەرەوە بۆ بینینیان.";
 "push_team_shift_stopped" = "ئەندامێکی تیمەکەت وەستاوە لە ناردنی شوێنەکەی.";
+"push_return_new" = "گەڕاوەیەک چاوەڕێی پەسەندکردنی تۆیە.";
+"push_return_decided" = "بڕیار درا لەسەر گەڕاوەکەت. LifeDrop بکەرەوە بۆ بینین.";

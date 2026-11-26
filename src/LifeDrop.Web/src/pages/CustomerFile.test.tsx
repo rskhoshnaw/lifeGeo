@@ -26,9 +26,10 @@ describe('customer file', () => {
         orders: [{ id: 'o1', number: 'O-1', createdAt: '2026-11-11T08:00:00Z', status: 'delivered', currency: 'IQD', total: 5000, pricesHidden: false, createdByEmail: null, lines: [{ productName: 'Paracetamol', quantity: 10, deliveredQuantity: 7 }] }],
       }),
       customerPayments: vi.fn().mockResolvedValue([{ id: 'p1', number: 'PAY-1', createdAt: '2026-11-12T08:00:00Z', method: 'cash', currency: 'IQD', amount: 3000, status: 'confirmed', receivedByEmail: 'rep@t1' }]),
-      customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [{ currency: 'IQD', delivered: 5000, confirmed: 3000, collected: 0, balance: 2000 }] }),
+      customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [{ currency: 'IQD', delivered: 5000, confirmed: 3000, collected: 0, balance: 2000, returned: 0 }] }),
       customerSamples: vi.fn().mockResolvedValue([]),
       customerFollowUps: vi.fn().mockRejectedValue(new Error('403')),
+      returns: vi.fn().mockResolvedValue([{ id: 'r1', number: 'R-000001', customerId: id, createdAt: '2026-11-13T08:00:00Z', status: 'approved', currency: 'IQD', total: 2500, items: [{ lineNo: 1, productId: 'p', productName: 'Paracetamol', unit: 'box', quantity: 2, unitPrice: 1000, lineTotal: 2000, reason: 'damaged', destination: 'damaged', stockApplied: null }] }]),
     } as unknown as AdminApi
     render(<CustomerFilePage admin={admin} customerId={id} me={me} />)
     expect(await screen.findByRole('heading', { name: /Shifa Pharmacy \(P1\)/ })).toBeInTheDocument()
@@ -39,10 +40,12 @@ describe('customer file', () => {
     expect(await screen.findByText('PAY-1')).toBeInTheDocument()
     expect(screen.getByText(/Customer balance 2,000/)).toBeInTheDocument()
     expect(await screen.findByText('You cannot see this part.')).toBeInTheDocument()   // the follow-ups were refused
+    expect(await screen.findByText('R-000001')).toBeInTheDocument()   // the returns of the customer, with their goods
+    expect(screen.getByText('Damaged / expired (apart)')).toBeInTheDocument()
   })
 
   it('says when the customer is not found', async () => {
-    const admin = { customer: vi.fn().mockRejectedValue(new Error('404')), customerHistory: vi.fn().mockResolvedValue({ visits: [], orders: [] }), customerPayments: vi.fn().mockResolvedValue([]), customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [] }), customerSamples: vi.fn().mockResolvedValue([]), customerFollowUps: vi.fn().mockResolvedValue([]) } as unknown as AdminApi
+    const admin = { customer: vi.fn().mockRejectedValue(new Error('404')), customerHistory: vi.fn().mockResolvedValue({ visits: [], orders: [] }), customerPayments: vi.fn().mockResolvedValue([]), customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [] }), customerSamples: vi.fn().mockResolvedValue([]), customerFollowUps: vi.fn().mockResolvedValue([]), returns: vi.fn().mockResolvedValue([]) } as unknown as AdminApi
     render(<CustomerFilePage admin={admin} customerId={id} me={me} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('not found')
   })
@@ -57,6 +60,7 @@ describe('customer file', () => {
       customerBalance: vi.fn().mockResolvedValue({ customerId: id, items: [] }),
       customerSamples: vi.fn().mockResolvedValue([]),
       customerFollowUps: vi.fn().mockResolvedValue([]),
+      returns: vi.fn().mockResolvedValue([]),
       customers: vi.fn().mockResolvedValue([]),
       users: vi.fn().mockResolvedValue([]),
       createFollowUp,

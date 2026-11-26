@@ -20,6 +20,8 @@ export function NotificationsPage({ admin, me, onChanged }: { admin: AdminApi; m
   const text = (n: Notification) =>
     n.kind === 'tracking.stopped'
       ? t('app.push.trackingStopped')
+      : n.kind === 'return.new' || n.kind === 'return.decided'
+      ? t(n.kind === 'return.new' ? 'web.notifications.returnNew' : 'web.notifications.returnDecided', { actor: n.actorEmail ?? t('web.notifications.someone') })
       : n.kind === 'customer.owner_changed'
       ? t('web.notifications.ownerChanged', { count: n.entityId, actor: n.actorEmail ?? t('web.notifications.someone') })
       : n.kind === 'team.shift_stopped'

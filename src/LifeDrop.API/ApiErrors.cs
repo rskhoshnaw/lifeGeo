@@ -26,6 +26,8 @@ public static class ApiErrors
     public const string CustomerNotApproved = "CUSTOMER_NOT_APPROVED";
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
     public const string OutOfStock = "OUT_OF_STOCK";
+    // A return asks for more of a product than the order delivered (minus what other returns of it already take; plan step 5.54).
+    public const string ReturnTooMuch = "RETURN_TOO_MUCH";
     public const string WrongPassword = "WRONG_PASSWORD";
     public const string OrderRequired = "ORDER_REQUIRED";
     public const string DuplicateName = "DUPLICATE_NAME";

@@ -329,3 +329,10 @@ html {
   border: 3px solid #e2e8f0;
   border-radius: 8px;
 }
+
+/* Owner request 2026-11-27: the information on every page is centred (tables, headings, details, messages). Forms keep their natural alignment; !important wins over the
+   per-table `text-start` utilities so no page needs editing one by one. */
+main table th,
+main table td { text-align: center !important; }
+main h2, main h3, main h4, main dt, main dd, main li, main p { text-align: center; }
+main dl > div { justify-content: center; }

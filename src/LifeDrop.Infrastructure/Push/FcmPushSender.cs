@@ -99,6 +99,8 @@ public sealed class FcmPushSender : IPushSender
         "tracking.stopped" => "push_tracking_stopped",
         "customer.owner_changed" => "push_customer_owner_changed",
         "team.shift_stopped" => "push_team_shift_stopped",
+        "return.new" => "push_return_new",
+        "return.decided" => "push_return_decided",
         "feedback.new" => "push_feedback_new",
         "feedback.reply" => "push_feedback_reply",
         _ => null
