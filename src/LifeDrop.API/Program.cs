@@ -96,6 +96,8 @@ public partial class Program
         builder.Services.AddScoped<LifeDrop.Application.Payments.PaymentService>();
         builder.Services.AddScoped<LifeDrop.Application.Returns.IReturnStore, LifeDrop.Infrastructure.Returns.PostgresReturnStore>();
         builder.Services.AddScoped<LifeDrop.Application.Returns.ReturnService>();
+        builder.Services.AddScoped<LifeDrop.Application.Transfers.ITransferStore, LifeDrop.Infrastructure.Transfers.PostgresTransferStore>();
+        builder.Services.AddScoped<LifeDrop.Application.Transfers.TransferService>();
         builder.Services.AddScoped<LifeDrop.Application.Samples.ISampleStore, LifeDrop.Infrastructure.Samples.PostgresSampleStore>();
         builder.Services.AddScoped<LifeDrop.Application.Samples.SampleService>();
         builder.Services.AddScoped<LifeDrop.Application.FollowUps.IFollowUpStore, LifeDrop.Infrastructure.FollowUps.PostgresFollowUpStore>();
@@ -804,6 +806,7 @@ public partial class Program
         LifeDrop.API.Endpoints.DoctorImportEndpoints.MapDoctorImportEndpoints(app);
         LifeDrop.API.Endpoints.PaymentEndpoints.MapPaymentEndpoints(app);
         LifeDrop.API.Endpoints.ReturnEndpoints.MapReturnEndpoints(app);
+        LifeDrop.API.Endpoints.TransferEndpoints.MapTransferEndpoints(app);
         LifeDrop.API.Endpoints.SampleEndpoints.MapSampleEndpoints(app);
         LifeDrop.API.Endpoints.FollowUpEndpoints.MapFollowUpEndpoints(app);
         LifeDrop.API.Endpoints.AlertEndpoints.MapAlertEndpoints(app);

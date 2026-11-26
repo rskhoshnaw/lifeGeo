@@ -344,6 +344,7 @@ public sealed class VisitLifecycle
         VisitActionResult.CustomerNotApproved => "app.result.CustomerNotApproved",
         VisitActionResult.OutOfStock => "app.result.OutOfStock",
         VisitActionResult.ReturnTooMuch => "app.result.ReturnTooMuch",
+        VisitActionResult.WarehouseNotAllowed => "app.result.WarehouseNotAllowed",
         VisitActionResult.WrongPassword => "app.result.WrongPassword",
         VisitActionResult.InvalidData => "app.result.InvalidData",
         VisitActionResult.OutsideGeofence => "app.result.OutsideGeofence",

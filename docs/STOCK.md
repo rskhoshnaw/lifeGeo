@@ -20,3 +20,6 @@
 
 ## Damaged bucket (5.56)
 `warehouse_damaged_stock` holds damaged and expired goods per warehouse; it is not sold and not counted in `quantity`.
+
+## Transfers between warehouses (5.60)
+Goods move from one company warehouse to another in two steps (send, confirm receipt); sellable and damaged goods keep their kind; a smaller quantity at arrival is written on the line; the sender can cancel before arrival. See the access matrix for the endpoints.

@@ -18,6 +18,7 @@ import { ReportsPage } from './pages/ReportsPage.tsx'
 import { FormsPage } from './pages/FormsPage.tsx'
 import { isTvOnly, TvPage } from './pages/TvPage.tsx'
 import { ReturnsPage } from './pages/ReturnsPage.tsx'
+import { TransfersPage } from './pages/TransfersPage.tsx'
 import { CustomerFilePage, customerIdFromHash } from './pages/CustomerFilePage.tsx'
 import { PlatformPage } from './pages/PlatformPage.tsx'
 import { RouteHistoryPage } from './pages/RouteHistoryPage.tsx'
@@ -36,7 +37,7 @@ import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'returns' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'feedback' | 'account'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'returns' | 'transfers' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'feedback' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -130,6 +131,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'orders', label: t('web.tab.orders'), visible: shows('orders') && can(me, ...Permissions.orders) },
     { id: 'payments', label: t('web.tab.payments'), visible: shows('payments') && can(me, ...Permissions.payments) },
     { id: 'returns', label: t('web.tab.returns'), visible: shows('orders') && can(me, ...Permissions.returns) },
+    { id: 'transfers', label: t('web.tab.transfers'), visible: shows('orders') && can(me, ...Permissions.manageWarehouses, ...Permissions.warehouseWork) },
     { id: 'samples', label: t('web.tab.samples'), visible: shows('samples') && can(me, ...Permissions.samples) },
     { id: 'followups', label: t('web.tab.followups'), visible: shows('followups') && can(me, ...Permissions.followUps) },
     { id: 'alerts', label: alertCount > 0 ? `${t('web.tab.alerts')} (${alertCount})` : t('web.tab.alerts'), visible: canAlerts },
@@ -175,6 +177,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && !fileOf && tab === 'orders' && <OrdersPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'payments' && <PaymentsPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'returns' && <ReturnsPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'transfers' && <TransfersPage admin={admin} />}
       {me && !fileOf && tab === 'samples' && <SamplesPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'followups' && <FollowUpsPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'alerts' && <AlertsPage admin={admin} me={me} onChanged={refreshAlerts} />}

@@ -26,6 +26,10 @@ public static class ApiErrors
     public const string CustomerNotApproved = "CUSTOMER_NOT_APPROVED";
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
     public const string OutOfStock = "OUT_OF_STOCK";
+    // A transfer asks for more goods than the sending warehouse holds (plan step 5.60).
+    public const string TransferTooMuch = "TRANSFER_TOO_MUCH";
+    // The warehouse of an order is not in the sender's cities (plan step 5.59; the phone shows a clear message for an order kept offline).
+    public const string WarehouseNotAllowed = "WAREHOUSE_NOT_ALLOWED";
     // A return asks for more of a product than the order delivered (minus what other returns of it already take; plan step 5.54).
     public const string ReturnTooMuch = "RETURN_TOO_MUCH";
     // A refund asks for more money than the customer has coming back (plan step 5.55).

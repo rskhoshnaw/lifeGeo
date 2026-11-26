@@ -116,6 +116,11 @@ public class ProductsTests
         var stock = Client2(new Handler(_ => Json(HttpStatusCode.Conflict, """{"code":"OUT_OF_STOCK"}""")));
         Assert.Equal(VisitActionResult.OutOfStock, (await stock.PlaceAsync(Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), null, new[] { new OrderLineInput(product, 1m) })).Result);
         Assert.Contains("out of stock", VisitLifecycle.Describe(VisitActionResult.OutOfStock));   // the tests run in English
+
+        // Step 5.60: an order kept offline whose warehouse is no longer in the user's cities is refused with a clear reason
+        var city = Client2(new Handler(_ => Json(HttpStatusCode.Conflict, """{"code":"WAREHOUSE_NOT_ALLOWED"}""")));
+        Assert.Equal(VisitActionResult.WarehouseNotAllowed, (await city.PlaceAsync(Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), null, new[] { new OrderLineInput(product, 1m) }, default, offline: true)).Result);
+        Assert.Contains("not in your cities", VisitLifecycle.Describe(VisitActionResult.WarehouseNotAllowed));
     }
 
     private static OrdersApiClient Client2(Handler handler) => new(new HttpClient(handler) { BaseAddress = new Uri("https://api.test") }, new Session());
