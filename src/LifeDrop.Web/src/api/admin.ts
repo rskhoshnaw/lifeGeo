@@ -381,6 +381,7 @@ const placeBody = (place: WarehousePlace) => ({
   ...(place.cityId ? { cityId: place.cityId } : {}),
   ...(place.address ? { address: place.address } : {}),
   ...(place.phone ? { phone: place.phone } : {}),
+  ...(place.customerId ? { customerId: place.customerId } : {}),
 })
 export interface Warehouse {
   id: string
@@ -392,6 +393,9 @@ export interface Warehouse {
   cityName?: string | null
   address?: string | null
   phone?: string | null
+  // Step 5.59: the customer (of type Wholesaler) this wholesaler warehouse is.
+  customerId?: string | null
+  customerName?: string | null
 }
 // The stock of one product in one warehouse (counted false = nobody set it yet, quantity 0).
 export interface WarehouseStockRow {
@@ -416,6 +420,7 @@ export interface WarehousePlace {
   cityId?: string | null
   address?: string | null
   phone?: string | null
+  customerId?: string | null
 }
 export interface Wholesaler {
   id: string
@@ -1400,6 +1405,10 @@ export class AdminApi {
   createWarehouse = (code: string, name: string, kind: 'company' | 'wholesaler' = 'company', place: WarehousePlace = {}) =>
     this.post('/warehouses', { code, name, ...(kind === 'company' ? {} : { kind }), ...placeBody(place) })
   updateWarehouse = (id: string, name: string, status: 'active' | 'inactive', place: WarehousePlace = {}) => this.send('PUT', `/warehouses/${id}`, { name, status, ...placeBody(place) })
+  // Step 5.59: the cities a sales person works in (empty = all warehouses are offered), and the warehouses an order may go to.
+  userCities = (userId: string) => this.get<string[]>(`/users/${userId}/cities`)
+  setUserCities = (userId: string, cityIds: string[]) => this.send('PUT', `/users/${userId}/cities`, { cityIds })
+  warehousesForOrder = () => this.get<Warehouse[]>('/warehouses/for-order')
   // Stock per warehouse and product (the managers: all warehouses; a warehouse worker: his own).
   warehouseStock = () => this.get<WarehouseStockRow[]>('/warehouses/stock')
   setWarehouseStock = (warehouseId: string, productId: string, quantity: number) => this.send('PUT', `/warehouses/${warehouseId}/stock/${productId}`, { quantity })

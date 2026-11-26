@@ -781,3 +781,7 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /warehouses/{w}/stock/{p}/write-off` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity, reason, note?}` moves sellable stock into the warehouse's damaged bucket; 409 when more than in stock. |
 | `PUT /warehouses/{w}/damaged/{p}` (5.56) | `warehouses.manage` or `warehouse.work` (own warehouse) | `{quantity}` sets the damaged bucket (after the goods were thrown away). |
 | Picture uploads (5.58): `PUT /products/{id}/photo`, `POST /feedback/{id}/photos`, `POST /returns/{id}/photos` | as before | Extra limit `upload`: 30 per minute per signed-in session (`RateLimit:UploadsPerMinute`, 3..1000); 429 beyond it. |
+| `GET /warehouses/for-order` (5.59) | `orders.create` | Active warehouses without a city or in a city of the caller (`user_cities`; none = all). Items carry `kind`, `customerId`, `customerName`. |
+| `GET /users/{id}/cities` (5.59) | `user.manageroles` / `system.admin`, or the user himself | City ids. |
+| `PUT /users/{id}/cities` (5.59) | `user.manageroles` / `system.admin` | `{cityIds}` replaces the list (cities only, at most 100); 400 not a city; 404 no user. Audit `user.cities_set`. |
+| `POST/PUT /warehouses` `customerId` (5.59) | `warehouses.manage` | Only for `kind: wholesaler`: a live customer of type `Wholesaler`, one warehouse per customer (400 other type / company warehouse, 404 unknown, 409 taken). `POST /orders` to a warehouse outside the caller's cities: 400. |

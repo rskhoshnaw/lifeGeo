@@ -49,4 +49,18 @@ describe('user editor (plan step 4.37)', () => {
     render(<UserEditor user={user} roles={roles} self admin={{} as AdminApi} onClose={() => {}} onChanged={() => {}} />)
     expect(screen.queryByRole('button', { name: /Remove role/ })).toBeNull()
   })
+  it('chooses the cities a sales person orders from and saves them (step 5.59)', async () => {
+    const places = vi.fn().mockResolvedValue([{ id: 'c1', name: 'Erbil' }, { id: 'c2', name: 'Basra' }])
+    const userCities = vi.fn().mockResolvedValue(['c1'])
+    const setUserCities = vi.fn().mockResolvedValue(undefined)
+    render(<UserEditor user={user} roles={roles} self={false} admin={{ places, userCities, setUserCities } as unknown as AdminApi} onClose={() => {}} onChanged={() => {}} />)
+    const erbil = await screen.findByRole('checkbox', { name: 'Erbil' })
+    expect(erbil).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Basra' })).not.toBeChecked()
+    const save = screen.getByRole('button', { name: 'Save the order cities' })
+    expect(save).toBeDisabled()                                   // nothing changed yet
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Basra' }))
+    await userEvent.click(save)
+    expect(setUserCities).toHaveBeenCalledWith('u1', ['c1', 'c2'])
+  })
 })

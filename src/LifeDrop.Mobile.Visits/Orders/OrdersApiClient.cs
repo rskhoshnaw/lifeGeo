@@ -7,7 +7,11 @@ using LifeDrop.Mobile.Auth.Models;
 
 namespace LifeDrop.Mobile.Visits;
 
-public sealed record OrderWarehouse(Guid Id, string Code, string Name);
+// Kind: company (our warehouse, prepared and delivered by our people) or wholesaler (a wholesaler customer that takes the order to the pharmacy itself); step 5.59.
+public sealed record OrderWarehouse(Guid Id, string Code, string Name, string Kind = "company")
+{
+    public bool IsWholesaler => Kind == "wholesaler";
+}
 
 // A product with the price this customer pays today, as the server works it out (general or city price, then the customer's discounts).
 // The app only shows it; the order carries no price, the server sets it again when the order is placed.
@@ -49,10 +53,10 @@ public sealed class OrdersApiClient : IOrdersApiClient
 
     public async Task<(VisitActionResult Result, IReadOnlyList<OrderWarehouse> Warehouses)> GetWarehousesAsync(CancellationToken cancellationToken = default)
     {
-        var (result, items) = await CallAsync<List<WarehouseDto>>(HttpMethod.Get, "/warehouses", null, cancellationToken);
+        var (result, items) = await CallAsync<List<WarehouseDto>>(HttpMethod.Get, "/warehouses/for-order", null, cancellationToken);   // only the warehouses and wholesalers of the user's cities (step 5.59)
         if (result != VisitActionResult.Success) return (result, Array.Empty<OrderWarehouse>());
         if (items is null || items.Any(w => w is null || w.Id == Guid.Empty || string.IsNullOrWhiteSpace(w.Name))) return (VisitActionResult.ServerError, Array.Empty<OrderWarehouse>());
-        return (result, items.Select(w => new OrderWarehouse(w.Id, w.Code ?? "", w.Name!)).ToList());
+        return (result, items.Select(w => new OrderWarehouse(w.Id, w.Code ?? "", w.Name!, w.Kind ?? "company")).ToList());
     }
 
     public async Task<(VisitActionResult Result, IReadOnlyList<PricedProduct> Products)> GetPricesAsync(Guid customerId, DateOnly day, CancellationToken cancellationToken = default)
@@ -80,7 +84,7 @@ public sealed class OrdersApiClient : IOrdersApiClient
     private Task<(VisitActionResult Result, T? Data)> CallAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
         _http.CallAsync<T>(method, path, body, cancellationToken);
 
-    private sealed record WarehouseDto(Guid Id, string? Code, string? Name);
+    private sealed record WarehouseDto(Guid Id, string? Code, string? Name, string? Kind = null);
     private sealed record PriceDto(Guid ProductId, string? Code, string? Name, string? NameCkb, string? NameAr, string? NameEn, string? Unit, string? Currency, decimal ListPrice, decimal Price, bool PricesHidden, bool Available = true);
     private sealed record PlacedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed, bool PricesHidden, List<string>? StockWarnings = null);
 }

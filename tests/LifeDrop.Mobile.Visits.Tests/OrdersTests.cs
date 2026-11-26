@@ -200,6 +200,12 @@ public class OrdersTests
         var warehouses = Client(new Handler(_ => Json(HttpStatusCode.OK, """[{"id":"22222222-2222-2222-2222-222222222222","code":"W1","name":"Erbil"}]""")));
         Assert.Equal("Erbil", (await warehouses.GetWarehousesAsync()).Warehouses.Single().Name);
 
+        // Step 5.59: the list comes from /warehouses/for-order (the user's cities) and tells a wholesaler from a company warehouse
+        var seen = new Handler(_ => Json(HttpStatusCode.OK, """[{"id":"22222222-2222-2222-2222-222222222222","code":"W1","name":"Erbil"},{"id":"33333333-3333-3333-3333-333333333333","code":"WS","name":"Karwan","kind":"wholesaler"}]"""));
+        var list = (await Client(seen).GetWarehousesAsync()).Warehouses;
+        Assert.Equal("/warehouses/for-order", seen.Last!.RequestUri!.AbsolutePath);
+        Assert.Equal(new[] { false, true }, list.Select(w => w.IsWholesaler).ToArray());
+
         var broken = Client(new Handler(_ => Json(HttpStatusCode.OK, """[{"productId":"00000000-0000-0000-0000-000000000000","code":"","currency":""}]""")));
         Assert.Equal(VisitActionResult.ServerError, (await broken.GetPricesAsync(Guid.NewGuid(), new DateOnly(2026, 10, 6))).Result);
     }
