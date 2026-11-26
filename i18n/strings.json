@@ -11746,5 +11746,83 @@
   "ckb": "مرجوعی بیشتر دەخوازێت لەوەی گەیەندراوە (کەمکراوە بە گەڕاوەکانی تر).",
   "ar": "المرتجع يطلب أكثر مما سُلّم (بعد خصم المرتجعات الأخرى).",
   "fa": "مرجوعی بیشتر از تحویل‌شدهٔ سفارش است (منهای مرجوعی‌های دیگر)."
+ },
+ "web.payments.refund": {
+  "en": "Refund: money paid back to the customer",
+  "ckb": "گەڕاندنەوەی پارە بۆ کڕیار",
+  "ar": "استرداد: مال يُدفع للعميل",
+  "fa": "بازپرداخت: پول پرداختی به مشتری"
+ },
+ "web.payments.refundCheck": {
+  "en": "Refund (money back to the customer)",
+  "ckb": "گەڕاندنەوەی پارە (بۆ کڕیار)",
+  "ar": "استرداد (مال للعميل)",
+  "fa": "بازپرداخت (پول به مشتری)"
+ },
+ "web.payments.refundMark": {
+  "en": "Refund −",
+  "ckb": "گەڕاندنەوە −",
+  "ar": "استرداد −",
+  "fa": "بازپرداخت −"
+ },
+ "web.error.refundTooMuch": {
+  "en": "The customer has less than that coming back (approved returns + payments − refunds − deliveries).",
+  "ckb": "کڕیار کەمتر لەوە ماوەتەوە بۆ گەڕاندنەوە (گەڕاوە پەسەندکراوەکان + پارەدان − گەڕاندنەوە − گەیاندن).",
+  "ar": "العميل لديه أقل من ذلك مستحقاً (مرتجعات موافق عليها + دفعات − استردادات − تسليمات).",
+  "fa": "طلب مشتری کمتر از این مبلغ است (مرجوعی‌های تأییدشده + پرداخت‌ها − بازپرداخت‌ها − تحویل‌ها)."
+ },
+ "web.returns.photoAlt": {
+  "en": "Photo {number} of the goods",
+  "ckb": "وێنەی {number}ی کاڵا",
+  "ar": "صورة {number} للبضاعة",
+  "fa": "عکس {number} کالا"
+ },
+ "app.return.order": {
+  "en": "Order the goods come from",
+  "ckb": "داواکارییەک کە کاڵاکان لێی دێن",
+  "ar": "الطلب الذي جاءت منه البضاعة",
+  "fa": "سفارشی که کالا از آن است"
+ },
+ "app.return.noOrder": {
+  "en": "No order (today's price)",
+  "ckb": "بێ داواکاری (نرخی ئەمڕۆ)",
+  "ar": "بدون طلب (سعر اليوم)",
+  "fa": "بدون سفارش (قیمت امروز)"
+ },
+ "app.return.delivered": {
+  "en": "delivered {quantity}",
+  "ckb": "گەیەندراو {quantity}",
+  "ar": "المسلّم {quantity}",
+  "fa": "تحویل‌شده {quantity}"
+ },
+ "app.return.photoTake": {
+  "en": "Take a photo",
+  "ckb": "وێنە بگرە",
+  "ar": "التقاط صورة",
+  "fa": "عکس بگیرید"
+ },
+ "app.return.photoPick": {
+  "en": "Choose a photo",
+  "ckb": "وێنە هەڵبژێرە",
+  "ar": "اختر صورة",
+  "fa": "انتخاب عکس"
+ },
+ "app.return.photosAdded": {
+  "en": "Photos: {count} of {max}",
+  "ckb": "وێنە: {count} لە {max}",
+  "ar": "الصور: {count} من {max}",
+  "fa": "عکس‌ها: {count} از {max}"
+ },
+ "app.return.photoFailed": {
+  "en": "The return was sent but {count} photo(s) could not be sent.",
+  "ckb": "گەڕاوەکە نێردرا بەڵام {count} وێنە نەنێردرا.",
+  "ar": "تم إرسال المرتجع لكن تعذر إرسال {count} صورة.",
+  "fa": "مرجوعی ارسال شد اما {count} عکس ارسال نشد."
+ },
+ "app.return.orderFailed": {
+  "en": "The order could not be read.",
+  "ckb": "داواکارییەکە نەخوێندرایەوە.",
+  "ar": "تعذرت قراءة الطلب.",
+  "fa": "سفارش خوانده نشد."
  }
 }

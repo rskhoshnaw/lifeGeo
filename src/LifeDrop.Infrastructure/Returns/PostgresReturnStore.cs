@@ -237,7 +237,20 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
                     reader.GetDecimal(8), reader.GetString(9), reader.GetString(10), reader.IsDBNull(11) ? null : reader.GetBoolean(11)));
             }
         }
-        return items.Select(i => i with { Items = lines.GetValueOrDefault(i.Id) ?? [] }).ToList();
+        var photos = new Dictionary<Guid, List<Guid>>();
+        await using (var command = new NpgsqlCommand("SELECT return_id, id FROM return_photos WHERE tenant_id = @tenant AND return_id = ANY(@ids) ORDER BY created_at, id", connection, transaction))
+        {
+            command.Parameters.AddWithValue("tenant", tenantId.Value);
+            command.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = items.Select(i => i.Id).ToArray() });
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var id = reader.GetGuid(0);
+                if (!photos.TryGetValue(id, out var list)) photos[id] = list = [];
+                list.Add(reader.GetGuid(1));
+            }
+        }
+        return items.Select(i => i with { Items = lines.GetValueOrDefault(i.Id) ?? [], PhotoIds = photos.GetValueOrDefault(i.Id) ?? [] }).ToList();
     }
 
     public async Task<ReturnResult> ApproveAsync(TenantId tenantId, UserId actorId, Guid returnId, string? note, CancellationToken cancellationToken)
@@ -336,6 +349,45 @@ public sealed class PostgresReturnStore(NpgsqlDataSource dataSource) : IReturnSt
         notify.Parameters.AddWithValue("actor", actorId.Value);
         notify.Parameters.AddWithValue("id", returnId);
         await notify.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<ReturnResult> AddPhotoAsync(TenantId tenantId, UserId author, Guid returnId, string contentType, byte[] data, int maxPhotos, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, author, cancellationToken);
+        var locked = await LockAsync(connection, transaction, tenantId, returnId, cancellationToken);
+        if (locked is null) return ReturnResult.NotFound;
+        if (locked.Value.Author != author.Value) return ReturnResult.Forbidden;
+        if (locked.Value.Status != "requested") return ReturnResult.Conflict;
+        await using (var count = new NpgsqlCommand("SELECT count(*) FROM return_photos WHERE tenant_id = @tenant AND return_id = @id", connection, transaction))
+        {
+            count.Parameters.AddWithValue("tenant", tenantId.Value);
+            count.Parameters.AddWithValue("id", returnId);
+            if (Convert.ToInt32(await count.ExecuteScalarAsync(cancellationToken)) >= maxPhotos) return ReturnResult.TooManyPhotos;
+        }
+        await using (var insert = new NpgsqlCommand("INSERT INTO return_photos (tenant_id, return_id, content_type, data) VALUES (@tenant, @id, @type, @data)", connection, transaction))
+        {
+            insert.Parameters.AddWithValue("tenant", tenantId.Value);
+            insert.Parameters.AddWithValue("id", returnId);
+            insert.Parameters.AddWithValue("type", contentType);
+            insert.Parameters.Add(new NpgsqlParameter("data", NpgsqlDbType.Bytea) { Value = data });
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await AuditAsync(connection, transaction, tenantId, author, "return.photo_added", returnId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ReturnResult.Success;
+    }
+
+    public async Task<ReturnPhoto?> GetPhotoAsync(TenantId tenantId, UserId actorId, ReturnView view, Guid? regionId, Guid returnId, Guid photoId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand($"SELECT p.content_type, p.data {Joins} JOIN return_photos p ON p.tenant_id = r.tenant_id AND p.return_id = r.id WHERE r.tenant_id = @tenant AND r.id = @id AND p.id = @photo AND {ViewFilter(view)}", connection, transaction);
+        AddFilters(command, tenantId, actorId, regionId);
+        command.Parameters.AddWithValue("id", returnId);
+        command.Parameters.AddWithValue("photo", photoId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? new ReturnPhoto(reader.GetString(0), reader.GetFieldValue<byte[]>(1)) : null;
     }
 
     public async Task<IReadOnlyList<DamagedGoodsDto>> DamagedAsync(TenantId tenantId, UserId actorId, ReturnView view, Guid? regionId, DateOnly from, DateOnly to, CancellationToken cancellationToken)

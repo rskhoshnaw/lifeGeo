@@ -564,6 +564,7 @@ export interface Payment {
   closedReason: string | null
   createdAt: string
   history?: PaymentStep[] | null
+  direction?: 'in' | 'out'
 }
 export interface NewPaymentInput {
   customerId: string
@@ -574,6 +575,8 @@ export interface NewPaymentInput {
   reference: string | null
   note: string | null
   clientRef: string
+  // "out" = a refund, money paid back to the customer (finance manager, step 5.55).
+  direction?: 'in' | 'out'
 }
 export interface BalanceItem {
   currency: string
@@ -582,6 +585,7 @@ export interface BalanceItem {
   collected: number
   balance: number
   returned?: number
+  refunded?: number
 }
 // Customer returns (step 5.54). Destination: warehouse (back on the shelf) or damaged (damaged/expired goods, counted apart). Status: requested, approved, rejected, cancelled.
 export type ReturnReason = 'damaged' | 'expired' | 'wrong_item' | 'customer_request' | 'other'
@@ -622,6 +626,7 @@ export interface CustomerReturn {
   createdAt: string
   items: ReturnLine[]
   pricesHidden?: boolean
+  photoIds?: string[]
 }
 export interface NewReturnInput {
   customerId: string
@@ -1260,6 +1265,7 @@ export function errorMessage(error: unknown): string {
       if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
       if (error.code === 'OUT_OF_STOCK') return t('web.error.outOfStock')
       if (error.code === 'RETURN_TOO_MUCH') return t('web.error.returnTooMuch')
+      if (error.code === 'REFUND_TOO_MUCH') return t('web.error.refundTooMuch')
       return t('web.error.conflict')
     case 429:
       return t('web.error.tooMany')
@@ -1563,6 +1569,12 @@ export class AdminApi {
   approveReturn = (id: string, note: string | null) => this.post(`/returns/${id}/approve`, { note })
   rejectReturn = (id: string, reason: string) => this.post(`/returns/${id}/reject`, { note: reason })
   cancelReturn = (id: string, reason: string) => this.post(`/returns/${id}/cancel`, { note: reason })
+  // A picture of the goods of a return needs the sign-in, so it is fetched with it and shown from a local address (the page revokes it when it is done).
+  returnPhotoUrl = async (id: string, photoId: string): Promise<string> => {
+    const response = await this.api.request(`/returns/${id}/photos/${photoId}`)
+    if (!response.ok) throw await toError(response)
+    return URL.createObjectURL(await response.blob())
+  }
   damagedGoods = (from: string, to: string) => this.get<DamagedGoods[]>(`/returns/damaged?from=${from}&to=${to}`)
   customer = (customerId: string) => this.get<Customer>(`/customers/${customerId}`)
   customerPayments = (customerId: string) => this.get<Payment[]>(`/payments?limit=100&customerId=${customerId}`)

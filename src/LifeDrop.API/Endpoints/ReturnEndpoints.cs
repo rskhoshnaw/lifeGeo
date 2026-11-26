@@ -51,6 +51,39 @@ public static class ReturnEndpoints
             .WithName("GetReturn").WithTags("Returns").Produces<ReturnDto>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // A picture of the goods is the raw body (image/jpeg, image/png or image/webp, at most 3 MB); only the author adds them, three at most, while the return is requested.
+        app.MapPost("/returns/{returnId:guid}/photos", async (Guid returnId, HttpContext context, ReturnService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            if (context.Request.ContentLength > ReturnService.MaxPhotoBytes) return ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[81920];
+            int read;
+            while ((read = await context.Request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+            {
+                if (buffer.Length + read > ReturnService.MaxPhotoBytes) return ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData);
+                buffer.Write(chunk, 0, read);
+            }
+            var result = await service.AddPhotoAsync(tenantId, actorId, returnId, context.Request.ContentType, buffer.ToArray(), cancellationToken);
+            return result == ReturnResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("AddReturnPhoto").WithTags("Returns").Accepts<byte[]>("image/jpeg", "image/png", "image/webp").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapGet("/returns/{returnId:guid}/photos/{photoId:guid}", async (Guid returnId, Guid photoId, HttpContext context, ReturnService service, DatabaseSecurityState securityState,
+            CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, photo) = await service.GetPhotoAsync(tenantId, actorId, returnId, photoId, cancellationToken);
+            if (result != ReturnResult.Success) return ToError(result);
+            context.Response.Headers.CacheControl = "private, max-age=86400";
+            return Results.File(photo!.Data, photo.ContentType);
+        }).RequireAuthorization()
+            .WithName("GetReturnPhoto").WithTags("Returns").Produces(200, contentType: "image/jpeg")
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         app.MapPost("/returns/{returnId:guid}/approve", async (Guid returnId, DecideReturnRequest request, HttpContext context, ReturnService service, DatabaseSecurityState securityState,
             CancellationToken cancellationToken) =>
         {
@@ -104,6 +137,7 @@ public static class ReturnEndpoints
         ReturnResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         ReturnResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
         ReturnResult.TooMuch => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.ReturnTooMuch),
+        ReturnResult.TooManyPhotos => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.TooManyPhotos),
         ReturnResult.CurrencyMismatch => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CurrencyMismatch),
         _ => Results.Forbid()
     };

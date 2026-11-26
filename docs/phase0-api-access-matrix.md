@@ -767,3 +767,13 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /returns/{id}/cancel` | `returns.create`, only the author, only while `requested` | `{note}` required; 204; 403 for another user; 409 when decided. Audit `return.cancelled`. |
 | `GET /returns/damaged?from=&to=` | `returns.read` (scope) | Approved lines with destination `damaged`, per product, reason and currency (Iraq days, at most 366). |
 | `GET /customers/{id}/balance` | as before | Items carry `returned` (approved returns); `balance = delivered − returned − confirmed`. |
+
+## Return photos and refunds (step 5.55, migration 0080)
+
+| Route | Permission / rule | Notes |
+| --- | --- | --- |
+| `POST /returns/{id}/photos` | `returns.create`, only the author, only while `requested` | Raw body `image/jpeg`, `image/png` or `image/webp`, 1 byte - 3 MB; 204; 400 other type/size; 403 not the author; 404; 409 `CONFLICT` (decided) or `TOO_MANY_PHOTOS` (3 already). Audit `return.photo_added`. |
+| `GET /returns/{id}/photos/{photoId}` | the scope of the return | The bytes, `Cache-Control: private`; 404 outside the scope. `ReturnDto.photoIds` lists them. |
+| `POST /payments` with `direction: "out"` | `payments.manage` (else 403), no `orderId` (400) | A refund: recorded as `confirmed`; 409 `REFUND_TOO_MUCH` when more than the customer's credit (approved returns + confirmed payments in − refunds − delivered, same currency). `PaymentDto.direction`. |
+| `POST /payments/{id}/void`, `/correct` | as before | A refund can be voided; correcting one is 409. |
+| `GET /customers/{id}/balance` | as before | Items carry `refunded`; `balance = delivered − returned − confirmed + refunded`. |

@@ -63,3 +63,5 @@ GRANT SELECT ON legacy_stock_backup TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON returns TO lifedrop_app;
 GRANT SELECT, INSERT ON return_items TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON return_counters TO lifedrop_app;
+-- Step 5.55: pictures of the goods on a return (only added and read).
+GRANT SELECT, INSERT ON return_photos TO lifedrop_app;

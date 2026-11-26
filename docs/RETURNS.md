@@ -14,4 +14,10 @@
 
 **Where:** panel tab *Returns* (list, approve/reject, new return with order and warehouse, damaged goods of a period) and the customer's file (section and button); app home *Returns* (my returns, new return, cancel) and the *Return goods* button on a customer.
 
-**Not built (decide if needed):** returns against an order from the app (the app uses today's price; the panel can pick the order), a separate "damaged goods" warehouse, refunding money (the balance only goes down), photos of the damaged goods.
+**Against an order from the app (step 5.55):** *Return goods* offers the customer's delivered orders; with one chosen the products are its lines (with what was delivered) and the credit uses its prices; without one, today's price of the customer is used.
+
+**Pictures (step 5.55):** up to three photos of the goods (made smaller on the phone first), added by the author right after sending, while the return waits (`POST /returns/{id}/photos`, raw JPEG/PNG/WEBP, at most 3 MB). The manager sees them under the return (panel, customer file) before deciding.
+
+**Refunds — money back to the customer (step 5.55):** when approved returns and payments are more than was delivered, the customer is owed money. The **finance manager** records it in *Payments* (tick *Refund*), or from the customer's file: a confirmed payment with direction *out*, never against an order, at most the customer's credit (`REFUND_TOO_MUCH` otherwise; the credit is approved returns + confirmed payments − refunds − delivered, per currency). It is voided like any payment, never corrected. The balance counts it: `Balance = Delivered − Returned − Confirmed + Refunded`.
+
+**Not built (decide if needed):** a separate "damaged goods" warehouse (they are recorded and reported, not stocked), partial approval of a return line (approve all or reject all).

@@ -10,8 +10,17 @@ public sealed record ReturnLineItem(Guid ProductId, string ProductName, string U
 public sealed record MyReturn(Guid Id, string Number, string CustomerName, string Status, string Currency, decimal Total, bool PricesHidden, string? DecisionNote, DateTimeOffset CreatedAt,
     IReadOnlyList<ReturnLineItem> Lines);
 
+// A delivered order of the customer that goods can come back from (plan step 5.55), and one of its lines with what was delivered.
+public sealed record ReturnableOrder(Guid Id, string Number, DateTimeOffset CreatedAt, string Currency, decimal Total, bool PricesHidden);
+public sealed record ReturnableLine(Guid ProductId, string Code, string Name, string Unit, decimal Delivered);
+
 public interface IReturnsApiClient
 {
+    // The delivered orders of the customer, newest first (50). The lines come with GetOrderLinesAsync.
+    Task<(VisitActionResult Result, IReadOnlyList<ReturnableOrder> Orders)> ListDeliveredOrdersAsync(Guid customerId, CancellationToken cancellationToken = default);
+    Task<(VisitActionResult Result, IReadOnlyList<ReturnableLine> Lines)> GetOrderLinesAsync(Guid orderId, CancellationToken cancellationToken = default);
+    // A picture of the goods (JPEG, PNG or WEBP, at most 3 MB; three per return), added by the author while the return waits for approval.
+    Task<VisitActionResult> AddPhotoAsync(Guid returnId, byte[] data, string contentType, CancellationToken cancellationToken = default);
     // ClientRef stays the same for every retry of one return, so a lost answer never makes two returns. The warehouse is needed when a line goes back to a warehouse.
     Task<(VisitActionResult Result, CreatedReturn? Return)> CreateAsync(Guid customerId, Guid? orderId, Guid? warehouseId, Guid clientRef, string? note, IReadOnlyList<ReturnLineInput> lines,
         CancellationToken cancellationToken = default);
@@ -27,6 +36,29 @@ public sealed class ReturnsApiClient : IReturnsApiClient
     public ReturnsApiClient(HttpClient httpClient, IAuthSession session)
     {
         _http = new OrdersHttp(httpClient ?? throw new ArgumentNullException(nameof(httpClient)), session ?? throw new ArgumentNullException(nameof(session)));
+    }
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<ReturnableOrder> Orders)> ListDeliveredOrdersAsync(Guid customerId, CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await _http.CallAsync<List<OrderDto>>(HttpMethod.Get, $"/orders?customerId={customerId}&status=delivered&limit=50", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<ReturnableOrder>());
+        if (items is null || items.Any(o => o is null || o.Id == Guid.Empty || string.IsNullOrWhiteSpace(o.Number))) return (VisitActionResult.ServerError, Array.Empty<ReturnableOrder>());
+        return (result, items.Select(o => new ReturnableOrder(o.Id, o.Number!, o.CreatedAt, o.Currency ?? "", o.Total, o.PricesHidden)).ToList());
+    }
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<ReturnableLine> Lines)> GetOrderLinesAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var (result, order) = await _http.CallAsync<OrderDto>(HttpMethod.Get, $"/orders/{orderId}", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<ReturnableLine>());
+        if (order?.Items is null || order.Items.Any(l => l is null || l.ProductId == Guid.Empty)) return (VisitActionResult.ServerError, Array.Empty<ReturnableLine>());
+        return (result, order.Items.Select(l => new ReturnableLine(l.ProductId, l.ProductCode ?? "", l.ProductName ?? "", l.Unit ?? "", l.DeliveredQuantity ?? l.Quantity)).Where(l => l.Delivered > 0).ToList());
+    }
+
+    public async Task<VisitActionResult> AddPhotoAsync(Guid returnId, byte[] data, string contentType, CancellationToken cancellationToken = default)
+    {
+        var content = new ByteArrayContent(data);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        return (await _http.CallAsync<object>(HttpMethod.Post, $"/returns/{returnId}/photos", content, cancellationToken)).Result;
     }
 
     public async Task<(VisitActionResult Result, CreatedReturn? Return)> CreateAsync(Guid customerId, Guid? orderId, Guid? warehouseId, Guid clientRef, string? note, IReadOnlyList<ReturnLineInput> lines,
@@ -54,6 +86,8 @@ public sealed class ReturnsApiClient : IReturnsApiClient
     public async Task<VisitActionResult> CancelAsync(Guid returnId, string reason, CancellationToken cancellationToken = default) =>
         (await _http.CallAsync<object>(HttpMethod.Post, $"/returns/{returnId}/cancel", new { note = reason }, cancellationToken)).Result;
 
+    private sealed record OrderLineDto(Guid ProductId, string? ProductCode, string? ProductName, string? Unit, decimal Quantity, decimal? DeliveredQuantity);
+    private sealed record OrderDto(Guid Id, string? Number, string? Currency, decimal Total, bool PricesHidden, DateTimeOffset CreatedAt, List<OrderLineDto>? Items);
     private sealed record CreatedDto(Guid Id, string? Number, string? Currency, decimal Total, bool Replayed);
     private sealed record LineDto(Guid ProductId, string? ProductName, string? Unit, decimal Quantity, decimal LineTotal, string? Reason, string? Destination, bool? StockApplied);
     private sealed record ReturnDto(Guid Id, string? Number, string? CustomerName, string? Status, string? Currency, decimal Total, bool PricesHidden, string? DecisionNote, DateTimeOffset CreatedAt, List<LineDto>? Items);

@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AdminApi, can, iraqToday, Permissions, returnReasons, type CustomerReturn, type Me, type ReturnDestination, type ReturnReason } from '../api/admin.ts'
 import { Badge, type Tone } from '../components/Badge.tsx'
 import { useAction, useLoad } from '../components/useLoad.ts'
@@ -121,7 +121,7 @@ export function ReturnLinesTable({ r }: { r: CustomerReturn }) {
   )
 }
 
-function ReturnRow({ r, open, onToggle, onApprove, onReject, onCancel, busy }: {
+function ReturnRow({ admin, r, open, onToggle, onApprove, onReject, onCancel, busy }: {
   admin: AdminApi; r: CustomerReturn; me: Me; open: boolean; onToggle: () => void; onApprove?: () => void; onReject?: () => void; onCancel?: () => void; busy: boolean
 }) {
   const requested = r.status === 'requested'
@@ -148,6 +148,7 @@ function ReturnRow({ r, open, onToggle, onApprove, onReject, onCancel, busy }: {
             {r.orderNumber && <p className="mb-1 text-xs text-slate-600">{t('web.returns.order')}: {r.orderNumber}{r.warehouseName ? ` · ${r.warehouseName}` : ''}</p>}
             {r.note && <p className="mb-1 text-sm">{r.note}</p>}
             <ReturnLinesTable r={r} />
+            <ReturnPhotos admin={admin} r={r} />
             {r.decidedAt && <p className="mt-2 text-xs text-slate-600">{t('web.returns.decision')}: {t(`web.returns.status.${r.status}` as TextKey)} · {r.decidedByEmail ?? '—'} · {when.format(new Date(r.decidedAt))}{r.decisionNote ? ` — ${r.decisionNote}` : ''}</p>}
           </td>
         </tr>
@@ -181,10 +182,12 @@ export function NewReturnForm({ admin, onSent, fixedCustomer }: { admin: AdminAp
   const action = useAction()
 
   const delivered = (orders.data ?? []).filter((o) => o.customerId === customer && o.status === 'delivered')
-  const order = delivered.find((o) => o.id === orderId)
+  // The list of orders has no lines: the lines of the chosen order are read when it is chosen.
+  const orderDetails = useLoad(useCallback(() => (orderId ? admin.order(orderId) : Promise.resolve(null)), [admin, orderId]))
+  const order = orderId ? orderDetails.data : null
   const choices = order
     ? order.items.map((l) => ({ id: l.productId, label: `${l.productCode} · ${l.productName} (${money(l.deliveredQuantity ?? l.quantity)})` }))
-    : (products.data ?? []).map((p) => ({ id: p.id, label: `${p.code} · ${p.name}` }))
+    : orderId ? [] : (products.data ?? []).map((p) => ({ id: p.id, label: `${p.code} · ${p.name}` }))
   const nameOf = (id: string) => choices.find((c) => c.id === id)?.label ?? id
   const needsWarehouse = lines.some((l) => l.destination === 'warehouse')
   const ready = customer !== '' && lines.length > 0 && (!needsWarehouse || warehouse !== '')
@@ -269,6 +272,37 @@ export function NewReturnForm({ admin, onSent, fixedCustomer }: { admin: AdminAp
         <input aria-label={t('web.returns.note')} placeholder={t('web.returns.note')} className="w-72 rounded border px-2 py-1" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
         <button type="button" className="rounded border px-3 py-1" disabled={!ready || action.busy} onClick={() => void send()}>{t('web.returns.send')}</button>
       </div>
+    </div>
+  )
+}
+
+// The pictures of the goods on a return (the author adds up to three in the app), fetched with the sign-in and shown from local addresses.
+export function ReturnPhotos({ admin, r }: { admin: AdminApi; r: CustomerReturn }) {
+  const [urls, setUrls] = useState<string[]>([])
+  const key = (r.photoIds ?? []).join(',')
+  useEffect(() => {
+    let active = true
+    const made: string[] = []
+    const ids = key ? key.split(',') : []
+    void Promise.all(ids.map((photoId) => admin.returnPhotoUrl(r.id, photoId).catch(() => null))).then((loaded) => {
+      const ok = loaded.filter((u): u is string => u !== null)
+      made.push(...ok)
+      if (active) setUrls(ok)
+      else ok.forEach((u) => URL.revokeObjectURL(u))
+    })
+    return () => {
+      active = false
+      made.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [admin, r.id, key])
+  if (urls.length === 0) return null
+  return (
+    <div className="mt-2 flex flex-wrap justify-center gap-2">
+      {urls.map((url, i) => (
+        <a key={url} href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt={t('web.returns.photoAlt', { number: i + 1 })} className="h-28 rounded border bg-slate-100 object-contain" />
+        </a>
+      ))}
     </div>
   )
 }

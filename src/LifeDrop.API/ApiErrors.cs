@@ -28,6 +28,8 @@ public static class ApiErrors
     public const string OutOfStock = "OUT_OF_STOCK";
     // A return asks for more of a product than the order delivered (minus what other returns of it already take; plan step 5.54).
     public const string ReturnTooMuch = "RETURN_TOO_MUCH";
+    // A refund asks for more money than the customer has coming back (plan step 5.55).
+    public const string RefundTooMuch = "REFUND_TOO_MUCH";
     public const string WrongPassword = "WRONG_PASSWORD";
     public const string OrderRequired = "ORDER_REQUIRED";
     public const string DuplicateName = "DUPLICATE_NAME";

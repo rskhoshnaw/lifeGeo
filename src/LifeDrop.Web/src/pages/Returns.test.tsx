@@ -93,4 +93,22 @@ describe('customer returns page', () => {
     })
     expect(await screen.findByRole('status')).toHaveTextContent('Return R-000009 sent for approval.')
   })
+
+  it('with an order the products are the delivered lines of that order (the list of orders has no lines) and the order goes to the server', async () => {
+    const createReturn = vi.fn().mockResolvedValue({ id: 'r9', number: 'R-000010', currency: 'IQD', total: 1000, replayed: false })
+    const order = vi.fn().mockResolvedValue({ id: 'o1', items: [{ productId: 'p1', productCode: 'P1', productName: 'Paracetamol', quantity: 5, deliveredQuantity: 4 }] })
+    const api = admin({ createReturn, order, orders: vi.fn().mockResolvedValue([{ id: 'o1', number: 'O-000001', customerId: 'c1', status: 'delivered', currency: 'IQD', total: 5000 }]) })
+    const user = userEvent.setup()
+    render(<ReturnsPage admin={api} me={manager} />)
+    await user.click(await screen.findByRole('button', { name: 'New return' }))
+    const form = screen.getByRole('heading', { name: 'New return' }).closest('div')!
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Customer' }), 'c1')
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Order (optional)' }), 'o1')
+    const product = await within(form).findByRole('option', { name: 'P1 · Paracetamol (4)' })   // shows what was delivered
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Product' }), product)
+    await user.type(within(form).getByRole('textbox', { name: 'Quantity' }), '1')
+    await user.click(within(form).getByRole('button', { name: 'Add line' }))
+    await user.click(within(form).getByRole('button', { name: 'Send for approval' }))
+    expect(createReturn.mock.calls[0]![0]).toMatchObject({ customerId: 'c1', orderId: 'o1', items: [{ productId: 'p1', quantity: 1 }] })
+  })
 })

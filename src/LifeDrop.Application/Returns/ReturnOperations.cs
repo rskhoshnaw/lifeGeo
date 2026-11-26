@@ -29,14 +29,18 @@ public sealed record ReturnLineDto(int LineNo, Guid ProductId, string ProductCod
 // Number: "R-000001". Status: requested | approved | rejected | cancelled. PricesHidden: the reader must not see prices (every amount is 0).
 public sealed record ReturnDto(Guid Id, string Number, Guid CustomerId, string CustomerCode, string CustomerName, Guid? OrderId, string? OrderNumber, Guid? WarehouseId, string? WarehouseName,
     string Status, string Currency, decimal Total, string? Note, Guid CreatedBy, string? CreatedByEmail, string? DecisionNote, string? DecidedByEmail, DateTimeOffset? DecidedAt,
-    DateTimeOffset CreatedAt, IReadOnlyList<ReturnLineDto> Items, bool PricesHidden = false);
+    DateTimeOffset CreatedAt, IReadOnlyList<ReturnLineDto> Items, bool PricesHidden = false,
+    // Pictures of the goods (plan step 5.55): ids of GET /returns/{id}/photos/{photoId}, oldest first.
+    IReadOnlyList<Guid>? PhotoIds = null);
 
 public sealed record CreatedReturnDto(Guid Id, string Number, string Currency, decimal Total, bool Replayed);
 
 // Approved damaged and expired goods of a period, by product and reason (GET /returns/damaged).
 public sealed record DamagedGoodsDto(Guid ProductId, string ProductCode, string ProductName, string Unit, string Reason, decimal Quantity, decimal Value, string Currency);
 
-public enum ReturnResult { Success, Forbidden, NotFound, InvalidData, Conflict, TooMuch, CurrencyMismatch }
+public enum ReturnResult { Success, Forbidden, NotFound, InvalidData, Conflict, TooMuch, CurrencyMismatch, TooManyPhotos }
+
+public sealed record ReturnPhoto(string ContentType, byte[] Data);
 
 // How much of the returns a user may see: everything, a region (and the user's own), or only what the user wrote.
 public enum ReturnView { Everything, Region, Mine }
@@ -61,11 +65,17 @@ public interface IReturnStore
     // requested -> cancelled, only by its author (Forbidden for anyone else).
     Task<ReturnResult> CancelAsync(TenantId tenantId, UserId actorId, Guid returnId, string reason, CancellationToken cancellationToken);
     Task<IReadOnlyList<DamagedGoodsDto>> DamagedAsync(TenantId tenantId, UserId actorId, ReturnView view, Guid? regionId, DateOnly from, DateOnly to, CancellationToken cancellationToken);
+    // Plan step 5.55: a picture of the goods, only by the author while the return is requested, at most maxPhotos. NotFound: no such return; Forbidden: not the author; Conflict: not requested.
+    Task<ReturnResult> AddPhotoAsync(TenantId tenantId, UserId author, Guid returnId, string contentType, byte[] data, int maxPhotos, CancellationToken cancellationToken);
+    Task<ReturnPhoto?> GetPhotoAsync(TenantId tenantId, UserId actorId, ReturnView view, Guid? regionId, Guid returnId, Guid photoId, CancellationToken cancellationToken);
 }
 
 public sealed class ReturnService(IReturnStore store, IProductStore products, IOrderStore orders, IPermissionStore permissions, ICustomerStore customers, PriceVisibility visibility, TimeProvider clock)
 {
     public const int MaxLines = 100;
+    public const int MaxPhotos = 3;
+    public const int MaxPhotoBytes = 3 * 1024 * 1024;
+    public static readonly string[] PhotoTypes = ["image/jpeg", "image/png", "image/webp"];
     public const decimal MaxQuantity = 9_999_999m;
     public static readonly string[] Reasons = ["damaged", "expired", "wrong_item", "customer_request", "other"];
     public static readonly string[] Destinations = ["warehouse", "damaged"];
@@ -180,6 +190,23 @@ public sealed class ReturnService(IReturnStore store, IProductStore products, IO
         var reason = request.Note?.Trim();
         if (returnId == Guid.Empty || string.IsNullOrEmpty(reason) || reason.Length > 500) return ReturnResult.InvalidData;
         return await store.CancelAsync(tenantId, actorId, returnId, reason, cancellationToken);
+    }
+
+    // A picture of the goods (raw bytes; JPEG, PNG or WEBP, at most 3 MB, three per return), added by the author while the return waits for approval.
+    public async Task<ReturnResult> AddPhotoAsync(TenantId tenantId, UserId actorId, Guid returnId, string? contentType, byte[] data, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.ReturnsCreate, cancellationToken) is null) return ReturnResult.Forbidden;
+        var type = contentType?.Split(';')[0].Trim().ToLowerInvariant();
+        if (returnId == Guid.Empty || type is null || !PhotoTypes.Contains(type) || data.Length is < 1 or > MaxPhotoBytes) return ReturnResult.InvalidData;
+        return await store.AddPhotoAsync(tenantId, actorId, returnId, type, data, MaxPhotos, cancellationToken);
+    }
+
+    public async Task<(ReturnResult Result, ReturnPhoto? Photo)> GetPhotoAsync(TenantId tenantId, UserId actorId, Guid returnId, Guid photoId, CancellationToken cancellationToken)
+    {
+        var (view, region) = await ViewAsync(tenantId, actorId, false, cancellationToken);
+        if (view is null) return (ReturnResult.Forbidden, null);
+        var photo = returnId == Guid.Empty || photoId == Guid.Empty ? null : await store.GetPhotoAsync(tenantId, actorId, view.Value, region, returnId, photoId, cancellationToken);
+        return photo is null ? (ReturnResult.NotFound, null) : (ReturnResult.Success, photo);
     }
 
     // Approved damaged and expired goods between two days (Iraq days), by product and reason.

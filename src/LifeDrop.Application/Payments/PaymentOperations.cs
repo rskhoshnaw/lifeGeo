@@ -19,11 +19,12 @@ public sealed record PaymentHistoryDto(string Status, string? ActorEmail, string
 // Number: "P-000001". Status: collected | confirmed | voided | superseded. ReplacedBy: the payment that corrected this one.
 public sealed record PaymentDto(Guid Id, string Number, Guid CustomerId, string CustomerCode, string CustomerName, Guid? OrderId, string? OrderNumber, string Method,
     string Currency, decimal Amount, string? Reference, string? Note, string Status, Guid ReceivedBy, string? ReceivedByEmail, Guid RecordedBy, string? ConfirmedByEmail,
-    DateTimeOffset? ConfirmedAt, string? ClosedReason, Guid? ReplacesPaymentId, Guid? ReplacedByPaymentId, DateTimeOffset CreatedAt, IReadOnlyList<PaymentHistoryDto>? History = null);
+    DateTimeOffset? ConfirmedAt, string? ClosedReason, Guid? ReplacesPaymentId, Guid? ReplacedByPaymentId, DateTimeOffset CreatedAt, IReadOnlyList<PaymentHistoryDto>? History = null, string Direction = "in");
 
 // DetachOrderIfInvalid (plan step 2.13, sent by the phone for a payment that was saved without internet): when the order is cancelled, another customer's or in another currency by now, the
 // payment is still recorded, without the order, and the answer says Detached. The customer and the amount must still be valid.
-public sealed record RecordPaymentRequest(Guid? CustomerId, Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, Guid? ClientRef, bool? DetachOrderIfInvalid = null);
+// Direction (plan step 5.55): "in" (default) is money the customer paid; "out" is a refund, money paid back to the customer (finance manager only, no order, at most the customer's credit).
+public sealed record RecordPaymentRequest(Guid? CustomerId, Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, Guid? ClientRef, bool? DetachOrderIfInvalid = null, string? Direction = null);
 public sealed record CorrectPaymentRequest(Guid? OrderId, string? Method, string? Currency, decimal? Amount, string? Reference, string? Note, string? Reason);
 public sealed record ClosePaymentRequest(string? Reason);
 
@@ -32,16 +33,17 @@ public sealed record CreatedPaymentDto(Guid Id, string Number, string Status, bo
 
 // Delivered: the value of what was delivered (delivered quantity x unit price of delivered orders). Confirmed: payments the finance manager has. Collected:
 // money a visitor took and has not given in yet. Balance = Delivered - Confirmed (what the customer still owes).
-// Returned: the credit of the approved returns of the customer (plan step 5.54); Balance = Delivered - Returned - Confirmed.
-public sealed record BalanceItemDto(string Currency, decimal Delivered, decimal Confirmed, decimal Collected, decimal Balance, decimal Returned = 0);
+// Returned: the credit of the approved returns (step 5.54). Refunded (step 5.55): money paid back to the customer; Confirmed is what the customer paid (not reduced by it).
+// Balance = Delivered - Returned - Confirmed + Refunded.
+public sealed record BalanceItemDto(string Currency, decimal Delivered, decimal Confirmed, decimal Collected, decimal Balance, decimal Returned = 0, decimal Refunded = 0);
 public sealed record CustomerBalanceDto(Guid CustomerId, IReadOnlyList<BalanceItemDto> Items);
 
-public enum PaymentResult { Success, Forbidden, NotFound, InvalidData, Conflict }
+public enum PaymentResult { Success, Forbidden, NotFound, InvalidData, Conflict, RefundTooMuch }
 
 // How much of the payments a user may see: everything, a region (and the user's own), or only what the user recorded.
 public enum PaymentView { Everything, Region, Mine }
 
-public sealed record NewPayment(Guid CustomerId, Guid? OrderId, string Method, string Currency, decimal Amount, string? Reference, string? Note, Guid ClientRef);
+public sealed record NewPayment(Guid CustomerId, Guid? OrderId, string Method, string Currency, decimal Amount, string? Reference, string? Note, Guid ClientRef, string Direction = "in");
 
 public interface IPaymentStore
 {
@@ -78,6 +80,14 @@ public sealed class PaymentService(IPaymentStore store, IPermissionStore permiss
         if (await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken) is null) return (PaymentResult.NotFound, null);
         // The finance manager's payment counts at once; a visitor's waits for the finance manager.
         var manager = await ScopeAsync(tenantId, actorId, PermissionKeys.PaymentsManage, cancellationToken) is not null;
+        // A refund (money back to the customer, step 5.55): only the finance manager, never against an order; the store checks the credit.
+        if (request.Direction is not (null or "in" or "out")) return (PaymentResult.InvalidData, null);
+        if (request.Direction == "out")
+        {
+            if (!manager) return (PaymentResult.Forbidden, null);
+            if (request.OrderId is not null) return (PaymentResult.InvalidData, null);
+            return await store.CreateAsync(tenantId, actorId, payment! with { Direction = "out" }, "confirmed", false, cancellationToken);
+        }
         return await store.CreateAsync(tenantId, actorId, payment!, manager ? "confirmed" : "collected", request.DetachOrderIfInvalid == true, cancellationToken);
     }
 
