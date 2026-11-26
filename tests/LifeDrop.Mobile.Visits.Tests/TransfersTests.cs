@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using LifeDrop.Mobile.Auth;
+using LifeDrop.Mobile.Auth.Models;
 using Xunit;
 
 namespace LifeDrop.Mobile.Visits.Tests;

@@ -24,6 +24,7 @@ public sealed record TransferLineDto(int LineNo, Guid ProductId, string ProductC
 public sealed record TransferDto(Guid Id, string Number, Guid FromWarehouseId, string FromWarehouseCode, string FromWarehouseName, Guid ToWarehouseId, string ToWarehouseCode, string ToWarehouseName,
     string Status, string? Note, string? CreatedByEmail, DateTimeOffset CreatedAt, string? ClosedByEmail, DateTimeOffset? ClosedAt, string? CloseNote, IReadOnlyList<TransferLineDto> Items);
 public sealed record CreatedTransferDto(Guid Id, string Number, bool Replayed);
+public sealed record TransferWarehouseDto(Guid Id, string Code, string Name, string? CityName);
 
 public sealed record NewTransferLine(Guid ProductId, decimal Quantity, string Bucket);
 public sealed record NewTransfer(Guid FromWarehouseId, Guid ToWarehouseId, Guid ClientRef, string? Note, IReadOnlyList<NewTransferLine> Lines);
@@ -36,6 +37,8 @@ public interface ITransferStore
 {
     // staffOnly: the user must work in the sender warehouse (null for a manager). Takes the goods out of the sender in the same transaction. Audit transfer.sent.
     Task<(TransferResult Result, CreatedTransferDto? Created)> CreateAsync(TenantId tenantId, UserId actorId, NewTransfer transfer, Guid? staffOnly, CancellationToken cancellationToken);
+    // Plan step 5.61: the active company warehouses (the choices for the receiving warehouse).
+    Task<IReadOnlyList<TransferWarehouseDto>> ListWarehousesAsync(TenantId tenantId, CancellationToken cancellationToken);
     // staffOnly: only transfers of warehouses the user works in (null = all). Newest first.
     Task<IReadOnlyList<TransferDto>> ListAsync(TenantId tenantId, string? status, Guid? warehouseId, Guid? staffOnly, int limit, CancellationToken cancellationToken);
     Task<TransferDto?> GetAsync(TenantId tenantId, Guid transferId, Guid? staffOnly, CancellationToken cancellationToken);
@@ -73,6 +76,12 @@ public sealed class TransferService(ITransferStore store, IPermissionStore permi
         if (who is null) return (TransferResult.Forbidden, Array.Empty<TransferDto>());
         if (status is not (null or "" or "sent" or "received" or "cancelled")) return (TransferResult.InvalidData, Array.Empty<TransferDto>());
         return (TransferResult.Success, await store.ListAsync(tenantId, string.IsNullOrEmpty(status) ? null : status, warehouseId, who.Value.Staff, Math.Clamp(limit ?? 50, 1, 200), cancellationToken));
+    }
+
+    public async Task<(TransferResult Result, IReadOnlyList<TransferWarehouseDto> Items)> ListWarehousesAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        if (await WhoAsync(tenantId, actorId, cancellationToken) is null) return (TransferResult.Forbidden, Array.Empty<TransferWarehouseDto>());
+        return (TransferResult.Success, await store.ListWarehousesAsync(tenantId, cancellationToken));
     }
 
     public async Task<(TransferResult Result, TransferDto? Item)> GetAsync(TenantId tenantId, UserId actorId, Guid transferId, CancellationToken cancellationToken)

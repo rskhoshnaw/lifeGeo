@@ -30,6 +30,16 @@ public static class TransferEndpoints
             .WithName("ListTransfers").WithTags("Transfers").Produces<List<TransferDto>>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        app.MapGet("/transfers/warehouses", async (HttpContext context, TransferService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListWarehousesAsync(tenantId, actorId, cancellationToken);
+            return result == TransferResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListTransferWarehouses").WithTags("Transfers").Produces<List<TransferWarehouseDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
         app.MapGet("/transfers/{transferId:guid}", async (Guid transferId, HttpContext context, TransferService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();

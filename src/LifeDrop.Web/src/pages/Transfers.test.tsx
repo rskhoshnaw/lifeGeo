@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { AdminApi, Transfer, Warehouse, WarehouseStockRow } from '../api/admin.ts'
+import type { AdminApi, Transfer, WarehouseStockRow } from '../api/admin.ts'
 import { TransfersPage } from './TransfersPage.tsx'
 
 const sent: Transfer = {
@@ -33,16 +33,15 @@ describe('transfers between warehouses (step 5.60)', () => {
   })
 
   it('sends sellable and damaged goods from a warehouse to another one, never more than it holds', async () => {
-    const warehouses = vi.fn().mockResolvedValue([{ id: 'w1', code: 'WE', name: 'Erbil central', status: 'active', kind: 'company' }, { id: 'w2', code: 'WB', name: 'Basra', status: 'active', kind: 'company' }, { id: 'w3', code: 'WW', name: 'Wholesaler', status: 'active', kind: 'wholesaler' }] as Warehouse[])
+    const transferWarehouses = vi.fn().mockResolvedValue([{ id: 'w1', code: 'WE', name: 'Erbil central', cityName: null }, { id: 'w2', code: 'WB', name: 'Basra', cityName: null }])
     const warehouseStock = vi.fn().mockResolvedValue([stockRow({}), stockRow({ warehouseId: 'w2', warehouseCode: 'WB', warehouseName: 'Basra', quantity: 0, damaged: 3 })])
     const createTransfer = vi.fn().mockResolvedValue({ id: 't9' })
     const user = userEvent.setup()
-    render(<TransfersPage admin={{ transfers: async () => [], warehouses, warehouseStock, createTransfer } as unknown as AdminApi} />)
+    render(<TransfersPage admin={{ transfers: async () => [], transferWarehouses, warehouseStock, createTransfer } as unknown as AdminApi} />)
     await user.click(await screen.findByRole('button', { name: 'New transfer' }))
     const from = await screen.findByRole('combobox', { name: 'From warehouse' })
     await user.selectOptions(from, 'w1')
     const to = screen.getByRole('combobox', { name: 'To warehouse' })
-    expect(within(to).queryByRole('option', { name: /Wholesaler/ })).toBeNull()        // a wholesaler keeps no stock
     expect(within(to).queryByRole('option', { name: /Erbil central/ })).toBeNull()     // not to itself
     await user.selectOptions(to, 'w2')
     const sellable = screen.getByRole('spinbutton', { name: 'Quantity of Cough syrup to send' })

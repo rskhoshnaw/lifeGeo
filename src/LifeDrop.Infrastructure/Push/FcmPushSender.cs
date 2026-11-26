@@ -101,6 +101,9 @@ public sealed class FcmPushSender : IPushSender
         "team.shift_stopped" => "push_team_shift_stopped",
         "return.new" => "push_return_new",
         "return.decided" => "push_return_decided",
+        "transfer.sent" => "push_transfer_sent",
+        "transfer.received" => "push_transfer_received",
+        "transfer.cancelled" => "push_transfer_cancelled",
         "feedback.new" => "push_feedback_new",
         "feedback.reply" => "push_feedback_reply",
         _ => null

@@ -107,6 +107,7 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
             await item.ExecuteNonQueryAsync(cancellationToken);
         }
         await AuditAsync(connection, transaction, tenantId, actorId, "transfer.sent", id, cancellationToken);
+        await NotifyAsync(connection, transaction, tenantId, actorId, "transfer.sent", id, transfer.ToWarehouseId, null, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (TransferResult.Success, new CreatedTransferDto(id, NumberText(number), false));
     }
@@ -117,6 +118,22 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
         command.Parameters.AddWithValue("tenant", tenantId.Value);
         command.Parameters.AddWithValue("id", productId);
         return await command.ExecuteScalarAsync(cancellationToken) is not null;
+    }
+
+    // The active company warehouses goods can be sent to (a worker may not read the warehouse list, so this has its own answer).
+    public async Task<IReadOnlyList<TransferWarehouseDto>> ListWarehousesAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT w.id, w.code, w.name, pl.name FROM warehouses w LEFT JOIN places pl ON pl.tenant_id = w.tenant_id AND pl.id = w.city_id
+            WHERE w.tenant_id = @tenant AND w.status = 'active' AND w.kind = 'company' ORDER BY w.code COLLATE "C"
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        var items = new List<TransferWarehouseDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) items.Add(new TransferWarehouseDto(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
+        return items;
     }
 
     private const string HeadSql = """
@@ -219,8 +236,9 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
-        var (problem, _, to) = await LockSentAsync(connection, transaction, tenantId, transferId, cancellationToken);
+        var (problem, from, to) = await LockSentAsync(connection, transaction, tenantId, transferId, cancellationToken);
         if (problem is { } p) return p;
+        var creator = await CreatorAsync(connection, transaction, tenantId, transferId, cancellationToken);
         // Whoever may not receive here is told the transfer does not exist (the same answer as for a transfer of other warehouses).
         if (!await WorksInAsync(connection, transaction, tenantId, staffOnly, to, cancellationToken)) return TransferResult.NotFound;
 
@@ -250,6 +268,7 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
         }
         await CloseAsync(connection, transaction, tenantId, actorId, transferId, "received", note, cancellationToken);
         await AuditAsync(connection, transaction, tenantId, actorId, "transfer.received", transferId, cancellationToken);
+        await NotifyAsync(connection, transaction, tenantId, actorId, "transfer.received", transferId, from, creator, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TransferResult.Success;
     }
@@ -258,7 +277,7 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await BeginAsync(connection, tenantId, actorId, cancellationToken);
-        var (problem, from, _) = await LockSentAsync(connection, transaction, tenantId, transferId, cancellationToken);
+        var (problem, from, to) = await LockSentAsync(connection, transaction, tenantId, transferId, cancellationToken);
         if (problem is { } p) return p;
         if (!await WorksInAsync(connection, transaction, tenantId, staffOnly, from, cancellationToken)) return TransferResult.NotFound;
         var lines = new List<(Guid Product, string Bucket, decimal Quantity)>();
@@ -272,8 +291,36 @@ public sealed class PostgresTransferStore(NpgsqlDataSource dataSource) : ITransf
         foreach (var line in lines) await AddStockAsync(connection, transaction, tenantId, actorId, from, line.Product, line.Bucket, line.Quantity, cancellationToken);
         await CloseAsync(connection, transaction, tenantId, actorId, transferId, "cancelled", note, cancellationToken);
         await AuditAsync(connection, transaction, tenantId, actorId, "transfer.cancelled", transferId, cancellationToken);
+        await NotifyAsync(connection, transaction, tenantId, actorId, "transfer.cancelled", transferId, to, null, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TransferResult.Success;
+    }
+
+    private static async Task<Guid> CreatorAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, Guid transferId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("SELECT created_by FROM stock_transfers WHERE tenant_id = @tenant AND id = @id", connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("id", transferId);
+        return (Guid)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    // Plan step 5.61: tells the active people who work in the warehouse (and one more user, the sender of a received transfer) - never the person who did it.
+    private static async Task NotifyAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, string kind, Guid transferId, Guid warehouseId, Guid? alsoUser, CancellationToken cancellationToken)
+    {
+        await using var notify = new NpgsqlCommand("""
+            INSERT INTO notifications (tenant_id, user_id, kind, entity_id, actor_id)
+            SELECT DISTINCT @tenant, u.id, @kind, @id::text, @actor
+            FROM users u
+            WHERE u.tenant_id = @tenant AND u.is_active AND u.id <> @actor
+              AND (u.id = @also OR EXISTS (SELECT 1 FROM warehouse_staff s WHERE s.tenant_id = u.tenant_id AND s.warehouse_id = @warehouse AND s.user_id = u.id))
+            """, connection, transaction);
+        notify.Parameters.AddWithValue("tenant", tenantId.Value);
+        notify.Parameters.AddWithValue("kind", kind);
+        notify.Parameters.AddWithValue("id", transferId);
+        notify.Parameters.AddWithValue("actor", actorId.Value);
+        notify.Parameters.AddWithValue("warehouse", warehouseId);
+        notify.Parameters.Add(new NpgsqlParameter("also", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = (object?)alsoUser ?? DBNull.Value });
+        await notify.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task AddStockAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, TenantId tenantId, UserId actorId, Guid warehouseId, Guid productId, string bucket, decimal quantity, CancellationToken cancellationToken)

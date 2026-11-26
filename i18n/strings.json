@@ -12125,10 +12125,202 @@
   "ar": "إغلاق",
   "fa": "بستن"
  },
+ "app.push.transferSent": {
+  "en": "Goods are on the way to your warehouse. Open LifeDrop to confirm them when they arrive.",
+  "ckb": "کاڵا بەڕێوەیە بۆ کۆگاکەت. کاتێک گەیشت LifeDrop بکەرەوە و پشتڕاستی بکەرەوە.",
+  "ar": "بضائع في الطريق إلى مخزنك. افتح LifeDrop لتأكيدها عند وصولها.",
+  "fa": "کالا در راهِ انبار شماست. هنگام رسیدن، LifeDrop را باز کنید و تأیید کنید."
+ },
+ "app.push.transferReceived": {
+  "en": "The goods you sent have been received.",
+  "ckb": "ئەو کاڵایەی ناردت وەرگیرا.",
+  "ar": "تم استلام البضائع التي أرسلتها.",
+  "fa": "کالایی که فرستادید دریافت شد."
+ },
+ "app.push.transferCancelled": {
+  "en": "A transfer that was coming to your warehouse was cancelled.",
+  "ckb": "گواستنەوەیەک کە بەرەو کۆگاکەت دەهات هەڵوەشێنرایەوە.",
+  "ar": "أُلغي نقل كان متجهًا إلى مخزنك.",
+  "fa": "انتقالی که به انبار شما می‌آمد لغو شد."
+ },
+ "web.notifications.transferSent": {
+  "en": "{actor} sent goods to your warehouse.",
+  "ckb": "{actor} کاڵای بۆ کۆگاکەت ناردووە.",
+  "ar": "{actor} أرسل بضائع إلى مخزنك.",
+  "fa": "{actor} کالا به انبار شما فرستاد."
+ },
+ "web.notifications.transferReceived": {
+  "en": "{actor} received the goods you sent.",
+  "ckb": "{actor} ئەو کاڵایەی ناردت وەری گرت.",
+  "ar": "{actor} استلم البضائع التي أرسلتها.",
+  "fa": "{actor} کالایی را که فرستادید دریافت کرد."
+ },
+ "web.notifications.transferCancelled": {
+  "en": "{actor} cancelled a transfer to your warehouse.",
+  "ckb": "{actor} گواستنەوەیەکی بۆ کۆگاکەت هەڵوەشاندەوە.",
+  "ar": "{actor} ألغى نقلًا إلى مخزنك.",
+  "fa": "{actor} انتقالی به انبار شما را لغو کرد."
+ },
  "app.stock.damaged": {
   "en": "Damaged / expired: {quantity} {unit}",
   "ckb": "خراب / بەسەرچوو: {quantity} {unit}",
   "ar": "تالف / منتهي: {quantity} {unit}",
   "fa": "خراب / منقضی: {quantity} {unit}"
+ },
+ "app.transfers.open": {
+  "en": "Transfers between warehouses",
+  "ckb": "گواستنەوە لە نێوان کۆگاکان",
+  "ar": "النقل بين المخازن",
+  "fa": "انتقال بین انبارها"
+ },
+ "app.transfers.title": {
+  "en": "Transfers",
+  "ckb": "گواستنەوەکان",
+  "ar": "عمليات النقل",
+  "fa": "انتقال‌ها"
+ },
+ "app.transfers.new": {
+  "en": "Send goods",
+  "ckb": "ناردنی کاڵا",
+  "ar": "إرسال بضائع",
+  "fa": "ارسال کالا"
+ },
+ "app.transfers.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "app.transfers.status.sent": {
+  "en": "On the road",
+  "ckb": "لە ڕێگادایە",
+  "ar": "في الطريق",
+  "fa": "در راه"
+ },
+ "app.transfers.status.received": {
+  "en": "Received",
+  "ckb": "وەرگیرا",
+  "ar": "تم الاستلام",
+  "fa": "دریافت شد"
+ },
+ "app.transfers.status.cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنرایەوە",
+  "ar": "ملغى",
+  "fa": "لغو شد"
+ },
+ "app.transfers.none": {
+  "en": "No transfers here.",
+  "ckb": "هیچ گواستنەوەیەک نییە.",
+  "ar": "لا توجد عمليات نقل.",
+  "fa": "انتقالی نیست."
+ },
+ "app.transfers.damaged": {
+  "en": "damaged / expired",
+  "ckb": "خراپ / بەسەرچوو",
+  "ar": "تالف / منتهي",
+  "fa": "خراب / منقضی"
+ },
+ "app.transfers.arrived": {
+  "en": "arrived {quantity}",
+  "ckb": "گەیشت {quantity}",
+  "ar": "وصل {quantity}",
+  "fa": "رسید {quantity}"
+ },
+ "app.transfers.receive": {
+  "en": "Receive",
+  "ckb": "وەرگرتن",
+  "ar": "استلام",
+  "fa": "دریافت"
+ },
+ "app.transfers.cancel": {
+  "en": "Cancel",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء",
+  "fa": "لغو"
+ },
+ "app.transfers.cancelNote": {
+  "en": "Why is it cancelled? (optional)",
+  "ckb": "بۆچی هەڵدەوەشێتەوە؟ (دڵخواز)",
+  "ar": "لماذا يُلغى؟ (اختياري)",
+  "fa": "چرا لغو می‌شود؟ (اختیاری)"
+ },
+ "app.transfers.receiveTitle": {
+  "en": "Receive {number}",
+  "ckb": "وەرگرتنی {number}",
+  "ar": "استلام {number}",
+  "fa": "دریافت {number}"
+ },
+ "app.transfers.sentQty": {
+  "en": "sent {quantity} {unit}",
+  "ckb": "نێردرا {quantity} {unit}",
+  "ar": "أُرسل {quantity} {unit}",
+  "fa": "فرستاده شده {quantity} {unit}"
+ },
+ "app.transfers.note": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (دڵخواز)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "یادداشت (اختیاری)"
+ },
+ "app.transfers.confirm": {
+  "en": "Confirm receipt",
+  "ckb": "پشتڕاستکردنەوەی وەرگرتن",
+  "ar": "تأكيد الاستلام",
+  "fa": "تأیید دریافت"
+ },
+ "app.transfers.invalidArrived": {
+  "en": "An arrived quantity is not a number or is more than was sent.",
+  "ckb": "ژمارەیەکی گەیشتوو ژمارە نییە یان لە نێردراو زیاترە.",
+  "ar": "كمية واصلة ليست رقمًا أو أكبر من المُرسل.",
+  "fa": "تعداد رسیده عدد نیست یا از فرستاده‌شده بیشتر است."
+ },
+ "app.transfers.received": {
+  "en": "{number} is received.",
+  "ckb": "{number} وەرگیرا.",
+  "ar": "تم استلام {number}.",
+  "fa": "{number} دریافت شد."
+ },
+ "app.transfers.from": {
+  "en": "From warehouse",
+  "ckb": "لە کۆگای",
+  "ar": "من مخزن",
+  "fa": "از انبار"
+ },
+ "app.transfers.to": {
+  "en": "To warehouse",
+  "ckb": "بۆ کۆگای",
+  "ar": "إلى مخزن",
+  "fa": "به انبار"
+ },
+ "app.transfers.send": {
+  "en": "Send",
+  "ckb": "ناردن",
+  "ar": "إرسال",
+  "fa": "ارسال"
+ },
+ "app.transfers.sent": {
+  "en": "{number} is sent. The receiving warehouse will confirm it.",
+  "ckb": "{number} نێردرا. کۆگای وەرگر پشتڕاستی دەکاتەوە.",
+  "ar": "تم إرسال {number}. سيؤكده المخزن المستلم.",
+  "fa": "{number} ارسال شد. انبار مقصد آن را تأیید می‌کند."
+ },
+ "app.transfers.sellableOf": {
+  "en": "To sell: {quantity} {unit}",
+  "ckb": "بۆ فرۆشتن: {quantity} {unit}",
+  "ar": "للبيع: {quantity} {unit}",
+  "fa": "قابل فروش: {quantity} {unit}"
+ },
+ "app.transfers.damagedOf": {
+  "en": "Damaged / expired: {quantity} {unit}",
+  "ckb": "خراپ / بەسەرچوو: {quantity} {unit}",
+  "ar": "تالف / منتهي: {quantity} {unit}",
+  "fa": "خراب / منقضی: {quantity} {unit}"
+ },
+ "app.transfers.tooMuch": {
+  "en": "The warehouse holds less than you typed. Open the form again to see the current figures.",
+  "ckb": "کۆگا لە ژمارەی نووسراو کەمترە. فۆرمەکە دووبارە بکەرەوە بۆ بینینی ژمارە نوێیەکان.",
+  "ar": "المخزن يحتوي على أقل مما كتبت. افتح النموذج مجددًا لرؤية الأرقام الحالية.",
+  "fa": "موجودی انبار از عدد واردشده کمتر است. فرم را دوباره باز کنید تا عددهای فعلی را ببینید."
  }
 }

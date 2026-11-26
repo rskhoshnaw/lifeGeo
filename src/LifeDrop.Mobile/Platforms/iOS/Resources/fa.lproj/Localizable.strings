@@ -7,3 +7,6 @@
 "push_team_shift_stopped" = "یکی از اعضای تیم شما ارسال موقعیت را متوقف کرده است.";
 "push_return_new" = "یک مرجوعی منتظر تأیید شماست.";
 "push_return_decided" = "درباره مرجوعی شما تصمیم گرفته شد. برای دیدن LifeDrop را باز کنید.";
+"push_transfer_sent" = "کالا در راهِ انبار شماست. هنگام رسیدن، LifeDrop را باز کنید و تأیید کنید.";
+"push_transfer_received" = "کالایی که فرستادید دریافت شد.";
+"push_transfer_cancelled" = "انتقالی که به انبار شما می‌آمد لغو شد.";

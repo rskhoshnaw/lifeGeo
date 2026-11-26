@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace LifeDrop.Mobile.Visits;
 
 // What the user types to send goods to another warehouse (plan step 5.61): the quantity of every product, sellable and damaged apart, never more than the sender holds. A product that is
@@ -39,10 +37,8 @@ public sealed class TransferDraft
     public bool Set(Guid product, string bucket, string? text)
     {
         if (bucket is not ("sellable" or "damaged") || !_stock.ContainsKey(product)) return false;
-        var value = (text ?? "").Trim();
-        if (value.Length == 0) { _lines.Remove((product, bucket)); return true; }
-        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity) || quantity < 0 || decimal.Round(quantity, 3) != quantity) return false;
-        if (quantity > Available(product, bucket)) return false;
+        // Digits of any script and a comma or dot are accepted as in the order form; empty is zero.
+        if (OrderDraft.ParseQuantity(text) is not { } quantity || quantity > Available(product, bucket)) return false;
         if (quantity == 0) _lines.Remove((product, bucket)); else _lines[(product, bucket)] = quantity;
         return true;
     }
@@ -69,7 +65,7 @@ public sealed class ReceiveDraft
     // False when not a number, negative, more than was sent, or an unknown line.
     public bool Set(int lineNo, string? text)
     {
-        if (!_sent.ContainsKey(lineNo) || !decimal.TryParse((text ?? "").Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) || value < 0 || decimal.Round(value, 3) != value || value > _sent[lineNo]) return false;
+        if (!_sent.ContainsKey(lineNo) || OrderDraft.ParseQuantity(text) is not { } value || value > _sent[lineNo]) return false;
         _arrived[lineNo] = value;
         return true;
     }

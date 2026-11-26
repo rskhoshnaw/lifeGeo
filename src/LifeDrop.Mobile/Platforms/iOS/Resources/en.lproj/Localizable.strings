@@ -7,3 +7,6 @@
 "push_team_shift_stopped" = "A member of your team has stopped sending their position.";
 "push_return_new" = "A return is waiting for your approval.";
 "push_return_decided" = "Your return has been decided. Open LifeDrop to see it.";
+"push_transfer_sent" = "Goods are on the way to your warehouse. Open LifeDrop to confirm them when they arrive.";
+"push_transfer_received" = "The goods you sent have been received.";
+"push_transfer_cancelled" = "A transfer that was coming to your warehouse was cancelled.";

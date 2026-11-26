@@ -22,6 +22,8 @@ export function NotificationsPage({ admin, me, onChanged }: { admin: AdminApi; m
       ? t('app.push.trackingStopped')
       : n.kind === 'return.new' || n.kind === 'return.decided'
       ? t(n.kind === 'return.new' ? 'web.notifications.returnNew' : 'web.notifications.returnDecided', { actor: n.actorEmail ?? t('web.notifications.someone') })
+      : n.kind === 'transfer.sent' || n.kind === 'transfer.received' || n.kind === 'transfer.cancelled'
+      ? t(n.kind === 'transfer.sent' ? 'web.notifications.transferSent' : n.kind === 'transfer.received' ? 'web.notifications.transferReceived' : 'web.notifications.transferCancelled', { actor: n.actorEmail ?? t('web.notifications.someone') })
       : n.kind === 'customer.owner_changed'
       ? t('web.notifications.ownerChanged', { count: n.entityId, actor: n.actorEmail ?? t('web.notifications.someone') })
       : n.kind === 'team.shift_stopped'
