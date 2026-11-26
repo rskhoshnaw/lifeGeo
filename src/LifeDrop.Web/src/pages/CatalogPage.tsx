@@ -269,7 +269,6 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [minStock, setMinStock] = useState(product?.minStock == null ? '' : String(product.minStock))
   const [maker, setMaker] = useState(product?.manufacturer ?? '')
   const [expiry, setExpiry] = useState(product?.expiryDate ?? '')
-  const [stock, setStock] = useState(product?.stockQty == null ? '' : String(product.stockQty))
   const [notes, setNotes] = useState(product?.notes ?? '')
   const [photo, setPhoto] = useState<File | null>(null)
   const [dropPhoto, setDropPhoto] = useState(false)
@@ -292,14 +291,15 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
       else {
         // A new product: when a photo or any detail was filled in, they are saved right after it is created.
         const created = await admin.createProduct({ ...input, code: code.trim() })
-        const extras = photo !== null || specialty !== '' || scientific.trim() !== '' || maker.trim() !== '' || expiry !== '' || stock.trim() !== '' || notes.trim() !== '' || minStock.trim() !== '' || !available
+        const extras = photo !== null || specialty !== '' || scientific.trim() !== '' || maker.trim() !== '' || expiry !== '' || notes.trim() !== '' || minStock.trim() !== '' || !available
         if (!extras || !created.id) return
         id = created.id
       }
       if (!id) return
       await admin.setProductDetails(id, {
         specialty: specialty || null, manufacturer: maker.trim() || null, expiryDate: expiry || null,
-        stockQty: stock.trim() === '' ? null : Number(stock), notes: notes.trim() || null, scientificName: scientific.trim() || null,
+        stockQty: null, notes: notes.trim() || null,   // stock lives in the warehouses only (step 5.53): the server ignores this figure
+        scientificName: scientific.trim() || null,
         available, minStock: minStock.trim() === '' ? null : Number(minStock),
       })
       if (photo) await admin.setProductPhoto(id, photo)
@@ -333,7 +333,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
           {t('web.catalog.expiry')}
           <input type="date" className={field} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
         </label>
-        <input aria-label={t('web.catalog.stock')} placeholder={t('web.catalog.stockHint')} type="number" min={0} step="any" className={field} value={stock} onChange={(e) => setStock(e.target.value)} />
+        <span className="text-xs text-slate-500" title={t('web.catalog.stockHint')}>{t('web.catalog.stockInWarehouses')}</span>
         <label className="flex items-center gap-1">
           {t('web.catalog.photo')}
           <input type="file" accept="image/jpeg,image/png,image/webp" aria-label={t('web.catalog.photo')} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />

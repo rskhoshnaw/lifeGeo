@@ -177,7 +177,8 @@ public class CustomerApiIntegrationTests
                 var m75 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0075_team_leader.sql"));
                 var m76 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0076_stock_follows_warehouses.sql"));
                 var m77 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0077_owner_leader_alerts.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77;
+                var m78 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0078_stock_in_warehouses.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -5031,7 +5032,8 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { Specialty = "pediatrics", Manufacturer = " Pioneer ", ExpiryDate = "2027-03-31", StockQty = 12.5m, Notes = "Keep cool", ScientificName = " Acetaminophen " })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}", Product(price: 1500m))).StatusCode);
         var withDetails = (await Products()).Single(p => p.Code == "PAR-500");
-        Assert.Equal(("pediatrics", "Pioneer", new DateOnly(2027, 3, 31), 12.5m, "Keep cool", true), (withDetails.Specialty, withDetails.Manufacturer, withDetails.ExpiryDate, withDetails.StockQty, withDetails.Notes, withDetails.InStock));
+        // The stock figure sent here (12.5) is ignored: stock lives in the warehouses only, so a product nobody counted has none (plan step 5.53).
+        Assert.Equal(("pediatrics", "Pioneer", new DateOnly(2027, 3, 31), (decimal?)null, "Keep cool", true), (withDetails.Specialty, withDetails.Manufacturer, withDetails.ExpiryDate, withDetails.StockQty, withDetails.Notes, withDetails.InStock));
         Assert.Equal("Acetaminophen", withDetails.ScientificName);   // trimmed, and kept when the main fields are edited
         // The search text also finds the scientific name and the manufacturer (owner request 2026-11-26)
         Assert.Equal(new[] { "PAR-500" }, (await Products("?q=acetamin")).Select(p => p.Code).ToArray());
@@ -5040,7 +5042,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{p1}/details", new { StockQty = 0m, Available = false, MinStock = 2.5m })).StatusCode);
         var cleared = (await Products()).Single(p => p.Code == "PAR-500");
         Assert.Equal((false, 2.5m), (cleared.Available, cleared.MinStock));   // listed but marked unavailable (it is not orderable)
-        Assert.Equal((null, null, 0m, false), (cleared.Specialty, cleared.Manufacturer, cleared.StockQty, cleared.InStock));
+        Assert.Equal((null, null, (decimal?)null, true), (cleared.Specialty, cleared.Manufacturer, cleared.StockQty, cleared.InStock));
         Assert.Null(cleared.ScientificName);
         foreach (var bad in new object[] { new { Specialty = "dentist" }, new { StockQty = -1m }, new { StockQty = 1.2345m }, new { Manufacturer = new string('m', 101) }, new { Notes = new string('n', 501) }, new { ScientificName = new string('s', 151) } })
             await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}/details", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
@@ -5269,7 +5271,7 @@ public class CustomerApiIntegrationTests
     }
 
     [SkippableFact]
-    public async Task OrderStock_IsTakenByAnOrderGivenBackOnCancelAndNeverGoesBelowZero()
+    public async Task OrderStock_LivesInTheWarehouses_AnOrderReservesWarnsAndTheOldFigureIsIgnored()
     {
         var url = GetRequiredEnvVar("TEST_DATABASE_URL");
         await VerifyRoleAsync(url, expectElevated: false);
@@ -5300,7 +5302,9 @@ public class CustomerApiIntegrationTests
                 INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status) VALUES (@c, @t1, 'Pharmacy', 'C1', 'Customer 1', @r, 'approved');
                 INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w, @t1, 'W1', 'Main');
                 INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price, stock_qty) VALUES
-                    (@p1, @t1, 'TRACKED', 'Tracked', 'box', 'IQD', 1000, 10), (@p2, @t1, 'FREE', 'Not tracked', 'box', 'IQD', 500, NULL), (@p3, @t1, 'EMPTY', 'Empty', 'box', 'IQD', 100, 0);", conn);
+                    (@p1, @t1, 'TRACKED', 'Tracked', 'box', 'IQD', 1000, 999), (@p2, @t1, 'FREE', 'Not tracked', 'box', 'IQD', 500, NULL), (@p3, @t1, 'EMPTY', 'Empty', 'box', 'IQD', 100, 0);
+                -- stock lives in the warehouses (step 5.53): TRACKED has 10 in W1 and EMPTY was counted as 0; FREE was never counted; the old figures above (999, 0) are never read
+                INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, quantity) VALUES (@t1, @w, @p1, 10), (@t1, @w, @p3, 0);", conn);
             foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("rep", rep), ("r", region), ("tm", team), ("c", customer), ("w", warehouse), ("p1", tracked), ("p2", free), ("p3", empty) })
                 cmd.Parameters.AddWithValue(name, value);
             await cmd.ExecuteNonQueryAsync();
@@ -5312,65 +5316,55 @@ public class CustomerApiIntegrationTests
         {
             CustomerId = customer, WarehouseId = warehouse, ClientRef = clientRef ?? Guid.NewGuid(), Items = lines.Select(l => new { ProductId = l.Product, l.Quantity }).ToArray()
         });
-        async Task<decimal?> Stock(Guid product)
+        async Task<LifeDrop.Application.Catalog.ProductDto> Product(Guid product)
         {
-            var current = As2();
-            return (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products"))!.Single(p => p.Id == product).StockQty;
-            Guid As2() { As(manager); return manager; }
+            As(manager);
+            return (await client.GetFromJsonAsync<List<LifeDrop.Application.Catalog.ProductDto>>("/products"))!.Single(p => p.Id == product);
         }
+        async Task<decimal?> Stock(Guid product) => (await Product(product)).StockQty;
         async Task<int> OrderCount() { As(rep); return (await client.GetFromJsonAsync<List<LifeDrop.Application.Orders.OrderDto>>("/orders"))!.Count; }
 
-        // An order takes its quantity from a tracked stock; a product without a stock figure is not limited
+        // The stock of a product is the sum of its warehouses; the old figure (999) is ignored and a product nobody counted has none and no limit
+        Assert.Equal((10m, (decimal?)null, 0m), (await Stock(tracked), await Stock(free), await Stock(empty)));
+
+        // An order takes nothing yet: it reserves what it asks for in its warehouse (the hand-over takes the goods off); a product nobody counted is not limited
         As(rep);
         var first = Guid.NewGuid();
         var created = await Place(first, (tracked, 4m), (free, 100m));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        var firstOrderId = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!.Id;
-        Assert.Equal((6m, (decimal?)null), (await Stock(tracked), await Stock(free)));
+        var firstOrder = (await created.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!;
+        Assert.Null(firstOrder.StockWarnings);
+        var reserved = await Product(tracked);
+        Assert.Equal((10m, 4m), (reserved.StockQty, reserved.ReservedQty));
 
-        // The same send again (a retry) takes nothing more
+        // The same send again (a retry) reserves nothing more
         As(rep);
         Assert.Equal(HttpStatusCode.OK, (await Place(first, (tracked, 4m), (free, 100m))).StatusCode);
-        Assert.Equal(6m, await Stock(tracked));
+        Assert.Equal(4m, (await Product(tracked)).ReservedQty);
 
-        // Too much, or an empty product: refused with OUT_OF_STOCK, no order, nothing taken (also not from the other lines)
+        // More than is free (6 left) or from a product counted as empty: placed anyway, the sender is warned; never refused with OUT_OF_STOCK any more
         As(rep);
-        await AssertProblemAsync(await Place(null, (tracked, 7m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
-        await AssertProblemAsync(await Place(null, (free, 1m), (tracked, 2m), (empty, 1m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
-        Assert.Equal(1, await OrderCount());
-        Assert.Equal(6m, await Stock(tracked));
+        var tooMuch = await Place(null, (tracked, 7m), (empty, 1m));
+        Assert.Equal(HttpStatusCode.Created, tooMuch.StatusCode);
+        Assert.Equal(new[] { "TRACKED", "EMPTY" }.OrderBy(x => x), (await tooMuch.Content.ReadFromJsonAsync<LifeDrop.Application.Orders.CreatedOrderDto>())!.StockWarnings!.OrderBy(x => x));
+        Assert.Equal(2, await OrderCount());
+        Assert.Equal(11m, (await Product(tracked)).ReservedQty);
 
-        // The exact rest is allowed and leaves zero; then nothing more
+        // Cancelling releases the reservation, once; the stock figure itself never moved
         As(rep);
-        Assert.Equal(HttpStatusCode.Created, (await Place(null, (tracked, 6m))).StatusCode);
-        Assert.Equal(0m, await Stock(tracked));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/orders/{firstOrder.Id}/cancel", new { Reason = "customer changed mind" })).StatusCode);
+        Assert.Equal((10m, 7m), ((await Product(tracked)).StockQty, (await Product(tracked)).ReservedQty));
         As(rep);
-        await AssertProblemAsync(await Place(null, (tracked, 1m)), HttpStatusCode.Conflict, "OUT_OF_STOCK");
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/orders/{firstOrder.Id}/cancel", new { Reason = "again" })).StatusCode);
+        Assert.Equal(7m, (await Product(tracked)).ReservedQty);
+        Assert.Equal((decimal?)null, await Stock(free));   // not counted stays not counted
 
-        // Cancelling gives the quantity back, once
-        As(rep);
-        var orderId = firstOrderId;
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/orders/{orderId}/cancel", new { Reason = "customer changed mind" })).StatusCode);
-        Assert.Equal(4m, await Stock(tracked));
-        As(rep);
-        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/orders/{orderId}/cancel", new { Reason = "again" })).StatusCode);
-        Assert.Equal(4m, await Stock(tracked));
-        Assert.Equal((decimal?)null, await Stock(free));   // untracked stays untracked
-
-        // Two orders at the very same moment for more than is there together: exactly one gets it, the stock never goes below zero
+        // A product marked temporarily unavailable cannot be ordered although it has stock; marking it available again allows it; the stock figure sent with the details is ignored
         As(manager);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 10m })).StatusCode);
-        As(rep);
-        var race = await Task.WhenAll(Place(null, (tracked, 6m)), Place(null, (tracked, 6m)), Place(null, (tracked, 6m)));
-        Assert.Equal(new[] { HttpStatusCode.Created, HttpStatusCode.Conflict, HttpStatusCode.Conflict }, race.Select(r => r.StatusCode).OrderBy(c => c).ToArray());
-        Assert.Equal(4m, await Stock(tracked));
-
-        // A product marked temporarily unavailable cannot be ordered although it has stock; marking it available again allows it
-        As(manager);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 3m, Available = false })).StatusCode);
         As(rep);
         await AssertProblemAsync(await Place(null, (tracked, 1m)), HttpStatusCode.BadRequest, "INVALID_DATA");
-        Assert.Equal(4m, await Stock(tracked));
+        Assert.Equal(10m, await Stock(tracked));
         As(manager);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = true })).StatusCode);
         As(rep);

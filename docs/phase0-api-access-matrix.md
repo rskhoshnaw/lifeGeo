@@ -745,3 +745,12 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `PUT /customers/owner` | as before | The new owner also gets the notification `customer.owner_changed` (`entityId` = how many customers); the caller is never told about their own change. |
 | Alert scan (`POST /alerts/scan`, background job) | as before | New notification `team.shift_stopped` to the leader of the member's team (only a leader who is still a member), once per shift and 30 minutes. New alert kind `connection_errors` (operational, warning): 5 or more `client_error_reports` typed with one user's e-mail in 30 minutes; one alert per user and half hour. Audience as for every operational alert (`alerts.read`). |
 | `GET /customers/map` | as before | Rows carry `mine`. |
+
+## Stock only in the warehouses (step 5.53, migration 0078)
+
+| Route | Change |
+| --- | --- |
+| `POST /orders` | Takes nothing from any stock figure; a counted product is reserved in the order's warehouse and an order for more than is free is placed with `stockWarnings`; `OUT_OF_STOCK` is no longer returned. |
+| `POST /orders/{id}/cancel` | Releases the reservation only (the goods never left the warehouse). |
+| `PUT /products/{id}/details` | `stockQty` is accepted (old clients) and ignored. |
+| `GET /products` | `stockQty` = sum of the counted stock of the active company warehouses, null when none counted; no fallback to the old figure. |
