@@ -5,3 +5,5 @@
 "push_feedback_reply" = "A manager answered your feedback.";
 "push_customer_owner_changed" = "Customers were given to you. Open LifeDrop to see them.";
 "push_team_shift_stopped" = "A member of your team has stopped sending their position.";
+"push_return_new" = "A return is waiting for your approval.";
+"push_return_decided" = "Your return has been decided. Open LifeDrop to see it.";

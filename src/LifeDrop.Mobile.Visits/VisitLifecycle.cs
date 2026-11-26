@@ -343,6 +343,7 @@ public sealed class VisitLifecycle
         VisitActionResult.CurrencyMismatch => "app.result.CurrencyMismatch",
         VisitActionResult.CustomerNotApproved => "app.result.CustomerNotApproved",
         VisitActionResult.OutOfStock => "app.result.OutOfStock",
+        VisitActionResult.ReturnTooMuch => "app.result.ReturnTooMuch",
         VisitActionResult.WrongPassword => "app.result.WrongPassword",
         VisitActionResult.InvalidData => "app.result.InvalidData",
         VisitActionResult.OutsideGeofence => "app.result.OutsideGeofence",

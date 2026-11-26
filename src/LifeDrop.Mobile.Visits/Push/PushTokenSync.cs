@@ -77,6 +77,8 @@ public static class PushMessages
         "tracking.stopped" => "app.push.trackingStopped",
         "customer.owner_changed" => "app.push.customerOwnerChanged",
         "team.shift_stopped" => "app.push.teamShiftStopped",
+        "return.new" => "app.push.returnNew",
+        "return.decided" => "app.push.returnDecided",
         "feedback.new" => "app.push.feedbackNew",
         "feedback.reply" => "app.push.feedbackReply",
         _ => null

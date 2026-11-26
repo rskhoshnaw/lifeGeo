@@ -9,6 +9,7 @@ import { NewFollowUp } from './FollowUpsPage.tsx'
 import { NewOrderForm } from './OrdersPage.tsx'
 import { RecordForm } from './PaymentsPage.tsx'
 import { NewSample } from './SamplesPage.tsx'
+import { NewReturnForm, ReturnLinesTable } from './ReturnsPage.tsx'
 import { t, type TextKey } from '../i18n.ts'
 import { unitLabel } from './productView.ts'
 
@@ -40,7 +41,8 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
   const balance = useLoad(useCallback(() => admin.customerBalance(customerId), [admin, customerId]))
   const samples = useLoad(useCallback(() => admin.customerSamples(customerId), [admin, customerId]))
   const followUps = useLoad(useCallback(() => admin.customerFollowUps(customerId), [admin, customerId]))
-  const [panel, setPanel] = useState<'order' | 'payment' | 'sample' | 'followup' | 'edit' | 'profile' | 'hours' | null>(null)
+  const returns = useLoad(useCallback(() => admin.returns('', customerId), [admin, customerId]))
+  const [panel, setPanel] = useState<'order' | 'payment' | 'sample' | 'return' | 'followup' | 'edit' | 'profile' | 'hours' | null>(null)
   const [done, setDone] = useState<string | null>(null)
   const manageFollowUps = can(me, ...Permissions.manageFollowUps)
   const users = useLoad(useCallback(() => (manageFollowUps ? admin.users().catch(() => []) : Promise.resolve([])), [admin, manageFollowUps]))
@@ -49,6 +51,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
     { id: 'order', label: t('web.c360.newOrder'), allowed: can(me, 'orders.create') },
     { id: 'payment', label: t('web.c360.newPayment'), allowed: can(me, 'payments.record') },
     { id: 'sample', label: t('web.c360.newSample'), allowed: can(me, 'samples.record') },
+    { id: 'return', label: t('web.c360.newReturn'), allowed: can(me, ...Permissions.createReturns) },
     { id: 'followup', label: t('web.c360.newFollowUp'), allowed: can(me, ...Permissions.createFollowUps) },
     { id: 'edit', label: t('web.customers.edit'), allowed: editable },
     { id: 'profile', label: t('web.customers.profile'), allowed: editable },
@@ -64,6 +67,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
     balance.reload()
     samples.reload()
     followUps.reload()
+    returns.reload()
   }
 
   if (customer.error) return <p role="alert" className="p-6 text-sm text-red-700">{t('web.c360.notFound')}</p>
@@ -82,6 +86,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
       {done && <p role="status" className="text-sm text-green-700">{done}</p>}
       {panel === 'order' && <NewOrderForm admin={admin} fixedCustomer={c} onPlaced={(message) => refresh(message)} />}
       {panel === 'payment' && <RecordForm admin={admin} fixedCustomer={c} onSaved={(message) => refresh(message)} />}
+      {panel === 'return' && <NewReturnForm admin={admin} fixedCustomer={c} onSent={(message) => refresh(message)} />}
       {panel === 'sample' && <NewSample admin={admin} fixedCustomer={c} onRecorded={() => refresh()} />}
       {panel === 'followup' && <NewFollowUp admin={admin} fixedCustomer={c} manage={manageFollowUps} users={users.data ?? []} onCreated={() => refresh()} />}
       {panel === 'edit' && <CustomerDetailsEditor admin={admin} customer={c} onClose={() => setPanel(null)} onSaved={() => refresh()} />}
@@ -166,7 +171,7 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
             {balance.data.items.map((b) => (
               <li key={b.currency} className="rounded border bg-slate-50 px-3 py-2">
                 <div className="font-semibold">{b.currency}: {t('web.payments.balance')} {money(b.balance)}</div>
-                <div className="text-slate-600">{t('web.payments.delivered')} {money(b.delivered)} · {t('web.payments.confirmedTotal')} {money(b.confirmed)} · {t('web.payments.collectedTotal')} {money(b.collected)}</div>
+                <div className="text-slate-600">{t('web.payments.delivered')} {money(b.delivered)} · {(b.returned ?? 0) > 0 ? `${t('web.c360.returned')} ${money(b.returned ?? 0)} · ` : ''}{t('web.payments.confirmedTotal')} {money(b.confirmed)} · {t('web.payments.collectedTotal')} {money(b.collected)}</div>
               </li>
             ))}
           </ul>
@@ -200,6 +205,21 @@ export function CustomerFilePage({ admin, customerId, me }: { admin: AdminApi; c
             </table>
           </div>
         )}
+      </Section>
+
+      <Section title={t('web.c360.returns')} error={returns.error}>
+        {returns.data && returns.data.length === 0 && none()}
+        {returns.data?.map((r) => (
+          <div key={r.id} className="space-y-1 rounded border p-2 text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <strong>{r.number}</strong>
+              <span>{when.format(new Date(r.createdAt))}</span>
+              <span>{t(`web.returns.status.${r.status}` as TextKey)}</span>
+              <span>{r.pricesHidden ? '—' : `${money(r.total)} ${r.currency}`}</span>
+            </div>
+            <ReturnLinesTable r={r} />
+          </div>
+        ))}
       </Section>
 
       <Section title={t('web.samples.title')} error={samples.error}>

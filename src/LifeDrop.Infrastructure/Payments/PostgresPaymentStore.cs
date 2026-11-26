@@ -297,9 +297,14 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
                 SELECT currency,
                        sum(amount) FILTER (WHERE status = 'confirmed') AS confirmed,
                        sum(amount) FILTER (WHERE status = 'collected') AS collected
-                FROM payments WHERE tenant_id = @tenant AND customer_id = @customer GROUP BY currency)
-            SELECT coalesce(d.currency, p.currency), coalesce(d.value, 0), coalesce(p.confirmed, 0), coalesce(p.collected, 0)
-            FROM delivered d FULL OUTER JOIN paid p ON p.currency = d.currency
+                FROM payments WHERE tenant_id = @tenant AND customer_id = @customer GROUP BY currency),
+            returned AS (
+                SELECT currency, sum(total) AS value FROM returns WHERE tenant_id = @tenant AND customer_id = @customer AND status = 'approved' GROUP BY currency),
+            money AS (
+                SELECT coalesce(d.currency, p.currency) AS currency, coalesce(d.value, 0) AS delivered, coalesce(p.confirmed, 0) AS confirmed, coalesce(p.collected, 0) AS collected
+                FROM delivered d FULL OUTER JOIN paid p ON p.currency = d.currency)
+            SELECT coalesce(m.currency, r.currency), coalesce(m.delivered, 0), coalesce(m.confirmed, 0), coalesce(m.collected, 0), coalesce(r.value, 0)
+            FROM money m FULL OUTER JOIN returned r ON r.currency = m.currency
             ORDER BY 1
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenantId.Value);
@@ -310,7 +315,8 @@ public sealed class PostgresPaymentStore(NpgsqlDataSource dataSource) : IPayment
         {
             var delivered = reader.GetDecimal(1);
             var confirmed = reader.GetDecimal(2);
-            items.Add(new BalanceItemDto(reader.GetString(0), delivered, confirmed, reader.GetDecimal(3), delivered - confirmed));
+            var returned = reader.GetDecimal(4);
+            items.Add(new BalanceItemDto(reader.GetString(0), delivered, confirmed, reader.GetDecimal(3), delivered - returned - confirmed, returned));
         }
         return items;
     }

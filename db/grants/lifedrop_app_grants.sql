@@ -59,3 +59,7 @@ GRANT SELECT, INSERT ON feedback_replies, feedback_photos TO lifedrop_app;
 GRANT SELECT, INSERT, UPDATE ON warehouse_stock TO lifedrop_app;
 -- Step 5.53: the copy of the old single stock figures (read-only for the program).
 GRANT SELECT ON legacy_stock_backup TO lifedrop_app;
+-- Step 5.54: customer returns (a return and its lines are written; nothing is deleted).
+GRANT SELECT, INSERT, UPDATE ON returns TO lifedrop_app;
+GRANT SELECT, INSERT ON return_items TO lifedrop_app;
+GRANT SELECT, INSERT, UPDATE ON return_counters TO lifedrop_app;

@@ -11188,5 +11188,563 @@
   "ckb": "کۆگا لە کۆگاکان دەژمێردرێت (تابی کۆگا).",
   "ar": "يُحسب المخزون في المستودعات (تبويب المستودع).",
   "fa": "موجودی در انبارها شمرده می‌شود (تب انبار)."
+ },
+ "web.tab.returns": {
+  "en": "Returns",
+  "ckb": "گەڕاوەکان",
+  "ar": "المرتجعات",
+  "fa": "مرجوعی‌ها"
+ },
+ "web.returns.title": {
+  "en": "Customer returns",
+  "ckb": "گەڕانەوەی کاڵا لە کڕیار",
+  "ar": "مرتجعات العملاء",
+  "fa": "مرجوعی مشتریان"
+ },
+ "web.returns.new": {
+  "en": "New return",
+  "ckb": "گەڕاوەی نوێ",
+  "ar": "مرتجع جديد",
+  "fa": "مرجوعی جدید"
+ },
+ "web.returns.number": {
+  "en": "Number",
+  "ckb": "ژمارە",
+  "ar": "الرقم",
+  "fa": "شماره"
+ },
+ "web.returns.date": {
+  "en": "Date",
+  "ckb": "بەروار",
+  "ar": "التاريخ",
+  "fa": "تاریخ"
+ },
+ "web.returns.customer": {
+  "en": "Customer",
+  "ckb": "کڕیار",
+  "ar": "العميل",
+  "fa": "مشتری"
+ },
+ "web.returns.order": {
+  "en": "Order (optional)",
+  "ckb": "داواکاری (ئارەزووی)",
+  "ar": "الطلب (اختياري)",
+  "fa": "سفارش (اختیاری)"
+ },
+ "web.returns.noOrder": {
+  "en": "No order (today's price)",
+  "ckb": "بێ داواکاری (نرخی ئەمڕۆ)",
+  "ar": "بدون طلب (سعر اليوم)",
+  "fa": "بدون سفارش (قیمت امروز)"
+ },
+ "web.returns.warehouse": {
+  "en": "Warehouse for goods that go back",
+  "ckb": "کۆگا بۆ ئەو کاڵایانەی دەگەڕێنەوە",
+  "ar": "المستودع للبضاعة العائدة",
+  "fa": "انبار برای کالای برگشتی"
+ },
+ "web.returns.chooseWarehouse": {
+  "en": "Choose warehouse",
+  "ckb": "کۆگا هەڵبژێرە",
+  "ar": "اختر المستودع",
+  "fa": "انتخاب انبار"
+ },
+ "web.returns.product": {
+  "en": "Product",
+  "ckb": "بەرهەم",
+  "ar": "المنتج",
+  "fa": "محصول"
+ },
+ "web.returns.chooseProduct": {
+  "en": "Choose product",
+  "ckb": "بەرهەم هەڵبژێرە",
+  "ar": "اختر المنتج",
+  "fa": "انتخاب محصول"
+ },
+ "web.returns.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "web.returns.reason": {
+  "en": "Reason",
+  "ckb": "هۆکار",
+  "ar": "السبب",
+  "fa": "دلیل"
+ },
+ "web.returns.destination": {
+  "en": "Goes to",
+  "ckb": "دەچێتە",
+  "ar": "وجهته",
+  "fa": "مقصد"
+ },
+ "web.returns.addLine": {
+  "en": "Add line",
+  "ckb": "زیادکردنی هێڵ",
+  "ar": "إضافة سطر",
+  "fa": "افزودن ردیف"
+ },
+ "web.returns.removeLine": {
+  "en": "Remove",
+  "ckb": "لابردن",
+  "ar": "إزالة",
+  "fa": "حذف"
+ },
+ "web.returns.note": {
+  "en": "Note",
+  "ckb": "تێبینی",
+  "ar": "ملاحظة",
+  "fa": "توضیح"
+ },
+ "web.returns.send": {
+  "en": "Send for approval",
+  "ckb": "ناردن بۆ پەسەندکردن",
+  "ar": "إرسال للموافقة",
+  "fa": "ارسال برای تأیید"
+ },
+ "web.returns.sent": {
+  "en": "Return {number} sent for approval.",
+  "ckb": "گەڕاوەی {number} نێردرا بۆ پەسەندکردن.",
+  "ar": "تم إرسال المرتجع {number} للموافقة.",
+  "fa": "مرجوعی {number} برای تأیید ارسال شد."
+ },
+ "web.returns.status": {
+  "en": "Status",
+  "ckb": "دۆخ",
+  "ar": "الحالة",
+  "fa": "وضعیت"
+ },
+ "web.returns.status.requested": {
+  "en": "Waiting for approval",
+  "ckb": "چاوەڕێی پەسەندکردنە",
+  "ar": "بانتظار الموافقة",
+  "fa": "در انتظار تأیید"
+ },
+ "web.returns.status.approved": {
+  "en": "Approved",
+  "ckb": "پەسەندکرا",
+  "ar": "موافق عليه",
+  "fa": "تأیید شد"
+ },
+ "web.returns.status.rejected": {
+  "en": "Rejected",
+  "ckb": "ڕەتکرایەوە",
+  "ar": "مرفوض",
+  "fa": "رد شد"
+ },
+ "web.returns.status.cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنرایەوە",
+  "ar": "ملغى",
+  "fa": "لغو شد"
+ },
+ "web.returns.all": {
+  "en": "All",
+  "ckb": "هەموو",
+  "ar": "الكل",
+  "fa": "همه"
+ },
+ "web.returns.total": {
+  "en": "Credit",
+  "ckb": "بڕی گەڕاوە",
+  "ar": "القيمة",
+  "fa": "مبلغ اعتبار"
+ },
+ "web.returns.by": {
+  "en": "Written by",
+  "ckb": "نووسەر",
+  "ar": "كتبه",
+  "fa": "ثبت‌کننده"
+ },
+ "web.returns.lines": {
+  "en": "Goods",
+  "ckb": "کاڵاکان",
+  "ar": "البضاعة",
+  "fa": "کالاها"
+ },
+ "web.returns.none": {
+  "en": "No returns.",
+  "ckb": "هیچ گەڕاوەیەک نییە.",
+  "ar": "لا توجد مرتجعات.",
+  "fa": "مرجوعی‌ای نیست."
+ },
+ "web.returns.approve": {
+  "en": "Approve",
+  "ckb": "پەسەند بکە",
+  "ar": "موافقة",
+  "fa": "تأیید"
+ },
+ "web.returns.reject": {
+  "en": "Reject",
+  "ckb": "ڕەت بکەوە",
+  "ar": "رفض",
+  "fa": "رد"
+ },
+ "web.returns.cancel": {
+  "en": "Cancel return",
+  "ckb": "هەڵوەشاندنەوەی گەڕاوە",
+  "ar": "إلغاء المرتجع",
+  "fa": "لغو مرجوعی"
+ },
+ "web.returns.approveNote": {
+  "en": "Note for the author (optional)",
+  "ckb": "تێبینی بۆ نووسەر (ئارەزووی)",
+  "ar": "ملاحظة للكاتب (اختياري)",
+  "fa": "توضیح برای ثبت‌کننده (اختیاری)"
+ },
+ "web.returns.rejectReason": {
+  "en": "Why is it rejected?",
+  "ckb": "بۆچی ڕەتدەکرێتەوە؟",
+  "ar": "لماذا يُرفض؟",
+  "fa": "چرا رد می‌شود؟"
+ },
+ "web.returns.cancelReason": {
+  "en": "Why is it cancelled?",
+  "ckb": "بۆچی هەڵدەوەشێتەوە؟",
+  "ar": "لماذا يُلغى؟",
+  "fa": "چرا لغو می‌شود؟"
+ },
+ "web.returns.decision": {
+  "en": "Decision",
+  "ckb": "بڕیار",
+  "ar": "القرار",
+  "fa": "تصمیم"
+ },
+ "web.returns.notOnShelf": {
+  "en": "Not added to the shelf (the warehouse does not count this product)",
+  "ckb": "نەخرایە سەر ڕەفەکە (کۆگا ئەم بەرهەمە ناژمێرێت)",
+  "ar": "لم تُضف إلى الرف (المستودع لا يجرد هذا المنتج)",
+  "fa": "به قفسه اضافه نشد (انبار این محصول را نمی‌شمارد)"
+ },
+ "web.returns.reason.damaged": {
+  "en": "Damaged",
+  "ckb": "خراپ",
+  "ar": "تالف",
+  "fa": "خراب"
+ },
+ "web.returns.reason.expired": {
+  "en": "Expired",
+  "ckb": "بەسەرچوو",
+  "ar": "منتهي الصلاحية",
+  "fa": "منقضی"
+ },
+ "web.returns.reason.wrong_item": {
+  "en": "Wrong item",
+  "ckb": "کاڵای هەڵە",
+  "ar": "صنف خاطئ",
+  "fa": "کالای اشتباه"
+ },
+ "web.returns.reason.customer_request": {
+  "en": "Customer's request",
+  "ckb": "داوای کڕیار",
+  "ar": "طلب العميل",
+  "fa": "درخواست مشتری"
+ },
+ "web.returns.reason.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "دیگر"
+ },
+ "web.returns.dest.warehouse": {
+  "en": "Back to the warehouse",
+  "ckb": "بگەڕێتەوە کۆگا",
+  "ar": "يعود للمستودع",
+  "fa": "برگشت به انبار"
+ },
+ "web.returns.dest.damaged": {
+  "en": "Damaged / expired (apart)",
+  "ckb": "خراپ / بەسەرچوو (جیا)",
+  "ar": "تالف / منتهي (منفصل)",
+  "fa": "خراب / منقضی (جدا)"
+ },
+ "web.returns.damagedTitle": {
+  "en": "Damaged and expired goods",
+  "ckb": "کاڵای خراپ و بەسەرچوو",
+  "ar": "البضاعة التالفة والمنتهية",
+  "fa": "کالای خراب و منقضی"
+ },
+ "web.returns.from": {
+  "en": "From",
+  "ckb": "لە",
+  "ar": "من",
+  "fa": "از"
+ },
+ "web.returns.to": {
+  "en": "To",
+  "ckb": "بۆ",
+  "ar": "إلى",
+  "fa": "تا"
+ },
+ "web.returns.damagedNone": {
+  "en": "No damaged or expired goods in this period.",
+  "ckb": "لەم ماوەیەدا کاڵای خراپ یان بەسەرچوو نییە.",
+  "ar": "لا بضاعة تالفة أو منتهية في هذه الفترة.",
+  "fa": "در این بازه کالای خراب یا منقضی نیست."
+ },
+ "web.returns.value": {
+  "en": "Value",
+  "ckb": "بەها",
+  "ar": "القيمة",
+  "fa": "ارزش"
+ },
+ "web.c360.returns": {
+  "en": "Returns",
+  "ckb": "گەڕاوەکان",
+  "ar": "المرتجعات",
+  "fa": "مرجوعی‌ها"
+ },
+ "web.c360.newReturn": {
+  "en": "New return",
+  "ckb": "گەڕاوەی نوێ",
+  "ar": "مرتجع جديد",
+  "fa": "مرجوعی جدید"
+ },
+ "web.c360.returned": {
+  "en": "Returned",
+  "ckb": "گەڕاوە",
+  "ar": "مرتجع",
+  "fa": "برگشتی"
+ },
+ "web.notifications.returnNew": {
+  "en": "{actor} sent a return for approval.",
+  "ckb": "{actor} گەڕاوەیەکی نارد بۆ پەسەندکردن.",
+  "ar": "أرسل {actor} مرتجعاً للموافقة.",
+  "fa": "{actor} یک مرجوعی برای تأیید فرستاد."
+ },
+ "web.notifications.returnDecided": {
+  "en": "{actor} decided your return.",
+  "ckb": "{actor} بڕیاری دا لەسەر گەڕاوەکەت.",
+  "ar": "قرّر {actor} بشأن مرتجعك.",
+  "fa": "{actor} دربارهٔ مرجوعی شما تصمیم گرفت."
+ },
+ "app.push.returnNew": {
+  "en": "A return is waiting for your approval.",
+  "ckb": "گەڕاوەیەک چاوەڕێی پەسەندکردنی تۆیە.",
+  "ar": "هناك مرتجع بانتظار موافقتك.",
+  "fa": "یک مرجوعی منتظر تأیید شماست."
+ },
+ "app.push.returnDecided": {
+  "en": "Your return has been decided. Open LifeDrop to see it.",
+  "ckb": "بڕیار درا لەسەر گەڕاوەکەت. LifeDrop بکەرەوە بۆ بینین.",
+  "ar": "تم البتّ في مرتجعك. افتح LifeDrop لعرضه.",
+  "fa": "درباره مرجوعی شما تصمیم گرفته شد. برای دیدن LifeDrop را باز کنید."
+ },
+ "app.home.returns": {
+  "en": "Returns",
+  "ckb": "گەڕاوەکان",
+  "ar": "المرتجعات",
+  "fa": "مرجوعی‌ها"
+ },
+ "app.return.title": {
+  "en": "New return",
+  "ckb": "گەڕاوەی نوێ",
+  "ar": "مرتجع جديد",
+  "fa": "مرجوعی جدید"
+ },
+ "app.return.mineTitle": {
+  "en": "My returns",
+  "ckb": "گەڕاوەکانم",
+  "ar": "مرتجعاتي",
+  "fa": "مرجوعی‌های من"
+ },
+ "app.return.new": {
+  "en": "New return",
+  "ckb": "گەڕاوەی نوێ",
+  "ar": "مرتجع جديد",
+  "fa": "مرجوعی جدید"
+ },
+ "app.return.button": {
+  "en": "Return goods",
+  "ckb": "گەڕاندنەوەی کاڵا",
+  "ar": "إرجاع بضاعة",
+  "fa": "مرجوعی کالا"
+ },
+ "app.return.warehouse": {
+  "en": "Warehouse for goods that go back",
+  "ckb": "کۆگا بۆ ئەو کاڵایانەی دەگەڕێنەوە",
+  "ar": "المستودع للبضاعة العائدة",
+  "fa": "انبار برای کالای برگشتی"
+ },
+ "app.return.search": {
+  "en": "Search products",
+  "ckb": "گەڕان بە بەرهەم",
+  "ar": "بحث عن منتج",
+  "fa": "جستجوی محصول"
+ },
+ "app.return.quantity": {
+  "en": "Quantity",
+  "ckb": "بڕ",
+  "ar": "الكمية",
+  "fa": "تعداد"
+ },
+ "app.return.reason": {
+  "en": "Reason",
+  "ckb": "هۆکار",
+  "ar": "السبب",
+  "fa": "دلیل"
+ },
+ "app.return.destination": {
+  "en": "Goes to",
+  "ckb": "دەچێتە",
+  "ar": "وجهته",
+  "fa": "مقصد"
+ },
+ "app.return.note": {
+  "en": "Note (optional)",
+  "ckb": "تێبینی (ئارەزووی)",
+  "ar": "ملاحظة (اختياري)",
+  "fa": "توضیح (اختیاری)"
+ },
+ "app.return.send": {
+  "en": "Send for approval",
+  "ckb": "ناردن بۆ پەسەندکردن",
+  "ar": "إرسال للموافقة",
+  "fa": "ارسال برای تأیید"
+ },
+ "app.return.sent": {
+  "en": "Return {number} sent for approval.",
+  "ckb": "گەڕاوەی {number} نێردرا بۆ پەسەندکردن.",
+  "ar": "تم إرسال المرتجع {number} للموافقة.",
+  "fa": "مرجوعی {number} برای تأیید ارسال شد."
+ },
+ "app.return.noLines": {
+  "en": "Type a quantity for at least one product.",
+  "ckb": "بڕی لانی کەم یەک بەرهەم بنووسە.",
+  "ar": "اكتب كمية لمنتج واحد على الأقل.",
+  "fa": "برای دست‌کم یک محصول تعداد بنویسید."
+ },
+ "app.return.needWarehouse": {
+  "en": "Choose the warehouse for the goods that go back.",
+  "ckb": "کۆگا هەڵبژێرە بۆ ئەو کاڵایانەی دەگەڕێنەوە.",
+  "ar": "اختر المستودع للبضاعة العائدة.",
+  "fa": "انبار کالای برگشتی را انتخاب کنید."
+ },
+ "app.return.invalid": {
+  "en": "A quantity is not a number.",
+  "ckb": "بڕێک ژمارە نییە.",
+  "ar": "كمية ليست رقماً.",
+  "fa": "یک تعداد عدد نیست."
+ },
+ "app.return.reason.damaged": {
+  "en": "Damaged",
+  "ckb": "خراپ",
+  "ar": "تالف",
+  "fa": "خراب"
+ },
+ "app.return.reason.expired": {
+  "en": "Expired",
+  "ckb": "بەسەرچوو",
+  "ar": "منتهي الصلاحية",
+  "fa": "منقضی"
+ },
+ "app.return.reason.wrong_item": {
+  "en": "Wrong item",
+  "ckb": "کاڵای هەڵە",
+  "ar": "صنف خاطئ",
+  "fa": "کالای اشتباه"
+ },
+ "app.return.reason.customer_request": {
+  "en": "Customer's request",
+  "ckb": "داوای کڕیار",
+  "ar": "طلب العميل",
+  "fa": "درخواست مشتری"
+ },
+ "app.return.reason.other": {
+  "en": "Other",
+  "ckb": "هیتر",
+  "ar": "أخرى",
+  "fa": "دیگر"
+ },
+ "app.return.dest.warehouse": {
+  "en": "Back to the warehouse",
+  "ckb": "بگەڕێتەوە کۆگا",
+  "ar": "يعود للمستودع",
+  "fa": "برگشت به انبار"
+ },
+ "app.return.dest.damaged": {
+  "en": "Damaged / expired (apart)",
+  "ckb": "خراپ / بەسەرچوو (جیا)",
+  "ar": "تالف / منتهي (منفصل)",
+  "fa": "خراب / منقضی (جدا)"
+ },
+ "app.return.status.requested": {
+  "en": "Waiting for approval",
+  "ckb": "چاوەڕێی پەسەندکردنە",
+  "ar": "بانتظار الموافقة",
+  "fa": "در انتظار تأیید"
+ },
+ "app.return.status.approved": {
+  "en": "Approved",
+  "ckb": "پەسەندکرا",
+  "ar": "موافق عليه",
+  "fa": "تأیید شد"
+ },
+ "app.return.status.rejected": {
+  "en": "Rejected",
+  "ckb": "ڕەتکرایەوە",
+  "ar": "مرفوض",
+  "fa": "رد شد"
+ },
+ "app.return.status.cancelled": {
+  "en": "Cancelled",
+  "ckb": "هەڵوەشێنرایەوە",
+  "ar": "ملغى",
+  "fa": "لغو شد"
+ },
+ "app.return.none": {
+  "en": "You have no returns yet.",
+  "ckb": "هێشتا هیچ گەڕاوەیەکت نییە.",
+  "ar": "لا توجد مرتجعات بعد.",
+  "fa": "هنوز مرجوعی‌ای ندارید."
+ },
+ "app.return.cancel": {
+  "en": "Cancel return",
+  "ckb": "هەڵوەشاندنەوە",
+  "ar": "إلغاء المرتجع",
+  "fa": "لغو مرجوعی"
+ },
+ "app.return.cancelReason": {
+  "en": "Why do you cancel it?",
+  "ckb": "بۆچی هەڵیدەوەشێنیتەوە؟",
+  "ar": "لماذا تلغيه؟",
+  "fa": "چرا لغو می‌کنید؟"
+ },
+ "app.return.cancelled": {
+  "en": "The return was cancelled.",
+  "ckb": "گەڕاوەکە هەڵوەشێنرایەوە.",
+  "ar": "تم إلغاء المرتجع.",
+  "fa": "مرجوعی لغو شد."
+ },
+ "app.return.decision": {
+  "en": "Decision: {text}",
+  "ckb": "بڕیار: {text}",
+  "ar": "القرار: {text}",
+  "fa": "تصمیم: {text}"
+ },
+ "app.return.notOnShelf": {
+  "en": "not added to the shelf: the warehouse does not count this product",
+  "ckb": "نەخرایە سەر ڕەفەکە: کۆگا ئەم بەرهەمە ناژمێرێت",
+  "ar": "لم تُضف إلى الرف: المستودع لا يجرد هذا المنتج",
+  "fa": "به قفسه اضافه نشد: انبار این محصول را نمی‌شمارد"
+ },
+ "app.return.more": {
+  "en": "Show more",
+  "ckb": "زیاتر پیشان بدە",
+  "ar": "عرض المزيد",
+  "fa": "نمایش بیشتر"
+ },
+ "app.result.ReturnTooMuch": {
+  "en": "More than was delivered (minus other returns of this order).",
+  "ckb": "زیاترە لەوەی گەیەندراوە (کەمکراوە بە گەڕاوەکانی تری ئەم داواکارییە).",
+  "ar": "أكثر مما سُلّم (بعد خصم مرتجعات أخرى لهذا الطلب).",
+  "fa": "بیشتر از تحویل‌شده است (منهای مرجوعی‌های دیگر این سفارش)."
+ },
+ "web.error.returnTooMuch": {
+  "en": "A return asks for more than the order delivered (minus other returns of it).",
+  "ckb": "مرجوعی بیشتر دەخوازێت لەوەی گەیەندراوە (کەمکراوە بە گەڕاوەکانی تر).",
+  "ar": "المرتجع يطلب أكثر مما سُلّم (بعد خصم المرتجعات الأخرى).",
+  "fa": "مرجوعی بیشتر از تحویل‌شدهٔ سفارش است (منهای مرجوعی‌های دیگر)."
  }
 }

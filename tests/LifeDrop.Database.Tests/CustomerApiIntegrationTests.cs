@@ -178,7 +178,8 @@ public class CustomerApiIntegrationTests
                 var m76 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0076_stock_follows_warehouses.sql"));
                 var m77 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0077_owner_leader_alerts.sql"));
                 var m78 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0078_stock_in_warehouses.sql"));
-                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78;
+                var m79 = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "0079_returns.sql"));
+                migrations = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15 + m16 + m17 + m18 + m19 + m20 + m21 + m22 + m23 + m24 + m25 + m26 + m27 + m28 + m29 + m30 + m31 + m32 + m33 + m34 + m35 + m36 + m37 + m38 + m39 + m40 + m41 + m42 + m43 + m44 + m45 + m46 + m47 + m48 + m49 + m50 + m51 + m52 + m53 + m54 + m55 + m56 + m57 + m58 + m59 + m60 + m61 + m62 + m63 + m64 + m65 + m66 + m67 + m68 + m69 + m70 + m71 + m72 + m73 + m74 + m75 + m76 + m77 + m78 + m79;
             }
 
             await using (var cmd = new NpgsqlCommand(migrations, migrationConnection))
@@ -2054,10 +2055,10 @@ public class CustomerApiIntegrationTests
             "CompanyManager:tenant:false", "Driver:own:true", "FinanceManager:tenant:false", "SalesManager:tenant:false",
             "SalesRep:region:true", "ScientificRep:own:true", "Supervisor:region:false", "TvDisplay:tenant:false", "WarehouseManager:own:false", "WholesalerOfficer:own:true"
         }, await RowsAsync(rolesSql));
-        Assert.Equal(new[] { "catalog.prices.restricted", "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "marketing.use", "orders.create", "orders.read", "payments.record", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
+        Assert.Equal(new[] { "catalog.prices.restricted", "catalog.read", "customers.location.write", "customers.read", "customers.write", "followups.create", "marketing.use", "orders.create", "orders.read", "payments.record", "returns.create", "samples.record", "visits.create_unplanned", "visits.fail", "visits.plan" }, await RowsAsync(
             "SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.tenant_id = @t1 AND r.name = 'SalesRep' ORDER BY 1"));
         var grantsBefore = await RowsAsync("SELECT count(*)::text FROM role_permissions WHERE tenant_id = @t1");
-        Assert.Equal(new[] { "130" }, grantsBefore);   // feedback.manage for CompanyManager, SalesManager and Supervisor (5.30) + 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36) + catalog.prices.restricted for the two field roles (4.42) + targets.manage/read for SalesManager and Supervisor, targets.read for CompanyManager and FinanceManager (5.5) + wholesaler.work for the new WholesalerOfficer (5.6) + marketing.use for four roles and marketing.manage for SalesManager (5.7) + client_errors.read for CompanyManager and SalesManager (5.10) + tracking.read for TvDisplay (5.11)
+        Assert.Equal(new[] { "138" }, grantsBefore);   // returns.create/read/approve: SalesRep 1, SalesManager 3, Supervisor 2, CompanyManager 1, FinanceManager 1 (5.54) + feedback.manage for CompanyManager, SalesManager and Supervisor (5.30) + 41 + visits.plan for the two reps (1.23) + places.manage for SalesManager and Supervisor (1.23-b) + catalog.read/manage, 7 grants (2.1) + orders and warehouses, 11 grants (2.2) + warehouse.work (2.3) + delivery.work (2.4) + payments (2.5) + samples (2.6) + followups (2.8) + alerts (2.9) + reports (2.12) + forms.manage for CompanyManager and SalesManager (3.2) + samples.record for SalesManager (4.13) + notifications.send for SalesManager and Supervisor (4.16) + customers.doctors.read for five roles (4.35) + customers.write / location.write / doctors.only for ScientificRep (4.36) + catalog.prices.restricted for the two field roles (4.42) + targets.manage/read for SalesManager and Supervisor, targets.read for CompanyManager and FinanceManager (5.5) + wholesaler.work for the new WholesalerOfficer (5.6) + marketing.use for four roles and marketing.manage for SalesManager (5.7) + client_errors.read for CompanyManager and SalesManager (5.10) + tracking.read for TvDisplay (5.11)
 
         // Re-running adds nothing and keeps a tenant's own change to a default role
         await ExecAsync("UPDATE roles SET data_scope = 'region' WHERE tenant_id = @t1 AND name = 'Supervisor'; SELECT seed_default_roles(@t1); SELECT seed_default_roles(@t1);");
@@ -5369,6 +5370,169 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/products/{tracked}/details", new { StockQty = 4m, Available = true })).StatusCode);
         As(rep);
         Assert.Equal(HttpStatusCode.Created, (await Place(null, (tracked, 1m))).StatusCode);
+    }
+
+    [SkippableFact]
+    public async Task Returns_RepAsksSalesManagerDecidesGoodsBackOrDamagedAndTheBalanceFollows()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), rep = Guid.NewGuid(), repOther = Guid.NewGuid(), finance = Guid.NewGuid(), region = Guid.NewGuid(), otherRegion = Guid.NewGuid(), team = Guid.NewGuid(), teamOther = Guid.NewGuid();
+        Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), w1 = Guid.NewGuid(), p1 = Guid.NewGuid(), p2 = Guid.NewGuid(), order = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id, email) VALUES (@m, @t1, 'm@t1'), (@rep, @t1, 'rep@t1'), (@ro, @t1, 'ro@t1'), (@f, @t1, 'f@t1');
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @rep, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @ro, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r, @t1, 'Erbil'), (@r2, @t1, 'Basra');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@tm, @t1, @r, 'A'), (@tm2, @t1, @r2, 'B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @rep, @tm), (@t1, @ro, @tm2);
+                INSERT INTO customers (id, tenant_id, type, code, name, region_id, approval_status, owner_user_id) VALUES (@c1, @t1, 'Pharmacy', 'C1', 'Customer 1', @r, 'approved', @rep), (@c2, @t1, 'Pharmacy', 'C2', 'Customer 2', @r2, 'approved', @ro);
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@w, @t1, 'W1', 'Main');
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES (@p1, @t1, 'P1', 'Product 1', 'box', 'IQD', 1000), (@p2, @t1, 'P2', 'Product 2', 'box', 'IQD', 500);
+                INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, quantity) VALUES (@t1, @w, @p1, 10);
+                INSERT INTO orders (id, tenant_id, number, customer_id, warehouse_id, created_by, status, driver_id, receiver_name, currency, total, client_ref) VALUES (@o, @t1, 1, @c1, @w, @rep, 'delivered', @rep, 'Receiver', 'IQD', 5000, gen_random_uuid());
+                INSERT INTO order_items (tenant_id, order_id, line_no, product_id, product_code, product_name, unit, quantity, list_price, unit_price, line_total, prepared_quantity, delivered_quantity, delivery_reason) VALUES
+                    (@t1, @o, 1, @p1, 'P1', 'Product 1', 'box', 5, 1000, 1000, 5000, 5, 4, 'one broke'), (@t1, @o, 2, @p2, 'P2', 'Product 2', 'box', 2, 500, 500, 1000, 2, 2, NULL);", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("rep", rep), ("ro", repOther), ("f", finance), ("r", region), ("r2", otherRegion), ("tm", team), ("tm2", teamOther), ("c1", c1), ("c2", c2), ("w", w1), ("p1", p1), ("p2", p2), ("o", order) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        Task<HttpResponseMessage> Create(Guid customer, Guid? orderId, Guid? warehouse, Guid? clientRef, params object[] items) => client.PostAsJsonAsync("/returns", new
+        {
+            CustomerId = customer, OrderId = orderId, WarehouseId = warehouse, ClientRef = clientRef ?? Guid.NewGuid(), Note = " note ", Items = items
+        });
+        async Task<LifeDrop.Application.Returns.CreatedReturnDto> Created(HttpResponseMessage r) { Assert.Equal(HttpStatusCode.Created, r.StatusCode); return (await r.Content.ReadFromJsonAsync<LifeDrop.Application.Returns.CreatedReturnDto>())!; }
+        async Task<LifeDrop.Application.Returns.ReturnDto> Get(Guid id) => (await client.GetFromJsonAsync<LifeDrop.Application.Returns.ReturnDto>($"/returns/{id}"))!;
+        async Task<decimal> Stock() => Convert.ToDecimal(await Scalar($"SELECT quantity FROM warehouse_stock WHERE product_id = '{p1}'"));
+        async Task<object?> Scalar(string sql)
+        {
+            await using var conn = new NpgsqlConnection(schemaBlock.ConnectionString);
+            await conn.OpenAsync();
+            await using var set = new NpgsqlCommand($"SELECT set_config('app.current_tenant', '{t1}', false)", conn);
+            await set.ExecuteNonQueryAsync();
+            await using var q = new NpgsqlCommand(sql, conn);
+            return await q.ExecuteScalarAsync();
+        }
+        async Task<decimal> Balance() { As(manager); var b = (await client.GetFromJsonAsync<LifeDrop.Application.Payments.CustomerBalanceDto>($"/customers/{c1}/balance"))!; return b.Items.Single().Balance; }
+
+        // The rep asks for goods back against the delivered order: the damaged goods go "damaged" by default, the other reason goes back to the warehouse; prices are the order's
+        As(rep);
+        var first = Guid.NewGuid();
+        var r1 = await Created(await Create(c1, order, w1, first,
+            new { ProductId = p1, Quantity = 2m, Reason = "damaged" }, new { ProductId = p2, Quantity = 1m, Reason = "customer_request" }));
+        Assert.Equal((2500m, "R-000001"), (r1.Total, r1.Number));
+        var shown = await Get(r1.Id);
+        Assert.Equal(("requested", "IQD", 2500m), (shown.Status, shown.Currency, shown.Total));
+        Assert.Equal(new[] { "damaged", "warehouse" }, shown.Items.Select(i => i.Destination).ToArray());
+        Assert.Equal(new[] { 1000m, 500m }, shown.Items.Select(i => i.UnitPrice).ToArray());
+        Assert.Equal("note", shown.Note);
+        // A retry of a lost answer returns the same return
+        As(rep);
+        var replay = await Create(c1, order, w1, first, new { ProductId = p1, Quantity = 2m, Reason = "damaged" }, new { ProductId = p2, Quantity = 1m, Reason = "customer_request" });
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(r1.Id, (await replay.Content.ReadFromJsonAsync<LifeDrop.Application.Returns.CreatedReturnDto>())!.Id);
+
+        // No more than was delivered (4) minus what other returns already take (2): 3 is too much, 2 fits
+        As(rep);
+        await AssertProblemAsync(await Create(c1, order, w1, null, new { ProductId = p1, Quantity = 3m, Reason = "wrong_item" }), HttpStatusCode.Conflict, "RETURN_TOO_MUCH");
+        var r2 = await Created(await Create(c1, order, w1, null, new { ProductId = p1, Quantity = 2m, Reason = "wrong_item" }));
+        As(rep);
+        await AssertProblemAsync(await Create(c1, order, w1, null, new { ProductId = p1, Quantity = 1m, Reason = "wrong_item" }), HttpStatusCode.Conflict, "RETURN_TOO_MUCH");
+
+        // Bad requests: a line that goes back needs the warehouse; no lines; an unknown reason; a product twice; a product that is not on the order; a customer of another region
+        As(rep);
+        await AssertProblemAsync(await Create(c1, order, null, null, new { ProductId = p2, Quantity = 1m, Reason = "other" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Create(c1, order, w1, null), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Create(c1, order, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "gift" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Create(c1, order, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "other" }, new { ProductId = p2, Quantity = 1m, Reason = "other" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Create(c2, null, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "other" }), HttpStatusCode.NotFound, "NOT_FOUND");
+
+        // Without an order: today's price of the customer, no cap
+        As(rep);
+        var r3 = await Created(await Create(c1, null, w1, null, new { ProductId = p1, Quantity = 1m, Reason = "other", Destination = "warehouse" }));
+        Assert.Equal(1000m, r3.Total);
+
+        // Who may do what: the rep and the finance manager cannot decide; the finance manager reads all; the other region's rep sees none of these; the sales manager gets the notices
+        As(rep);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(finance);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        Assert.Equal(3, (await client.GetFromJsonAsync<List<LifeDrop.Application.Returns.ReturnDto>>("/returns"))!.Count);
+        As(repOther);
+        Assert.Empty((await client.GetFromJsonAsync<List<LifeDrop.Application.Returns.ReturnDto>>("/returns"))!);
+        await AssertProblemAsync(await client.GetAsync($"/returns/{r1.Id}"), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal("3", Convert.ToString(await Scalar($"SELECT count(*) FROM notifications WHERE kind = 'return.new' AND user_id = '{manager}'")));
+        Assert.Equal("0", Convert.ToString(await Scalar($"SELECT count(*) FROM notifications WHERE kind = 'return.new' AND user_id = '{rep}'")));
+
+        // Nothing changes before a decision: the balance is what was delivered (4 x 1000 + 2 x 500) and the stock is as it was
+        Assert.Equal(5000m, await Balance());
+        Assert.Equal(10m, await Stock());
+
+        // Approving: the damaged line is only recorded, the p2 line cannot be added because W1 never counted p2; the balance falls by the credit
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { Note = "ok" })).StatusCode);
+        var approved = await Get(r1.Id);
+        Assert.Equal(("approved", "ok"), (approved.Status, approved.DecisionNote));
+        Assert.Equal(new bool?[] { null, false }, approved.Items.Select(i => i.StockApplied).ToArray());
+        Assert.Equal(10m, await Stock());
+        Assert.Equal(2500m, await Balance());
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r1.Id}/approve", new { }), HttpStatusCode.Conflict, "CONFLICT");
+
+        // The second return goes back to W1 where p1 is counted: 10 + 2
+        As(manager);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r2.Id}/approve", new { })).StatusCode);
+        Assert.Equal(new bool?[] { true }, (await Get(r2.Id)).Items.Select(i => i.StockApplied).ToArray());
+        Assert.Equal(12m, await Stock());
+        Assert.Equal(500m, await Balance());
+
+        // A rejection needs a reason and changes nothing
+        As(manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r3.Id}/reject", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r3.Id}/reject", new { Note = "not our goods" })).StatusCode);
+        Assert.Equal(("rejected", "not our goods"), ((await Get(r3.Id)).Status, (await Get(r3.Id)).DecisionNote));
+        Assert.Equal(12m, await Stock());
+        Assert.Equal(500m, await Balance());
+        Assert.Equal("3", Convert.ToString(await Scalar($"SELECT count(*) FROM notifications WHERE kind = 'return.decided' AND user_id = '{rep}'")));   // the rep heard of all three decisions
+
+        // The damaged and expired goods of the period, by product and reason
+        As(manager);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);   // the test host has a fixed clock, so the days are given
+        var damaged = (await client.GetFromJsonAsync<List<LifeDrop.Application.Returns.DamagedGoodsDto>>($"/returns/damaged?from={today.AddDays(-1):yyyy-MM-dd}&to={today.AddDays(1):yyyy-MM-dd}"))!;
+        var line = Assert.Single(damaged);
+        Assert.Equal(("P1", "damaged", 2m, 2000m, "IQD"), (line.ProductCode, line.Reason, line.Quantity, line.Value, line.Currency));
+
+        // The author cancels while it is requested; nobody else, and not twice
+        As(rep);
+        var r4 = await Created(await Create(c1, null, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "expired" }));
+        As(manager);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r4.Id}/cancel", new { Note = "no" }), HttpStatusCode.Forbidden, "FORBIDDEN");
+        As(rep);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r4.Id}/cancel", new { }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync($"/returns/{r4.Id}/cancel", new { Note = "mistake" })).StatusCode);
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/returns/{r4.Id}/cancel", new { Note = "again" }), HttpStatusCode.Conflict, "CONFLICT");
+        // A cancelled or rejected return frees what it asked for on the order: 2 more of p1 could now be asked (4 - 2 approved - 2 approved = 0, so still none), p2 has 1 of 2 taken by an approved one
+        As(rep);
+        Assert.Equal(HttpStatusCode.Created, (await Create(c1, order, w1, null, new { ProductId = p2, Quantity = 1m, Reason = "other" })).StatusCode);
     }
 
     [SkippableFact]

@@ -49,4 +49,15 @@ describe('product gallery', () => {
     expect(await screen.findByRole('textbox', { name: 'Code' })).toHaveValue('')   // an empty form is there again
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
   })
+
+  it('opens the new-product form above the list, right under the toolbar', async () => {
+    const manager = { id: 'm', email: 'm@t1', roles: ['SalesManager'], permissions: ['catalog.read', 'catalog.manage'] } as Me
+    const api = { products: vi.fn().mockResolvedValue(items), productPhotoUrl: (k: string) => k } as unknown as AdminApi
+    const user = userEvent.setup()
+    render(<CatalogPage admin={api} me={manager} />)
+    const card = await screen.findByRole('button', { name: 'Name A' })
+    await user.click(screen.getByRole('button', { name: 'New product' }))
+    const form = screen.getByRole('textbox', { name: 'Code' }).closest('form')!
+    expect(form.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()   // the card comes after the form
+  })
 })

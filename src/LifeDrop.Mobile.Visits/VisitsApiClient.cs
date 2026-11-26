@@ -47,6 +47,8 @@ public enum VisitActionResult
     OrderRequired, CurrencyMismatch, CustomerNotApproved,
     // Plan step 4.41: a product of the order is out of stock (or short of what was asked).
     OutOfStock,
+    // Plan step 5.54: a return asks for more than the order delivered (minus what other returns already take).
+    ReturnTooMuch,
     // Plan step 4.46: the current password given when changing one's own password is wrong.
     WrongPassword
 }
