@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { AdminApi, type WarehouseStockRow } from '../api/admin.ts'
+import { expiryStatus } from '../pages/productView.ts'
 import { t } from '../i18n.ts'
 import { useAction, useLoad } from './useLoad.ts'
 
@@ -23,6 +24,18 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
   const action = useAction(stock.reload)
   const [open, setOpen] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  // The products of the opened warehouse as cards with photos or as a table (owner request 2026-11-26); the photos come from the product list, which a warehouse worker may not read: then the cards show no photo.
+  const [view, setView] = useState<'gallery' | 'table'>('gallery')
+  const [find, setFind] = useState('')
+  const [onlyOpen, setOnlyOpen] = useState(false)   // only the products not counted yet
+  const catalogue = useLoad(useCallback(async () => {
+    try {
+      return await admin.products(false)
+    } catch {
+      return []   // no right to read the product list: the cards have no photo
+    }
+  }, [admin]))
+  const photos = useMemo(() => new Map((catalogue.data ?? []).map((p) => [p.id, p.photoKey ?? null])), [catalogue.data])
 
   const warehouses = useMemo(() => {
     const map = new Map<string, WarehouseSummary>()
@@ -68,6 +81,8 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
   if (stock.error) return <p role="alert" className="text-sm text-red-700">{stock.error}</p>
   if (!stock.data) return null
   const current = warehouses.find((w) => w.id === open)
+  const q = find.trim().toLowerCase()
+  const shownRows = (current?.rows ?? []).filter((r) => (!q || r.productCode.toLowerCase().includes(q) || r.productName.toLowerCase().includes(q)) && (!onlyOpen || !r.counted))
 
   return (
     <div className="space-y-3 rounded border p-3 text-sm">
@@ -125,25 +140,73 @@ export function WarehouseStock({ admin, canEdit }: { admin: AdminApi; canEdit: b
         </table>
       )}
       {current && (
-        <div className="space-y-1 rounded border bg-slate-50 p-2">
-          <h4 className="font-semibold">{current.code} · {current.name}</h4>
-          {current.rows.map((r) => (
-            <div key={r.productId} className="flex items-center gap-3">
-              <span className="flex-1">{r.productCode} · {r.productName}{(r.reserved ?? 0) > 0 && <em className="text-slate-600"> ({t('web.stock.reserved', { reserved: number(r.reserved ?? 0), free: number(r.quantity - (r.reserved ?? 0)) })})</em>}</span>
-              {canEdit ? (
-                <>
-                  <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={draftOf(r)}
-                    onChange={(e) => setDrafts({ ...drafts, [`${r.warehouseId}:${r.productId}`]: e.target.value })} />
-                  <span className="w-12">{r.unit}</span>
-                  <button className="rounded border px-2 py-1" aria-label={t('web.stock.saveOf', { name: r.productName })} disabled={action.busy || draftOf(r).trim() === '' || Number(draftOf(r)) === r.quantity} onClick={() => void save(r)}>
-                    {t('web.stock.save')}
-                  </button>
-                </>
-              ) : (
-                <span>{r.counted ? `${number(r.quantity)} ${r.unit}` : t('web.stock.notCounted')}</span>
-              )}
+        <div className="space-y-3 rounded border bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h4 className="font-semibold">{current.code} · {current.name}{current.city ? ` · ${current.city}` : ''}</h4>
+            <input aria-label={t('web.catalog.search')} placeholder={t('web.catalog.search')} className="rounded border px-2 py-1" value={find} onChange={(e) => setFind(e.target.value)} />
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
+              {t('web.stock.onlyNotCounted')}
+            </label>
+            <div className="inline-flex overflow-hidden rounded border" role="group">
+              {(['gallery', 'table'] as const).map((v) => (
+                <button key={v} type="button" aria-pressed={view === v} className={`px-3 py-1 ${view === v ? 'bg-slate-800 text-white' : 'bg-white'}`} onClick={() => setView(v)}>
+                  {t(`web.catalog.${v}`)}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+          {view === 'gallery' ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {shownRows.map((r) => {
+                const photo = photos.get(r.productId)
+                const status = expiryStatus(r.expiryDate)
+                return (
+                  <div key={r.productId} className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                    {photo ? <img src={admin.productPhotoUrl(photo)} alt="" loading="lazy" className="h-32 w-full bg-slate-100 object-contain" /> : <div aria-hidden className="flex h-32 items-center justify-center bg-slate-100 text-3xl opacity-60">💊</div>}
+                    <div className="space-y-1 p-2">
+                      <div className="line-clamp-2 min-h-10 font-semibold">{r.productName}</div>
+                      <div className="text-xs text-slate-500">{r.productCode}{(r.reserved ?? 0) > 0 && ` · ${t('web.stock.reserved', { reserved: number(r.reserved ?? 0), free: number(r.quantity - (r.reserved ?? 0)) })}`}</div>
+                      {status !== 'none' && status !== 'ok' && <div className={`text-xs ${status === 'expired' ? 'font-semibold text-red-600' : 'text-orange-600'}`}>{r.expiryDate}</div>}
+                      {canEdit ? (
+                        <div className="flex items-center gap-1">
+                          <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-full min-w-0 rounded border px-2 py-1" value={draftOf(r)}
+                            onChange={(e) => setDrafts({ ...drafts, [`${r.warehouseId}:${r.productId}`]: e.target.value })} />
+                          <span className="text-xs">{r.unit}</span>
+                          <button className="rounded border px-2 py-1" aria-label={t('web.stock.saveOf', { name: r.productName })} disabled={action.busy || draftOf(r).trim() === '' || Number(draftOf(r)) === r.quantity} onClick={() => void save(r)}>
+                            {t('web.stock.save')}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="font-bold">{r.counted ? `${number(r.quantity)} ${r.unit}` : t('web.stock.notCounted')}</div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {shownRows.map((r) => (
+                <div key={r.productId} className="flex items-center gap-3">
+                  <span className="flex-1">{r.productCode} · {r.productName}{(r.reserved ?? 0) > 0 && <em className="text-slate-600"> ({t('web.stock.reserved', { reserved: number(r.reserved ?? 0), free: number(r.quantity - (r.reserved ?? 0)) })})</em>}</span>
+                  {canEdit ? (
+                    <>
+                      <input aria-label={t('web.stock.quantityOf', { name: r.productName })} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={draftOf(r)}
+                        onChange={(e) => setDrafts({ ...drafts, [`${r.warehouseId}:${r.productId}`]: e.target.value })} />
+                      <span className="w-12">{r.unit}</span>
+                      <button className="rounded border px-2 py-1" aria-label={t('web.stock.saveOf', { name: r.productName })} disabled={action.busy || draftOf(r).trim() === '' || Number(draftOf(r)) === r.quantity} onClick={() => void save(r)}>
+                        {t('web.stock.save')}
+                      </button>
+                    </>
+                  ) : (
+                    <span>{r.counted ? `${number(r.quantity)} ${r.unit}` : t('web.stock.notCounted')}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {shownRows.length === 0 && <p className="text-slate-600">{t('web.catalog.noResults')}</p>}
         </div>
       )}
       {products.length > 0 && warehouses.length > 0 && (

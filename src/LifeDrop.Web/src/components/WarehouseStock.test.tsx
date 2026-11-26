@@ -54,6 +54,29 @@ describe('WarehouseStock', () => {
     expect(saved).toEqual([['w1', 'b', 7.5]])
   })
 
+  it('shows the products of a warehouse as cards with photos or as a table, finds them and counts them', async () => {
+    const { fake, saved } = admin(rows)
+    ;(fake as unknown as { products: () => Promise<unknown[]> }).products = async () => [{ id: 'a', photoKey: 'a.jpg' }]
+    ;(fake as unknown as { productPhotoUrl: (k: string) => string }).productPhotoUrl = (k) => `/p/${k}`
+    const user = userEvent.setup()
+    const { container } = render(<WarehouseStock admin={fake} canEdit />)
+    await user.click(await screen.findByRole('button', { name: 'Stock of Basra warehouse' }))
+    // Basra: product A is counted, product B (Vitamin C) is not; the cards are the default view and show the photo of A
+    expect(container.querySelector('img[src="/p/a.jpg"]')).not.toBeNull()
+    await user.click(screen.getByRole('checkbox', { name: 'Only products not counted yet' }))
+    expect(screen.queryByRole('spinbutton', { name: 'Quantity of Cough syrup' })).toBeNull()
+    expect(screen.getByRole('spinbutton', { name: 'Quantity of Vitamin C' })).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Only products not counted yet' }))
+    await user.type(screen.getByRole('textbox', { name: 'Search code or name' }), 'cough')
+    expect(screen.queryByRole('spinbutton', { name: 'Quantity of Vitamin C' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Table' }))   // the table view works the same
+    const box = screen.getByRole('spinbutton', { name: 'Quantity of Cough syrup' })
+    await user.clear(box)
+    await user.type(box, '9')
+    await user.click(screen.getByRole('button', { name: 'Save Cough syrup' }))
+    expect(saved).toEqual([['w2', 'a', 9]])
+  })
+
   it('warns about low stock and products that expire within 90 days', async () => {
     const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
     const later = new Date(Date.now() + 400 * 86_400_000).toISOString().slice(0, 10)

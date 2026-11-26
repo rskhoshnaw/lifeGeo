@@ -1491,6 +1491,11 @@ export class AdminApi {
   setTarget = (userId: string, productId: string, month: string, quantity: number | null) => this.send('PUT', '/targets', { userId, productId, month, quantity })
   routeDays = (userId: string, month: string) => this.get<RouteDay[]>(`/tracking/days?userId=${userId}&month=${month}`)
   customerHistory = (customerId: string) => this.get<CustomerHistory>(`/customers/${customerId}/history`)
+  // One customer's file (owner request 2026-11-26): the customer and what the lists of payments, samples and follow-ups hold for it.
+  customer = (customerId: string) => this.get<Customer>(`/customers/${customerId}`)
+  customerPayments = (customerId: string) => this.get<Payment[]>(`/payments?limit=100&customerId=${customerId}`)
+  customerSamples = (customerId: string) => this.get<Sample[]>(`/samples?limit=100&customerId=${customerId}`)
+  customerFollowUps = (customerId: string) => this.get<FollowUp[]>(`/followups?limit=100&customerId=${customerId}`)
   routeHistory = (userId: string, date: string) => this.get<RouteHistory>(`/tracking/history?userId=${userId}&date=${date}`)
   mapCustomers = () => this.get<MapCustomer[]>('/customers/map')
   auditLogs = (filter: AuditFilter, after?: AuditEntry) => this.get<AuditEntry[]>(auditQuery(filter, after))

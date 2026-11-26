@@ -2868,10 +2868,10 @@
   "fa": "روز: {day}"
  },
  "app.add.needSearch": {
-  "en": "Choose a place or type at least two letters.",
-  "ckb": "شوێنێک هەڵبژێرە یان بەلایەنی کەمەوە دوو پیت بنووسە.",
-  "ar": "اختر مكاناً أو اكتب حرفين على الأقل.",
-  "fa": "یک مکان انتخاب کنید یا دست‌کم دو حرف بنویسید."
+  "en": "Type at least two letters, or clear the box to see your customers.",
+  "ckb": "بەلایەنی کەمەوە دوو پیت بنووسە، یان خانەکە بەتاڵ بکە بۆ بینینی کڕیارەکانت.",
+  "ar": "اكتب حرفين على الأقل، أو أفرغ الحقل لعرض عملائك.",
+  "fa": "دست‌کم دو حرف بنویسید، یا کادر را خالی کنید تا مشتریان شما نمایش داده شوند."
  },
  "app.add.none": {
   "en": "No customer found, or all are already in the plan.",
@@ -10966,5 +10966,89 @@
   "ckb": "تۆمارکردنی ئەم مۆبایلە سڕایەوە. دوگمەی تۆمارکردن دابگرە بۆ تۆمارکردنەوە.",
   "ar": "تمت إزالة تسجيل هذا الهاتف. اضغط تسجيل لتسجيله من جديد.",
   "fa": "ثبت این گوشی حذف شده است. دکمهٔ ثبت را بزنید تا دوباره ثبت شود."
+ },
+ "web.catalog.saveAndNew": {
+  "en": "Save and new product",
+  "ckb": "پاشەکەوتکردن و بەرهەمی نوێ",
+  "ar": "حفظ ومنتج جديد",
+  "fa": "ذخیره و محصول جدید"
+ },
+ "app.plan.backToToday": {
+  "en": "Today",
+  "ckb": "ئەمڕۆ",
+  "ar": "اليوم",
+  "fa": "امروز"
+ },
+ "app.plan.pickDay": {
+  "en": "Choose a day",
+  "ckb": "ڕۆژێک هەڵبژێرە",
+  "ar": "اختر يوماً",
+  "fa": "انتخاب روز"
+ },
+ "app.plan.otherDay": {
+  "en": "Another day…",
+  "ckb": "ڕۆژێکی تر…",
+  "ar": "يوم آخر…",
+  "fa": "روز دیگر…"
+ },
+ "web.c360.title": {
+  "en": "Customer file: {customer}",
+  "ckb": "فایلی کڕیار: {customer}",
+  "ar": "ملف العميل: {customer}",
+  "fa": "پروندهٔ مشتری: {customer}"
+ },
+ "web.c360.info": {
+  "en": "Information",
+  "ckb": "زانیاری",
+  "ar": "المعلومات",
+  "fa": "اطلاعات"
+ },
+ "web.c360.noAccess": {
+  "en": "You cannot see this part.",
+  "ckb": "ناتوانیت ئەم بەشە ببینیت.",
+  "ar": "لا يمكنك رؤية هذا القسم.",
+  "fa": "دسترسی به این بخش ندارید."
+ },
+ "web.c360.notDelivered": {
+  "en": "Not delivered / returned",
+  "ckb": "نەگەیەندراو / گەڕاوە",
+  "ar": "غير مسلّم / مُرتجع",
+  "fa": "تحویل نشده / برگشتی"
+ },
+ "web.c360.ordered": {
+  "en": "Ordered",
+  "ckb": "داواکراو",
+  "ar": "المطلوب",
+  "fa": "سفارش"
+ },
+ "web.c360.deliveredQty": {
+  "en": "Delivered",
+  "ckb": "گەیەندراو",
+  "ar": "المسلّم",
+  "fa": "تحویل"
+ },
+ "web.c360.openFile": {
+  "en": "Open the customer file in a new tab",
+  "ckb": "فایلی کڕیار لە تابێکی نوێ بکەرەوە",
+  "ar": "افتح ملف العميل في تبويب جديد",
+  "fa": "باز کردن پروندهٔ مشتری در تب جدید"
+ },
+ "web.c360.notFound": {
+  "en": "This customer was not found or you cannot see it.",
+  "ckb": "ئەم کڕیارە نەدۆزرایەوە یان ناتوانیت ببینیت.",
+  "ar": "لم يتم العثور على هذا العميل أو لا يمكنك رؤيته.",
+  "fa": "این مشتری پیدا نشد یا دسترسی ندارید."
+ },
+ "web.c360.details": {
+  "en": "Show details",
+  "ckb": "پیشاندانی وردەکاری",
+  "ar": "عرض التفاصيل",
+  "fa": "نمایش جزئیات"
+ },
+ "web.stock.onlyNotCounted": {
+  "en": "Only products not counted yet",
+  "ckb": "تەنها ئەو بەرهەمانەی هێشتا نەژمێردراون",
+  "ar": "المنتجات غير المجرودة فقط",
+  "fa": "فقط محصولات شمارش‌نشده"
  }
 }

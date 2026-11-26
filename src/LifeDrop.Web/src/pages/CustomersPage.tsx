@@ -16,6 +16,7 @@ import { CustomerHistoryPanel } from '../components/CustomerHistoryPanel.tsx'
 import { CustomerCard } from '../components/CustomerCard.tsx'
 import { VisitWindowsEditor } from '../components/VisitWindowsEditor.tsx'
 import { SortTh, useSort } from '../components/sort.tsx'
+import { customerFileHash } from './CustomerFilePage.tsx'
 
 export function CustomersPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [reload, setReload] = useState(0)
@@ -245,9 +246,10 @@ function CustomerList({ admin, canEdit, canMove, canArchive, canPrioritise, canA
                 )}
                 <td className="py-2">{customer.code}</td>
                 <td>
-                  <button className="text-start text-brand-700 underline" aria-expanded={openFor?.id === customer.id} aria-label={t('web.customers.open', { customer: customer.name })} onClick={() => setOpenFor(openFor?.id === customer.id ? null : customer)}>
-                    {openFor?.id === customer.id ? '▾ ' : '▸ '}{customer.name}
+                  <button className="me-1 rounded px-1 text-slate-500 hover:bg-slate-100" aria-expanded={openFor?.id === customer.id} aria-label={t('web.c360.details', { customer: customer.name })} title={t('web.c360.details')} onClick={() => setOpenFor(openFor?.id === customer.id ? null : customer)}>
+                    {openFor?.id === customer.id ? '▾' : '▸'}
                   </button>
+                  <a className="text-start text-brand-700 underline" href={customerFileHash(customer.id)} target="_blank" rel="opener" title={t('web.c360.openFile')} aria-label={t('web.customers.open', { customer: customer.name })}>{customer.name}</a>
                 </td>
                 <td>{customer.type}</td>
                 <td>{customer.placePath?.[0]?.name ?? '—'}</td>

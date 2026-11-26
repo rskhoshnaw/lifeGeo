@@ -35,11 +35,11 @@ public class SelfPlannerTests
     private static SelfPlanCandidate C(string code) => new(Guid.NewGuid(), code, "Name " + code, null, null, "none");
 
     [Theory]
-    [InlineData(null, null, false)]
+    [InlineData(null, null, true)]   // nothing typed or chosen: the user's own customers (owner request 2026-11-26)
     [InlineData(null, "a", false)]
     [InlineData(null, "  a ", false)]
     [InlineData(null, "ab", true)]
-    public void ASearchNeedsAPlaceOrTwoLetters(object? place, string? text, bool expected) =>
+    public void ASearchRefusesASingleLetterOnly(object? place, string? text, bool expected) =>
         Assert.Equal(expected, SelfPlanner.CanSearch(place is null ? null : Guid.NewGuid(), text));
 
     [Fact]

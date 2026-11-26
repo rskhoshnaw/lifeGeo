@@ -1303,10 +1303,11 @@ describe('panel management screens', () => {
     await user.click(await screen.findByRole('button', { name: 'Customers' }))
     expect(await screen.findByText('0750 111 2233')).toBeInTheDocument()
     expect(screen.getByText('Erbil')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: new RegExp(`Open ${customer.name}`) }))
+    expect(screen.getByRole('link', { name: new RegExp(`Open ${customer.name}`) })).toHaveAttribute('target', '_blank')   // the name opens the customer file in a new tab
+    await user.click(await screen.findByRole('button', { name: 'Show details' }))
     const card = await screen.findByRole('region', { name: new RegExp(customer.name) })
     expect(card.closest('tr')?.previousElementSibling).toHaveTextContent(customer.name)   // the card sits in the row right below the clicked customer
-    await user.click(screen.getByRole('button', { name: new RegExp(`Open ${customer.name}`) }))
+    await user.click(screen.getByRole('button', { name: 'Show details' }))
     expect(screen.queryByRole('region', { name: new RegExp(customer.name) })).toBeNull()
   })
 

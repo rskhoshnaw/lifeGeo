@@ -124,11 +124,11 @@ public sealed class ProductsPage : ContentPage
         for (var i = 0; i < shown.Count; i++)
         {
             if (i % 2 == 0) _gallery.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            _gallery.Add(Card(shown[i], today), i % 2, i / 2);
+            _gallery.Add(Card(shown[i], today, shown, i), i % 2, i / 2);
         }
     }
 
-    private View Card(ProductItem product, DateOnly today)
+    private View Card(ProductItem product, DateOnly today, IReadOnlyList<ProductItem> shown, int index)
     {
         var lines = new VerticalStackLayout { Spacing = 3, Padding = new Thickness(10, 8, 10, 10) };
         lines.Children.Add(new Label { Text = product.DisplayName(Texts.Language), FontAttributes = FontAttributes.Bold, FontSize = 14, MaxLines = 2, LineBreakMode = LineBreakMode.TailTruncation });
@@ -165,7 +165,7 @@ public sealed class ProductsPage : ContentPage
             Opacity = product.Available ? 1 : 0.6
         };
         var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) => await Navigation.PushAsync(new ProductDetailPage(product));
+        tap.Tapped += async (_, _) => await Navigation.PushAsync(new ProductDetailPage(shown, index));
         border.GestureRecognizers.Add(tap);
         return border;
     }
@@ -174,7 +174,7 @@ public sealed class ProductsPage : ContentPage
     internal static View Photo(ProductItem product, double height)
     {
         if (TrackingHost.ProductsApi?.PhotoUrl(product.PhotoKey) is { } url)
-            return new Image { Source = ImageSource.FromUri(new Uri(url)), HeightRequest = height, Aspect = Aspect.AspectFill, BackgroundColor = Color.FromArgb("#F1F5F9") };
+            return new Image { Source = ImageSource.FromUri(new Uri(url)), HeightRequest = height, Aspect = Aspect.AspectFit, BackgroundColor = Color.FromArgb("#F1F5F9") };
         return new Grid
         {
             HeightRequest = height,

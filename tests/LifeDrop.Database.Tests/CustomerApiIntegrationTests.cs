@@ -4676,7 +4676,10 @@ public class CustomerApiIntegrationTests
         Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "Name 9" })).Candidates);   // other region
         Assert.Empty((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "%" })).Candidates);       // no wildcard
         await AssertProblemAsync(await Preview(new { AssignedUserId = repB, ScheduleDate = "2026-10-06", Query = "Name" }), HttpStatusCode.Forbidden, "FORBIDDEN");
-        await AssertProblemAsync(await Preview(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        // Nothing typed or chosen is allowed for one's own plan (the add-to-plan page opens with the user's customers; owner request 2026-11-26), still only their region
+        var everything = Codes((await PreviewOk(new { AssignedUserId = repA, ScheduleDate = "2026-10-06" })).Candidates);
+        Assert.Contains("C6", everything);
+        Assert.DoesNotContain("C9", everything);
         var own = await Generate(new { AssignedUserId = repA, ScheduleDate = "2026-10-06", Query = "name 6", CustomerIds = new[] { c[6] } });
         Assert.Equal(1, (await own.Content.ReadFromJsonAsync<LifeDrop.Application.Visits.PlanGeneratedDto>())!.Created);
     }

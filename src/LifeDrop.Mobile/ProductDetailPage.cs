@@ -7,10 +7,37 @@ namespace LifeDrop.Mobile;
 // expiry day (red when expired, orange when within 90 days), stock, availability and notes. Read only.
 public sealed class ProductDetailPage : ContentPage
 {
-    public ProductDetailPage(ProductItem product)
+    private readonly IReadOnlyList<ProductItem> _items;
+    private readonly CarouselView _carousel;
+
+    // `items` is the list the gallery showed (after its filters); swiping left or right goes to the next or previous product, so the user does not go back to the gallery.
+    public ProductDetailPage(IReadOnlyList<ProductItem> items, int index)
     {
+        _items = items;
         FlowDirection = AppLanguage.Direction;
-        Title = Texts.Get("app.products.details");
+        Title = TitleFor(Math.Clamp(index, 0, items.Count - 1));
+        _carousel = new CarouselView
+        {
+            ItemsSource = items,
+            Loop = false,
+            IsSwipeEnabled = true,
+            PeekAreaInsets = new Thickness(0),
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var host = new ContentView();
+                host.BindingContextChanged += (_, _) => host.Content = host.BindingContext is ProductItem p ? new ScrollView { Content = Build(p) } : null;
+                return host;
+            })
+        };
+        _carousel.PositionChanged += (_, e) => Title = TitleFor(e.CurrentPosition);
+        _carousel.Loaded += (_, _) => { if (index > 0) _carousel.ScrollTo(index, position: ScrollToPosition.Start, animate: false); };
+        Content = _carousel;
+    }
+
+    private string TitleFor(int position) => _items.Count == 0 ? Texts.Get("app.products.details") : $"{Texts.Get("app.products.details")} · {position + 1} / {_items.Count}";
+
+    private static View Build(ProductItem product)
+    {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var head = new VerticalStackLayout { Spacing = 4, Padding = new Thickness(16, 14, 16, 4) };
         head.Children.Add(new Label { Text = product.DisplayName(Texts.Language), FontSize = 22, FontAttributes = FontAttributes.Bold });
@@ -36,7 +63,7 @@ public sealed class ProductDetailPage : ContentPage
             Row(rows, "app.products.stockQtyLabel", product.InStock ? ProductsPage.Money(qty) : Texts.Get("app.products.outOfStock"), product.InStock ? null : Colors.Gray);
         Row(rows, "web.catalog.notes", product.Notes);
 
-        Content = new ScrollView { Content = new VerticalStackLayout { Spacing = 0, Children = { ProductsPage.Photo(product, 260), head, rows } } };
+        return new VerticalStackLayout { Spacing = 0, Children = { ProductsPage.Photo(product, 260), head, rows } };
     }
 
     // One "label: value" line with a thin divider; empty values are left out.

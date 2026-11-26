@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { expiryStatus, filterProducts, type ProductFilters } from './productView.ts'
@@ -13,6 +13,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   const [search, setSearch] = useState('')
   const [inactive, setInactive] = useState(false)
   const [editing, setEditing] = useState<Product | 'new' | null>(null)
+  const [newCount, setNewCount] = useState(0)   // a new key empties the form after "Save and new product"
   const [view, setView] = useState<'gallery' | 'table'>('gallery')
   const [filters, setFilters] = useState<ProductFilters>({ text: '', specialty: '', manufacturer: '', stock: '' })
   const [details, setDetails] = useState<Product | null>(null)
@@ -125,7 +126,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
             {shown.map((p) => (
               <tr key={p.id} className="border-b">
                 <td className="py-2">
-                  {p.photoKey && <img src={admin.productPhotoUrl(p.photoKey)} alt="" className="me-2 inline h-8 w-8 rounded border object-cover" />}
+                  {p.photoKey && <img src={admin.productPhotoUrl(p.photoKey)} alt="" className="me-2 inline h-8 w-8 rounded border bg-slate-100 object-contain" />}
                   {p.code}
                 </td>
                 <td>{p.name}</td>
@@ -178,11 +179,12 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
       )}
       {editing && (
         <ProductForm
-          key={editing === 'new' ? 'new' : editing.id}
+          key={editing === 'new' ? `new-${newCount}` : editing.id}
           admin={admin}
           product={editing === 'new' ? null : editing}
-          onDone={() => {
-            setEditing(null)
+          onDone={(next) => {
+            if (next) setNewCount((n) => n + 1)
+            setEditing(next ? 'new' : null)
             products.reload()
           }}
         />
@@ -195,7 +197,7 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
 
 function ProductPhoto({ admin, product, className }: { admin: AdminApi; product: Product; className: string }) {
   return product.photoKey ? (
-    <img src={admin.productPhotoUrl(product.photoKey)} alt="" loading="lazy" className={`${className} bg-slate-100 object-cover`} />
+    <img src={admin.productPhotoUrl(product.photoKey)} alt="" loading="lazy" className={`${className} bg-slate-100 object-contain`} />
   ) : (
     <div aria-hidden className={`${className} flex items-center justify-center bg-slate-100 text-4xl opacity-60`}>💊</div>
   )
@@ -256,7 +258,7 @@ function ProductDetails({ admin, product: p, canManage, onClose, onEdit }: { adm
 const productUnits = ['box', 'strip', 'bottle', 'vial', 'ampoule', 'tube', 'sachet', 'pack', 'carton', 'piece'] as const
 type ProductUnit = (typeof productUnits)[number]
 
-function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Product | null; onDone: () => void }) {
+function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Product | null; onDone: (saveAndNew?: boolean) => void }) {
   const [code, setCode] = useState(product?.code ?? '')
   const [name, setName] = useState(product?.name ?? '')
   const [unit, setUnit] = useState(product?.unit ?? '')
@@ -273,7 +275,9 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const [notes, setNotes] = useState(product?.notes ?? '')
   const [photo, setPhoto] = useState<File | null>(null)
   const [dropPhoto, setDropPhoto] = useState(false)
-  const action = useAction(onDone)
+  const saveNext = useRef(false)   // true when "Save and new product" was pressed: the form opens empty after the save
+  const formRef = useRef<HTMLFormElement>(null)
+  const action = useAction(() => onDone(saveNext.current))
   const field = 'rounded border px-2 py-1'
 
   // Fields are kept as typed and trimmed only here, so spaces can be typed.
@@ -306,7 +310,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   }
 
   return (
-    <form onSubmit={submit} className="space-y-2 rounded border p-3 text-sm">
+    <form ref={formRef} onSubmit={submit} className="space-y-2 rounded border p-3 text-sm">
       <h3 className="font-semibold">{product ? t('web.catalog.editProduct', { code: product.code }) : t('web.catalog.newProduct')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       <div className="flex flex-wrap gap-2">
@@ -338,7 +342,7 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
         </label>
         {product?.photoKey && (
           <>
-            <img src={admin.productPhotoUrl(product.photoKey)} alt={product.name} className="h-12 w-12 rounded border object-cover" />
+            <img src={admin.productPhotoUrl(product.photoKey)} alt={product.name} className="h-12 w-12 rounded border bg-slate-100 object-contain" />
             <label className="flex items-center gap-1">
               <input type="checkbox" checked={dropPhoto} onChange={(e) => setDropPhoto(e.target.checked)} />
               {t('web.catalog.removePhoto')}
@@ -363,10 +367,23 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
           <option value="active">{t('web.catalog.active')}</option>
           <option value="inactive">{t('web.catalog.inactive')}</option>
         </select>
-        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !unit.trim() || price === '' || (!product && !code.trim())}>
+        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !unit.trim() || price === '' || (!product && !code.trim())} onClick={() => (saveNext.current = false)}>
           {t('web.catalog.save')}
         </button>
-        <button type="button" className="rounded border px-3 py-1" onClick={onDone}>
+        {!product && (
+          <button
+            type="button"
+            className="rounded border border-slate-800 bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
+            disabled={action.busy || !name.trim() || !unit.trim() || price === '' || !code.trim()}
+            onClick={() => {
+              saveNext.current = true
+              formRef.current?.requestSubmit()
+            }}
+          >
+            {t('web.catalog.saveAndNew')}
+          </button>
+        )}
+        <button type="button" className="rounded border px-3 py-1" onClick={() => onDone()}>
           {t('web.customers.closeHours')}
         </button>
       </div>

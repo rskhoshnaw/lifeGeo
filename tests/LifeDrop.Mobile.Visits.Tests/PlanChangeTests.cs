@@ -53,6 +53,25 @@ public class PlanChangeTests
     }
 
     [Fact]
+    public async Task AnotherDayCanBeShownAndAVisitMovedToAnyDayThatIsNotPast()
+    {
+        var (plan, api, v) = await LoadedAsync("A", "B");
+        plan.SelectDay(Today.AddDays(3));
+        Assert.Equal(Today.AddDays(3), plan.Selected);
+        await plan.LoadAsync();
+        Assert.Equal(Today.AddDays(3), plan.Date);   // the plan of the chosen day was asked for, not today's
+        plan.SelectDay(Today);
+        Assert.Null(plan.Selected);                  // today is the normal view again
+        await plan.LoadAsync();
+        Assert.Equal(Today, plan.Date);
+        // from a later day a visit may go to an earlier one, as long as that one is not in the past
+        plan.SelectDay(Today.AddDays(5));
+        await plan.LoadAsync();
+        Assert.Equal(VisitActionResult.Success, await plan.PostponeAsync(v[0].Id, Today.AddDays(1), null));
+        Assert.Equal(VisitActionResult.InvalidData, await plan.PostponeAsync(v[1].Id, Today.AddDays(-1), null));
+    }
+
+    [Fact]
     public async Task Postpone_RemovesTheVisitFromTodayAndSendsDayAndTrimmedReason()
     {
         var (plan, api, v) = await LoadedAsync("A", "B");

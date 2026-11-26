@@ -55,6 +55,24 @@ export class ApiClient {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
     this.fetcher = fetcher
     this.storage = storage
+    this.listenToOtherTabs()
+  }
+
+  // Tabs of the panel (a customer file opens in a new tab) must not each rotate the refresh token alone: the server would see the older copy as a replay and end the
+  // sign-in. So a tab that stored a new refresh token tells the others, who keep the same one; a tab that signed out signs the others out.
+  private channel: BroadcastChannel | null = null
+  private listenToOtherTabs() {
+    if (typeof BroadcastChannel === 'undefined') return
+    try {
+      this.channel = new BroadcastChannel('lifedrop-session')
+      this.channel.onmessage = (event: MessageEvent<{ type: string; token?: string }>) => {
+        const message = event.data
+        if (message?.type === 'refresh' && message.token && this.storage.getItem(RefreshKey) !== null) this.storage.setItem(RefreshKey, message.token)
+        else if (message?.type === 'signout' && this.storage.getItem(RefreshKey) !== null) this.clear(false)
+      }
+    } catch {
+      this.channel = null
+    }
   }
 
   // "Stay signed in" (plan step 5.2b): keep the sign-in in this browser until the user signs out instead of until the tab closes.
@@ -204,13 +222,25 @@ export class ApiClient {
   private store(tokens: TokenResponse) {
     this.accessToken = tokens.accessToken
     this.storage.setItem(RefreshKey, tokens.refreshToken)
+    try {
+      this.channel?.postMessage({ type: 'refresh', token: tokens.refreshToken })
+    } catch {
+      // the other tabs then read the token they have; the server's replay window covers a short gap
+    }
   }
 
-  private clear() {
+  private clear(tell = true) {
     const wasSignedIn = this.accessToken !== null || this.storage.getItem(RefreshKey) !== null
     this.accessToken = null
     this.storage.removeItem(RefreshKey)
     this.storage.removeItem(AccountKey)
+    if (wasSignedIn && tell) {
+      try {
+        this.channel?.postMessage({ type: 'signout' })
+      } catch {
+        // nothing to tell
+      }
+    }
     if (wasSignedIn) this.listeners.forEach((listener) => listener())
   }
 }
