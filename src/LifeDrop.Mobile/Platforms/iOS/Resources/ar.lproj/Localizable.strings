@@ -3,3 +3,5 @@
 "push_tracking_stopped" = "توقف تتبع الموقع. افتح LifeDrop لمتابعة ورديتك.";
 "push_feedback_new" = "لديك ملاحظة جديدة للقراءة.";
 "push_feedback_reply" = "ردّ مدير على ملاحظتك.";
+"push_customer_owner_changed" = "تم إسناد عملاء إليك. افتح LifeDrop لعرضهم.";
+"push_team_shift_stopped" = "عضو في فريقك توقف عن إرسال موقعه.";

@@ -104,6 +104,9 @@ public class CustomerOwnerStoreTests
             Assert.Equal(1, await owners.SetAsync(t, new UserId(manager), whole, noDoctors, bobInfo, [c1, c2, c3, c5, foreign], null, CancellationToken.None));
             Assert.Equal("O-3", await Codes(new CustomerFilter(null, null, null, OwnerId: bob, CreatedBy: ann)));
             Assert.Equal(regionA.ToString(), await InTenant(connection, tenant, $"SELECT region_id::text FROM customers WHERE id = '{c3}'"));   // the customer takes the new owner's region
+            // Step 5.52: the new owner is told how many customers were given to them (here 1); the manager who did it is not told
+            Assert.Equal("1", await InTenant(connection, tenant, $"SELECT string_agg(entity_id, ',') FROM notifications WHERE kind = 'customer.owner_changed' AND user_id = '{bob}' AND actor_id = '{manager}'"));
+            Assert.Equal("0", await InTenant(connection, tenant, $"SELECT count(*) FROM notifications WHERE kind = 'customer.owner_changed' AND user_id = '{manager}'"));
             Assert.Equal("1", await InTenant(connection, tenant, $"SELECT count(*) FROM audit_logs WHERE action = 'customer.owner_changed' AND entity_id = '{c3}' AND actor_id = '{manager}'"));
 
             // Everything a user owns, in one call (c1 and c2; c5 is archived and stays).

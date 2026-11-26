@@ -24317,6 +24317,10 @@
               "string"
             ],
             "format": "int32"
+          },
+          "mine": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

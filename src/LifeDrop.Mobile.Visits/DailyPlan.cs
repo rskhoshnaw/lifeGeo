@@ -147,6 +147,21 @@ public sealed class DailyPlan
         return result;
     }
 
+    // Several visits to one day (a day off, a holiday; owner request 2026-11-26). The server moves one visit per call, so this goes one by one and says how many went; it stops when the sign-in
+    // has ended. A visit that cannot move (already started, or a clash) is counted as failed and the rest still go.
+    public async Task<(int Moved, int Failed, VisitActionResult? Stopped)> PostponeManyAsync(IReadOnlyList<Guid> visitIds, DateOnly newDay, string? reason, CancellationToken cancellationToken = default)
+    {
+        int moved = 0, failed = 0;
+        foreach (var id in visitIds.Distinct())
+        {
+            var result = await PostponeAsync(id, newDay, reason, cancellationToken);
+            if (result == VisitActionResult.Success) moved++;
+            else if (result is VisitActionResult.SessionExpired or VisitActionResult.NetworkError) return (moved, failed + (visitIds.Distinct().Count() - moved - failed), result);
+            else failed++;
+        }
+        return (moved, failed, null);
+    }
+
     // The days offered for "another day": tomorrow and the following days.
     public static IReadOnlyList<DateOnly> PostponeChoices(DateOnly today, int days = 7) =>
         Enumerable.Range(1, days).Select(today.AddDays).ToList();

@@ -103,10 +103,11 @@ export function SamplesPage({ admin, me }: { admin: AdminApi; me: Me }) {
 }
 
 // A sample recorded from the panel (plan step 4.13), for example by a manager who gives one during a visit with a rep. The same route as the phone app's; without a position.
-function NewSample({ admin, onRecorded }: { admin: AdminApi; onRecorded: () => void }) {
+// `fixedCustomer`: the form is for this customer only (opened from the customer's file).
+export function NewSample({ admin, onRecorded, fixedCustomer }: { admin: AdminApi; onRecorded: () => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
   const products = useLoad(useCallback(() => admin.products(false), [admin]))
-  const empty = { customerId: '', productId: '', quantity: '', recipientName: '', batchNumber: '', expiryDate: '', note: '' }
+  const empty = { customerId: fixedCustomer?.id ?? '', productId: '', quantity: '', recipientName: '', batchNumber: '', expiryDate: '', note: '' }
   const [form, setForm] = useState(empty)
   // One reference per form: a retry of a lost answer does not record a second sample.
   const [clientRef, setClientRef] = useState(() => crypto.randomUUID())
@@ -145,9 +146,9 @@ function NewSample({ admin, onRecorded }: { admin: AdminApi; onRecorded: () => v
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       {recorded && <p role="status" className="text-green-700">{t('web.samples.recorded')}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t('web.samples.customer')} className="rounded border px-2 py-1" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
-          <option value="">{t('web.samples.chooseCustomer')}</option>
-          {(customers.data ?? []).map((c) => (
+        <select aria-label={t('web.samples.customer')} className="rounded border px-2 py-1" disabled={!!fixedCustomer} value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
+          {!fixedCustomer && <option value="">{t('web.samples.chooseCustomer')}</option>}
+          {(fixedCustomer ? [fixedCustomer] : (customers.data ?? [])).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
             </option>

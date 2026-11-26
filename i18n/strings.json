@@ -11050,5 +11050,137 @@
   "ckb": "تەنها ئەو بەرهەمانەی هێشتا نەژمێردراون",
   "ar": "المنتجات غير المجرودة فقط",
   "fa": "فقط محصولات شمارش‌نشده"
+ },
+ "app.home.map": {
+  "en": "Customers map",
+  "ckb": "نەخشەی کڕیارەکان",
+  "ar": "خريطة العملاء",
+  "fa": "نقشهٔ مشتریان"
+ },
+ "app.map.title": {
+  "en": "Customers map",
+  "ckb": "نەخشەی کڕیارەکان",
+  "ar": "خريطة العملاء",
+  "fa": "نقشهٔ مشتریان"
+ },
+ "app.map.open": {
+  "en": "Open customer",
+  "ckb": "کردنەوەی کڕیار",
+  "ar": "فتح العميل",
+  "fa": "باز کردن مشتری"
+ },
+ "app.map.mine": {
+  "en": "My customers",
+  "ckb": "کڕیارەکانم",
+  "ar": "عملائي",
+  "fa": "مشتریان من"
+ },
+ "app.map.others": {
+  "en": "Other customers of my area",
+  "ckb": "کڕیارەکانی تری ناوچەکەم",
+  "ar": "عملاء آخرون في منطقتي",
+  "fa": "سایر مشتریان منطقهٔ من"
+ },
+ "app.map.none": {
+  "en": "No customer with a position yet.",
+  "ckb": "هیچ کڕیارێک شوێنی دیاریکراوی نییە.",
+  "ar": "لا يوجد عميل بموقع بعد.",
+  "fa": "هنوز مشتری‌ای با موقعیت ثبت نشده است."
+ },
+ "app.map.noneMine": {
+  "en": "None of your own customers has a position yet; the grey ones belong to others of your area.",
+  "ckb": "هیچ یەکێک لە کڕیارەکانی خۆت شوێنی دیاریکراوی نییە؛ خۆڵەمێشییەکان هی کەسانی تری ناوچەکەتن.",
+  "ar": "لا يوجد من عملائك من له موقع بعد؛ الرماديون لآخرين في منطقتك.",
+  "fa": "هیچ‌کدام از مشتریان خودتان هنوز موقعیت ندارد؛ خاکستری‌ها مال دیگران در منطقهٔ شما هستند."
+ },
+ "app.plan.select": {
+  "en": "Move several",
+  "ckb": "گواستنەوەی چەند سەردانێک",
+  "ar": "نقل عدة زيارات",
+  "fa": "انتقال چند ویزیت"
+ },
+ "app.plan.moveSelected": {
+  "en": "Move {count} selected to another day",
+  "ckb": "گواستنەوەی {count} سەردانی دیاریکراو بۆ ڕۆژێکی تر",
+  "ar": "نقل {count} زيارات محددة إلى يوم آخر",
+  "fa": "انتقال {count} ویزیت انتخاب‌شده به روز دیگر"
+ },
+ "app.plan.movedMany": {
+  "en": "{count} visits moved to {date}.",
+  "ckb": "{count} سەردان گوازرایەوە بۆ {date}.",
+  "ar": "تم نقل {count} زيارات إلى {date}.",
+  "fa": "{count} ویزیت به {date} منتقل شد."
+ },
+ "app.plan.movedSome": {
+  "en": "{moved} moved, {failed} could not be moved (already started or not allowed).",
+  "ckb": "{moved} گوازرایەوە، {failed} نەگوازرایەوە (دەستی پێکردووە یان ڕێگەپێدراو نییە).",
+  "ar": "تم نقل {moved}، وتعذر نقل {failed} (بدأت أو غير مسموح).",
+  "fa": "{moved} منتقل شد، {failed} منتقل نشد (شروع شده یا مجاز نیست)."
+ },
+ "app.push.customerOwnerChanged": {
+  "en": "Customers were given to you. Open LifeDrop to see them.",
+  "ckb": "کڕیار دران پێت. LifeDrop بکەرەوە بۆ بینینیان.",
+  "ar": "تم إسناد عملاء إليك. افتح LifeDrop لعرضهم.",
+  "fa": "مشتریانی به شما واگذار شد. برای دیدن آن‌ها LifeDrop را باز کنید."
+ },
+ "app.push.teamShiftStopped": {
+  "en": "A member of your team has stopped sending their position.",
+  "ckb": "ئەندامێکی تیمەکەت وەستاوە لە ناردنی شوێنەکەی.",
+  "ar": "عضو في فريقك توقف عن إرسال موقعه.",
+  "fa": "یکی از اعضای تیم شما ارسال موقعیت را متوقف کرده است."
+ },
+ "web.notifications.ownerChanged": {
+  "en": "{count} customers were given to you by {actor}.",
+  "ckb": "{count} کڕیار لەلایەن {actor} دران پێت.",
+  "ar": "أُسند إليك {count} عملاء من {actor}.",
+  "fa": "{count} مشتری توسط {actor} به شما واگذار شد."
+ },
+ "web.notifications.teamStopped": {
+  "en": "{actor} stopped sending their position (your team).",
+  "ckb": "{actor} وەستاوە لە ناردنی شوێن (تیمەکەت).",
+  "ar": "{actor} توقف عن إرسال موقعه (فريقك).",
+  "fa": "{actor} ارسال موقعیت را متوقف کرده است (تیم شما)."
+ },
+ "web.alerts.kind.connection_errors": {
+  "en": "Connection errors",
+  "ckb": "هەڵەی پەیوەندی",
+  "ar": "أخطاء الاتصال",
+  "fa": "خطاهای اتصال"
+ },
+ "web.c360.newOrder": {
+  "en": "New order",
+  "ckb": "داواکاری نوێ",
+  "ar": "طلب جديد",
+  "fa": "سفارش جدید"
+ },
+ "web.c360.newPayment": {
+  "en": "Record payment",
+  "ckb": "تۆمارکردنی پارە",
+  "ar": "تسجيل دفعة",
+  "fa": "ثبت پرداخت"
+ },
+ "web.c360.newSample": {
+  "en": "Record sample",
+  "ckb": "تۆمارکردنی نموونە",
+  "ar": "تسجيل عينة",
+  "fa": "ثبت نمونه"
+ },
+ "web.c360.newFollowUp": {
+  "en": "New follow-up",
+  "ckb": "شوێنکەوتنی نوێ",
+  "ar": "متابعة جديدة",
+  "fa": "پیگیری جدید"
+ },
+ "web.c360.actions": {
+  "en": "Actions for this customer",
+  "ckb": "کارەکان بۆ ئەم کڕیارە",
+  "ar": "إجراءات لهذا العميل",
+  "fa": "اقدامات برای این مشتری"
+ },
+ "web.c360.saved": {
+  "en": "Saved.",
+  "ckb": "پاشەکەوت کرا.",
+  "ar": "تم الحفظ.",
+  "fa": "ذخیره شد."
  }
 }

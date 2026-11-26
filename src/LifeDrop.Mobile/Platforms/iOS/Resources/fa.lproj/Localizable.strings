@@ -3,3 +3,5 @@
 "push_tracking_stopped" = "ردیابی مکان متوقف شده است. برای ادامهٔ شیفت، LifeDrop را باز کنید.";
 "push_feedback_new" = "یک بازخورد تازه برای خواندن دارید.";
 "push_feedback_reply" = "یک مدیر به بازخورد شما پاسخ داد.";
+"push_customer_owner_changed" = "مشتریانی به شما واگذار شد. برای دیدن آن‌ها LifeDrop را باز کنید.";
+"push_team_shift_stopped" = "یکی از اعضای تیم شما ارسال موقعیت را متوقف کرده است.";

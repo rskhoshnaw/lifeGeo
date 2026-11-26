@@ -180,10 +180,11 @@ function PaymentDetails({ admin, me, paymentId, onChanged }: { admin: AdminApi; 
   )
 }
 
-function RecordForm({ admin, onSaved }: { admin: AdminApi; onSaved: (message: string) => void }) {
+// `fixedCustomer`: the form is for this customer only (opened from the customer's file).
+export function RecordForm({ admin, onSaved, fixedCustomer }: { admin: AdminApi; onSaved: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
   const orders = useLoad(useCallback(() => admin.orders(), [admin]))
-  const [customer, setCustomer] = useState('')
+  const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
   const [order, setOrder] = useState('')
   const [method, setMethod] = useState('cash')
   const [currency, setCurrency] = useState('IQD')
@@ -204,7 +205,7 @@ function RecordForm({ admin, onSaved }: { admin: AdminApi; onSaved: (message: st
     )
     if (!result) return
     onSaved(t('web.payments.saved', { number: result.number }))
-    setCustomer('')
+    setCustomer(fixedCustomer?.id ?? '')
     setOrder('')
     setAmount('')
     setReference('')
@@ -217,9 +218,9 @@ function RecordForm({ admin, onSaved }: { admin: AdminApi; onSaved: (message: st
       <h3 className="font-semibold">{t('web.payments.record')}</h3>
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t('web.payments.customer')} className="rounded border px-2 py-1" value={customer} onChange={(e) => { setCustomer(e.target.value); setOrder('') }}>
-          <option value="">{t('web.payments.chooseCustomer')}</option>
-          {(customers.data ?? []).map((c) => (
+        <select aria-label={t('web.payments.customer')} className="rounded border px-2 py-1" disabled={!!fixedCustomer} value={customer} onChange={(e) => { setCustomer(e.target.value); setOrder('') }}>
+          {!fixedCustomer && <option value="">{t('web.payments.chooseCustomer')}</option>}
+          {(fixedCustomer ? [fixedCustomer] : (customers.data ?? [])).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
             </option>

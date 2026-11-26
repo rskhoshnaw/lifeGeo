@@ -122,10 +122,17 @@ public interface ICustomersApiClient
     Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> FilterCustomersAsync(string? search, string? type, Guid? placeId, bool? cooperates, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    // The located customers of the user's area for the map (GET /customers/map); Mine = the user owns the customer (step 5.52).
+    Task<(VisitActionResult Result, IReadOnlyList<MapCustomerItem> Items)> GetMapCustomersAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     // One page (50) of the user's customers, oldest first, with every filter; `after` is the last item of the page before (null = the first page). No filter and no text lists all of them.
     Task<(VisitActionResult Result, IReadOnlyList<CustomerListItem> Items)> ListCustomersAsync(CustomerListFilter filter, CustomerListItem? after, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 }
+
+// A customer with a position, for the map of the app.
+public sealed record MapCustomerItem(Guid Id, string Code, string Name, string Type, double Latitude, double Longitude, bool Mine);
 
 public sealed class CustomersApiClient : ICustomersApiClient
 {
@@ -159,6 +166,16 @@ public sealed class CustomersApiClient : ICustomersApiClient
 
     public async Task<VisitActionResult> SetProfileAsync(Guid customerId, string? phone, string? address, Guid? placeId, CancellationToken cancellationToken = default) =>
         (await CallAsync<object>(HttpMethod.Put, $"/customers/{customerId}/profile", new { phone, address, placeId }, cancellationToken)).Result;
+
+    public async Task<(VisitActionResult Result, IReadOnlyList<MapCustomerItem> Items)> GetMapCustomersAsync(CancellationToken cancellationToken = default)
+    {
+        var (result, items) = await CallAsync<List<MapDto>>(HttpMethod.Get, "/customers/map", null, cancellationToken);
+        if (result != VisitActionResult.Success) return (result, Array.Empty<MapCustomerItem>());
+        if (items is null || items.Any(c => c is null || c.Id == Guid.Empty)) return (VisitActionResult.ServerError, Array.Empty<MapCustomerItem>());
+        return (result, items.Select(c => new MapCustomerItem(c.Id, c.Code ?? "", c.Name ?? "", c.Type ?? "", c.Latitude, c.Longitude, c.Mine)).ToList());
+    }
+
+    private sealed record MapDto(Guid Id, string? Code, string? Name, string? Type, double Latitude, double Longitude, bool Mine);
 
     public async Task<(VisitActionResult Result, IReadOnlyList<PlaceItem> Places)> GetPlacesAsync(Guid? parentId, CancellationToken cancellationToken = default)
     {

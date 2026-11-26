@@ -628,7 +628,7 @@ Retention: exact tracking points are kept 90 days. The background job (same loop
 |---|---|---|---|
 | `GET /tracking/users` | `tracking.read` | Active users inside the caller's area that have had a shift | — |
 | `GET /tracking/history?userId=&date=` | `tracking.read` and the user inside the caller's area (404 otherwise; 403 for the summary-only roles and visitors) | `date` (Iraq day) not in the future and not older than 90 days (400). Returns `shifts` (with `pointsPurged`), `points` (time order, at most 20000, `truncated`), `stops`, `events` (check-in/out with the customer, radius, accepted or refused) | `tracking.history_viewed` (entity `userId:date`) Step 5.24: every point and every stop carries `shiftId`; stops are found inside each shift (never across the gap between two shifts of the day). |
-| `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — |
+| `GET /customers/map` | `customers.read` | Located customers of the caller's area (at most 5000): id, code, name, type, position, `geofenceRadiusMeters` (default 20). The panel clusters them and draws the check-in circle from zoom 14 | — | (5.52: each row has `mine`, true when the reader owns the customer)
 
 ### Feedback from the field (plan step 5.30)
 Everybody signed in sends and reads their own feedback; `feedback.manage` (CompanyManager, SalesManager: the whole company; Supervisor: feedback written from the own region) reads, answers and sets the status inside its data scope. Outside the scope the answer is 404. A photo is served only to its author and to the managers in scope.
@@ -737,3 +737,11 @@ Leaving a team (removed, or moved to another team) clears the leadership. Data s
 | `POST /deliveries/{id}/deliver`, `POST /deliveries/{id}/fail` | A failed delivery gives all of them back to the warehouse stock, a short delivery the difference; once; not for orders handed over before 5.42. |
 | `GET /warehouses/stock` | Rows also carry `reserved` and `photoKey` (step 5.51, null without a photo). |
 
+
+## Round 1 of the owner list of 2026-11-26 (step 5.52, migration 0077)
+
+| Route / job | Rule | Notes |
+| --- | --- | --- |
+| `PUT /customers/owner` | as before | The new owner also gets the notification `customer.owner_changed` (`entityId` = how many customers); the caller is never told about their own change. |
+| Alert scan (`POST /alerts/scan`, background job) | as before | New notification `team.shift_stopped` to the leader of the member's team (only a leader who is still a member), once per shift and 30 minutes. New alert kind `connection_errors` (operational, warning): 5 or more `client_error_reports` typed with one user's e-mail in 30 minutes; one alert per user and half hour. Audience as for every operational alert (`alerts.read`). |
+| `GET /customers/map` | as before | Rows carry `mine`. |
