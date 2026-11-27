@@ -20,6 +20,9 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     public IReadOnlyList<PricedProduct> Products { get; private set; } = Array.Empty<PricedProduct>();
     public IReadOnlyList<OrderWarehouse> Warehouses { get; private set; } = Array.Empty<OrderWarehouse>();
     public Guid? WarehouseId { get; set; }
+    // True while the warehouses come from the phone's memory (no internet) (plan step 5.67): the list was made for another customer, so nothing is chosen for him and an order without
+    // a warehouse goes to the warehouse of the customer's city, which the server finds.
+    public bool WarehouseAutomatic { get; set; }
     public string? Note { get; set; }
     public PlacedOrder? Placed { get; private set; }
     // False while the lists come from the phone's memory (no internet): the prices are unknown and the server sets them when the order arrives (plan step 2.13).
@@ -32,7 +35,13 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
         Products = products;
         Warehouses = warehouses;
         _quantities.Keys.Where(id => products.All(p => p.ProductId != id)).ToList().ForEach(id => _quantities.Remove(id));
-        if (WarehouseId is null && warehouses.Count == 1) WarehouseId = warehouses[0].Id;   // nothing to choose
+        if (WarehouseId is null && !WarehouseAutomatic)
+        {
+            // The warehouse of the customer's city is chosen already; with only one to choose from there is nothing to choose.
+            var city = warehouses.FirstOrDefault(w => w.IsDefault);
+            if (city is not null) WarehouseId = city.Id;
+            else if (warehouses.Count == 1) WarehouseId = warehouses[0].Id;
+        }
     }
 
     // The text a user typed in the quantity box: digits of any script (Arabic-Indic and Persian digits are common on these phones), a dot or
@@ -74,7 +83,7 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     public string Currency => Lines.Count == 0 ? "" : Lines[0].Product.Currency;
     public decimal Total => Lines.Sum(l => l.LineTotal);
 
-    public bool CanPlace => Placed is null && !Queued && Lines.Count > 0 && !MixedCurrency && WarehouseId is { } id && Warehouses.Any(w => w.Id == id) && (Note?.Trim().Length ?? 0) <= MaxNoteLength;
+    public bool CanPlace => Placed is null && !Queued && Lines.Count > 0 && !MixedCurrency && (WarehouseId is { } id ? Warehouses.Any(w => w.Id == id) : WarehouseAutomatic) && (Note?.Trim().Length ?? 0) <= MaxNoteLength;
 
     // Products matching a search text (code or any name), at most max; everything when the text is empty.
     public IReadOnlyList<PricedProduct> Find(string? text, string language, int max = 200)
@@ -92,14 +101,14 @@ public sealed class OrderDraft(Guid customerId, Guid? visitId = null)
     {
         if (!CanPlace) return VisitActionResult.InvalidState;
         var note = string.IsNullOrWhiteSpace(Note) ? null : Note.Trim();
-        var (result, order) = await api.PlaceAsync(CustomerId, WarehouseId!.Value, VisitId, ClientRef, note,
+        var (result, order) = await api.PlaceAsync(CustomerId, WarehouseId, VisitId, ClientRef, note,
             Lines.Select(l => new OrderLineInput(l.Product.ProductId, l.Quantity)).ToList(), cancellationToken);
         if (result == VisitActionResult.Success) Placed = order;
         return result;
     }
 
     // What is needed to send this order later (the same reference, so a retry never makes a second order).
-    public OrderPayload ToPayload() => new(CustomerId, WarehouseId!.Value, VisitId, ClientRef, string.IsNullOrWhiteSpace(Note) ? null : Note.Trim(),
+    public OrderPayload ToPayload() => new(CustomerId, WarehouseId, VisitId, ClientRef, string.IsNullOrWhiteSpace(Note) ? null : Note.Trim(),
         Lines.Select(l => new OrderLineInput(l.Product.ProductId, l.Quantity)).ToList());
 
     // After a successful order: an empty draft with a new reference (the warehouse stays).

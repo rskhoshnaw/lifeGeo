@@ -11,7 +11,7 @@ public sealed record WorkItem(Guid Id, WorkKind Kind, string Title, Guid? VisitI
     VisitActionResult? Answer = null, DateTimeOffset? FinishedAt = null, int Attempts = 0);
 
 // What each kind of work needs to be sent later (the fields of the form as the user left them, never a price: the server prices an order when it arrives).
-public sealed record OrderPayload(Guid CustomerId, Guid WarehouseId, Guid? VisitId, Guid ClientRef, string? Note, IReadOnlyList<OrderLineInput> Lines);
+public sealed record OrderPayload(Guid CustomerId, Guid? WarehouseId, Guid? VisitId, Guid ClientRef, string? Note, IReadOnlyList<OrderLineInput> Lines);
 public sealed record PaymentPayload(Guid CustomerId, Guid? OrderId, Guid ClientRef, string Method, string Currency, string? AmountText, string? Reference, string? Note);
 public sealed record SamplePayload(Guid CustomerId, Guid? VisitId, Guid ClientRef, Guid? ProductId, string? QuantityText, string? Recipient, string? Batch, string? ExpiryText, string? Note, PhoneLocation? Location);
 public sealed record FollowUpPayload(Guid CustomerId, Guid ClientRef, string? Subject, DateOnly? DueDate);

@@ -16,19 +16,50 @@ public class OrdersTests
 
     private sealed class FakeOrders : IOrdersApiClient
     {
-        public List<(Guid Customer, Guid Warehouse, Guid? Visit, Guid Ref, string? Note, IReadOnlyList<OrderLineInput> Lines)> Sent = [];
+        public List<(Guid Customer, Guid? Warehouse, Guid? Visit, Guid Ref, string? Note, IReadOnlyList<OrderLineInput> Lines)> Sent = [];
         public VisitActionResult Result = VisitActionResult.Success;
         public Task<(VisitActionResult, IReadOnlyList<OrderWarehouse>)> GetWarehousesAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<(VisitActionResult, IReadOnlyList<OrderWarehouse>)>((VisitActionResult.Success, Array.Empty<OrderWarehouse>()));
         public Task<(VisitActionResult, IReadOnlyList<PricedProduct>)> GetPricesAsync(Guid customerId, DateOnly day, CancellationToken cancellationToken = default) =>
             Task.FromResult<(VisitActionResult, IReadOnlyList<PricedProduct>)>((VisitActionResult.Success, Array.Empty<PricedProduct>()));
-        public Task<(VisitActionResult, PlacedOrder?)> PlaceAsync(Guid customerId, Guid warehouseId, Guid? visitId, Guid clientRef, string? note,
+        public Task<(VisitActionResult, PlacedOrder?)> PlaceAsync(Guid customerId, Guid? warehouseId, Guid? visitId, Guid clientRef, string? note,
             IReadOnlyList<OrderLineInput> lines, CancellationToken cancellationToken = default, bool offline = false)
         {
             Sent.Add((customerId, warehouseId, visitId, clientRef, note, lines));
             return Task.FromResult<(VisitActionResult, PlacedOrder?)>(Result == VisitActionResult.Success
                 ? (Result, new PlacedOrder(Guid.NewGuid(), "O-000001", "IQD", lines.Count, false)) : (Result, null));
         }
+    }
+
+    // Plan step 5.67: the warehouse that serves the customer's city is chosen already; offline nothing is chosen and the server finds it.
+    [Fact]
+    public async Task TheWarehouseOfTheCustomersCityIsChosenAndWithoutInternetTheOrderLeavesItToTheServer()
+    {
+        var city = W("W1") with { IsDefault = true };
+        var wholesaler = W("WW") with { Kind = "wholesaler" };
+        var a = P("A");
+        var online = new OrderDraft(Customer, Guid.NewGuid());
+        online.Load(new[] { a }, new[] { city, wholesaler });
+        Assert.Equal(city.Id, online.WarehouseId);
+        online.SetQuantity(a.ProductId, "1");
+        Assert.True(online.CanPlace);
+
+        var fake = new FakeOrders();
+        Assert.Equal(VisitActionResult.Success, await online.PlaceAsync(fake));
+        Assert.Equal(city.Id, fake.Sent.Single().Warehouse);
+
+        // The phone's list was made for another customer: nothing is preselected, the order may go without a warehouse
+        var offline = new OrderDraft(Customer, Guid.NewGuid()) { WarehouseAutomatic = true };
+        offline.Load(new[] { a }, new[] { W("W9") });
+        Assert.Null(offline.WarehouseId);
+        offline.SetQuantity(a.ProductId, "1");
+        Assert.True(offline.CanPlace);
+        Assert.Null(offline.ToPayload().WarehouseId);
+        // Without that, a draft with nothing chosen cannot be placed
+        var manual = new OrderDraft(Customer, Guid.NewGuid());
+        manual.Load(new[] { a }, new[] { W("X1"), W("X2") });
+        manual.SetQuantity(a.ProductId, "1");
+        Assert.False(manual.CanPlace);
     }
 
     private static OrderDraft Draft(out PricedProduct a, out PricedProduct b, out OrderWarehouse w1, params OrderWarehouse[] more)

@@ -123,7 +123,7 @@ public sealed class OrderPage : ContentPage
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var (priceResult, products) = await api.GetPricesAsync(_draft.CustomerId, IraqTime.Today(TimeProvider.System), cts.Token);
-            var (warehouseResult, warehouses) = await api.GetWarehousesAsync(cts.Token);
+            var (warehouseResult, warehouses) = await api.GetWarehousesForCustomerAsync(_draft.CustomerId, cts.Token);
             var failed = priceResult != VisitActionResult.Success ? priceResult : warehouseResult;
             if (failed == VisitActionResult.Success)
             {
@@ -136,6 +136,7 @@ public sealed class OrderPage : ContentPage
                 // No internet: the order is written from the phone's lists; the prices are set by the server when the order arrives.
                 (products, warehouses) = (cache.Products, cache.Warehouses);
                 _draft.PricesKnown = false;
+                _draft.WarehouseAutomatic = true;
                 failed = VisitActionResult.Success;
             }
             if (failed != VisitActionResult.Success)

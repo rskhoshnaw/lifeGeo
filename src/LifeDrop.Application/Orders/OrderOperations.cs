@@ -21,7 +21,11 @@ namespace LifeDrop.Application.Orders;
 // CityId / CityName: the city the warehouse serves (a place of kind city; owner request 2026-11-13), Address and Phone are optional.
 // Plan step 5.59: CustomerId / CustomerName = the customer of type wholesaler that a wholesaler warehouse is.
 public sealed record WarehouseDto(Guid Id, string Code, string Name, string Status, string Kind = "company", Guid? CityId = null, string? CityName = null, string? Address = null, string? Phone = null,
-    Guid? CustomerId = null, string? CustomerName = null);
+    Guid? CustomerId = null, string? CustomerName = null, bool IsDefault = false);
+
+// Plan step 5.67: the warehouse that serves a city. SetWarehouseCitiesRequest replaces the cities of one warehouse.
+public sealed record CityWarehouseDto(Guid CityId, string CityName, Guid WarehouseId, string WarehouseName);
+public sealed record SetWarehouseCitiesRequest(IReadOnlyList<Guid>? CityIds);
 
 // The stock of one product in one warehouse; every active product of every active company warehouse is listed, Counted false (quantity 0) until somebody set it.
 public sealed record WarehouseStockDto(Guid WarehouseId, string WarehouseCode, string WarehouseName, Guid? CityId, string? CityName, Guid ProductId, string ProductCode, string ProductName, string Unit, decimal Quantity, bool Counted = true, DateOnly? ExpiryDate = null, decimal? MinStock = null,
@@ -109,7 +113,15 @@ public interface IOrderStore
     Task<IReadOnlyList<Guid>> ListUserCitiesAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<bool> ReplaceUserCitiesAsync(TenantId tenantId, UserId actorId, Guid userId, IReadOnlyList<Guid> cityIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<IReadOnlyList<WarehouseDto>> ListWarehousesForUserAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    Task<bool> WarehouseAllowedForUserAsync(TenantId tenantId, Guid userId, Guid warehouseId, CancellationToken cancellationToken) => Task.FromResult(true);
+    // Plan step 5.67. The warehouse that serves the city of a customer (null: the customer has no city, or the city has no warehouse).
+    Task<Guid?> CityWarehouseOfCustomerAsync(TenantId tenantId, Guid customerId, CancellationToken cancellationToken) => Task.FromResult<Guid?>(null);
+    Task<IReadOnlyList<CityWarehouseDto>> ListCityWarehousesAsync(TenantId tenantId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    // Makes this warehouse the one of exactly these cities (a city that another warehouse served moves; the warehouse's other cities are freed). NotFound: no such warehouse;
+    // InvalidData: not a company warehouse. Audit warehouse.cities_set.
+    Task<OrderResult> ReplaceWarehouseCitiesAsync(TenantId tenantId, UserId actorId, Guid warehouseId, IReadOnlyList<Guid> cityIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+    // A warehouse that does not exist is answered later (NotFound). A wholesaler: the cities of the person (5.59). A company warehouse: any with anyWarehouse; else only the one of the customer's city
+    // (cityWarehouse), and when the city has none the cities of the person as before.
+    Task<bool> WarehouseAllowedForOrderAsync(TenantId tenantId, Guid userId, Guid warehouseId, Guid? cityWarehouse, bool anyWarehouse, CancellationToken cancellationToken) => Task.FromResult(true);
     Task<OrderResult> CheckWholesalerCustomerAsync(TenantId tenantId, Guid customerId, Guid? exceptWarehouse, CancellationToken cancellationToken) => Task.FromResult(OrderResult.Success);
     // The stock of all active company warehouses (onlyStaffOf empty), or of the warehouses that user works in, for every active product. Ordered by warehouse code, then product code.
     Task<IReadOnlyList<WarehouseStockDto>> ListStockAsync(TenantId tenantId, Guid? onlyStaffOf, CancellationToken cancellationToken);
@@ -173,11 +185,37 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
     public const decimal MaxQuantity = 100_000m;
     public const int MaxNoteLength = 500;
 
-    // Plan step 5.59: the warehouses of the cities of the caller (see IOrderStore.ListWarehousesForUserAsync); this is what the order page offers.
-    public async Task<(OrderResult Result, IReadOnlyList<WarehouseDto> Items)> ListWarehousesForOrderAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    // Plan step 5.59 / 5.67: what the order page offers. The wholesalers of the caller's cities, and the company warehouses: all for orders.anywarehouse, else only the one that serves the
+    // customer's city (marked IsDefault, first), and when the customer has no such warehouse the company warehouses of the caller's cities as before.
+    public async Task<(OrderResult Result, IReadOnlyList<WarehouseDto> Items)> ListWarehousesForOrderAsync(TenantId tenantId, UserId actorId, Guid? customerId, CancellationToken cancellationToken)
     {
         if (await ScopeAsync(tenantId, actorId, PermissionKeys.OrdersCreate, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<WarehouseDto>());
-        return (OrderResult.Success, await store.ListWarehousesForUserAsync(tenantId, actorId.Value, cancellationToken));
+        var ofUser = await store.ListWarehousesForUserAsync(tenantId, actorId.Value, cancellationToken);
+        var cityWarehouse = customerId is { } c && c != Guid.Empty ? await store.CityWarehouseOfCustomerAsync(tenantId, c, cancellationToken) : null;
+        var any = await permissions.HasPermissionAsync(tenantId, actorId, PermissionKeys.OrdersAnyWarehouse, cancellationToken);
+        IEnumerable<WarehouseDto> company = ofUser.Where(w => w.Kind == "company");
+        if (any) company = (await store.ListWarehousesAsync(tenantId, false, cancellationToken)).Where(w => w.Kind == "company");
+        else if (cityWarehouse is { } only) company = (await store.ListWarehousesAsync(tenantId, false, cancellationToken)).Where(w => w.Kind == "company" && w.Id == only);
+        var list = company.Select(w => w with { IsDefault = w.Id == cityWarehouse }).OrderByDescending(w => w.IsDefault).ToList();
+        list.AddRange(ofUser.Where(w => w.Kind != "company"));
+        return (OrderResult.Success, list);
+    }
+
+    // The warehouse of every city, and the replacement of the cities of one warehouse (warehouses.manage).
+    public async Task<(OrderResult Result, IReadOnlyList<CityWarehouseDto> Items)> ListCityWarehousesAsync(TenantId tenantId, UserId actorId, CancellationToken cancellationToken)
+    {
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return (OrderResult.Forbidden, Array.Empty<CityWarehouseDto>());
+        return (OrderResult.Success, await store.ListCityWarehousesAsync(tenantId, cancellationToken));
+    }
+
+    public async Task<OrderResult> SetWarehouseCitiesAsync(TenantId tenantId, UserId actorId, Guid warehouseId, SetWarehouseCitiesRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (await ScopeAsync(tenantId, actorId, PermissionKeys.WarehousesManage, cancellationToken) is null) return OrderResult.Forbidden;
+        var ids = request.CityIds?.Distinct().ToList();
+        if (warehouseId == Guid.Empty || ids is null || ids.Count > 500 || ids.Contains(Guid.Empty)) return OrderResult.InvalidData;
+        foreach (var id in ids) if (!await store.CityExistsAsync(tenantId, id, cancellationToken)) return OrderResult.InvalidData;
+        return await store.ReplaceWarehouseCitiesAsync(tenantId, actorId, warehouseId, ids, cancellationToken);
     }
 
     // The cities of a sales person: read and replaced by whoever manages users (user.manageroles or system.admin); the person himself may read his own.
@@ -289,19 +327,24 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         if (scope is null) return (OrderResult.Forbidden, null);
         var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
         var items = request.Items;
-        if (request.CustomerId is null || request.CustomerId == Guid.Empty || request.WarehouseId is null || request.WarehouseId == Guid.Empty ||
+        if (request.CustomerId is null || request.CustomerId == Guid.Empty || request.WarehouseId == Guid.Empty ||
             request.VisitId == Guid.Empty || request.ClientRef is null || request.ClientRef == Guid.Empty || note is { Length: > MaxNoteLength } ||
             items is null || items.Count is 0 or > MaxLines || items.Any(i => i.ProductId is null || i.ProductId == Guid.Empty || !ValidQuantity(i.Quantity)) ||
             items.Select(i => i.ProductId).Distinct().Count() != items.Count)
             return (OrderResult.InvalidData, null);
 
-        // Plan step 5.59: only a warehouse of the caller's cities (or without a city); the phone offers only these, this is the check behind it.
-        if (!await store.WarehouseAllowedForUserAsync(tenantId, actorId.Value, request.WarehouseId.Value, cancellationToken)) return (OrderResult.WarehouseNotAllowed, null);
-
         // The customer must be inside the caller's area and approved.
         var customer = await customers.GetByIdAsync(tenantId, new CustomerId(request.CustomerId.Value), scope, cancellationToken);
         if (customer is null) return (OrderResult.NotFound, null);
         if (customer.ApprovalStatus != "approved") return (OrderResult.CustomerNotApproved, null);
+
+        // Plan step 5.67: the warehouse that serves the customer's city is the one (no warehouse in the request = that one). Another company warehouse needs orders.anywarehouse; a wholesaler
+        // or a city without a warehouse follows the cities of the caller (5.59). The phone offers only what is allowed, this is the check behind it.
+        var cityWarehouse = await store.CityWarehouseOfCustomerAsync(tenantId, customer.Id, cancellationToken);
+        var warehouseId = request.WarehouseId ?? cityWarehouse;
+        if (warehouseId is null) return (OrderResult.InvalidData, null);
+        var anyWarehouse = await permissions.HasPermissionAsync(tenantId, actorId, PermissionKeys.OrdersAnyWarehouse, cancellationToken);
+        if (!await store.WarehouseAllowedForOrderAsync(tenantId, actorId.Value, warehouseId.Value, cityWarehouse, anyWarehouse, cancellationToken)) return (OrderResult.WarehouseNotAllowed, null);
 
         // A visit is linked only when it is of this customer and of the caller (or a manager's scope), and it is not cancelled or failed.
         var visitIdToUse = request.VisitId;
@@ -338,7 +381,7 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         var currency = pricing.Products.First(p => p.Product.Id == items[0].ProductId).Product.Currency;
         if (items.Any(i => pricing.Products.First(p => p.Product.Id == i.ProductId).Product.Currency != currency)) return (OrderResult.CurrencyMismatch, null);
 
-        var (created, order) = await store.CreateAsync(tenantId, actorId, new NewOrder(customer.Id, request.WarehouseId.Value, visitIdToUse, request.ClientRef.Value, currency,
+        var (created, order) = await store.CreateAsync(tenantId, actorId, new NewOrder(customer.Id, warehouseId.Value, visitIdToUse, request.ClientRef.Value, currency,
             lines.Sum(l => l.LineTotal), note, lines), cancellationToken);
         if (order is not null && visitDetached && !order.Replayed) order = order with { VisitDetached = true };
         if (order is not null && (await visibility.HiddenForAsync(tenantId, actorId, [request.CustomerId!.Value], cancellationToken)).Contains(request.CustomerId!.Value)) order = order with { Total = 0, PricesHidden = true };
