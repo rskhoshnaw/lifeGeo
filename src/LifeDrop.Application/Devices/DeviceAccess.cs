@@ -11,10 +11,15 @@ public sealed record RegisteredDevice(Guid DeviceId, string DeviceSecret);
 
 public enum DeviceChangeResult { Changed, NotFound, Forbidden, Conflict }
 
+// Plan step 5.62: why a registration was refused with a conflict: the phone is already registered (and in what state), or the account / company is not active.
+public enum RegistrationBlock { Unknown, Pending, Approved, Blocked, AccountInactive }
+
 public interface IDeviceAccessStore
 {
     Task<RegisteredDevice?> RegisterAsync(TenantId tenantId, UserId userId,
         RegisterDeviceRequest request, CancellationToken cancellationToken);
+    // Called when RegisterAsync refused: tells the phone the real reason instead of a bare conflict.
+    Task<RegistrationBlock> WhyNotRegisteredAsync(TenantId tenantId, UserId userId, string installId, CancellationToken cancellationToken) => Task.FromResult(RegistrationBlock.Unknown);
     Task<bool> IsApprovedAsync(TenantId tenantId, UserId userId, Guid deviceId,
         string deviceSecret, CancellationToken cancellationToken);
     // True while the device exists for this user and is not deleted (any status). A phone holding an id for which this is false has stale local credentials.

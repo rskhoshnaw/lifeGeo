@@ -45,6 +45,28 @@ public sealed class PostgresDeviceAccessStore(NpgsqlDataSource dataSource) : IDe
         return new RegisteredDevice(deviceId, secret);
     }
 
+    public async Task<RegistrationBlock> WhyNotRegisteredAsync(TenantId tenantId, UserId userId, string installId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT (SELECT d.status FROM devices d WHERE d.tenant_id=@tenant AND d.user_id=@user AND d.install_id=@install AND d.deleted_at IS NULL),
+                   EXISTS (SELECT 1 FROM users u JOIN tenants t ON t.id=u.tenant_id WHERE u.tenant_id=@tenant AND u.id=@user AND u.is_active AND t.is_active)
+            """, connection);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("user", userId.Value);
+        command.Parameters.AddWithValue("install", installId.Trim());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        if (!reader.GetBoolean(1)) return RegistrationBlock.AccountInactive;
+        return (reader.IsDBNull(0) ? null : reader.GetString(0)) switch
+        {
+            "pending" => RegistrationBlock.Pending,
+            "approved" => RegistrationBlock.Approved,
+            "blocked" => RegistrationBlock.Blocked,
+            _ => RegistrationBlock.Unknown
+        };
+    }
+
     public async Task<bool> IsApprovedAsync(TenantId tenantId, UserId userId, Guid deviceId,
         string deviceSecret, CancellationToken cancellationToken)
     {

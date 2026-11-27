@@ -800,3 +800,4 @@ Transfers between warehouses (step 5.60, migration 0083). `warehouses.manage` wo
 | `GET /transfers/warehouses` (5.61) | `warehouses.manage` or `warehouse.work` | `[{id, code, name, cityName}]`: the active company warehouses (the choices for the receiving warehouse; a worker may not read `GET /warehouses`). | — |
 
 Transfer notifications (5.61, migration 0084): `transfer.sent` goes to the staff of the receiving warehouse, `transfer.received` to the staff of the sending warehouse and the sender, `transfer.cancelled` to the staff of the receiving warehouse; never to the person who did it. `entityId` = the transfer id.
+| `POST /auth/devices/register` 409 (5.62) | credentials of the user | The conflict now carries a code: `DEVICE_PENDING`, `DEVICE_ALREADY_APPROVED`, `DEVICE_BLOCKED` (a live device of this user has the same install id, in that status) or `ACCOUNT_INACTIVE`; a bare 409 stays for any other refusal. |

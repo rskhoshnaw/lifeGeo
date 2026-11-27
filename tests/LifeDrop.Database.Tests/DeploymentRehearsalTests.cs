@@ -174,8 +174,15 @@ public class DeploymentRehearsalTests
                 Assert.Equal(HttpStatusCode.OK, regResp.StatusCode);
                 var deviceData = await regResp.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
 
+                // Step 5.62: registering the same phone again says what is the matter instead of a bare conflict: waiting for approval, then approved
+                var pending = await client.PostAsJsonAsync("/auth/devices/register", regReq);
+                Assert.Equal(HttpStatusCode.Conflict, pending.StatusCode);
+                Assert.Contains("DEVICE_PENDING", await pending.Content.ReadAsStringAsync());
                 var approveResp = await client.PostAsync($"/devices/{deviceData!.DeviceId}/approve", null);
                 Assert.Equal(HttpStatusCode.NoContent, approveResp.StatusCode);
+                var approved = await client.PostAsJsonAsync("/auth/devices/register", regReq);
+                Assert.Equal(HttpStatusCode.Conflict, approved.StatusCode);
+                Assert.Contains("DEVICE_ALREADY_APPROVED", await approved.Content.ReadAsStringAsync());
 
                 var assignResp = await client.PostAsync($"/users/{adminId}/roles/{fieldRole}", null);
                 Assert.Equal(HttpStatusCode.NoContent, assignResp.StatusCode);
