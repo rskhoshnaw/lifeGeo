@@ -13,7 +13,7 @@ import { LiveMapPage } from './pages/LiveMapPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { ClientErrorsPage } from './pages/ClientErrorsPage.tsx'
 import { CatalogPage } from './pages/CatalogPage.tsx'
-import { OrdersPage } from './pages/OrdersPage.tsx'
+import { OrdersPage, WarehousesPage } from './pages/OrdersPage.tsx'
 import { ReportsPage } from './pages/ReportsPage.tsx'
 import { FormsPage } from './pages/FormsPage.tsx'
 import { isTvOnly, TvPage } from './pages/TvPage.tsx'
@@ -37,7 +37,7 @@ import { I18nProvider } from './components/I18n.tsx'
 import { Shell } from './components/Shell.tsx'
 import { setCurrentProfile, setTextOverrides, t, useLang } from './i18n.ts'
 
-type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'payments' | 'returns' | 'transfers' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'feedback' | 'account'
+type Tab = 'home' | 'map' | 'visits' | 'users' | 'devices' | 'customers' | 'places' | 'catalog' | 'orders' | 'warehouses' | 'payments' | 'returns' | 'transfers' | 'samples' | 'followups' | 'alerts' | 'route' | 'reports' | 'targets' | 'warehouse' | 'wholesaler' | 'marketing' | 'regions' | 'audit' | 'clientErrors' | 'forms' | 'platform' | 'tv' | 'notifications' | 'feedback' | 'account'
 
 export default function App({ api }: { api: ApiClient }) {
   return (
@@ -129,6 +129,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
     { id: 'places', label: t('web.tab.places'), visible: can(me, ...Permissions.places) },
     { id: 'catalog', label: t('web.tab.catalog'), visible: shows('catalog') && can(me, ...Permissions.catalog) },
     { id: 'orders', label: t('web.tab.orders'), visible: shows('orders') && can(me, ...Permissions.orders) },
+    { id: 'warehouses', label: t('web.tab.warehouses'), visible: shows('orders') && can(me, ...Permissions.manageWarehouses, ...Permissions.reports) },
     { id: 'payments', label: t('web.tab.payments'), visible: shows('payments') && can(me, ...Permissions.payments) },
     { id: 'returns', label: t('web.tab.returns'), visible: shows('orders') && can(me, ...Permissions.returns) },
     { id: 'transfers', label: t('web.tab.transfers'), visible: shows('orders') && can(me, ...Permissions.manageWarehouses, ...Permissions.warehouseWork) },
@@ -175,6 +176,7 @@ function SignedIn({ api, account }: { api: ApiClient; account: Account }) {
       {me && !fileOf && tab === 'places' && <PlacesPage admin={admin} />}
       {me && !fileOf && tab === 'catalog' && <CatalogPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'orders' && <OrdersPage admin={admin} me={me} />}
+      {me && !fileOf && tab === 'warehouses' && <WarehousesPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'payments' && <PaymentsPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'returns' && <ReturnsPage admin={admin} me={me} />}
       {me && !fileOf && tab === 'transfers' && <TransfersPage admin={admin} />}

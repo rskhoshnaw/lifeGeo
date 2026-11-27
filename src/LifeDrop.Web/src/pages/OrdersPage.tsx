@@ -92,6 +92,16 @@ export function OrdersPage({ admin, me }: { admin: AdminApi; me: Me }) {
           }}
         />
       )}
+    </section>
+  )
+}
+
+// Warehouse management has its own tab (owner request 2026-11-27: it was hidden at the bottom of the Orders tab): the list with staff and
+// the add form, then the stock of every warehouse.
+export function WarehousesPage({ admin, me }: { admin: AdminApi; me: Me }) {
+  return (
+    <section className="space-y-6 p-6">
+      <h2 className="text-xl font-semibold">{t('web.orders.warehouses')}</h2>
       {can(me, ...Permissions.manageWarehouses) && <Warehouses admin={admin} />}
       {can(me, ...Permissions.manageWarehouses, ...Permissions.reports) && <WarehouseStock admin={admin} canEdit={can(me, ...Permissions.manageWarehouses)} />}
     </section>

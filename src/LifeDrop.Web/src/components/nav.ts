@@ -1,5 +1,5 @@
 import {
-  Banknote, Building2, CalendarCheck, ChartColumn, ClipboardList, FlaskConical, House, Layers, ListChecks, Megaphone, Map, MapPinned, Package, Route, ScrollText, WifiOff,
+  ArrowLeftRight, Banknote, Boxes, Building2, CalendarCheck, ChartColumn, ClipboardList, FlaskConical, House, Layers, ListChecks, Megaphone, Map, MapPinned, MessageSquareText, Package, Route, ScrollText, Undo2, WifiOff,
   ShoppingCart, Smartphone, Store, Target, TriangleAlert, Truck, Tv, User, Users, Warehouse, type LucideIcon,
 } from 'lucide-react'
 import type { TextKey } from '../i18n.ts'
@@ -26,6 +26,9 @@ export const placement: Record<string, { group: NavGroup; icon: LucideIcon }> = 
   samples: { group: 'field', icon: FlaskConical },
   catalog: { group: 'sales', icon: Package },
   orders: { group: 'sales', icon: ShoppingCart },
+  warehouses: { group: 'sales', icon: Boxes },
+  returns: { group: 'sales', icon: Undo2 },
+  transfers: { group: 'sales', icon: ArrowLeftRight },
   warehouse: { group: 'sales', icon: Warehouse },
   wholesaler: { group: 'sales', icon: Truck },
   marketing: { group: 'sales', icon: Megaphone },
@@ -35,6 +38,7 @@ export const placement: Record<string, { group: NavGroup; icon: LucideIcon }> = 
   alerts: { group: 'insight', icon: TriangleAlert },
   audit: { group: 'insight', icon: ScrollText },
   clientErrors: { group: 'insight', icon: WifiOff },
+  feedback: { group: 'insight', icon: MessageSquareText },
   users: { group: 'organisation', icon: Users },
   devices: { group: 'organisation', icon: Smartphone },
   regions: { group: 'organisation', icon: Layers },

@@ -67,7 +67,13 @@ public sealed record EffectivePriceDto(Guid ProductId, string Code, string Name,
 
 public sealed record ProductPhoto(string ContentType, byte[] Data);
 
-public enum CatalogResult { Success, Forbidden, NotFound, InvalidData, Conflict }
+public enum CatalogResult { Success, Forbidden, NotFound, InvalidData, Conflict, InvalidPrice, DuplicateCode, DuplicateCodeInactive }
+
+// What an amount of money may look like (owner request 2026-11-27): Iraqi dinars have no fraction, dollars have two decimals.
+public static class MoneyRules
+{
+    public static bool IsValidAmount(decimal amount, string? currency) => decimal.Round(amount, currency == "USD" ? 2 : 0) == amount;
+}
 
 // What the store reads for one customer and day: every active product with the general price and the city price that applies,
 // and the discounts that are valid. The price itself is worked out by PriceCalculator.
@@ -78,6 +84,8 @@ public sealed record PricingData(IReadOnlyList<ProductPriceRow> Products, IReadO
 public interface IProductStore
 {
     Task<IReadOnlyList<ProductDto>> ListAsync(TenantId tenantId, bool includeInactive, string? query, CancellationToken cancellationToken);
+    // The status ("active" / "inactive") of the product that has this code, or null when none has. Products are never deleted, only switched off, and the code stays taken.
+    Task<string?> StatusOfCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     // Null when the code exists already.
     Task<Guid?> CreateAsync(TenantId tenantId, UserId actorId, SaveProductRequest product, CancellationToken cancellationToken);
     // False when the product does not exist.
@@ -155,16 +163,19 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return (CatalogResult.Forbidden, null);
         var code = request.Code?.Trim();
-        if (code is null || code.Length is 0 or > MaxCodeLength || !CodePattern().IsMatch(code) || Clean(request, out var clean) is { } error && error != CatalogResult.Success)
-            return (CatalogResult.InvalidData, null);
+        if (code is null || code.Length is 0 or > MaxCodeLength || !CodePattern().IsMatch(code)) return (CatalogResult.InvalidData, null);
+        if (Clean(request, out var clean) is { } error && error != CatalogResult.Success) return (error, null);
         var id = await store.CreateAsync(tenantId, actorId, clean! with { Code = code }, cancellationToken);
-        return id is null ? (CatalogResult.Conflict, null) : (CatalogResult.Success, id);
+        if (id is not null) return (CatalogResult.Success, id);
+        // The code is taken: say whether by a product that was only switched off (the owner thinks of those as deleted).
+        return await store.StatusOfCodeAsync(tenantId, code, cancellationToken) == "inactive" ? (CatalogResult.DuplicateCodeInactive, null) : (CatalogResult.DuplicateCode, null);
     }
 
     public async Task<CatalogResult> UpdateAsync(TenantId tenantId, UserId actorId, Guid productId, SaveProductRequest request, CancellationToken cancellationToken)
     {
         if (!await CanAsync(tenantId, actorId, PermissionKeys.CatalogManage, cancellationToken)) return CatalogResult.Forbidden;
-        if (productId == Guid.Empty || Clean(request, out var clean) is { } error && error != CatalogResult.Success) return CatalogResult.InvalidData;
+        if (productId == Guid.Empty) return CatalogResult.InvalidData;
+        if (Clean(request, out var clean) is { } error && error != CatalogResult.Success) return error;
         return await store.UpdateAsync(tenantId, actorId, productId, clean!, cancellationToken) ? CatalogResult.Success : CatalogResult.NotFound;
     }
 
@@ -318,6 +329,7 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
             request.Currency is null || !Currencies.Contains(request.Currency) || !ValidPrice(request.BasePrice) || status is not ("active" or "inactive") ||
             Opt(request.NameCkb)?.Length > MaxNameLength || Opt(request.NameAr)?.Length > MaxNameLength || Opt(request.NameEn)?.Length > MaxNameLength)
             return CatalogResult.InvalidData;
+        if (!MoneyRules.IsValidAmount(request.BasePrice!.Value, request.Currency)) return CatalogResult.InvalidPrice;
         clean = request with { Name = name, Unit = unit, NameCkb = Opt(request.NameCkb), NameAr = Opt(request.NameAr), NameEn = Opt(request.NameEn), Status = status };
         return CatalogResult.Success;
     }

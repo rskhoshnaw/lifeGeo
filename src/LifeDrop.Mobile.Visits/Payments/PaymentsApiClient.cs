@@ -40,22 +40,16 @@ public sealed class PaymentDraft(Guid customerId, Guid? orderId = null, Guid? cl
 
     public bool NeedsReference => Method is "fastpay" or "fib";
 
-    // Digits of any script (Arabic-Indic and Persian digits are common on these phones), a dot or a comma as decimal mark; null when it is not an amount.
-    public static decimal? ParseAmount(string? text)
+    // 10.440 and 10,440 are ten thousand four hundred and forty dinars; dinars have no fraction (see MoneyInput). Null when it is not an amount.
+    public static decimal? ParseAmount(string? text, string currency)
     {
-        if (string.IsNullOrWhiteSpace(text)) return null;
-        var ascii = new string(text.Trim().Select(c => c switch
-        {
-            >= '٠' and <= '٩' => (char)('0' + (c - '٠')),
-            >= '۰' and <= '۹' => (char)('0' + (c - '۰')),
-            '٫' or ',' => '.',
-            _ => c
-        }).ToArray());
-        if (!decimal.TryParse(ascii, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var value)) return null;
-        return value <= 0 || value > MaxAmount || decimal.Round(value, 3) != value ? null : value;
+        var value = MoneyInput.Parse(text, currency).Value;
+        return value is null or <= 0 || value > MaxAmount ? null : value;
     }
 
-    public decimal? Amount => ParseAmount(AmountText);
+    public decimal? Amount => ParseAmount(AmountText, Currency);
+    // Why the typed amount is refused (null when nothing is typed or it is fine): the page shows the text under the field.
+    public MoneyProblem? AmountProblem => string.IsNullOrWhiteSpace(AmountText) ? null : MoneyInput.Parse(AmountText, Currency).Problem;
 
     public bool CanSave => Recorded is null && !Queued && Amount is not null && Methods.Contains(Method) && Currencies.Contains(Currency) &&
         (!NeedsReference || !string.IsNullOrWhiteSpace(Reference)) && (Reference?.Trim().Length ?? 0) <= 100 && (Note?.Trim().Length ?? 0) <= 500;

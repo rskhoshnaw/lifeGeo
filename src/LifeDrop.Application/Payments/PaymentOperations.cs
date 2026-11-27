@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LifeDrop.Application.Catalog;
 using LifeDrop.Application.Customers;
 using LifeDrop.Application.Roles;
 using LifeDrop.Domain.Common;
@@ -177,7 +178,7 @@ public sealed class PaymentService(IPaymentStore store, IPermissionStore permiss
         var reference1 = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
         var note1 = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
         if (method is null || !Methods.Contains(method) || currency is null || !Currencies.Contains(currency) || amount is not > 0 or null || amount > MaxAmount ||
-            decimal.Round(amount.Value, 3) != amount || reference1?.Length > 100 || note1?.Length > 500 || (method is "fastpay" or "fib" && reference1 is null))
+            !MoneyRules.IsValidAmount(amount.Value, currency) || reference1?.Length > 100 || note1?.Length > 500 || (method is "fastpay" or "fib" && reference1 is null))
             return false;
         payment = new NewPayment(customerId, orderId, method, currency, amount.Value, reference1, note1, clientRef);
         return true;
