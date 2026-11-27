@@ -1,7 +1,18 @@
 # Phase status (read this first)
 
-Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full history and test evidence:
+Updated: 2026-11-27 (step 5.65). Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full history and test evidence:
 `memory-bank/archive/` (read only when needed).
+
+## Current state (2026-11-27)
+- Last merged: PR #231 (step 5.65). Migrations 0001–0084 (latest: 0082 wholesaler customer + user cities, 0083 stock transfers, 0084 transfer notifications). Tests at the last runs: database 125 (121 pass, 4 skipped; `MIN_EXPECTED_TESTS` = 125 = the total), Application 252, Mobile.Visits 499, Mobile.Auth 179, panel 233. Everything below the line "Log" is the history; the newest steps are 5.49–5.65 at the end of the log.
+- Built in this stretch (owner lists of 2026-11-26/27): returns (photos, refunds, damaged goods kept in the warehouse, row-by-row approval), stock only in warehouses, wholesaler = customer + visitor cities, transfers between warehouses (panel, app, notifications), privacy files for iOS, photo upload limit + compression, device registration fixes (5.62–5.64), TestFlight external distribution (5.65).
+- **Open / in progress with the owner**
+  1. Panel: a SalesManager (all permissions) cannot find warehouse management. In code it is in the Orders tab under `can(me, warehouses.manage)` (`OrdersPage.tsx`: `Warehouses`, `WarehouseStock`). Cause not found yet: check `/me` permissions, the role rows of this company, module hiding; also give warehouse management a visible place (own tab).
+  2. Price input: the owner types `10.440` meaning 10,440 IQD and the system reads 10.44; the trailing zero is not accepted. IQD has no decimals and `.`/`,` separate thousands in Iraq: parse and show accordingly (panel `CatalogPage.tsx`, server `CatalogOperations.ValidPrice`).
+  3. User mohammedbalindy277@gmail.com (iPhone 8 Plus, iOS 16.7.11) still cannot register/log in: server log shows only `POST /auth/login` 403, never `/auth/devices/register`. Waiting for the controlled test (live `docker compose logs -f api | grep auth/` while he taps Register once), the TestFlight build number and his rows in the panel "App errors". Cause so far: external testers kept an old build. Tool: `deploy/device-report.sh <email>`.
+  4. Deep-audit item 4 (backup/restore really tested on the server: `deploy/backup.sh`, `backup-offsite.sh`, `restore-test.sh`) not done yet; owner will do it together with Claude later.
+  5. 5.65 (external TestFlight distribution) never ran against Apple yet: the first run is the test; the API key needs the App Manager role.
+- **Owner must (each deploy):** `deploy/update.sh` on the server (runs migrations and re-applies grants), then new iOS and Android builds; panel/server changes need no build. Server logs vanish at every `update.sh`.
 
 | Phase / steps | State |
 | --- | --- |
@@ -46,7 +57,7 @@ Updated: 2026-10-04. Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full hi
 | 5.5 sales targets per visitor/product/month + report against delivered quantity (panel tab Targets, CSV; app page "My targets" via GET /targets/mine); migration 0058 | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand (tags list too) |
 | Next | plan section 7: 4.7 CI + real-device test (intent-filter, QR scan, camera); 3.8 iOS after Apple account; real-device tests (tracking, offline, Push); load test; buy domain/VPS and deploy (3.3 last) |
 
-Migrations: 0001–0028 (1.24, 1.25, 1.27 have none). Owner must apply 0006–0028 + `db/grants/lifedrop_app_grants.sql` on `lifedrop_dev`.
+Migrations: 0001–0084 (see the current state above; the older line about 0006–0028 is history). The deploy script `deploy/update.sh` applies every migration and the grants.
 Open decisions: D4 only (Backup delete permission); API host is now per company (D15). Owner decisions D6, D8, D9, D14–D18 are recorded in the plan and `docs/DECISIONS.md`.
 
 ## Log (one line per step, newest last)
