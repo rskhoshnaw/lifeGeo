@@ -13,7 +13,6 @@ Updated: 2026-11-27 (step 5.65). Plan and step table: `docs/IMPLEMENTATION-PLAN.
   4. Deep-audit item 4 (backup/restore really tested on the server: `deploy/backup.sh`, `backup-offsite.sh`, `restore-test.sh`) not done yet; owner will do it together with Claude later.
   5. 5.65 (external TestFlight distribution) never ran against Apple yet: the first run is the test; the API key needs the App Manager role.
 - **Owner must (each deploy):** `deploy/update.sh` on the server (runs migrations and re-applies grants), then new iOS and Android builds; panel/server changes need no build. Server logs vanish at every `update.sh`.
-- Not built yet: push to the receiving staff for the app is done; open ideas: panel list of devices with app version is there (since 5.64); panel page for per-city visitor assignment is a block in the user editor.
 
 | Phase / steps | State |
 | --- | --- |
