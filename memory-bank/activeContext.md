@@ -30,3 +30,10 @@ D1 explicit shift start/end, test target ≥90 % points and gap ≤5 min. D2 che
 - SQL ordering in tests: use `COLLATE "C"` (CI uses en_US).
 - Update the plan row, `docs/phase0-api-access-matrix.md`, and one log line in `memory-bank/phaseStatus.md` in the same PR (old evidence is in `memory-bank/archive/`).
 - Texts: never hard-code user-facing text; add the key to `i18n/strings.json` in all four languages (tests fail otherwise). Tests run in English: panel `test-setup.ts`, .NET module initializers in `TextsTests.cs` and `Database.Tests/EnglishTexts.cs`. Run the DB suite too when mobile client text changes.
+
+## A bug that comes back (rules from steps 5.49 / 5.63 / 5.64)
+The phone-registration bug was "fixed" in 5.49 and came back in 5.63: the fix mended the login path only, while the cause named in its own plan row (the register path trusting the phone's stored copy) stayed.
+- When a report names a cause, `grep` for every place with the same pattern before closing it; fix the cause, not the one screen the user saw.
+- Walk the user's whole way in a scenario test (all buttons, any order, repeated), not only the changed function. Example: `DeviceLifecycleScenarioTests`. Check that it fails on the old code.
+- A change to the app does not reach users until a new build is installed. Write "needs a new build" in the plan row and the reply, and do not call the report solved before the owner has tested the new build on a real phone.
+- The server logs are lost when the container is rebuilt (`update.sh`): ask for them right after a new attempt, not afterwards. The panel's Devices page shows each phone's app version and build.
