@@ -31,27 +31,19 @@ public class DeviceRegistrationCoordinator : IDeviceRegistrationCoordinator
         // Spaces around the e-mail (autofill, copy and paste) must not make the same person look like another account.
         request = request with { Email = request.Email.Trim() };
         var existingDevice = await _store.LoadDeviceAsync(cancellationToken);
-        if (existingDevice != null)
-        {
-            if (!string.Equals(CompanyDirectory.Normalize(existingDevice.TenantCode), CompanyDirectory.Normalize(request.TenantCode), StringComparison.OrdinalIgnoreCase))
-            {
-                return new AuthResult<RegisteredDevice>(AuthStatus.Conflict, ErrorMessage: "A device registration for a different account already exists on this device.");
-            }
-
-            // Same company, another e-mail (the phone is handed to another person, or the e-mail was changed): the old local registration is replaced by a new one for
-            // this e-mail; the server registers the device for the user who proves the password and an admin approves it as usual.
-            if (string.Equals((existingDevice.Email ?? "").Trim(), request.Email, StringComparison.OrdinalIgnoreCase))
-            {
-                if (existingDevice.DeviceId == Guid.Empty || string.IsNullOrWhiteSpace(existingDevice.DeviceSecret))
-                {
-                    return new AuthResult<RegisteredDevice>(AuthStatus.LocalStateError, ErrorCode: "reg_stored_malformed", ErrorMessage: "Stored device registration is malformed.");
-                }
-
-                return new AuthResult<RegisteredDevice>(AuthStatus.Success, existingDevice);
-            }
-        }
+        // Plan step 5.63: "Register" always asks the server. The phone's own memory of an earlier registration is not trusted: a manager may have deleted that device (then the old record
+        // is useless and must be replaced), or it belongs to another company or e-mail, or it is damaged. Before, such a record ended the registration on the phone without any request,
+        // and the user could never register again. The server decides; only when it says that this very phone is registered already (waiting for approval or approved) and the phone
+        // holds that registration for the same company and e-mail, the stored registration stays.
+        var sameRegistration = existingDevice is not null && existingDevice.DeviceId != Guid.Empty && !string.IsNullOrWhiteSpace(existingDevice.DeviceSecret) &&
+            string.Equals(CompanyDirectory.Normalize(existingDevice.TenantCode), CompanyDirectory.Normalize(request.TenantCode), StringComparison.OrdinalIgnoreCase) &&
+            string.Equals((existingDevice.Email ?? "").Trim(), request.Email, StringComparison.OrdinalIgnoreCase);
 
         var response = await _apiClient.RegisterDeviceAsync(request, cancellationToken);
+        if (response.Status == AuthStatus.Conflict && sameRegistration && response.ErrorCode is null or "DEVICE_PENDING" or "DEVICE_ALREADY_APPROVED")
+        {
+            return new AuthResult<RegisteredDevice>(AuthStatus.Success, existingDevice);   // this phone is registered already, as it remembers
+        }
         if (response.Status != AuthStatus.Success)
         {
             return response;

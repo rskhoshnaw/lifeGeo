@@ -68,40 +68,54 @@ public class DeviceRegistrationCoordinatorTests
         Assert.Equal(result.Data.DeviceId, store.SavedDevice.DeviceId);
     }
 
-    [Fact]
-    public async Task RegisterDeviceAsync_ReturnsExisting_WhenExistingRegistrationMatches_ZeroApiCallsAndZeroSaves()
+    [Theory]
+    [InlineData("DEVICE_PENDING")]
+    [InlineData("DEVICE_ALREADY_APPROVED")]
+    [InlineData(null)]
+    public async Task RegisterDeviceAsync_KeepsTheStoredRegistration_WhenTheServerSaysThisPhoneIsRegisteredAlready(string? code)
     {
         var apiClient = new MockAuthApiClient();
-        bool apiCalled = false;
-        apiClient.RegisterDeviceHandler = req => { apiCalled = true; return Task.FromResult(new AuthResult<RegisteredDevice>(AuthStatus.Success)); };
+        var asked = false;
+        apiClient.RegisterDeviceHandler = req => { asked = true; return Task.FromResult(AuthResult<RegisteredDevice>.Conflict("registered", code)); };
         var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "old_secret", "tenant", "user@test.com") };
         var coordinator = new DeviceRegistrationCoordinator(apiClient, store);
         var request = new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "Android", "123", "1.0");
 
         var result = await coordinator.RegisterDeviceAsync(request);
 
+        Assert.True(asked);                                                   // the server is always asked
         Assert.Equal(AuthStatus.Success, result.Status);
-        Assert.NotNull(result.Data);
-        Assert.Equal(store.DeviceToReturn.DeviceId, result.Data.DeviceId);
-        Assert.False(apiCalled);
+        Assert.Equal(store.DeviceToReturn.DeviceId, result.Data?.DeviceId);
         Assert.Null(store.SavedDevice);
     }
 
     [Fact]
-    public async Task RegisterDeviceAsync_ReturnsLocalError_WhenExistingRegistrationMalformed_ZeroApiCallsAndZeroSaves()
+    public async Task RegisterDeviceAsync_ReplacesAStaleStoredRegistration_WhenTheServerRegistersThePhoneAgain()
+    {
+        // A manager deleted the device: the phone still remembers it, but the server makes a new registration, which replaces the old record.
+        var apiClient = new MockAuthApiClient();
+        var fresh = new RegisteredDevice(Guid.NewGuid(), "new_secret");
+        apiClient.RegisterDeviceHandler = req => Task.FromResult(new AuthResult<RegisteredDevice>(AuthStatus.Success, fresh));
+        var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "old_secret", "tenant", "user@test.com") };
+        var coordinator = new DeviceRegistrationCoordinator(apiClient, store);
+
+        var result = await coordinator.RegisterDeviceAsync(new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "ios", "123", "1.0"));
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.Equal(fresh.DeviceId, store.SavedDevice?.DeviceId);
+    }
+
+    [Fact]
+    public async Task RegisterDeviceAsync_ReplacesADamagedStoredRegistration_InsteadOfFailing()
     {
         var apiClient = new MockAuthApiClient();
-        bool apiCalled = false;
-        apiClient.RegisterDeviceHandler = req => { apiCalled = true; return Task.FromResult(new AuthResult<RegisteredDevice>(AuthStatus.Success)); };
         var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.Empty, "", "tenant", "user@test.com") };
         var coordinator = new DeviceRegistrationCoordinator(apiClient, store);
-        var request = new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "Android", "123", "1.0");
 
-        var result = await coordinator.RegisterDeviceAsync(request);
+        var result = await coordinator.RegisterDeviceAsync(new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "ios", "123", "1.0"));
 
-        Assert.Equal(AuthStatus.LocalStateError, result.Status);
-        Assert.False(apiCalled);
-        Assert.Null(store.SavedDevice);
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.NotNull(store.SavedDevice);
     }
 
     [Fact]
@@ -122,19 +136,16 @@ public class DeviceRegistrationCoordinatorTests
     }
 
     [Fact]
-    public async Task RegisterDeviceAsync_ReturnsConflict_WhenAccountMismatches_ZeroApiCalls()
+    public async Task RegisterDeviceAsync_AsksTheServer_WhenTheStoredRegistrationIsOfAnotherCompany_AndDoesNotKeepItWhenTheServerRefuses()
     {
         var apiClient = new MockAuthApiClient();
-        bool apiCalled = false;
-        apiClient.RegisterDeviceHandler = req => { apiCalled = true; return Task.FromResult(new AuthResult<RegisteredDevice>(AuthStatus.Success)); };
+        apiClient.RegisterDeviceHandler = req => Task.FromResult(AuthResult<RegisteredDevice>.Conflict("registered", "DEVICE_PENDING"));
         var store = new MockSecureCredentialStore { DeviceToReturn = new RegisteredDevice(Guid.NewGuid(), "old_secret", "different", "user@test.com") };
         var coordinator = new DeviceRegistrationCoordinator(apiClient, store);
-        var request = new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "Android", "123", "1.0");
 
-        var result = await coordinator.RegisterDeviceAsync(request);
+        var result = await coordinator.RegisterDeviceAsync(new RegisterDeviceRequest("tenant", "user@test.com", "pass", "My Phone", "ios", "123", "1.0"));
 
-        Assert.Equal(AuthStatus.Conflict, result.Status);
-        Assert.False(apiCalled);
+        Assert.Equal((AuthStatus.Conflict, "DEVICE_PENDING"), (result.Status, result.ErrorCode));   // the other company's record is not this registration: the user sees the reason
         Assert.Null(store.SavedDevice);
     }
 
