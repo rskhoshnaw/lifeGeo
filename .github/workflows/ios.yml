@@ -2,7 +2,7 @@ name: iOS
 
 # Manual / gated: the macOS runner is slow and costly, so it never runs on every push.
 #  - PR label `ios`           -> build + sign + verify the IPA
-#  - PR label `ios-testflight`-> same, then upload to TestFlight (internal testers only)
+#  - PR label `ios-testflight`-> same, then upload to TestFlight and give the build to the external groups (step 5.65)
 #  - Actions > iOS > Run workflow (needs this file on the default branch), tick the box to upload.
 on:
   pull_request:
@@ -157,3 +157,22 @@ jobs:
         api-key-id: ${{ secrets.APPLE_ASC_KEY_ID }}
         api-private-key: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
         wait-for-processing: 'true'
+
+    # Plan step 5.65: external testers only get a build that was added to their group, and Apple wants Beta App Review for it. After the upload this step gives the build to every external group
+    # (or only to the groups named in the repository variable TESTFLIGHT_EXTERNAL_GROUPS, comma separated) and sends it to Beta App Review (TESTFLIGHT_SUBMIT_REVIEW=false turns the review off).
+    # The API key needs the App Manager role. A failure here does not undo the upload: the step only warns, and the build can be given to the group by hand.
+    - name: Give the build to the external TestFlight groups
+      if: env.UPLOAD == 'true'
+      continue-on-error: true
+      env:
+        ISSUER: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+        KEYID: ${{ secrets.APPLE_ASC_KEY_ID }}
+        PRIVKEY: ${{ secrets.APPLE_ASC_PRIVATE_KEY }}
+        BUNDLE_ID: com.pixelo.geotrack
+        GROUPS: ${{ vars.TESTFLIGHT_EXTERNAL_GROUPS }}
+        SUBMIT_REVIEW: ${{ vars.TESTFLIGHT_SUBMIT_REVIEW }}
+      run: |
+        export BUILD=$((1000 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }}))
+        python3 -m pip install --quiet cryptography
+        python3 -m unittest scripts/ci/ios/test_distribute_testflight.py
+        python3 scripts/ci/ios/distribute_testflight.py
