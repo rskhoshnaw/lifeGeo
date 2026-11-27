@@ -255,7 +255,7 @@ public partial class MainPage : ContentPage
                 DeviceLabelEntry.Text ?? "",
                 DeviceInfo.Platform == DevicePlatform.iOS ? "ios" : "android",
                 installId,
-                "1.0.0",
+                $"{AppInfo.VersionString} ({AppInfo.BuildString})",   // the panel shows it per phone: which build a user really runs (step 5.64)
                 DeviceInfo.Model,
                 DeviceInfo.Platform + " " + DeviceInfo.VersionString);
 
