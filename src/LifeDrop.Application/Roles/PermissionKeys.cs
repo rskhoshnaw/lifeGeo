@@ -46,6 +46,8 @@ public static class PermissionKeys
     public const string OrdersCreate = "orders.create";
     public const string OrdersRead = "orders.read";
     public const string OrdersCancel = "orders.cancel";
+    // Plan step 5.67: may send an order to another company warehouse than the one of the customer's city.
+    public const string OrdersAnyWarehouse = "orders.anywarehouse";
     public const string WarehousesManage = "warehouses.manage";
     // Plan step 2.3: prepare orders and hand them to a driver, in the warehouses the user works in.
     public const string WarehouseWork = "warehouse.work";

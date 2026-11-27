@@ -396,6 +396,14 @@ export interface Warehouse {
   // Step 5.59: the customer (of type Wholesaler) this wholesaler warehouse is.
   customerId?: string | null
   customerName?: string | null
+  // Step 5.67: the warehouse of the customer's city (only in the list for an order).
+  isDefault?: boolean
+}
+export interface CityWarehouse {
+  cityId: string
+  cityName: string
+  warehouseId: string
+  warehouseName: string
 }
 // The stock of one product in one warehouse (counted false = nobody set it yet, quantity 0).
 export interface WarehouseStockRow {
@@ -1252,6 +1260,7 @@ export const Permissions = {
   createOrders: ['orders.create'],
   cancelOrders: ['orders.cancel'],
   manageWarehouses: ['warehouses.manage'],
+  anyWarehouse: ['orders.anywarehouse'],
   warehouseWork: ['warehouse.work'],
   wholesalerWork: ['wholesaler.work'],
   marketing: ['marketing.use', 'marketing.manage'],
@@ -1447,7 +1456,11 @@ export class AdminApi {
   // Step 5.59: the cities a sales person works in (empty = all warehouses are offered), and the warehouses an order may go to.
   userCities = (userId: string) => this.get<string[]>(`/users/${userId}/cities`)
   setUserCities = (userId: string, cityIds: string[]) => this.send('PUT', `/users/${userId}/cities`, { cityIds })
-  warehousesForOrder = () => this.get<Warehouse[]>('/warehouses/for-order')
+  // Step 5.67: with a customer, the warehouse of his city comes first (isDefault) and is the only company warehouse unless the user has orders.anywarehouse.
+  warehousesForOrder = (customerId?: string) => this.get<Warehouse[]>(customerId ? `/warehouses/for-order?customerId=${customerId}` : '/warehouses/for-order')
+  // Which warehouse serves which city, and the cities of one warehouse (a city has one warehouse; it moves here from the one that had it).
+  cityWarehouses = () => this.get<CityWarehouse[]>('/city-warehouses')
+  setWarehouseCities = (warehouseId: string, cityIds: string[]) => this.send('PUT', `/warehouses/${warehouseId}/cities`, { cityIds })
   // Stock per warehouse and product (the managers: all warehouses; a warehouse worker: his own).
   warehouseStock = () => this.get<WarehouseStockRow[]>('/warehouses/stock')
   setWarehouseStock = (warehouseId: string, productId: string, quantity: number) => this.send('PUT', `/warehouses/${warehouseId}/stock/${productId}`, { quantity })

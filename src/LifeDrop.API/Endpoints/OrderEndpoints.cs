@@ -11,15 +11,37 @@ public static class OrderEndpoints
     public static void MapOrderEndpoints(this WebApplication app)
     {
         // Plan step 5.59: what the order page offers: the company warehouses and the wholesalers of the caller's cities.
-        app.MapGet("/warehouses/for-order", async (HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        app.MapGet("/warehouses/for-order", async (Guid? customerId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {
             if (securityState.IsInsecureDbRole) return Unavailable();
             if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
-            var (result, items) = await service.ListWarehousesForOrderAsync(tenantId, actorId, cancellationToken);
+            var (result, items) = await service.ListWarehousesForOrderAsync(tenantId, actorId, customerId, cancellationToken);
             return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
         }).RequireAuthorization()
             .WithName("ListWarehousesForOrder").WithTags("Orders").Produces<List<WarehouseDto>>(200)
             .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        // Plan step 5.67: the warehouse of every city, and the cities of one warehouse (warehouses.manage).
+        app.MapGet("/city-warehouses", async (HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, items) = await service.ListCityWarehousesAsync(tenantId, actorId, cancellationToken);
+            return result == OrderResult.Success ? Results.Ok(items) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListCityWarehouses").WithTags("Orders").Produces<List<CityWarehouseDto>>(200)
+            .ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/warehouses/{warehouseId:guid}/cities", async (Guid warehouseId, SetWarehouseCitiesRequest request, HttpContext context, OrderService service,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await service.SetWarehouseCitiesAsync(tenantId, actorId, warehouseId, request, cancellationToken);
+            return result == OrderResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetWarehouseCities").WithTags("Orders").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
         app.MapGet("/users/{userId:guid}/cities", async (Guid userId, HttpContext context, OrderService service, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

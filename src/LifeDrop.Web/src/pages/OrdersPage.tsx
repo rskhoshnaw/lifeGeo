@@ -197,9 +197,12 @@ interface Line {
 // `fixedCustomer`: the order is for this customer only (opened from the customer's file).
 export function NewOrderForm({ admin, onPlaced, fixedCustomer }: { admin: AdminApi; onPlaced: (message: string) => void; fixedCustomer?: { id: string; code: string; name: string } }) {
   const customers = useLoad(useCallback(() => admin.customers(), [admin]))
-  const warehouses = useLoad(useCallback(() => admin.warehousesForOrder(), [admin]))
   const [customer, setCustomer] = useState(fixedCustomer?.id ?? '')
-  const [warehouse, setWarehouse] = useState('')
+  // The warehouses of this customer (step 5.67): the one of his city is chosen already; the sales manager may choose another.
+  const warehouses = useLoad(useCallback(() => admin.warehousesForOrder(customer || undefined), [admin, customer]))
+  const [picked, setWarehouse] = useState('')
+  const offered = warehouses.data ?? []
+  const warehouse = offered.some((w) => w.id === picked) ? picked : (offered.find((w) => w.isDefault)?.id ?? (offered.length === 1 ? offered[0]!.id : ''))
   const [lines, setLines] = useState<Line[]>([])
   const [productId, setProductId] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -338,6 +341,10 @@ export function Warehouses({ admin }: { admin: AdminApi }) {
     admin.places(null).then(setCities, () => setCities([]))
   }, [admin])
   const [staffFor, setStaffFor] = useState<Warehouse | null>(null)
+  // The cities each company warehouse serves (step 5.67): an order for a customer of a city goes to that city's warehouse.
+  const served = useLoad(useCallback(() => admin.cityWarehouses(), [admin]))
+  const [citiesFor, setCitiesFor] = useState<Warehouse | null>(null)
+  const citiesOf = (id: string) => (served.data ?? []).filter((c) => c.warehouseId === id).map((c) => c.cityName)
 
   function add(e: FormEvent) {
     e.preventDefault()
@@ -363,6 +370,7 @@ export function Warehouses({ admin }: { admin: AdminApi }) {
           <span className="flex-1">
             {w.name} {w.cityName && <em>[{w.cityName}] </em>}{w.kind === 'wholesaler' && <em>[{t('web.orders.kind.wholesaler')}{w.customerName ? `: ${w.customerName}` : ''}] </em>}{w.status === 'inactive' && <em>({t('web.orders.inactive')})</em>}
           </span>
+          {w.kind !== 'wholesaler' && citiesOf(w.id).length > 0 && <span className="text-xs text-slate-600">{t('web.orders.servedCities', { cities: citiesOf(w.id).join('، ') })}</span>}
           {w.kind === 'wholesaler' && !w.customerId && (
             <select aria-label={t('web.orders.linkCustomer', { name: w.name })} className="rounded border px-2 py-1" value="" disabled={action.busy}
               onChange={(e) => e.target.value && void action.run(() => admin.updateWarehouse(w.id, w.name, w.status, { cityId: w.cityId, address: w.address, phone: w.phone, customerId: e.target.value }))}>
@@ -372,6 +380,11 @@ export function Warehouses({ admin }: { admin: AdminApi }) {
               ))}
             </select>
           )}
+          {w.kind !== 'wholesaler' && (
+            <button className="rounded border px-2 py-1" aria-label={t('web.orders.citiesOf', { name: w.name })} onClick={() => setCitiesFor(citiesFor?.id === w.id ? null : w)}>
+              {t('web.orders.cities')}
+            </button>
+          )}
           <button className="rounded border px-2 py-1" aria-label={t('web.orders.staffOf', { name: w.name })} onClick={() => setStaffFor(staffFor?.id === w.id ? null : w)}>
             {t('web.orders.staff')}
           </button>
@@ -380,6 +393,7 @@ export function Warehouses({ admin }: { admin: AdminApi }) {
           </button>
         </div>
       ))}
+      {citiesFor && <WarehouseCities key={citiesFor.id} admin={admin} warehouse={citiesFor} onSaved={() => served.reload()} />}
       {staffFor && <WarehouseStaff key={staffFor.id} admin={admin} warehouse={staffFor} />}
       <form onSubmit={add} className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.orders.warehouseCode')} placeholder={t('web.orders.warehouseCode')} maxLength={40} className="rounded border px-2 py-1" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -412,6 +426,47 @@ export function Warehouses({ admin }: { admin: AdminApi }) {
           {t('web.orders.addWarehouse')}
         </button>
       </form>
+    </div>
+  )
+}
+
+// The cities one warehouse serves (plan step 5.67, owner decision 2026-11-27: every province has a warehouse and its cities order from it). A city has one warehouse: ticking a city that
+// another warehouse serves moves it here, and the list says which warehouse has it now.
+function WarehouseCities({ admin, warehouse, onSaved }: { admin: AdminApi; warehouse: Warehouse; onSaved: () => void }) {
+  const cities = useLoad(useCallback(() => admin.places(null), [admin]))
+  const served = useLoad(useCallback(() => admin.cityWarehouses(), [admin]))
+  const action = useAction(() => {
+    onSaved()
+    served.reload()
+  })
+  const [chosen, setChosen] = useState<Set<string> | null>(null)
+  const ofOthers = new Map((served.data ?? []).filter((c) => c.warehouseId !== warehouse.id).map((c) => [c.cityId, c.warehouseName]))
+  const current = chosen ?? new Set((served.data ?? []).filter((c) => c.warehouseId === warehouse.id).map((c) => c.cityId))
+
+  function toggle(id: string) {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setChosen(next)
+  }
+
+  return (
+    <div className="space-y-2 rounded border bg-slate-50 p-2">
+      <h4 className="font-semibold">{t('web.orders.citiesOf', { name: warehouse.name })}</h4>
+      <p className="text-slate-600">{t('web.orders.citiesHint')}</p>
+      {(cities.error ?? served.error ?? action.error) && <p role="alert" className="text-red-700">{cities.error ?? served.error ?? action.error}</p>}
+      <div className="flex flex-wrap gap-3">
+        {(cities.data ?? []).map((c) => (
+          <label key={c.id} className="flex items-center gap-1">
+            <input type="checkbox" checked={current.has(c.id)} onChange={() => toggle(c.id)} />
+            {c.name}
+            {ofOthers.has(c.id) && <em className="text-xs text-slate-600">({t('web.orders.cityNow', { warehouse: ofOthers.get(c.id)! })})</em>}
+          </label>
+        ))}
+      </div>
+      <button className="rounded border px-3 py-1" disabled={action.busy || served.data === undefined} onClick={() => void action.run(() => admin.setWarehouseCities(warehouse.id, [...current]))}>
+        {t('web.orders.saveCities')}
+      </button>
     </div>
   )
 }

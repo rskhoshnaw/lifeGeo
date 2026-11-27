@@ -801,3 +801,15 @@ Transfers between warehouses (step 5.60, migration 0083). `warehouses.manage` wo
 
 Transfer notifications (5.61, migration 0084): `transfer.sent` goes to the staff of the receiving warehouse, `transfer.received` to the staff of the sending warehouse and the sender, `transfer.cancelled` to the staff of the receiving warehouse; never to the person who did it. `entityId` = the transfer id.
 | `POST /auth/devices/register` 409 (5.62) | credentials of the user | The conflict now carries a code: `DEVICE_PENDING`, `DEVICE_ALREADY_APPROVED`, `DEVICE_BLOCKED` (a live device of this user has the same install id, in that status) or `ACCOUNT_INACTIVE`; a bare 409 stays for any other refusal. |
+
+## Step 5.67: the warehouse of each city
+
+Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves many cities; RLS, grants) and the permission `orders.anywarehouse` (SalesManager; existing companies backfilled). The cities that already stood on an active company warehouse (`warehouses.city_id`) are copied.
+
+| Route | Who | Rules | Audit |
+| --- | --- | --- | --- |
+| `GET /warehouses/for-order?customerId=` | `orders.create` | Wholesalers of the caller's cities as before. Company warehouses: all with `orders.anywarehouse`; else only the warehouse of the customer's city (marked `isDefault`, first), and when the customer has no city or the city has no warehouse the company warehouses of the caller's cities (5.59). Without `customerId` the old list | — |
+| `GET /city-warehouses` | `warehouses.manage` | `[{cityId, cityName, warehouseId, warehouseName}]` | — |
+| `PUT /warehouses/{id}/cities` | `warehouses.manage` | Body `{cityIds}`: the warehouse serves exactly these cities (a city that another warehouse served moves here; an empty list frees them). 204; 400 not a city or not a company warehouse; 404 | `warehouse.cities_set` |
+| `POST /orders` | `orders.create` | `warehouseId` is optional now: without it the order goes to the warehouse of the customer's city (400 `INVALID_DATA` when there is none). A company warehouse other than that one: 409 `WAREHOUSE_NOT_ALLOWED` unless the caller has `orders.anywarehouse`. The customer's city is the place of kind city at or above his place | `order.placed` |
+
