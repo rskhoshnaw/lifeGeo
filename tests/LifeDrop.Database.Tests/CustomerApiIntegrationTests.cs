@@ -4998,14 +4998,22 @@ public class CustomerApiIntegrationTests
         foreach (var bad in new object[]
         {
             new { Code = "A1", Name = "", Unit = "box", Currency = "IQD", BasePrice = 1m },
-            Product(currency: "EUR"), Product(price: -1m), Product(price: 1.2345m), Product(code: "has space"), Product(code: "  "), Product(unit: " ")
+            Product(currency: "EUR"), Product(price: -1m), Product(currency: "USD", price: 1.2345m), Product(code: "has space"), Product(code: "  "), Product(unit: " ")
         })
             await AssertProblemAsync(await client.PostAsJsonAsync("/products", bad), HttpStatusCode.BadRequest, "INVALID_DATA");
 
-        var p1 = await CreateProduct(Product());
+        // Dinars have no fraction and dollars have two decimals (owner request 2026-11-27): 10.44 IQD is refused with its own code, on create and on update
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(price: 10.44m)), HttpStatusCode.BadRequest, "INVALID_PRICE");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(currency: "USD", price: 1.234m)), HttpStatusCode.BadRequest, "INVALID_PRICE");
+        var p1 = await CreateProduct(Product(price: 10440m));
+        await AssertProblemAsync(await client.PutAsJsonAsync($"/products/{p1}", Product(price: 10.44m)), HttpStatusCode.BadRequest, "INVALID_PRICE");
+        Assert.Equal(204, (int)(await client.PutAsJsonAsync($"/products/{p1}", Product(price: 1500m))).StatusCode);
         var p2 = await CreateProduct(Product(code: "AMX-250", name: "Amoxicillin 250", currency: "USD", price: 3.5m));
         var p3 = await CreateProduct(Product(code: "ZZZ-10", name: "Zinc 10", currency: "USD", price: 10m));
-        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(name: "Same code again")), HttpStatusCode.Conflict, "CONFLICT");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(name: "Same code again")), HttpStatusCode.Conflict, "DUPLICATE_CODE");
+        // A product that was only switched off still holds its code, and the answer says so (owner report: a "deleted" product could not be added again)
+        await CreateProduct(Product(code: "GONE-1", name: "Switched off", status: "inactive"));
+        await AssertProblemAsync(await client.PostAsJsonAsync("/products", Product(code: "GONE-1", name: "Again")), HttpStatusCode.Conflict, "DUPLICATE_CODE_INACTIVE");
         Assert.Equal(new[] { "AMX-250", "PAR-500", "ZZZ-10" }, (await Products()).Select(p => p.Code).ToArray());
         Assert.Equal("پاراسیتامۆل", (await Products("?q=par")).Single().NameCkb);
         Assert.Empty(await Products("?q=%25"));   // a % is a plain character
@@ -5182,7 +5190,7 @@ public class CustomerApiIntegrationTests
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=3,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=2", reader.GetString(0));
+            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=4,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=3", reader.GetString(0));
         }
     }
 
@@ -8052,6 +8060,8 @@ public class CustomerApiIntegrationTests
             new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 0m, ClientRef = Guid.NewGuid() },
             new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = -5m, ClientRef = Guid.NewGuid() },
             new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 1.0001m, ClientRef = Guid.NewGuid() },
+            new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 10.44m, ClientRef = Guid.NewGuid() },   // dinars have no fraction (owner request 2026-11-27)
+            new { CustomerId = c1, Method = "cash", Currency = "USD", Amount = 1.234m, ClientRef = Guid.NewGuid() },   // dollars have two decimals
             new { CustomerId = c1, Method = "cash", Currency = "EUR", Amount = 10m, ClientRef = Guid.NewGuid() },
             new { CustomerId = c1, Method = "barter", Currency = "IQD", Amount = 10m, ClientRef = Guid.NewGuid() },
             new { CustomerId = c1, Method = "cash", Currency = "IQD", Amount = 10m },

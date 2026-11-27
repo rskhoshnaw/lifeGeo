@@ -1,5 +1,6 @@
 import { compressImage } from '../lib/compressImage.ts'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { moneyProblemKey, parseMoney } from './moneyInput.ts'
 import { AdminApi, can, doctorSpecialties, Permissions, type CityPrice, type CustomerDiscount, type Me, type Place, type Product, type ProductInput } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
 import { expiryStatus, filterProducts, productUnits, unitLabel, type ProductFilters, type ProductUnit } from './productView.ts'
@@ -29,9 +30,11 @@ export function CatalogPage({ admin, me }: { admin: AdminApi; me: Me }) {
   })
 
   function changePrice(p: Product) {
-    const text = window.prompt(t('web.catalog.pricePrompt', { code: p.code, currency: p.currency }), String(p.basePrice))?.trim()
-    const price = Number(text)
-    if (text && Number.isFinite(price) && price >= 0) void quick.run(() => admin.updateProduct(p.id, asInput(p, { basePrice: price })))
+    const text = window.prompt(t('web.catalog.pricePrompt', { code: p.code, currency: p.currency }), String(p.basePrice))
+    if (text === null || text.trim() === '') return
+    const parsed = parseMoney(text, p.currency)
+    if (parsed.problem) window.alert(t(moneyProblemKey(parsed.problem), { currency: p.currency }))
+    else void quick.run(() => admin.updateProduct(p.id, asInput(p, { basePrice: parsed.value })))
   }
 
   const makers = [...new Set((products.data ?? []).map((p) => p.manufacturer?.trim()).filter((m): m is string => !!m))].sort((a, b) => a.localeCompare(b))
@@ -302,12 +305,17 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
   const field = 'rounded border px-2 py-1'
 
   // Fields are kept as typed and trimmed only here, so spaces can be typed.
+  // The price as typed: 10.440 and 10,440 are 10440 dinars; dinars have no fraction (owner request 2026-11-27).
+  const parsedPrice = parseMoney(price, currency)
+  const priceProblem = price.trim() !== '' && parsedPrice.problem ? t(moneyProblemKey(parsedPrice.problem), { currency }) : null
+
   function submit(e: FormEvent) {
     e.preventDefault()
+    if (parsedPrice.problem) return
     const input: ProductInput = {
       // The names in other languages are not entered any more (owner decision 2026-11-18); what an older product has is kept as it is.
       name: name.trim(), nameCkb: product?.nameCkb ?? null, nameAr: product?.nameAr ?? null, nameEn: product?.nameEn ?? null,
-      unit: unit.trim(), currency, basePrice: Number(price), status,
+      unit: unit.trim(), currency, basePrice: parsedPrice.value ?? 0, status,
     }
     void action.run(async () => {
       let id = product?.id
@@ -384,19 +392,20 @@ function ProductForm({ admin, product, onDone }: { admin: AdminApi; product: Pro
           <option value="IQD">IQD</option>
           <option value="USD">USD</option>
         </select>
-        <input aria-label={t('web.catalog.basePrice')} placeholder={t('web.catalog.basePrice')} type="number" min={0} step="any" className={field} value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input aria-label={t('web.catalog.basePrice')} placeholder={t('web.catalog.basePrice')} inputMode="decimal" className={field} value={price} onChange={(e) => setPrice(e.target.value)} />
+        {priceProblem && <span role="alert" className="text-red-700">{priceProblem}</span>}
         <select aria-label={t('web.catalog.status')} className={field} value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}>
           <option value="active">{t('web.catalog.active')}</option>
           <option value="inactive">{t('web.catalog.inactive')}</option>
         </select>
-        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !unit.trim() || price === '' || (!product && !code.trim())} onClick={() => (saveNext.current = false)}>
+        <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !name.trim() || !unit.trim() || parsedPrice.problem !== undefined || (!product && !code.trim())} onClick={() => (saveNext.current = false)}>
           {t('web.catalog.save')}
         </button>
         {!product && (
           <button
             type="button"
             className="rounded border border-slate-800 bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
-            disabled={action.busy || !name.trim() || !unit.trim() || price === '' || !code.trim()}
+            disabled={action.busy || !name.trim() || !unit.trim() || parsedPrice.problem !== undefined || !code.trim()}
             onClick={() => {
               saveNext.current = true
               formRef.current?.requestSubmit()
@@ -421,12 +430,14 @@ function CityPrices({ admin, product, canManage }: { admin: AdminApi; product: P
   const [price, setPrice] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const parsed = parseMoney(price, product.currency)
+  const priceProblem = price.trim() !== '' && parsed.problem ? t(moneyProblemKey(parsed.problem), { currency: product.currency }) : null
 
   function add(e: FormEvent) {
     e.preventDefault()
-    if (!city || price === '') return
+    if (!city || parsed.problem) return
     void action.run(async () => {
-      await admin.createCityPrice(product.id, { cityId: city, price: Number(price), validFrom: from || null, validTo: to || null })
+      await admin.createCityPrice(product.id, { cityId: city, price: parsed.value, validFrom: from || null, validTo: to || null })
       setPrice('')
     })
   }
@@ -485,10 +496,11 @@ function CityPrices({ admin, product, canManage }: { admin: AdminApi; product: P
               </option>
             ))}
           </select>
-          <input aria-label={t('web.catalog.price')} placeholder={t('web.catalog.price')} type="number" min={0} step="any" className="w-32 rounded border px-2 py-1" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input aria-label={t('web.catalog.price')} placeholder={t('web.catalog.price')} inputMode="decimal" className="w-32 rounded border px-2 py-1" value={price} onChange={(e) => setPrice(e.target.value)} />
+          {priceProblem && <span role="alert" className="text-red-700">{priceProblem}</span>}
           <input aria-label={t('web.catalog.from')} type="date" className="rounded border px-2 py-1" value={from} onChange={(e) => setFrom(e.target.value)} />
           <input aria-label={t('web.catalog.to')} type="date" className="rounded border px-2 py-1" value={to} onChange={(e) => setTo(e.target.value)} />
-          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !city || price === ''}>
+          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !city || parsed.problem !== undefined}>
             {t('web.catalog.addRule')}
           </button>
         </form>

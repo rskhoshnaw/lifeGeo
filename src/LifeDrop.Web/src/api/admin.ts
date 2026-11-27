@@ -1290,6 +1290,7 @@ export function errorMessage(error: unknown): string {
   switch (error.status) {
     case 400:
       if (error.code === 'WRONG_PASSWORD') return t('web.account.wrongPassword')
+      if (error.code === 'INVALID_PRICE') return t('web.error.invalidPrice')
       return t('web.error.badData')
     case 403:
       return t('web.error.forbidden')
@@ -1298,6 +1299,8 @@ export function errorMessage(error: unknown): string {
     case 409:
       if (error.code === 'CUSTOMER_NOT_APPROVED') return t('web.error.customerNotApproved')
       if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
+      if (error.code === 'DUPLICATE_CODE') return t('web.error.duplicateCode')
+      if (error.code === 'DUPLICATE_CODE_INACTIVE') return t('web.error.duplicateCodeInactive')
       if (error.code === 'OUT_OF_STOCK') return t('web.error.outOfStock')
       if (error.code === 'RETURN_TOO_MUCH') return t('web.error.returnTooMuch')
       if (error.code === 'REFUND_TOO_MUCH') return t('web.error.refundTooMuch')

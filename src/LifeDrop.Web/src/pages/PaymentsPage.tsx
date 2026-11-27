@@ -1,3 +1,4 @@
+import { moneyProblemKey, parseMoney } from './moneyInput.ts'
 import { useCallback, useState, type FormEvent } from 'react'
 import { AdminApi, can, errorMessage, Permissions, type Me, type Payment } from '../api/admin.ts'
 import { t, type TextKey } from '../i18n.ts'
@@ -111,7 +112,11 @@ function PaymentDetails({ admin, me, paymentId, onChanged }: { admin: AdminApi; 
     const reason = window.prompt(t('web.payments.reasonPrompt'))?.trim()
     if (!reason) return
     if (kind === 'void') return void action.run(() => admin.voidPayment(p.id, reason))
-    const amount = Number(window.prompt(t('web.payments.amountPrompt'), String(p.amount)))
+    const typed = window.prompt(t('web.payments.amountPrompt'), String(p.amount))
+    if (typed === null) return
+    const parsed = parseMoney(typed, p.currency)
+    if (parsed.problem) return void window.alert(t(moneyProblemKey(parsed.problem), { currency: p.currency }))
+    const amount = parsed.value
     if (!(amount > 0)) return
     void action.run(() => admin.correctPayment(p.id, { orderId: p.orderId, method: p.method, currency: p.currency, amount, reference: p.reference, note: p.note, reason }))
   }
@@ -200,12 +205,14 @@ export function RecordForm({ admin, onSaved, fixedCustomer, canRefund = false }:
   const action = useAction()
   const customerOrders = (orders.data ?? []).filter((o) => o.customerId === customer && o.status !== 'cancelled' && o.currency === currency)
   const needsReference = method === 'fastpay' || method === 'fib'
-  const ready = customer !== '' && Number(amount) > 0 && (!needsReference || reference.trim() !== '')
+  const parsedAmount = parseMoney(amount, currency)   // 10.440 and 10,440 are 10440 dinars (owner request 2026-11-27)
+  const amountProblem = amount.trim() !== '' && parsedAmount.problem ? t(moneyProblemKey(parsedAmount.problem), { currency }) : null
+  const ready = customer !== '' && (parsedAmount.value ?? 0) > 0 && (!needsReference || reference.trim() !== '')
 
   async function save(e: FormEvent) {
     e.preventDefault()
     const result = await action.run(() =>
-      admin.recordPayment({ customerId: customer, orderId: refund ? null : order || null, method, currency, amount: Number(amount), reference: reference.trim() || null, note: note.trim() || null, clientRef, ...(refund ? { direction: 'out' as const } : {}) }),
+      admin.recordPayment({ customerId: customer, orderId: refund ? null : order || null, method, currency, amount: parsedAmount.value ?? 0, reference: reference.trim() || null, note: note.trim() || null, clientRef, ...(refund ? { direction: 'out' as const } : {}) }),
     )
     if (!result) return
     onSaved(t('web.payments.saved', { number: result.number }))
@@ -257,6 +264,7 @@ export function RecordForm({ admin, onSaved, fixedCustomer, canRefund = false }:
           <option value="USD">USD</option>
         </select>
         <input aria-label={t('web.payments.amount')} className="w-32 rounded border px-2 py-1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        {amountProblem && <span role="alert" className="text-red-700">{amountProblem}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label={t('web.payments.reference')} placeholder={t('web.payments.reference')} className="w-64 rounded border px-2 py-1" maxLength={100} value={reference} onChange={(e) => setReference(e.target.value)} />

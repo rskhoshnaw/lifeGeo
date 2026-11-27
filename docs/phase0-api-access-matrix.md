@@ -422,8 +422,8 @@ Migration 0024: `products`, permissions `catalog.read` (SalesManager, Supervisor
 | Route | Permission and scope | Behaviour | Audit |
 | --- | --- | --- | --- |
 | `GET /products?includeInactive=&q=` | `catalog.read` | Active products by code; `includeInactive` only counts for `catalog.manage`; `q` matches code and names (`%` and `_` are plain characters); max 1000 | — |
-| `POST /products` | `catalog.manage` | Body: `code` (1-40, letters, digits, `.` `_` `-`), `name`, optional `nameCkb/Ar/En`, `unit`, `currency`, `basePrice`, `status`. 201 `{id}`; 400; 409 `CONFLICT` for a repeated code | `product.created` |
-| `PUT /products/{id}` | `catalog.manage` | Same fields (the code never changes); 204; 404 | `product.updated` |
+| `POST /products` | `catalog.manage` | Body: `code` (1-40, letters, digits, `.` `_` `-`), `name`, optional `nameCkb/Ar/En`, `unit`, `currency`, `basePrice`, `status`. 201 `{id}`; 400 (`INVALID_PRICE` when the price has decimals the currency does not have: IQD none, USD two); 409 `DUPLICATE_CODE` for a repeated code, `DUPLICATE_CODE_INACTIVE` when the product holding the code is only switched off | `product.created` |
+| `PUT /products/{id}` | `catalog.manage` | Same fields (the code never changes); 204; 400 `INVALID_PRICE` as for create; 404 | `product.updated` |
 | `PUT /products/{id}/details` | `catalog.manage` | Body `{specialty, manufacturer, expiryDate, stockQty, notes}` (all optional; null/empty clears; specialty from the fixed list; manufacturer ≤100; notes ≤500; stock ≥0 with ≤3 decimals, null = not tracked); 204, 400, 403, 404. `GET /products` now also returns these fields and `inStock` (not tracked or stock above 0). | `product.details_changed` |
 | `PUT /products/{id}/photo` | `catalog.manage` | The request body is the picture itself (JPEG, PNG or WEBP, checked by its first bytes, up to 1 MB); replaces the old one with a new random key; 204, 400 not an image / too big, 403, 404 | `product.photo_changed` |
 | `DELETE /products/{id}/photo` | `catalog.manage` | 204; 404 when there is no photo; 403 | `product.photo_removed` |
@@ -550,7 +550,7 @@ Permissions: `payments.record` (FinanceManager, SalesRep), `payments.manage` (Fi
 
 | Route | Who | Rules | Audit |
 |---|---|---|---|
-| `POST /payments` | `payments.record` | `{customerId, orderId?, method, currency, amount, reference?, note?, clientRef}`. 201 `{id, number, status, replayed}`; 200 for a retry of the same `clientRef` (same user and customer, else 409). Status is `confirmed` when the caller also has `payments.manage`, else `collected`. 400 invalid or order mismatch, 404 customer outside the area or order missing | `payment.recorded` / `payment.recorded_confirmed` |
+| `POST /payments` | `payments.record` | `{customerId, orderId?, method, currency, amount, reference?, note?, clientRef}`. `amount` has no decimals in IQD and at most two in USD (else 400 `INVALID_DATA`). 201 `{id, number, status, replayed}`; 200 for a retry of the same `clientRef` (same user and customer, else 409). Status is `confirmed` when the caller also has `payments.manage`, else `collected`. 400 invalid or order mismatch, 404 customer outside the area or order missing | `payment.recorded` / `payment.recorded_confirmed` |
 | `GET /payments?customerId=&status=&limit=&before=&beforeId=` | `payments.read` (all or region); a user who only records sees what they recorded | Newest first | — |
 | `GET /payments/mine` | `payments.record` | What the caller recorded | — |
 | `GET /payments/{id}` | same visibility | The payment with its history; 404 outside the visibility | — |

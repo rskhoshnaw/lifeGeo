@@ -29,6 +29,13 @@ public class PaymentTests
             draft.AmountText = bad;
             Assert.False(draft.CanSave);
         }
+        // Dinars have no fraction, so a dot or comma before three digits is the thousands mark and anything else is refused (owner request 2026-11-27)
+        draft.AmountText = "12,5";
+        Assert.False(draft.CanSave);
+        Assert.Equal(MoneyProblem.Decimals, draft.AmountProblem);
+        draft.AmountText = "10,440";
+        Assert.Equal(10440m, draft.Amount);
+        draft.Currency = "USD";
         draft.AmountText = "12,5";
         Assert.Equal(12.5m, draft.Amount);
         draft.Currency = "EUR";
@@ -76,6 +83,19 @@ public class PaymentTests
         var untouched = new Handler(_ => Json(HttpStatusCode.Created, "{}"));
         Assert.Equal(VisitActionResult.InvalidData, (await Client(untouched).RecordAsync(new PaymentDraft(Guid.NewGuid()))).Result);
         Assert.Null(untouched.Last);
+    }
+
+    [Theory]
+    [InlineData("10.440", "10440")]
+    [InlineData("10,440", "10440")]
+    [InlineData("۱۰٬۴۴۰", "10440")]
+    public async Task ThePaymentSendsWholeDinarsWhateverThousandsMarkWasTyped(string typed, string sent)
+    {
+        var handler = new Handler(_ => Json(HttpStatusCode.Created, $$$"""{"id":"{{{Guid.NewGuid()}}}","number":"P-000002","status":"collected","replayed":false}"""));
+        var (result, _) = await Client(handler).RecordAsync(new PaymentDraft(Guid.NewGuid()) { AmountText = typed });
+        Assert.Equal(VisitActionResult.Success, result);
+        using var body = System.Text.Json.JsonDocument.Parse(handler.Body);
+        Assert.Equal(sent, body.RootElement.GetProperty("amount").GetDecimal().ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Theory]

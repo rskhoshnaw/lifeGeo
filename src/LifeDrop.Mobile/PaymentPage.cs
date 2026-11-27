@@ -77,6 +77,8 @@ public sealed class PaymentPage : ContentPage
     {
         _reference.IsVisible = _draft.NeedsReference || !string.IsNullOrEmpty(_reference.Text);
         _save.IsEnabled = !_busy && _draft.CanSave;
+        if (_draft.AmountProblem is { } problem) Show(Texts.Get(problem == MoneyProblem.Decimals ? "app.money.decimals" : "app.money.invalid"));
+        else if (_message.Text is { } shown && (shown == Texts.Get("app.money.decimals") || shown == Texts.Get("app.money.invalid"))) Show(null);
     }
 
     private void Show(string? text)

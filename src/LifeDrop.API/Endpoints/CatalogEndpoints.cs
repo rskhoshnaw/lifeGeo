@@ -192,6 +192,9 @@ public static class CatalogEndpoints
         CatalogResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
         CatalogResult.NotFound => ApiErrors.Problem(StatusCodes.Status404NotFound, ApiErrors.NotFound),
         CatalogResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
+        CatalogResult.InvalidPrice => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidPrice),
+        CatalogResult.DuplicateCode => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DuplicateCode),
+        CatalogResult.DuplicateCodeInactive => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DuplicateCodeInactive),
         _ => Results.Forbid()
     };
 }
