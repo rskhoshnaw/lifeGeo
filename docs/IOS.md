@@ -25,3 +25,10 @@ The logo in `src/LifeDrop.Mobile/Resources/AppIcon/appiconfg.png` (transparent, 
 - `src/LifeDrop.Web/public/privacy.html` is the public privacy policy (camera/photos for feedback and returns are stored on the server).
 - `Platforms/iOS/Resources/PrivacyInfo.xcprivacy` declares what the app collects (precise location, e-mail, device id, photos, user content, phone number, name; all app functionality, no tracking). Keep it in step with the policy; when the app collects something new, add it in both.
 - Permission prompts are translated in `<lang>.lproj/InfoPlist.strings` (en, fa, ar, ckb); `Info.plist` holds the English default.
+
+## External testers get the new build (step 5.65)
+After the upload, `scripts/ci/ios/distribute_testflight.py` (a step of `ios.yml`) adds the build to every **external** TestFlight group and sends it to **Beta App Review**; TestFlight notifies the testers when the build may be tested. Before, external testers kept the old build until someone added the new one by hand.
+- Repository variables (Settings > Secrets and variables > Actions > Variables): `TESTFLIGHT_EXTERNAL_GROUPS` = group names, comma separated (empty = all external groups); `TESTFLIGHT_SUBMIT_REVIEW` = `false` to leave the review to you.
+- The App Store Connect key (`APPLE_ASC_*`) needs the **App Manager** role. A failure only warns on the run page (the upload stays); the log says what to do by hand.
+- Apple reviews the first build of each new version number; later builds of the same version usually pass at once. The workflow cannot speed up Apple's review.
+- Untested against Apple here (no account): the first run after the merge is the test; the script's logic has unit tests (`test_distribute_testflight.py`, run in the step).
