@@ -87,6 +87,21 @@ public sealed class AuthApiClientTests
         Assert.Equal(409, result.HttpStatusCode);
     }
 
+    [Theory]
+    [InlineData("DEVICE_PENDING")]
+    [InlineData("DEVICE_ALREADY_APPROVED")]
+    [InlineData("DEVICE_BLOCKED")]
+    [InlineData("ACCOUNT_INACTIVE")]
+    public async Task RegisterDeviceAsync_Conflict_CarriesTheReasonTheServerGives(string code)
+    {
+        var handler = StubHttpMessageHandler.FromResponse(HttpStatusCode.Conflict, "{\"code\":\"" + code + "\"}");
+        var client = new AuthApiClient(new HttpClient(handler) { BaseAddress = TestBaseUri });
+
+        var result = await client.RegisterDeviceAsync(new RegisterDeviceRequest("ACME", "rep@acme.com", "Pass", "Label", "ios", "id", "1.0"));
+
+        Assert.Equal((AuthStatus.Conflict, code), (result.Status, result.ErrorCode));   // the phone shows the real reason, not "already registered"
+    }
+
     [Fact]
     public async Task RegisterDeviceAsync_InvalidCredentials_ReturnsInvalidCredentials()
     {

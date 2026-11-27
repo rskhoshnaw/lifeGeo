@@ -63,10 +63,12 @@ public sealed class AuthApiClient : IAuthApiClient
                 return AuthResult<RegisteredDevice>.Ok(device!, (int)response.StatusCode);
             }
 
+            // Step 5.62: the server says why a registration conflicts (waiting for approval, approved, blocked, account switched off).
+            var conflictCode = response.StatusCode == HttpStatusCode.Conflict ? (await TryReadErrorAsync(response, cancellationToken))?.Code : null;
             return response.StatusCode switch
             {
                 HttpStatusCode.Unauthorized => AuthResult<RegisteredDevice>.InvalidCredentials(401),
-                HttpStatusCode.Conflict => AuthResult<RegisteredDevice>.Conflict("Device already registered or conflict occurred."),
+                HttpStatusCode.Conflict => AuthResult<RegisteredDevice>.Conflict("Device already registered or conflict occurred.", conflictCode),
                 HttpStatusCode.BadRequest => AuthResult<RegisteredDevice>.BadRequest("Invalid device registration request."),
                 _ => AuthResult<RegisteredDevice>.NetworkOrServerError($"Server responded with status code {(int)response.StatusCode}", (int)response.StatusCode, NetworkFailure.Http((int)response.StatusCode))
             };

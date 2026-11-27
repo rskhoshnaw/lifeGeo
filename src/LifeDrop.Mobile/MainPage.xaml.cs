@@ -60,7 +60,9 @@ public partial class MainPage : ContentPage
     // For the local-state error a short reason code (no personal data) is added so a failure can be told apart without a debugger.
     private static string Describe(AuthStatus status, string? errorCode = null) =>
         status == AuthStatus.Success ? "" :
-        (status == AuthStatus.DeviceNotApproved && errorCode == "DEVICE_UNKNOWN" ? Texts.Get("app.auth.DeviceUnknown") : Texts.Get("app.auth." + status)) + (status == AuthStatus.LocalStateError && !string.IsNullOrEmpty(errorCode) ? "\n[" + errorCode + "]" : "");
+        (status == AuthStatus.DeviceNotApproved && errorCode == "DEVICE_UNKNOWN" ? Texts.Get("app.auth.DeviceUnknown")
+         : status == AuthStatus.Conflict && errorCode is "DEVICE_PENDING" or "DEVICE_ALREADY_APPROVED" or "DEVICE_BLOCKED" or "ACCOUNT_INACTIVE" ? Texts.Get("app.auth." + errorCode)
+         : Texts.Get("app.auth." + status)) + (status == AuthStatus.LocalStateError && !string.IsNullOrEmpty(errorCode) ? "\n[" + errorCode + "]" : "");
 
     // Technical reason (exception type/message) is shown in debug builds only; release users get the plain message.
     private static string TechnicalDetail(string? detail) =>

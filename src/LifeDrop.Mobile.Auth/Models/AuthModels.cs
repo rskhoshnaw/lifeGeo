@@ -168,8 +168,8 @@ public sealed record AuthResult<T>(
     public static AuthResult<T> InvalidCredentials(int statusCode = 401) =>
         new(AuthStatus.InvalidCredentials, ErrorMessage: "Invalid credentials.", HttpStatusCode: statusCode);
 
-    public static AuthResult<T> Conflict(string? message = "Device registration conflict.") =>
-        new(AuthStatus.Conflict, ErrorMessage: message, HttpStatusCode: 409);
+    public static AuthResult<T> Conflict(string? message = "Device registration conflict.", string? errorCode = null) =>
+        new(AuthStatus.Conflict, ErrorCode: errorCode, ErrorMessage: message, HttpStatusCode: 409);
 
     public static AuthResult<T> Unauthorized(string? message = "Unauthorized.") =>
         new(AuthStatus.Unauthorized, ErrorMessage: message, HttpStatusCode: 401);

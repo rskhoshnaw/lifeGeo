@@ -430,7 +430,16 @@ public partial class Program
             if (identity is null) return Results.Unauthorized();
             var device = await devices.RegisterAsync(identity.TenantId, identity.UserId,
                 request, cancellationToken);
-            return device is null ? Results.Conflict() : Results.Ok(device);
+            if (device is not null) return Results.Ok(device);
+            // Not a bare conflict: the phone is told what is really the matter (plan step 5.62).
+            return await devices.WhyNotRegisteredAsync(identity.TenantId, identity.UserId, request.InstallId, cancellationToken) switch
+            {
+                RegistrationBlock.Pending => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DevicePending),
+                RegistrationBlock.Approved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DeviceAlreadyApproved),
+                RegistrationBlock.Blocked => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.DeviceBlocked),
+                RegistrationBlock.AccountInactive => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.AccountInactive),
+                _ => Results.Conflict()
+            };
         }).RequireRateLimiting("login")
             .WithName("RegisterDevice").WithTags("Devices").Produces<LifeDrop.Application.Devices.RegisteredDevice>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(409).ProducesProblem(429);
 

@@ -38,6 +38,11 @@ public static class ApiErrors
     public const string OrderRequired = "ORDER_REQUIRED";
     public const string DuplicateName = "DUPLICATE_NAME";
     public const string DeviceRequired = "DEVICE_REQUIRED";
+    // Registering a phone that is already registered (plan step 5.62): waiting for approval, approved, or blocked; or the account / company is switched off.
+    public const string DevicePending = "DEVICE_PENDING";
+    public const string DeviceAlreadyApproved = "DEVICE_ALREADY_APPROVED";
+    public const string DeviceBlocked = "DEVICE_BLOCKED";
+    public const string AccountInactive = "ACCOUNT_INACTIVE";
     public const string CustomerLocationMissing = "CUSTOMER_LOCATION_MISSING";
     public const string ReportRequired = "REPORT_REQUIRED";
     public const string DeviceMismatch = "DEVICE_MISMATCH";
