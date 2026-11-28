@@ -51,6 +51,9 @@ jobs:
         PGPASSWORD=temp_root psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE lifedrop_test_ci TO test_user;"
         PGPASSWORD=temp_root psql -h localhost -U postgres -d lifedrop_test_ci -c "GRANT ALL ON SCHEMA public TO test_user;"
 
+    - name: Backup scripts (backup, restore test, status, off-site) against the real database
+      run: PGPASSWORD=temp_root PGHOST=localhost deploy/tests/backup-scripts.sh
+
     - name: Run all database tests
       run: |
         set -euo pipefail
