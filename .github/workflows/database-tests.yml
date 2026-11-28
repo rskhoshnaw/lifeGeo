@@ -51,6 +51,9 @@ jobs:
         PGPASSWORD=temp_root psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE lifedrop_test_ci TO test_user;"
         PGPASSWORD=temp_root psql -h localhost -U postgres -d lifedrop_test_ci -c "GRANT ALL ON SCHEMA public TO test_user;"
 
+    - name: Client tools of the same version as the database (pg_dump 16)
+      run: '[ -x /usr/lib/postgresql/16/bin/pg_dump ] || { sudo apt-get update -q && sudo apt-get install -y -q postgresql-client-16; }'
+
     - name: Backup scripts (backup, restore test, status, off-site) against the real database
       run: PGPASSWORD=temp_root PGHOST=localhost deploy/tests/backup-scripts.sh
 

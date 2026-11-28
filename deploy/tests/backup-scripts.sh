@@ -18,6 +18,13 @@ export RESTORE_CMD="pg_restore -d ${LIFEDROP_DB_NAME}_restore_test --no-owner"
 # deploy/.env is not read here: lib.sh only sources it when it exists, and a developer machine has none.
 [ ! -f "$DEPLOY/.env" ] || { echo "deploy/.env exists: this test must not run on a real server" >&2; exit 2; }
 
+# pg_dump and pg_restore must be of the server's own major version: a newer client writes settings an older server does not know (pg_restore then ends with an error), which is
+# not what happens on the real server, where the dump runs inside the database's own container.
+server_major="$(psql -d postgres -Atc 'show server_version_num' | cut -c1-2)"
+[ ! -x "/usr/lib/postgresql/$server_major/bin/pg_dump" ] || export PATH="/usr/lib/postgresql/$server_major/bin:$PATH"
+client_major="$(pg_dump --version | grep -o '[0-9][0-9]*' | head -1)"
+[ "$client_major" = "$server_major" ] || { echo "pg_dump is version $client_major but the server is version $server_major: install postgresql-client-$server_major" >&2; exit 2; }
+
 pass=0
 ok() { pass=$((pass + 1)); echo "ok   $*"; }
 die() { echo "FAIL $*" >&2; exit 1; }
