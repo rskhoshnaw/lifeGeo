@@ -1,17 +1,18 @@
 # Phase status (read this first)
 
-Updated: 2026-11-27 (step 5.65). Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full history and test evidence:
+Updated: 2026-11-28 (step 5.72). Plan and step table: `docs/IMPLEMENTATION-PLAN.md`. Full history and test evidence:
 `memory-bank/archive/` (read only when needed).
 
-## Current state (2026-11-27)
-- Last merged: PR #231 (step 5.65). Migrations 0001–0084 (latest: 0082 wholesaler customer + user cities, 0083 stock transfers, 0084 transfer notifications). Tests at the last runs: database 125 (121 pass, 4 skipped; `MIN_EXPECTED_TESTS` = 125 = the total), Application 252, Mobile.Visits 499, Mobile.Auth 179, panel 233. Everything below the line "Log" is the history; the newest steps are 5.49–5.65 at the end of the log.
-- Built in this stretch (owner lists of 2026-11-26/27): returns (photos, refunds, damaged goods kept in the warehouse, row-by-row approval), stock only in warehouses, wholesaler = customer + visitor cities, transfers between warehouses (panel, app, notifications), privacy files for iOS, photo upload limit + compression, device registration fixes (5.62–5.64), TestFlight external distribution (5.65).
-- **Open / in progress with the owner**
-  1. Panel: a SalesManager (all permissions) cannot find warehouse management. In code it is in the Orders tab under `can(me, warehouses.manage)` (`OrdersPage.tsx`: `Warehouses`, `WarehouseStock`). Cause not found yet: check `/me` permissions, the role rows of this company, module hiding; also give warehouse management a visible place (own tab).
-  2. Price input: the owner types `10.440` meaning 10,440 IQD and the system reads 10.44; the trailing zero is not accepted. IQD has no decimals and `.`/`,` separate thousands in Iraq: parse and show accordingly (panel `CatalogPage.tsx`, server `CatalogOperations.ValidPrice`).
-  3. User mohammedbalindy277@gmail.com (iPhone 8 Plus, iOS 16.7.11) still cannot register/log in: server log shows only `POST /auth/login` 403, never `/auth/devices/register`. Waiting for the controlled test (live `docker compose logs -f api | grep auth/` while he taps Register once), the TestFlight build number and his rows in the panel "App errors". Cause so far: external testers kept an old build. Tool: `deploy/device-report.sh <email>`.
-  4. Deep-audit item 4 (backup/restore really tested on the server: `deploy/backup.sh`, `backup-offsite.sh`, `restore-test.sh`) not done yet; owner will do it together with Claude later.
+## Current state (2026-11-28)
+- Last merged: PR #238 (step 5.71). Migrations 0001–0085 (latest: 0085 `city_warehouses` + `orders.anywarehouse`). Tests at the last runs: database 126 (all pass; `MIN_EXPECTED_TESTS` = 126 = the total), Application 252, Mobile.Visits 532, Mobile.Auth 179, Domain 173, panel 266. Everything below the line "Log" is the history; the newest steps are 5.49–5.71 at the end of the log.
+- Built in the last stretch (owner lists of 2026-11-26/28): returns, stock only in warehouses, wholesaler = customer + visitor cities, transfers between warehouses, device registration fixes (5.62–5.64), TestFlight external distribution (5.65), Warehouses tab + menu place for every tab + IQD thousands separators + clear duplicate-code errors (5.66), **one warehouse per city** (5.67), backup status + stronger restore test + nightly off-site + tests against a real database (5.68), city prices / amount discounts follow the currency (5.69), load test of a field day (5.70, `scripts/perf/`), order without a warehouse in a city that has none (5.71).
+- **Open / waiting for the owner (nothing to code until the answer comes)**
+  1. User mohammedbalindy277@gmail.com (iPhone 8 Plus, iOS 16.7.11) could not register/log in: server log showed only `POST /auth/login` 403, never `/auth/devices/register`; cause found so far: some testers saw an old build in External Testing (owner removed it). Owner tests the new build (5.63/5.64) and reports; ask for: the live `docker compose logs -f api | grep auth/` during one tap on Register, a screenshot, the TestFlight build number, his rows in the panel (client errors) and `deploy/device-report.sh <email>`. Never guess.
+  2. Backup on the real server (5.68): ask for `crontab -l`, `deploy/backup-status.sh`, `deploy/restore-test.sh`, whether Drive and both age keys were tried; the owner should change the off-site cron to every night.
+  3. After the deploy of 5.66: the owner reports what the panel says for the products "UNIHEPA vial.(1X10)" and "Apalin vial.(1X10)" (a switched-off product still holds its code: 409 `DUPLICATE_CODE_INACTIVE`).
+  4. After the deploy of 5.67: the owner sets the cities of every warehouse in the panel (Warehouses ← Cities); until then the old rule (5.59) applies. New app build needed for the preselected warehouse.
   5. 5.65 (external TestFlight distribution) never ran against Apple yet: the first run is the test; the API key needs the App Manager role.
+  6. Not done, only if a sign appears: paging of `GET /visit-plan` for managers (1 MB for 1800 visits; load test 5.70).
 - **Owner must (each deploy):** `deploy/update.sh` on the server (runs migrations and re-applies grants), then new iOS and Android builds; panel/server changes need no build. Server logs vanish at every `update.sh`.
 
 | Phase / steps | State |
@@ -55,9 +56,9 @@ Updated: 2026-11-27 (step 5.65). Plan and step table: `docs/IMPLEMENTATION-PLAN.
 | 5.3 new-customer form for non-doctor types (place name, customer name, mobile, visit days/hours, cooperates, Dealer, city, neighbourhood, address, notes, location) + warehouse/delivery buttons by permission | in PR (same branch); C# not compiled here; no migration, no API change |
 | 5.4 customer history (visits with result, orders with products; app + panel) + route-history calendar (panel) | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand (2 paths, 5 schemas) |
 | 5.5 sales targets per visitor/product/month + report against delivered quantity (panel tab Targets, CSV; app page "My targets" via GET /targets/mine); migration 0058 | in PR (same branch); C# not compiled here; OpenAPI snapshot edited by hand (tags list too) |
-| Next | plan section 7: 4.7 CI + real-device test (intent-filter, QR scan, camera); 3.8 iOS after Apple account; real-device tests (tracking, offline, Push); load test; buy domain/VPS and deploy (3.3 last) |
+| Next | only owner-dependent work is left: real-device tests (tracking >= 90 %, offline, Push, iPhone), the owner reviews the translations (`i18n/strings.json`), buy the domain/VPS and deploy (3.3 maps last, 3.5 optional); see "Open / waiting for the owner" above |
 
-Migrations: 0001–0084 (see the current state above; the older line about 0006–0028 is history). The deploy script `deploy/update.sh` applies every migration and the grants.
+Migrations: 0001–0085 (see the current state above; the older line about 0006–0028 is history). The deploy script `deploy/update.sh` applies every migration and the grants.
 Open decisions: D4 only (Backup delete permission); API host is now per company (D15). Owner decisions D6, D8, D9, D14–D18 are recorded in the plan and `docs/DECISIONS.md`.
 
 ## Log (one line per step, newest last)
@@ -236,3 +237,4 @@ Open decisions: D4 only (Backup delete permission); API host is now per company 
 - 2026-11-28 5.70: load test of a field day: scripts/perf/seed-load.sql + scenario.mjs + README with results. 50 visitors real speed 3.2 req/s; up to 126 req/s (≈1800 visitors) no errors, p95 <80 ms, API CPU 39% of one core, 230 MB; 4.8M-point DB same. Slow first seconds after restart, unpaged manager visit plan (1 MB/1800 visits), ~490 B per tracking point. Local machine only, not the real server. No migration/API/app change.
 - 2026-11-28 5.71: order without a warehouse in a city that has none: 409 NO_CITY_WAREHOUSE (was 400 INVALID_DATA) + app text and Retry; WarehouseNotAllowed text updated. Tests: DB scenario, ProductsTests, WorkQueue retry scenario; mutation checked. Needs a new app build.
 
+- 2026-11-28 5.72: memory bank refreshed (the "Current state" no longer lists finished items as open; open items now wait for the owner's answers); plan section 7 row 9 marked done locally. Docs only.
