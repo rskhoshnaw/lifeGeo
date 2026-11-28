@@ -9,11 +9,14 @@ mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 file="$BACKUP_DIR/$DB-$(date -u +%Y%m%d-%H%M%S).dump"
 DUMP_CMD="${DUMP_CMD:-docker compose -f $DEPLOY_DIR/docker-compose.yml exec -T db pg_dump -U postgres -Fc $DB}"
-if ! $DUMP_CMD > "$file.part"; then rm -f "$file.part"; echo "$(date -u +%FT%TZ) backup FAILED" >&2; exit 1; fi
+bad() { rm -f "$file.part"; status_write last-local-failed "$1"; echo "$(date -u +%FT%TZ) $1" >&2; exit 1; }
+if ! $DUMP_CMD > "$file.part"; then bad "backup FAILED"; fi
 # A dump that cannot be listed is not a backup.
 LIST_CMD="${LIST_CMD:-docker compose -f $DEPLOY_DIR/docker-compose.yml exec -T db pg_restore --list}"
-if [ ! -s "$file.part" ] || ! $LIST_CMD < "$file.part" >/dev/null 2>&1; then rm -f "$file.part"; echo "$(date -u +%FT%TZ) backup is empty or damaged" >&2; exit 1; fi
+if [ ! -s "$file.part" ] || ! $LIST_CMD < "$file.part" >/dev/null 2>&1; then bad "backup is empty or damaged"; fi
 mv "$file.part" "$file"
+status_write last-local-ok "$(basename "$file")"
+status_clear last-local-failed
 echo "$(date -u +%FT%TZ) backup written: $file ($(du -h "$file" | cut -f1))"
 find "$BACKUP_DIR" -name "$DB-*.dump" -type f -mtime +"$KEEP_DAYS" -delete
 if [ -n "${BACKUP_REMOTE:-}" ]; then

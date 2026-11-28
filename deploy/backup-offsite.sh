@@ -7,7 +7,7 @@
 DB="${LIFEDROP_DB_NAME:-lifedrop}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/lifedrop}"
 KEEP_DAYS="${OFFSITE_KEEP_DAYS:-45}"
-fail() { echo "$(date -u +%FT%TZ) offsite backup FAILED: $*" >&2; exit 1; }
+fail() { status_write last-offsite-failed "$*" || true; echo "$(date -u +%FT%TZ) offsite backup FAILED: $*" >&2; exit 1; }
 [ -n "${AGE_RECIPIENT:-}" ] || fail "AGE_RECIPIENT (the public key, age1...; two keys separated by a space are better) is not set in deploy/.env"
 [ -n "${OFFSITE_RCLONE_REMOTE:-}" ] || fail "OFFSITE_RCLONE_REMOTE (for example gdrive:lifedrop-backups) is not set in deploy/.env"
 recipients=()
@@ -53,6 +53,10 @@ if [ "${#files[@]}" -gt 0 ]; then
 else
   echo "WARNING: no deploy/.env and no Firebase key found; nothing to save of the settings." >&2
 fi
+
+# Everything is on the remote and checked there: this is the moment backup-status.sh counts from.
+status_write last-offsite-ok "$(basename "$dump").age"
+status_clear last-offsite-failed
 
 # Old encrypted copies are removed from the remote after KEEP_DAYS days.
 rclone delete "$OFFSITE_RCLONE_REMOTE" --min-age "${KEEP_DAYS}d" --include "$DB-*.dump.age" --include "$DB-config-*.tar.age" || echo "(removing old copies from the remote failed; the backup itself is done)"
