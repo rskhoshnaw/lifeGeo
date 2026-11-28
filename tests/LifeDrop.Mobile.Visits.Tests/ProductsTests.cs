@@ -120,7 +120,11 @@ public class ProductsTests
         // Step 5.60: an order kept offline whose warehouse is no longer in the user's cities is refused with a clear reason
         var city = Client2(new Handler(_ => Json(HttpStatusCode.Conflict, """{"code":"WAREHOUSE_NOT_ALLOWED"}""")));
         Assert.Equal(VisitActionResult.WarehouseNotAllowed, (await city.PlaceAsync(Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), null, new[] { new OrderLineInput(product, 1m) }, default, offline: true)).Result);
-        Assert.Contains("not in your cities", VisitLifecycle.Describe(VisitActionResult.WarehouseNotAllowed));
+        Assert.Contains("not the warehouse of the customer's city", VisitLifecycle.Describe(VisitActionResult.WarehouseNotAllowed));
+
+        // Step 5.71: the server found no warehouse for the customer's city: its own answer, with what to do
+        var none = Client2(new Handler(_ => Json(HttpStatusCode.Conflict, """{"code":"NO_CITY_WAREHOUSE"}""")));
+        Assert.Equal(VisitActionResult.NoCityWarehouse, (await none.PlaceAsync(Guid.NewGuid(), null, null, Guid.NewGuid(), null, new[] { new OrderLineInput(product, 1m) }, default, offline: true)).Result);
     }
 
     private static OrdersApiClient Client2(Handler handler) => new(new HttpClient(handler) { BaseAddress = new Uri("https://api.test") }, new Session());

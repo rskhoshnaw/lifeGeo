@@ -18,6 +18,7 @@ public static class ApiErrors
     public const string InvalidState = "INVALID_STATE";
     public const string InvalidData = "INVALID_DATA";
     public const string InvalidPrice = "INVALID_PRICE";
+    public const string NoCityWarehouse = "NO_CITY_WAREHOUSE";
     public const string DuplicateCodeInactive = "DUPLICATE_CODE_INACTIVE";
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
     public const string UserNotFound = "USER_NOT_FOUND";

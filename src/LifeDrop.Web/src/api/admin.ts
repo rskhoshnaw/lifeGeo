@@ -1309,6 +1309,8 @@ export function errorMessage(error: unknown): string {
       if (error.code === 'CUSTOMER_NOT_APPROVED') return t('web.error.customerNotApproved')
       if (error.code === 'DUPLICATE_NAME') return t('web.error.duplicateName')
       if (error.code === 'DUPLICATE_CODE') return t('web.error.duplicateCode')
+      if (error.code === 'WAREHOUSE_NOT_ALLOWED') return t('web.error.warehouseNotAllowed')
+      if (error.code === 'NO_CITY_WAREHOUSE') return t('web.error.noCityWarehouse')
       if (error.code === 'DUPLICATE_CODE_INACTIVE') return t('web.error.duplicateCodeInactive')
       if (error.code === 'OUT_OF_STOCK') return t('web.error.outOfStock')
       if (error.code === 'RETURN_TOO_MUCH') return t('web.error.returnTooMuch')

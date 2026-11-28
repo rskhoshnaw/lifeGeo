@@ -78,7 +78,7 @@ public sealed record CreatedOrderDto(Guid Id, string Number, string Currency, de
     IReadOnlyList<string>? StockWarnings = null);
 
 // OutOfStock (plan step 4.41): a product whose stock is tracked has less than the order asks for; nothing is taken.
-public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock, WarehouseNotAllowed }
+public enum OrderResult { Success, Forbidden, NotFound, InvalidData, CurrencyMismatch, CustomerNotApproved, Conflict, GpsMocked, OutOfStock, WarehouseNotAllowed, NoCityWarehouse }
 
 // Delivery (plan step 2.4). Location: what the phone knows about where it is (all optional; a fake position is refused).
 public sealed record DeliveryLocation(double? Latitude, double? Longitude, double? AccuracyMeters = null, bool IsMocked = false);
@@ -342,7 +342,8 @@ public sealed class OrderService(IOrderStore store, IProductStore products, IPer
         // or a city without a warehouse follows the cities of the caller (5.59). The phone offers only what is allowed, this is the check behind it.
         var cityWarehouse = await store.CityWarehouseOfCustomerAsync(tenantId, customer.Id, cancellationToken);
         var warehouseId = request.WarehouseId ?? cityWarehouse;
-        if (warehouseId is null) return (OrderResult.InvalidData, null);
+        // No warehouse in the request and none serves the customer's city (or he has no city): a clear answer, not "bad data" - a phone that kept the order without internet shows it and the order can be sent again once the city has one.
+        if (warehouseId is null) return (OrderResult.NoCityWarehouse, null);
         var anyWarehouse = await permissions.HasPermissionAsync(tenantId, actorId, PermissionKeys.OrdersAnyWarehouse, cancellationToken);
         if (!await store.WarehouseAllowedForOrderAsync(tenantId, actorId.Value, warehouseId.Value, cityWarehouse, anyWarehouse, cancellationToken)) return (OrderResult.WarehouseNotAllowed, null);
 
