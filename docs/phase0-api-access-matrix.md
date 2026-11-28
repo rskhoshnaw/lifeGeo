@@ -813,3 +813,7 @@ Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves 
 | `PUT /warehouses/{id}/cities` | `warehouses.manage` | Body `{cityIds}`: the warehouse serves exactly these cities (a city that another warehouse served moves here; an empty list frees them). 204; 400 not a city or not a company warehouse; 404 | `warehouse.cities_set` |
 | `POST /orders` | `orders.create` | `warehouseId` is optional now: without it the order goes to the warehouse of the customer's city (400 `INVALID_DATA` when there is none). A company warehouse other than that one: 409 `WAREHOUSE_NOT_ALLOWED` unless the caller has `orders.anywarehouse`. The customer's city is the place of kind city at or above his place | `order.placed` |
 
+## Step 5.69: decimals of city prices and discount amounts
+
+`POST /products/{id}/city-prices` and `POST /customers/{id}/discounts` (kind `amount`) follow the currency of the product like its base price (5.66): IQD has no fraction, USD at most two decimals; otherwise 400 `INVALID_PRICE`. A percentage discount keeps its three decimals. A product that does not exist is still 404.
+
