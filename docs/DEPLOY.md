@@ -73,6 +73,7 @@ crontab -e      # اضافه کنید:
 ```
 - هر شب یک dump فشرده در `BACKUP_DIR` ساخته می‌شود، فایل خراب یا خالی رد می‌شود، فایل‌های قدیمی‌تر از `BACKUP_KEEP_DAYS` حذف می‌شوند، و اگر `BACKUP_REMOTE` تنظیم باشد یک نسخه به جای دوم می‌رود (rclone یا scp).
 - **نسخهٔ بیرون از سرور (رمزنگاری‌شده، Google Drive، هر ۳ روز):** `deploy/backup-offsite.sh` و راهنمای `docs/BACKUP-OFFSITE.md`.
+- **خودکار کردن:** `sudo ./install-cron.sh` (یک بار؛ فایل cron می‌سازد: شبانه محلی، شبانه Drive اگر تنظیم شده باشد، و دوشنبه‌ها بررسی وضعیت). تفصیل: `docs/BACKUP-OFFSITE.md`.
 - **آیا آخرین پشتیبان سالم است؟** `./backup-status.sh` (آخرین نسخهٔ سالم و آخرین شکست را نشان می‌دهد؛ `PROBLEM` یعنی باید نگاه کنید).
 - **یک backup که restore نشده، backup نیست:** بعد از اولین backup و سپس هر ماه `./restore-test.sh` را اجرا کنید؛ آخرین dump را در یک پایگاه‌داده موقت برمی‌گرداند، تعداد شرکت‌ها و migrationها را نشان می‌دهد و آن را پاک می‌کند. به پایگاه‌داده واقعی دست نمی‌زند.
 - بازگردانی واقعی بعد از خرابی: سرور تازه، `docker compose up -d db`، `./setup-db.sh`، سپس `docker compose exec -T db pg_restore -U postgres -d lifedrop --clean --if-exists --no-owner < فایل.dump` و `docker compose up -d`.
