@@ -58,4 +58,30 @@ describe('targets page', () => {
     expect(await screen.findByRole('cell', { name: 'rep1@t1' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Visitor')).not.toBeInTheDocument()
   })
+
+  // Step 5.76: the targets of cities, seen like the targets of visitors, set and cleared for a city
+  it('shows the targets of cities and sets and clears the target of a city', async () => {
+    const cityRows = [
+      { cityId: 'c-erbil', cityName: 'Erbil', productId: 'p-A', productCode: 'A', productName: 'Product A', unit: 'box', target: 200, actual: 150 },
+      { cityId: 'c-basra', cityName: 'Basra', productId: 'p-A', productCode: 'A', productName: 'Product A', unit: 'box', target: null, actual: 7 },
+    ]
+    const setCityTarget = vi.fn().mockResolvedValue(undefined)
+    const cityTargets = vi.fn().mockResolvedValue(cityRows)
+    const admin = { targets: vi.fn().mockResolvedValue([]), users: vi.fn().mockResolvedValue(users), cityTargets, places: vi.fn().mockResolvedValue([{ id: 'c-erbil', name: 'Erbil' }, { id: 'c-basra', name: 'Basra' }]), products: vi.fn().mockResolvedValue(products), setCityTarget } as unknown as AdminApi
+    render(<TargetsPage admin={admin} me={me} />)
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Targets of' }), 'cities')
+    expect(await screen.findByRole('cell', { name: 'Erbil' })).toBeInTheDocument()
+    expect(screen.getByText('75%')).toBeInTheDocument()                                       // 150 of 200
+    expect(screen.getByRole('columnheader', { name: 'By city' })).toBeInTheDocument()
+    expect(cityTargets).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-01$/))
+
+    await userEvent.selectOptions(screen.getByLabelText('City'), 'c-erbil')
+    await userEvent.selectOptions(screen.getByLabelText('Product'), 'p-A')
+    await userEvent.type(screen.getByLabelText('Target (units)'), '250')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(setCityTarget).toHaveBeenCalledWith('c-erbil', 'p-A', expect.stringMatching(/^\d{4}-\d{2}-01$/), 250))
+    await userEvent.clear(screen.getByLabelText('Target (units)'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(setCityTarget).toHaveBeenLastCalledWith('c-erbil', 'p-A', expect.any(String), null))
+  })
 })

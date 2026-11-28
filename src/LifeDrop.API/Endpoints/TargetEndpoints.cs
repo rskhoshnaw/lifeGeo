@@ -29,6 +29,27 @@ public static class TargetEndpoints
             .WithName("SetTarget").WithTags("Targets").Produces(204)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
 
+        // Plan step 5.76: targets per city and product, against what was delivered to the customers of the city; for the whole-company readers and managers only.
+        app.MapGet("/targets/cities", async (DateOnly month, HttpContext context, SalesTargets targets, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, rows) = await targets.ListCitiesAsync(tenantId, actorId, month, cancellationToken);
+            return result == TargetResult.Success ? Results.Ok(rows) : ToError(result);
+        }).RequireAuthorization()
+            .WithName("ListCityTargets").WithTags("Targets").Produces<List<CityTargetRowDto>>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
+        app.MapPut("/targets/cities", async (SetCityTargetRequest request, HttpContext context, SalesTargets targets, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return Unavailable();
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var result = await targets.SetCityAsync(tenantId, actorId, request, cancellationToken);
+            return result == TargetResult.Success ? Results.NoContent() : ToError(result);
+        }).RequireAuthorization()
+            .WithName("SetCityTarget").WithTags("Targets").Produces(204)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(429).ProducesProblem(503);
+
         // The caller's own targets and deliveries (the visitor's page in the app); needs no permission.
         app.MapGet("/targets/mine", async (DateOnly month, HttpContext context, SalesTargets targets, DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
         {

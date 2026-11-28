@@ -122,4 +122,106 @@ public sealed class PostgresTargetStore(NpgsqlDataSource dataSource) : ITargetSt
                 reader.IsDBNull(6) ? null : reader.GetDecimal(6), reader.GetDecimal(7)));
         return rows;
     }
+
+    // Plan step 5.76: the target of a city, set, changed or cleared; the city is a place of kind city of the company.
+    public async Task<TargetResult> SetCityAsync(TenantId tenantId, UserId actorId, Guid cityId, Guid productId, DateOnly month, decimal? quantity, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, cancellationToken);
+        await using (var exists = new NpgsqlCommand("""
+            SELECT (SELECT count(*) FROM places WHERE tenant_id = @tenant AND id = @city AND kind = 'city') = 1
+               AND (SELECT count(*) FROM products WHERE tenant_id = @tenant AND id = @product) = 1
+            """, connection, transaction))
+        {
+            exists.Parameters.AddWithValue("tenant", tenantId.Value);
+            exists.Parameters.AddWithValue("city", cityId);
+            exists.Parameters.AddWithValue("product", productId);
+            if (await exists.ExecuteScalarAsync(cancellationToken) is not true) return TargetResult.NotFound;
+        }
+        var monthValue = new NpgsqlParameter("month", NpgsqlDbType.Date) { Value = month.ToDateTime(TimeOnly.MinValue) };
+        var changed = false;
+        if (quantity is { } value)
+        {
+            await using var upsert = new NpgsqlCommand("""
+                INSERT INTO city_targets (tenant_id, city_id, product_id, month, quantity, set_by)
+                VALUES (@tenant, @city, @product, @month, @quantity, @actor)
+                ON CONFLICT (tenant_id, city_id, product_id, month) DO UPDATE SET quantity = EXCLUDED.quantity, set_by = EXCLUDED.set_by, updated_at = now()
+                """, connection, transaction);
+            upsert.Parameters.AddWithValue("tenant", tenantId.Value);
+            upsert.Parameters.AddWithValue("city", cityId);
+            upsert.Parameters.AddWithValue("product", productId);
+            upsert.Parameters.Add(monthValue);
+            upsert.Parameters.AddWithValue("quantity", value);
+            upsert.Parameters.AddWithValue("actor", actorId.Value);
+            changed = await upsert.ExecuteNonQueryAsync(cancellationToken) > 0;
+        }
+        else
+        {
+            await using var delete = new NpgsqlCommand("DELETE FROM city_targets WHERE tenant_id = @tenant AND city_id = @city AND product_id = @product AND month = @month", connection, transaction);
+            delete.Parameters.AddWithValue("tenant", tenantId.Value);
+            delete.Parameters.AddWithValue("city", cityId);
+            delete.Parameters.AddWithValue("product", productId);
+            delete.Parameters.Add(monthValue);
+            changed = await delete.ExecuteNonQueryAsync(cancellationToken) > 0;
+        }
+        if (changed)
+        {
+            await using var audit = new NpgsqlCommand("""
+                INSERT INTO audit_logs (id, tenant_id, actor_id, action, entity_id, occurred_at)
+                VALUES (gen_random_uuid(), @tenant, @actor, @action, @entity, now())
+                """, connection, transaction);
+            audit.Parameters.AddWithValue("tenant", tenantId.Value);
+            audit.Parameters.AddWithValue("actor", actorId.Value);
+            audit.Parameters.AddWithValue("action", quantity is null ? "city_target.cleared" : "city_target.set");
+            audit.Parameters.AddWithValue("entity", $"{cityId}:{productId}:{month:yyyy-MM}");
+            await audit.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return TargetResult.Success;
+    }
+
+    public async Task<IReadOnlyList<CityTargetRowDto>> ListCitiesAsync(TenantId tenantId, DateOnly month, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, cancellationToken);
+        // The city of a customer is the place of kind city at or above his place (the same rule as the warehouse and the price of a city). Actual: delivered in the Iraq month (the last "delivered" step
+        // decides), of the orders of the customers of the city, whoever placed them; an order of a customer without a city belongs to no city and is not in this report.
+        await using var command = new NpgsqlCommand("""
+            WITH RECURSIVE up AS (
+                SELECT c.id AS customer_id, p.id AS place_id, p.parent_id, p.kind FROM customers c JOIN places p ON p.tenant_id = c.tenant_id AND p.id = c.place_id WHERE c.tenant_id = @tenant
+                UNION ALL
+                SELECT up.customer_id, p.id, p.parent_id, p.kind FROM places p JOIN up ON p.tenant_id = @tenant AND p.id = up.parent_id),
+            city AS (SELECT customer_id, place_id AS city_id FROM up WHERE kind = 'city'),
+            delivered AS (
+                SELECT o.id, ci.city_id
+                FROM orders o
+                JOIN city ci ON ci.customer_id = o.customer_id
+                JOIN LATERAL (SELECT max(h.occurred_at) AS at FROM order_status_history h WHERE h.tenant_id = o.tenant_id AND h.order_id = o.id AND h.status = 'delivered') d ON true
+                WHERE o.tenant_id = @tenant AND o.status = 'delivered' AND d.at >= @from AND d.at < @to
+            ), actual AS (
+                SELECT d.city_id, i.product_id, sum(COALESCE(i.delivered_quantity, i.quantity)) AS quantity
+                FROM delivered d JOIN order_items i ON i.tenant_id = @tenant AND i.order_id = d.id
+                GROUP BY d.city_id, i.product_id
+            ), target AS (
+                SELECT t.city_id, t.product_id, t.quantity FROM city_targets t WHERE t.tenant_id = @tenant AND t.month = @month
+            )
+            SELECT pl.id, pl.name, p.id, p.code, p.name, p.unit, t.quantity, COALESCE(a.quantity, 0)
+            FROM (SELECT city_id, product_id FROM target UNION SELECT city_id, product_id FROM actual) k
+            JOIN places pl ON pl.tenant_id = @tenant AND pl.id = k.city_id
+            JOIN products p ON p.tenant_id = @tenant AND p.id = k.product_id
+            LEFT JOIN target t ON t.city_id = k.city_id AND t.product_id = k.product_id
+            LEFT JOIN actual a ON a.city_id = k.city_id AND a.product_id = k.product_id
+            ORDER BY pl.name COLLATE "C", pl.id, p.code COLLATE "C"
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.Add(new NpgsqlParameter("month", NpgsqlDbType.Date) { Value = month.ToDateTime(TimeOnly.MinValue) });
+        command.Parameters.Add(new NpgsqlParameter("from", NpgsqlDbType.TimestampTz) { Value = from.ToUniversalTime() });
+        command.Parameters.Add(new NpgsqlParameter("to", NpgsqlDbType.TimestampTz) { Value = to.ToUniversalTime() });
+        var rows = new List<CityTargetRowDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new CityTargetRowDto(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetGuid(2), reader.GetString(3), reader.GetString(4), reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetDecimal(6), reader.GetDecimal(7)));
+        return rows;
+    }
 }

@@ -828,3 +828,12 @@ Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves 
 | `GET /reports/kpis` (and `kpi-compare`, saved results) | as before | `counts.netSales` = orders minus approved returns per currency (additive; an older saved result lacks it) | — |
 | `GET /reports/sales?from=&to=&by=&regionId=&teamId=&customerType=` | `reports.read` (the same area as the KPI report) | `by` = `warehouse` or `city` (else 400 `INVALID_DATA`); the range as the KPI report (at most 366 days). Rows: `id`, `name` (null for no warehouse / no city), `orders`, `ordersDelivered`, `orderTotals`, `returnsApproved`, `returnTotals`, `netSales`, and a `total` | — |
 
+## Step 5.76: sales targets per city
+
+Migration 0086: `city_targets` (tenant, city, product, month, quantity; unique per city, product and month; RLS; grants). The target of a city belongs to the whole company, so only a manager or reader whose scope is **the whole company** (`targets.manage` / `targets.read` with scope tenant: sales manager, company manager, finance manager) may use these routes; a supervisor (region scope) gets 403.
+
+| Route | Who | Rules | Audit |
+| --- | --- | --- | --- |
+| `GET /targets/cities?month=` | `targets.read`, whole-company scope | Rows for every city and product that has a target or a delivered quantity in the Iraq month: `cityId`, `cityName`, `productCode`, `productName`, `unit`, `target` (null when none), `actual` = delivered quantity (`delivered_quantity`, else the ordered one) of the orders in status `delivered` whose last `delivered` step is in the month, for the customers whose city is this one (the place of kind city at or above his place), whoever placed the orders; customers without a city are not in it. 400 for a month more than two years back or a year ahead | — |
+| `PUT /targets/cities` | `targets.manage`, whole-company scope | Body `{cityId, productId, month, quantity}` (any date of the month; quantity 0 or null clears; at most 1,000,000). 204; 400; 403; 404 when the place is not a city of the company (a neighbourhood is not) or the product is not | `city_target.set`, `city_target.cleared` |
+
