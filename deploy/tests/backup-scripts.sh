@@ -3,6 +3,8 @@
 # backup-status.sh and backup-offsite.sh (with stand-ins for age and rclone) and checks what they say and do, including that damage is noticed.
 # Needs: a server on PGHOST (default localhost) where PGUSER (default postgres, password PGPASSWORD) may create databases; psql, pg_dump, pg_restore.
 #   PGPASSWORD=temp_root deploy/tests/backup-scripts.sh
+# With PG_DOCKER_CONTAINER=<container of the database> psql, pg_dump and pg_restore run inside it with docker exec, as on the real server (CI does this: the runner's own client tools
+# are newer than the database, and a newer pg_dump writes settings an older server does not know).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY="$(dirname "$HERE")"
@@ -11,19 +13,32 @@ export PGHOST="${PGHOST:-localhost}" PGUSER="${PGUSER:-postgres}"
 export LIFEDROP_DB_NAME="lifedrop_bktest" APP_DB_PASSWORD="bk-test-pass"
 WORK="$(mktemp -d)"
 export BACKUP_DIR="$WORK/backups" BACKUP_KEEP_DAYS=14
-export PSQL_CMD="psql -v ON_ERROR_STOP=1 -q -t -A"
-export DUMP_CMD="pg_dump -Fc $LIFEDROP_DB_NAME"
-export LIST_CMD="pg_restore --list"
-export RESTORE_CMD="pg_restore -d ${LIFEDROP_DB_NAME}_restore_test --no-owner"
+if [ -n "${PG_DOCKER_CONTAINER:-}" ]; then
+  IN="docker exec -i $PG_DOCKER_CONTAINER"
+  export PSQL_CMD="$IN psql -U postgres -v ON_ERROR_STOP=1 -q -t -A"
+  export DUMP_CMD="$IN pg_dump -U postgres -Fc $LIFEDROP_DB_NAME"
+  export LIST_CMD="$IN pg_restore --list"
+  export RESTORE_CMD="$IN pg_restore -U postgres -d ${LIFEDROP_DB_NAME}_restore_test --no-owner"
+  pgdump() { $IN pg_dump -U postgres "$@"; }
+  pgrestore_file() { $IN pg_restore -U postgres -d "$1" --no-owner < "$2"; }   # database, file
+else
+  export PSQL_CMD="psql -v ON_ERROR_STOP=1 -q -t -A"
+  export DUMP_CMD="pg_dump -Fc $LIFEDROP_DB_NAME"
+  export LIST_CMD="pg_restore --list"
+  export RESTORE_CMD="pg_restore -d ${LIFEDROP_DB_NAME}_restore_test --no-owner"
+  pgdump() { pg_dump "$@"; }
+  pgrestore_file() { pg_restore -d "$1" --no-owner "$2"; }
+fi
 # deploy/.env is not read here: lib.sh only sources it when it exists, and a developer machine has none.
 [ ! -f "$DEPLOY/.env" ] || { echo "deploy/.env exists: this test must not run on a real server" >&2; exit 2; }
 
-# pg_dump and pg_restore must be of the server's own major version: a newer client writes settings an older server does not know (pg_restore then ends with an error), which is
-# not what happens on the real server, where the dump runs inside the database's own container.
-server_major="$(psql -d postgres -Atc 'show server_version_num' | cut -c1-2)"
-[ ! -x "/usr/lib/postgresql/$server_major/bin/pg_dump" ] || export PATH="/usr/lib/postgresql/$server_major/bin:$PATH"
-client_major="$(pg_dump --version | grep -o '[0-9][0-9]*' | head -1)"
-[ "$client_major" = "$server_major" ] || { echo "pg_dump is version $client_major but the server is version $server_major: install postgresql-client-$server_major" >&2; exit 2; }
+# Host tools must be of the server's own major version (see the top); inside the container they are by definition.
+if [ -z "${PG_DOCKER_CONTAINER:-}" ]; then
+  server_major="$(psql -d postgres -Atc 'show server_version_num' | cut -c1-2)"
+  [ ! -x "/usr/lib/postgresql/$server_major/bin/pg_dump" ] || export PATH="/usr/lib/postgresql/$server_major/bin:$PATH"
+  client_major="$(pg_dump --version | grep -o '[0-9][0-9]*' | head -1)"
+  [ "$client_major" = "$server_major" ] || { echo "pg_dump is version $client_major but the server is version $server_major: install postgresql-client-$server_major or set PG_DOCKER_CONTAINER" >&2; exit 2; }
+fi
 
 pass=0
 ok() { pass=$((pass + 1)); echo "ok   $*"; }
@@ -60,9 +75,9 @@ cp "$dump" "$WORK/good.dump"
 sql postgres "DROP DATABASE IF EXISTS ${LIFEDROP_DB_NAME}_lost WITH (FORCE)" >/dev/null
 sql postgres "CREATE DATABASE ${LIFEDROP_DB_NAME}_lost" >/dev/null
 sql "${LIFEDROP_DB_NAME}_lost" "CREATE EXTENSION IF NOT EXISTS postgis" >/dev/null
-pg_restore -d "${LIFEDROP_DB_NAME}_lost" --no-owner "$WORK/good.dump" >/dev/null 2>&1 || true
+pgrestore_file "${LIFEDROP_DB_NAME}_lost" "$WORK/good.dump" >/dev/null 2>&1 || true
 sql "${LIFEDROP_DB_NAME}_lost" "SELECT set_config('app.current_tenant', '11111111-1111-1111-1111-111111111111', false); DELETE FROM products;" >/dev/null 2>&1 || sql "${LIFEDROP_DB_NAME}_lost" "TRUNCATE products CASCADE" >/dev/null
-pg_dump -Fc "${LIFEDROP_DB_NAME}_lost" > "$WORK/lost.dump"
+pgdump -Fc "${LIFEDROP_DB_NAME}_lost" > "$WORK/lost.dump"
 sql postgres "DROP DATABASE ${LIFEDROP_DB_NAME}_lost WITH (FORCE)" >/dev/null
 expect_fail "a dump without the products" "$DEPLOY/restore-test.sh" "$WORK/lost.dump"
 has "RESTORE CHECK FAILED: products has 1 rows in the live database and 0 in the restored one"
