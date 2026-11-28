@@ -17,7 +17,10 @@ public sealed record CurrencyTotal(string Currency, decimal Total);
 
 // The counts of one user (or the total). Rates are in KpiRates.
 public sealed record KpiCounts(int VisitsPlanned, int VisitsCompleted, int VisitsFailed, int DelayBase, int DelayedVisits, int NewCustomers, int ApprovedNewCustomers, int Orders,
-    int OrdersDelivered, int OrdersDeliveryFailed, IReadOnlyList<CurrencyTotal> OrderTotals, int FollowUpBase, int FollowUpsOverdue);
+    int OrdersDelivered, int OrdersDeliveryFailed, IReadOnlyList<CurrencyTotal> OrderTotals, int FollowUpBase, int FollowUpsOverdue,
+    // Plan step 5.73 (the end of the list so that older saved results, which lack these, still read): samples given, money received (confirmed / still waiting for the finance manager) and
+    // approved returns, per currency. Definitions in docs/KPI.md.
+    int Samples = 0, IReadOnlyList<CurrencyTotal>? PaymentsConfirmed = null, IReadOnlyList<CurrencyTotal>? PaymentsWaiting = null, int ReturnsApproved = 0, IReadOnlyList<CurrencyTotal>? ReturnTotals = null);
 
 // Null when the denominator is 0 (nothing to measure), never 0 %. Percent with one decimal.
 public sealed record KpiRates(double? VisitCompletion, double? VisitFailure, double? Delay, double? OrderDelivery, double? FollowUpOverdue);
@@ -82,5 +85,9 @@ public sealed class KpiReport(IReportStore store, IPermissionStore permissions, 
         all.Sum(c => c.VisitsPlanned), all.Sum(c => c.VisitsCompleted), all.Sum(c => c.VisitsFailed), all.Sum(c => c.DelayBase), all.Sum(c => c.DelayedVisits),
         all.Sum(c => c.NewCustomers), all.Sum(c => c.ApprovedNewCustomers), all.Sum(c => c.Orders), all.Sum(c => c.OrdersDelivered), all.Sum(c => c.OrdersDeliveryFailed),
         all.SelectMany(c => c.OrderTotals).GroupBy(t => t.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new CurrencyTotal(g.Key, g.Sum(t => t.Total))).ToList(),
-        all.Sum(c => c.FollowUpBase), all.Sum(c => c.FollowUpsOverdue));
+        all.Sum(c => c.FollowUpBase), all.Sum(c => c.FollowUpsOverdue),
+        all.Sum(c => c.Samples), SumMoney(all.Select(c => c.PaymentsConfirmed)), SumMoney(all.Select(c => c.PaymentsWaiting)), all.Sum(c => c.ReturnsApproved), SumMoney(all.Select(c => c.ReturnTotals)));
+
+    private static List<CurrencyTotal> SumMoney(IEnumerable<IReadOnlyList<CurrencyTotal>?> lists) =>
+        lists.SelectMany(l => l ?? Array.Empty<CurrencyTotal>()).GroupBy(t => t.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new CurrencyTotal(g.Key, g.Sum(t => t.Total))).ToList();
 }

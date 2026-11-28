@@ -6521,6 +6521,27 @@ public class CustomerApiIntegrationTests
                     (@t1, 2, @c1, @w1, @rep, 'delivery_failed', 'IQD', 2000, gen_random_uuid(), '2026-10-03 08:00:00+00', @rep, NULL, 'closed', NULL, NULL),
                     (@t1, 3, @c1, @w1, @rep, 'placed', 'USD', 5, gen_random_uuid(), '2026-10-04 08:00:00+00', NULL, NULL, NULL, NULL, NULL),
                     (@t1, 4, @c1, @w1, @rep, 'cancelled', 'IQD', 500, gen_random_uuid(), '2026-10-04 09:00:00+00', NULL, NULL, NULL, '2026-10-04 10:00:00+00', 'mistake');
+                -- Plan step 5.73: samples, money received and returns (of rep; one of each kind that must NOT count: voided / refund / voided / cancelled / outside the range / another type)
+                INSERT INTO products (id, tenant_id, code, name, unit, currency, base_price) VALUES ('00000000-0000-4000-9999-0000000000a1', @t1, 'PK', 'Product', 'box', 'IQD', 1000);
+                INSERT INTO sample_distributions (tenant_id, number, customer_id, product_id, quantity, distributed_by, status, void_reason, voided_by, voided_at, client_ref, created_at) VALUES
+                    (@t1, 1, @c1, '00000000-0000-4000-9999-0000000000a1', 1, @rep, 'given', NULL, NULL, NULL, gen_random_uuid(), '2026-10-02 08:00:00+00'),
+                    (@t1, 2, @c1, '00000000-0000-4000-9999-0000000000a1', 2, @rep, 'given', NULL, NULL, NULL, gen_random_uuid(), '2026-10-03 08:00:00+00'),
+                    (@t1, 3, @c2, '00000000-0000-4000-9999-0000000000a1', 1, @rep, 'given', NULL, NULL, NULL, gen_random_uuid(), '2026-10-03 09:00:00+00'),
+                    (@t1, 4, @c1, '00000000-0000-4000-9999-0000000000a1', 1, @rep, 'voided', 'mistake', @m, now(), gen_random_uuid(), '2026-10-03 10:00:00+00'),
+                    (@t1, 5, @c1, '00000000-0000-4000-9999-0000000000a1', 1, @rep, 'given', NULL, NULL, NULL, gen_random_uuid(), '2026-09-20 08:00:00+00');
+                INSERT INTO payments (tenant_id, number, customer_id, method, currency, amount, status, received_by, recorded_by, confirmed_by, confirmed_at, closed_reason, closed_by, closed_at, client_ref, created_at, direction) VALUES
+                    (@t1, 1, @c1, 'cash', 'IQD', 700, 'confirmed', @rep, @rep, @f, '2026-10-03 12:00:00+00', NULL, NULL, NULL, gen_random_uuid(), '2026-10-02 08:00:00+00', 'in'),
+                    (@t1, 2, @c1, 'cash', 'IQD', 300, 'collected', @rep, @rep, NULL, NULL, NULL, NULL, NULL, gen_random_uuid(), '2026-10-04 08:00:00+00', 'in'),
+                    (@t1, 3, @c1, 'cash', 'USD', 20, 'confirmed', @rep, @rep, @f, '2026-10-04 12:00:00+00', NULL, NULL, NULL, gen_random_uuid(), '2026-10-04 09:00:00+00', 'in'),
+                    (@t1, 4, @c1, 'cash', 'IQD', 999, 'voided', @rep, @rep, NULL, NULL, 'mistake', @f, now(), gen_random_uuid(), '2026-10-04 10:00:00+00', 'in'),
+                    (@t1, 5, @c1, 'cash', 'IQD', 400, 'confirmed', @f, @f, @f, '2026-10-04 12:00:00+00', NULL, NULL, NULL, gen_random_uuid(), '2026-10-04 11:00:00+00', 'out'),
+                    (@t1, 6, @c1, 'cash', 'IQD', 800, 'confirmed', @rep, @rep, @f, '2026-09-21 12:00:00+00', NULL, NULL, NULL, gen_random_uuid(), '2026-09-20 08:00:00+00', 'in');
+                INSERT INTO returns (tenant_id, number, customer_id, created_by, status, currency, total, client_ref, created_at, decided_by, decided_at) VALUES
+                    (@t1, 1, @c1, @rep, 'approved', 'IQD', 250, gen_random_uuid(), '2026-10-03 08:00:00+00', @m, '2026-10-04 08:00:00+00'),
+                    (@t1, 2, @c1, @rep, 'approved', 'USD', 5, gen_random_uuid(), '2026-10-04 08:00:00+00', @m, '2026-10-05 08:00:00+00'),
+                    (@t1, 3, @c1, @rep, 'requested', 'IQD', 900, gen_random_uuid(), '2026-10-04 09:00:00+00', NULL, NULL),
+                    (@t1, 4, @c1, @rep, 'rejected', 'IQD', 800, gen_random_uuid(), '2026-10-04 10:00:00+00', @m, '2026-10-05 08:00:00+00'),
+                    (@t1, 5, @c1, @rep, 'approved', 'IQD', 100, gen_random_uuid(), '2026-09-20 08:00:00+00', @m, '2026-09-21 08:00:00+00');
                 INSERT INTO follow_ups (tenant_id, customer_id, subject, due_date, assignee_id, created_by, status, result_note, completed_at, cancel_reason, cancelled_at, client_ref) VALUES
                     (@t1, @c1, 'open and overdue', '2026-10-02', @rep, @rep, 'pending', NULL, NULL, NULL, NULL, gen_random_uuid()),
                     (@t1, @c1, 'completed', '2026-10-03', @rep, @rep, 'completed', 'done', '2026-10-03 08:00:00+00', NULL, NULL, gen_random_uuid()),
@@ -6556,6 +6577,14 @@ public class CustomerApiIntegrationTests
         Assert.Equal((3, 1, 1), (c.Orders, c.OrdersDelivered, c.OrdersDeliveryFailed));   // the cancelled order is not counted
         Assert.Equal(new[] { ("IQD", 3000m), ("USD", 5m) }, c.OrderTotals.Select(t => (t.Currency, t.Total)).ToArray());
         Assert.Equal((3, 1), (c.FollowUpBase, c.FollowUpsOverdue));                     // cancelled and later-than-range follow-ups are not counted
+        // Plan step 5.73: samples given (not voided), money the rep received (a refund and a voided payment are not money received; confirmed apart from waiting) and approved returns, per currency
+        Assert.Equal(3, c.Samples);
+        Assert.Equal(new[] { ("IQD", 700m), ("USD", 20m) }, c.PaymentsConfirmed!.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(new[] { ("IQD", 300m) }, c.PaymentsWaiting!.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(2, c.ReturnsApproved);
+        Assert.Equal(new[] { ("IQD", 250m), ("USD", 5m) }, c.ReturnTotals!.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(1, (await Kpis("&customerType=Doctor")).Total.Counts.Samples);   // the customer type filter reaches the samples too
+        Assert.Equal((3, 2), (report.Total.Counts.Samples, report.Total.Counts.ReturnsApproved));   // the total adds the users
         Assert.Equal((50.0, 16.7, 66.7, 50.0, 33.3), (row.Rates.VisitCompletion, row.Rates.VisitFailure, row.Rates.Delay, row.Rates.OrderDelivery, row.Rates.FollowUpOverdue));
         Assert.Equal(new[] { rep, rep2 }.OrderBy(i => i).ToArray(), report.Users.Select(u => u.UserId).OrderBy(i => i).ToArray());   // users without any data are not listed
         Assert.Equal(("Team A", "Team B"), (row.TeamName, report.Users.Single(u => u.UserId == rep2).TeamName));

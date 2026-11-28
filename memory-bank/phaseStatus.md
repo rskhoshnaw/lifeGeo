@@ -238,3 +238,5 @@ Open decisions: D4 only (Backup delete permission); API host is now per company 
 - 2026-11-28 5.71: order without a warehouse in a city that has none: 409 NO_CITY_WAREHOUSE (was 400 INVALID_DATA) + app text and Retry; WarehouseNotAllowed text updated. Tests: DB scenario, ProductsTests, WorkQueue retry scenario; mutation checked. Needs a new app build.
 
 - 2026-11-28 5.72: memory bank refreshed (the "Current state" no longer lists finished items as open; open items now wait for the owner's answers); plan section 7 row 9 marked done locally. Docs only.
+- 2026-11-28 5.73: KPI report now has samples given, money received (confirmed / waiting for finance) and approved returns per currency (counts, additive; panel cards/columns/CSV; docs/KPI.md). DB Reports_Kpis extended, KpiTests, panel tests; mutation checked. No migration, no app change.
+

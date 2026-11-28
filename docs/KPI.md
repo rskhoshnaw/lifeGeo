@@ -17,7 +17,16 @@ Days are **Iraq days** (Asia/Baghdad). Filters: day range (from and to, at most 
 | Follow-ups overdue rate | Follow-ups still open (pending or in progress) whose due day is before today | Follow-ups due in the range that are not cancelled | by the responsible user |
 | Alerts | Alerts of the users that occurred in the range, by kind, with how many were handled and the result of the review (valid / suspicious / fraud) | — | only the categories the reader may read (security needs `alerts.security.read`) |
 
-Not in this step: payments and samples (they can be added to the same report later).
+Added in step 5.73 (same filters; counted by the day the record was created, Iraq days; each is a count or a money total, so there is no rate):
+
+| Figure | What is counted | By whom |
+|---|---|---|
+| Samples given | Sample distributions in the range whose status is `given` (a voided one is not counted) | the user who gave them (`distributed_by`) |
+| Money received, confirmed | Payments the customer paid (`direction` in; a refund is not money received) with status `confirmed`, the sum per currency | the user who received the money (`received_by`) |
+| Money received, waiting | The same with status `collected`: taken by the visitor, not yet confirmed by the finance manager | same |
+| Approved returns | Returns with status `approved` (requested, rejected and cancelled ones are not counted), their number and their value per currency | the user who wrote the return |
+
+Voided and replaced payments are not money. A result saved before step 5.73 has none of these figures: they read as 0 / empty and the totals still add up.
 
 ## Own numbers and comparison (plan step 5.29)
 `GET /reports/kpi-compare` gives one user's numbers for one calendar month (Iraq days, no customer-type filter) next to the month before, the same month a year earlier and 12 months of trend. A visitor reads their own (app: "My KPIs"); a reader with `reports.read` can ask for a user inside their area (panel: Reports, "KPIs: compare months"). A count changes by a percentage of the earlier month (no percentage when it was 0), a rate by percentage points; more is better except for failures, late starts and overdue follow-ups.
