@@ -35,4 +35,6 @@ One line per request (not for health and metrics): method, route template, statu
 ## Load test
 `node scripts/perf/load.mjs --url https://api-test.example --path /health/ready --requests 2000 --concurrency 20 [--token <bearer>] [--max-p95-ms 500] [--max-error-rate 0.01]` prints status counts, requests per second and p50/p95/p99, and exits 1 when a limit is broken. Run it against a **test copy** of the API with test data; use read routes (`/live-map`, `/reports/kpis`, `/orders`) with a test user's token. The API limits each address to 100 requests a minute, so a load test from one address needs the limit raised on the test copy or several addresses.
 
+A whole field day (visitors, managers, orders, tracking) against a throw-away copy, with results of 2026-11-28: `scripts/perf/README.md` (`seed-load.sql`, `scenario.mjs`).
+
 Targets are not decided yet (owner): suggested p95 under 500 ms for read routes and 1 s for writes at the expected number of field users, error rate under 1 %.

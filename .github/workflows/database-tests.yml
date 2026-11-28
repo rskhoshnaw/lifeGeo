@@ -55,6 +55,17 @@ jobs:
       # psql, pg_dump and pg_restore run inside the database's own container, as on the real server (the runner's client tools are newer than the database).
       run: PG_DOCKER_CONTAINER="$(docker ps --filter ancestor=postgis/postgis:16-3.4 -q | head -1)" PGPASSWORD=temp_root PGHOST=localhost deploy/tests/backup-scripts.sh
 
+    - name: Load-test data fits the real schema (and the load scripts parse)
+      run: |
+        set -euo pipefail
+        C="$(docker ps --filter ancestor=postgis/postgis:16-3.4 -q | head -1)"
+        export PSQL_CMD="docker exec -i $C psql -U postgres -v ON_ERROR_STOP=1 -q -t -A" LIFEDROP_DB_NAME=lifedrop_perf APP_DB_PASSWORD=perf-pass
+        deploy/setup-db.sh > /dev/null
+        docker exec -i "$C" psql -U postgres -d lifedrop_perf -v ON_ERROR_STOP=1 -q -v visitors=5 -f - < scripts/perf/seed-load.sql > /dev/null
+        [ "$(docker exec -i "$C" psql -U postgres -d lifedrop_perf -Atc 'select count(*) from visits')" = 60 ]
+        node --check scripts/perf/scenario.mjs
+        node --check scripts/perf/load.mjs
+
     - name: Run all database tests
       run: |
         set -euo pipefail
