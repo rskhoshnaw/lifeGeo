@@ -25,6 +25,23 @@ public static class ReportEndpoints
             .WithName("GetKpiReport").WithTags("Reports").Produces<KpiReportDto>(200)
             .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
 
+        // Plan step 5.74: sales per warehouse or per city of the customer, for the same readers and filters as the KPI report.
+        app.MapGet("/reports/sales", async (DateOnly from, DateOnly to, string? by, Guid? regionId, Guid? teamId, string? customerType, HttpContext context, KpiReport report,
+            DatabaseSecurityState securityState, CancellationToken cancellationToken) =>
+        {
+            if (securityState.IsInsecureDbRole) return ApiErrors.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrors.ServiceUnavailable);
+            if (!TryReadActor(context, out var tenantId, out var actorId)) return Results.Forbid();
+            var (result, sales) = await report.SalesAsync(tenantId, actorId, new KpiFilter(from, to, regionId, teamId, customerType), by, cancellationToken);
+            return result switch
+            {
+                ReportResult.Success => Results.Ok(sales),
+                ReportResult.InvalidData => ApiErrors.Problem(StatusCodes.Status400BadRequest, ApiErrors.InvalidData),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization()
+            .WithName("GetSalesReport").WithTags("Reports").Produces<SalesReportDto>(200)
+            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(503);
+
         // A user's own KPIs for a month with the month before, the same month last year and 12 months of trend (plan step 5.29). Own numbers need no permission; another user's need reports.read.
         app.MapGet("/reports/kpi-compare", async (DateOnly month, Guid? userId, HttpContext context, KpiCompare compare,
             DatabaseSecurityState securityState, CancellationToken cancellationToken) =>

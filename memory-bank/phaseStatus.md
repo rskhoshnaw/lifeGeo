@@ -239,4 +239,5 @@ Open decisions: D4 only (Backup delete permission); API host is now per company 
 
 - 2026-11-28 5.72: memory bank refreshed (the "Current state" no longer lists finished items as open; open items now wait for the owner's answers); plan section 7 row 9 marked done locally. Docs only.
 - 2026-11-28 5.73: KPI report now has samples given, money received (confirmed / waiting for finance) and approved returns per currency (counts, additive; panel cards/columns/CSV; docs/KPI.md). DB Reports_Kpis extended, KpiTests, panel tests; mutation checked. No migration, no app change.
+- 2026-11-28 5.74: net sales (orders minus approved returns, per currency) in KPI counts; GET /reports/sales?by=warehouse|city (+ panel section with CSV); app My KPIs shows samples, money received, returns, net sales (IQD). DB Reports_Sales*, KpiTests, SalesByPlace.test, MyKpiTests; mutation checked. MIN_EXPECTED_TESTS 127. No migration; app needs a new build for My KPIs.
 

@@ -869,6 +869,25 @@ export interface KpiCounts {
   paymentsWaiting?: { currency: string; total: number }[] | null
   returnsApproved?: number
   returnTotals?: { currency: string; total: number }[] | null
+  // Step 5.74: orders minus approved returns per currency (negative when a currency has only returns).
+  netSales?: { currency: string; total: number }[] | null
+}
+export interface SalesRow {
+  id: string | null
+  name: string | null
+  orders: number
+  ordersDelivered: number
+  orderTotals: { currency: string; total: number }[]
+  returnsApproved: number
+  returnTotals: { currency: string; total: number }[]
+  netSales: { currency: string; total: number }[]
+}
+export interface SalesReport {
+  from: string
+  to: string
+  by: 'warehouse' | 'city'
+  total: SalesRow
+  rows: SalesRow[]
 }
 export interface KpiRates {
   visitCompletion: number | null
@@ -1592,6 +1611,9 @@ export class AdminApi {
   // KPI report (step 2.12): reports.read, only the users inside the reader's area.
   kpis = (from: string, to: string, regionId: string, teamId: string, customerType: string) =>
     this.get<KpiReport>(`/reports/kpis?from=${from}&to=${to}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
+  // Step 5.74: sales per warehouse or per city of the customer, with approved returns and net sales; the same filters and readers as the KPI report.
+  salesReport = (from: string, to: string, by: 'warehouse' | 'city', regionId: string, teamId: string, customerType: string) =>
+    this.get<SalesReport>(`/reports/sales?from=${from}&to=${to}&by=${by}${regionId ? `&regionId=${regionId}` : ''}${teamId ? `&teamId=${teamId}` : ''}${customerType ? `&customerType=${encodeURIComponent(customerType)}` : ''}`)
   // KPIs of one month with the month before, last year's month and a 12-month trend (step 5.29). No userId = the caller's own; another user needs reports.read and the user in the caller's area.
   kpiCompare = (month: string, userId?: string) => this.get<KpiCompare>(`/reports/kpi-compare?month=${month}-01${userId ? `&userId=${userId}` : ''}`)
   // Feedback from the field (step 5.30): feedback.manage reads the feedback in its scope (newest first, 50 per page; `before` = the createdAt of the last one), answers it and sets the status.

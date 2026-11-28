@@ -821,3 +821,10 @@ Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves 
 
 `GET /reports/kpis` (and `kpi-compare`, saved report results) carry four more figures in `counts`, same filters and scope as before, no new route and no migration: `samples` (given, not voided), `paymentsConfirmed` and `paymentsWaiting` (money the customer paid, per currency, by the user who received it; refunds, voided and replaced payments are not counted), `returnsApproved` and `returnTotals` (approved returns, count and value per currency). Definitions in `docs/KPI.md`. The fields are additive: an older saved result lacks them (read as 0 / empty).
 
+## Step 5.74: net sales and sales per warehouse or city
+
+| Route | Who | Rules | Audit |
+| --- | --- | --- | --- |
+| `GET /reports/kpis` (and `kpi-compare`, saved results) | as before | `counts.netSales` = orders minus approved returns per currency (additive; an older saved result lacks it) | — |
+| `GET /reports/sales?from=&to=&by=&regionId=&teamId=&customerType=` | `reports.read` (the same area as the KPI report) | `by` = `warehouse` or `city` (else 400 `INVALID_DATA`); the range as the KPI report (at most 366 days). Rows: `id`, `name` (null for no warehouse / no city), `orders`, `ordersDelivered`, `orderTotals`, `returnsApproved`, `returnTotals`, `netSales`, and a `total` | — |
+

@@ -6468,6 +6468,107 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { "followup.cancelled=1", "followup.completed=1", "followup.created=2", "followup.started=1", "payment.recorded_detached=1" }, actions);   // a step sent again writes nothing twice
     }
 
+    // Plan step 5.74: sales per warehouse and per city of the customer, with the approved returns and the net sales, for the same readers and filters as the KPI report.
+    [SkippableFact]
+    public async Task Reports_SalesPerWarehouseAndPerCityWithReturnsAndNetSalesInsideTheReadersArea()
+    {
+        var url = GetRequiredEnvVar("TEST_DATABASE_URL");
+        await VerifyRoleAsync(url, expectElevated: false);
+        var (schemaBlock, factory) = await StartFlexiblePlanHostAsync(url);
+        await using var _ = schemaBlock;
+        await using var __ = factory;
+        var conf = factory.Services.GetRequiredService<IConfiguration>();
+        var client = factory.CreateClient();
+
+        var t1 = Guid.NewGuid();
+        Guid manager = Guid.NewGuid(), sup = Guid.NewGuid(), rep1 = Guid.NewGuid(), rep2 = Guid.NewGuid(), finance = Guid.NewGuid(), r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), teamA = Guid.NewGuid(), teamB = Guid.NewGuid();
+        Guid we = Guid.NewGuid(), wb = Guid.NewGuid(), erbil = Guid.NewGuid(), hood = Guid.NewGuid(), basra = Guid.NewGuid(), c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), c3 = Guid.NewGuid();
+        await using (var conn = new NpgsqlConnection(schemaBlock.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO tenants (id, name, code) VALUES (@t1, 'T1', 'T1');
+                SELECT seed_default_roles(@t1);
+                INSERT INTO users (id, tenant_id) VALUES (@m, @t1), (@sup, @t1), (@rep1, @t1), (@rep2, @t1), (@f, @t1);
+                INSERT INTO user_roles (tenant_id, user_id, role_id)
+                SELECT @t1, @m, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesManager'
+                UNION ALL SELECT @t1, @sup, id FROM roles WHERE tenant_id = @t1 AND name = 'Supervisor'
+                UNION ALL SELECT @t1, @rep1, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @rep2, id FROM roles WHERE tenant_id = @t1 AND name = 'SalesRep'
+                UNION ALL SELECT @t1, @f, id FROM roles WHERE tenant_id = @t1 AND name = 'FinanceManager';
+                SELECT set_config('app.current_tenant', @t1::text, false);
+                INSERT INTO regions (id, tenant_id, name) VALUES (@r1, @t1, 'Erbil region'), (@r2, @t1, 'Basra region');
+                INSERT INTO teams (id, tenant_id, region_id, name) VALUES (@ta, @t1, @r1, 'Team A'), (@tb, @t1, @r2, 'Team B');
+                INSERT INTO team_members (tenant_id, user_id, team_id) VALUES (@t1, @sup, @ta), (@t1, @rep1, @ta), (@t1, @rep2, @tb);
+                INSERT INTO places (id, tenant_id, kind, name) VALUES (@erbil, @t1, 'city', 'Erbil'), (@basra, @t1, 'city', 'Basra');
+                INSERT INTO places (id, tenant_id, parent_id, kind, name) VALUES (@hood, @t1, @erbil, 'neighbourhood', 'Hood');
+                INSERT INTO warehouses (id, tenant_id, code, name) VALUES (@we, @t1, 'WE', 'Erbil warehouse'), (@wb, @t1, 'WB', 'Basra warehouse');
+                INSERT INTO customers (id, tenant_id, type, code, name, status, owner_user_id, region_id, approval_status, place_id) VALUES
+                    (@c1, @t1, 'Pharmacy', 'C1', 'In the hood of Erbil', 'no_location', @rep1, @r1, 'approved', @hood),
+                    (@c2, @t1, 'Doctor', 'C2', 'In Basra', 'no_location', @rep1, @r1, 'approved', @basra),
+                    (@c3, @t1, 'Pharmacy', 'C3', 'No place', 'no_location', @rep2, @r2, 'approved', NULL);
+                INSERT INTO orders (tenant_id, number, customer_id, warehouse_id, created_by, status, currency, total, client_ref, created_at, driver_id, receiver_name, failure_reason, cancelled_at, cancel_reason) VALUES
+                    (@t1, 1, @c1, @we, @rep1, 'delivered', 'IQD', 1000, gen_random_uuid(), '2026-10-02 08:00:00+00', @rep1, 'Ali', NULL, NULL, NULL),
+                    (@t1, 2, @c1, @we, @rep1, 'placed', 'IQD', 500, gen_random_uuid(), '2026-10-03 08:00:00+00', NULL, NULL, NULL, NULL, NULL),
+                    (@t1, 3, @c1, @we, @rep1, 'cancelled', 'IQD', 300, gen_random_uuid(), '2026-10-03 09:00:00+00', NULL, NULL, NULL, '2026-10-03 10:00:00+00', 'mistake'),
+                    (@t1, 4, @c2, @wb, @rep1, 'placed', 'USD', 10, gen_random_uuid(), '2026-10-04 08:00:00+00', NULL, NULL, NULL, NULL, NULL),
+                    (@t1, 5, @c3, @wb, @rep2, 'placed', 'IQD', 2000, gen_random_uuid(), '2026-10-04 09:00:00+00', NULL, NULL, NULL, NULL, NULL),
+                    (@t1, 6, @c1, @we, @rep1, 'placed', 'IQD', 700, gen_random_uuid(), '2026-09-20 08:00:00+00', NULL, NULL, NULL, NULL, NULL);
+                INSERT INTO returns (tenant_id, number, customer_id, warehouse_id, created_by, status, currency, total, client_ref, created_at, decided_by, decided_at) VALUES
+                    (@t1, 1, @c1, @we, @rep1, 'approved', 'IQD', 250, gen_random_uuid(), '2026-10-03 08:00:00+00', @m, '2026-10-04 08:00:00+00'),
+                    (@t1, 2, @c2, NULL, @rep1, 'approved', 'USD', 5, gen_random_uuid(), '2026-10-04 08:00:00+00', @m, '2026-10-05 08:00:00+00'),
+                    (@t1, 3, @c1, @we, @rep1, 'requested', 'IQD', 900, gen_random_uuid(), '2026-10-04 09:00:00+00', NULL, NULL),
+                    (@t1, 4, @c1, @we, @rep1, 'rejected', 'IQD', 800, gen_random_uuid(), '2026-10-04 10:00:00+00', @m, '2026-10-05 08:00:00+00');", conn);
+            foreach (var (name, value) in new[] { ("t1", t1), ("m", manager), ("sup", sup), ("rep1", rep1), ("rep2", rep2), ("f", finance), ("r1", r1), ("r2", r2), ("ta", teamA), ("tb", teamB), ("we", we), ("wb", wb),
+                ("erbil", erbil), ("hood", hood), ("basra", basra), ("c1", c1), ("c2", c2), ("c3", c3) })
+                cmd.Parameters.AddWithValue(name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        void As(Guid user) => client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            GenerateToken(t1, user, conf["Jwt:SigningKey"]!, conf["Jwt:Issuer"]!, conf["Jwt:Audience"]!));
+        async Task<LifeDrop.Application.Reports.SalesReportDto> Sales(string by, string query = "") =>
+            (await client.GetFromJsonAsync<LifeDrop.Application.Reports.SalesReportDto>($"/reports/sales?from=2026-10-01&to=2026-10-05&by={by}" + query))!;
+        static string Money(IEnumerable<LifeDrop.Application.Reports.CurrencyTotal> list) => string.Join(",", list.Select(t => $"{t.Currency}{t.Total.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}"));
+        string Show(LifeDrop.Application.Reports.SalesRow r) =>
+            $"{r.Name ?? "-"}: {r.Orders}/{r.OrdersDelivered} orders [{Money(r.OrderTotals)}] returns {r.ReturnsApproved} [{Money(r.ReturnTotals)}] net [{Money(r.NetSales)}]";
+
+        As(finance);
+        await AssertProblemAsync(await client.GetAsync("/reports/sales?from=2026-10-01&to=2026-10-05&by=city"), HttpStatusCode.Forbidden, "FORBIDDEN");   // no reports.read
+
+        // Per warehouse: the cancelled order, the order of 20 September, the requested and the rejected return are not counted; a return that put nothing back belongs to no warehouse
+        As(manager);
+        var byWarehouse = await Sales("warehouse");
+        Assert.Equal(new[]
+        {
+            "Basra warehouse: 2/0 orders [IQD2000,USD10] returns 0 [] net [IQD2000,USD10]",
+            "Erbil warehouse: 2/1 orders [IQD1500] returns 1 [IQD250] net [IQD1250]",
+            "-: 0/0 orders [] returns 1 [USD5] net [USD-5]",
+        }, byWarehouse.Rows.Select(Show).ToArray());
+        Assert.Equal("-: 4/1 orders [IQD3500,USD10] returns 2 [IQD250,USD5] net [IQD3250,USD5]", Show(byWarehouse.Total));
+
+        // Per city of the customer: a customer in a neighbourhood belongs to the city above; a customer without a place belongs to no city
+        var byCity = await Sales("city");
+        Assert.Equal(new[]
+        {
+            "Basra: 1/0 orders [USD10] returns 1 [USD5] net [USD5]",
+            "Erbil: 2/1 orders [IQD1500] returns 1 [IQD250] net [IQD1250]",
+            "-: 1/0 orders [IQD2000] returns 0 [] net [IQD2000]",
+        }, byCity.Rows.Select(Show).ToArray());
+
+        // The same filters as the KPI report: a customer type, a region (the users of that region's teams), and the reader's area (a supervisor sees the region only)
+        Assert.Equal(new[] { "Basra: 1/0 orders [USD10] returns 1 [USD5] net [USD5]" }, (await Sales("city", "&customerType=Doctor")).Rows.Select(Show).ToArray());
+        Assert.Equal(new[] { "Basra warehouse: 1/0 orders [USD10] returns 0 [] net [USD10]" }, (await Sales("warehouse", $"&regionId={r1}&customerType=Doctor")).Rows.Select(Show).Where(x => x.StartsWith("Basra")).ToArray());
+        As(sup);
+        Assert.Equal(new[] { "Basra warehouse: 1/0 orders [USD10] returns 0 [] net [USD10]", "Erbil warehouse: 2/1 orders [IQD1500] returns 1 [IQD250] net [IQD1250]", "-: 0/0 orders [] returns 1 [USD5] net [USD-5]" },
+            (await Sales("warehouse")).Rows.Select(Show).ToArray());   // rep2's order of 2000 IQD is outside the supervisor's region
+
+        // What is refused
+        As(manager);
+        await AssertProblemAsync(await client.GetAsync("/reports/sales?from=2026-10-01&to=2026-10-05&by=street"), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await client.GetAsync("/reports/sales?from=2026-10-01&to=2026-10-05"), HttpStatusCode.BadRequest, "INVALID_DATA");   // by is needed
+        await AssertProblemAsync(await client.GetAsync("/reports/sales?from=2026-10-05&to=2026-10-01&by=city"), HttpStatusCode.BadRequest, "INVALID_DATA");
+    }
+
     [SkippableFact]
     public async Task Reports_KpisAreCountedFromRealDataWithDocumentedNumeratorsAndDenominatorsInsideTheReadersArea()
     {
@@ -6582,6 +6683,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(new[] { ("IQD", 700m), ("USD", 20m) }, c.PaymentsConfirmed!.Select(t => (t.Currency, t.Total)).ToArray());
         Assert.Equal(new[] { ("IQD", 300m) }, c.PaymentsWaiting!.Select(t => (t.Currency, t.Total)).ToArray());
         Assert.Equal(2, c.ReturnsApproved);
+        Assert.Equal(new[] { ("IQD", 2750m), ("USD", 0m) }, c.NetSales!.Select(t => (t.Currency, t.Total)).ToArray());   // 3000 IQD of orders - 250 returned; 5 USD of orders - 5 returned
         Assert.Equal(new[] { ("IQD", 250m), ("USD", 5m) }, c.ReturnTotals!.Select(t => (t.Currency, t.Total)).ToArray());
         Assert.Equal(1, (await Kpis("&customerType=Doctor")).Total.Counts.Samples);   // the customer type filter reaches the samples too
         Assert.Equal((3, 2), (report.Total.Counts.Samples, report.Total.Counts.ReturnsApproved));   // the total adds the users
@@ -7498,6 +7600,7 @@ public class CustomerApiIntegrationTests
 /products CompanyManager,SalesManager,Supervisor,FinanceManager,SalesRep,ScientificRep
 /regions CompanyManager,SalesManager,Supervisor
 /reports/kpis?from=2026-10-01&to=2026-10-05 CompanyManager,SalesManager,Supervisor
+/reports/sales?from=2026-10-01&to=2026-10-05&by=warehouse CompanyManager,SalesManager,Supervisor
 /roles SalesManager
 /samples CompanyManager,SalesManager,Supervisor,SalesRep,ScientificRep
 /saved-reports CompanyManager,SalesManager,Supervisor
@@ -7559,7 +7662,7 @@ public class CustomerApiIntegrationTests
         {
             "/customers", "/customers/map", "/customer-approvals", "/visits", "/visit-plan", "/offline-reviews", "/regions", "/teams", "/places", "/products", "/orders",
             "/warehouses", "/warehouse/orders", "/warehouse/drivers", "/deliveries", "/payments", "/payments/mine", "/samples", "/followups", "/alerts", "/live-map",
-            "/tracking/users", "/reports/kpis?from=2026-10-01&to=2026-10-05", "/notifications", "/saved-reports", "/form-fields", "/audit-logs", "/users", "/roles", "/devices", "/channels", "/settings/shift-alerts",
+            "/tracking/users", "/reports/kpis?from=2026-10-01&to=2026-10-05", "/reports/sales?from=2026-10-01&to=2026-10-05&by=warehouse", "/notifications", "/saved-reports", "/form-fields", "/audit-logs", "/users", "/roles", "/devices", "/channels", "/settings/shift-alerts",
             "/platform/tenants",
         };
         var actual = new SortedDictionary<string, string>(StringComparer.Ordinal);

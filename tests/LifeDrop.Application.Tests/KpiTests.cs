@@ -37,6 +37,18 @@ public class KpiTests
         Assert.Equal(new[] { ("IQD", 300m), ("USD", 5m) }, total.ReturnTotals!.Select(t => (t.Currency, t.Total)).ToArray());
     }
 
+    // Plan step 5.74: net sales = orders minus approved returns per currency; a currency that has only returns is negative; a total adds the nets of its users.
+    [Fact]
+    public void NetSalesAreOrdersMinusApprovedReturnsPerCurrency()
+    {
+        var net = KpiReport.Net([new("IQD", 3000m), new("USD", 5m)], [new("IQD", 250m), new("EUR", 2m)]);
+        Assert.Equal(new[] { ("EUR", -2m), ("IQD", 2750m), ("USD", 5m) }, net.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(new[] { ("IQD", 3000m) }, KpiReport.Net([new("IQD", 3000m)], null).Select(t => (t.Currency, t.Total)).ToArray());
+        var a = Counts(0, 0, 0, 0, 0, 0, 0, 0, 0) with { NetSales = [new("IQD", 100m)] };
+        var b = Counts(0, 0, 0, 0, 0, 0, 0, 0, 0) with { NetSales = [new("IQD", -30m), new("USD", 1m)] };
+        Assert.Equal(new[] { ("IQD", 70m), ("USD", 1m) }, KpiReport.Sum(new List<KpiCounts> { a, b }).NetSales!.Select(t => (t.Currency, t.Total)).ToArray());
+    }
+
     [Fact]
     public void ATotalAddsNumeratorsAndDenominatorsInsteadOfAveragingRates()
     {

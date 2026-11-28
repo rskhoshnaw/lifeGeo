@@ -6,7 +6,9 @@ namespace LifeDrop.Mobile.Visits;
 public sealed record MyKpiMoney(string Currency, decimal Total);
 
 public sealed record MyKpiCounts(int VisitsPlanned, int VisitsCompleted, int VisitsFailed, int DelayBase, int DelayedVisits, int NewCustomers, int ApprovedNewCustomers, int Orders,
-    int OrdersDelivered, int OrdersDeliveryFailed, List<MyKpiMoney>? OrderTotals, int FollowUpBase, int FollowUpsOverdue);
+    int OrdersDelivered, int OrdersDeliveryFailed, List<MyKpiMoney>? OrderTotals, int FollowUpBase, int FollowUpsOverdue,
+    // Plan steps 5.73 and 5.74 (the server adds them; an older answer has none): samples given, money received (confirmed), approved returns and net sales (orders minus approved returns).
+    int Samples = 0, List<MyKpiMoney>? PaymentsConfirmed = null, List<MyKpiMoney>? PaymentsWaiting = null, int ReturnsApproved = 0, List<MyKpiMoney>? ReturnTotals = null, List<MyKpiMoney>? NetSales = null);
 
 public sealed record MyKpiRates(double? VisitCompletion, double? VisitFailure, double? Delay, double? OrderDelivery, double? FollowUpOverdue);
 
@@ -15,7 +17,8 @@ public sealed record MyKpiPeriod(string Month, MyKpiCounts Counts, MyKpiRates Ra
 // Month is "yyyy-MM"; Trend is the 12 months up to it, oldest first.
 public sealed record MyKpiData(string Month, MyKpiPeriod Current, MyKpiPeriod Previous, MyKpiPeriod LastYear, List<MyKpiPeriod>? Trend);
 
-public enum KpiKind { Count, Rate }
+// Money is a count of dinars: shown with thousands separators and compared like a count (a percentage change).
+public enum KpiKind { Count, Rate, Money }
 
 // One line of the comparison: its text key (app.kpi.*), whether it is a count or a rate, and whether more is better (completion yes, failures and delays no).
 public sealed record KpiMetric(string Id, string TextKey, KpiKind Kind, bool HigherIsBetter, Func<MyKpiPeriod, double?> Value);
@@ -33,20 +36,27 @@ public static class MyKpi
         new("orders", "app.kpi.orders", KpiKind.Count, true, p => p.Counts.Orders),
         new("delivery", "app.kpi.delivery", KpiKind.Rate, true, p => p.Rates.OrderDelivery),
         new("followups", "app.kpi.followups", KpiKind.Rate, false, p => p.Rates.FollowUpOverdue),
+        new("samples", "app.kpi.samples", KpiKind.Count, true, p => p.Counts.Samples),
+        new("moneyIqd", "app.kpi.moneyIqd", KpiKind.Money, true, p => Iqd(p.Counts.PaymentsConfirmed)),
+        new("returns", "app.kpi.returns", KpiKind.Count, false, p => p.Counts.ReturnsApproved),
+        new("netIqd", "app.kpi.netIqd", KpiKind.Money, true, p => Iqd(p.Counts.NetSales ?? p.Counts.OrderTotals)),
     ];
+
+    // The dinars in a money list (0 when there are none): the app shows the money of the dinar, which is what the visitors work in; dollars are in the panel.
+    private static double Iqd(List<MyKpiMoney>? list) => (double)(list?.Where(m => m.Currency == "IQD").Sum(m => m.Total) ?? 0m);
 
     // "12" for a count, "83.3%" for a rate, "—" when there is nothing to measure.
     public static string Format(KpiMetric metric, double? value) =>
-        value is not { } v ? "—" : metric.Kind == KpiKind.Rate ? v.ToString("0.#", CultureInfo.InvariantCulture) + "%" : v.ToString("0", CultureInfo.InvariantCulture);
+        value is not { } v ? "—" : metric.Kind == KpiKind.Rate ? v.ToString("0.#", CultureInfo.InvariantCulture) + "%" : metric.Kind == KpiKind.Money ? v.ToString("N0", CultureInfo.InvariantCulture) : v.ToString("0", CultureInfo.InvariantCulture);
 
     // The change from `baseValue` to `current`: "+12.5%" for a count (of the earlier month), "-3.2 pt" for a rate (percentage points), "—" when it cannot be worked out (no earlier
     // value, or a count that was 0). Better is true when the change is the good direction, false when it is the bad one, null when there is none.
     public static (string Text, bool? Better) Change(KpiMetric metric, double? current, double? baseValue)
     {
-        if (current is not { } now || baseValue is not { } before || (metric.Kind == KpiKind.Count && before == 0)) return ("—", null);
-        var diff = metric.Kind == KpiKind.Count ? (now - before) / before * 100 : now - before;
+        if (current is not { } now || baseValue is not { } before || (metric.Kind != KpiKind.Rate && before == 0)) return ("—", null);
+        var diff = metric.Kind != KpiKind.Rate ? (now - before) / before * 100 : now - before;
         var rounded = Math.Round(diff, 1, MidpointRounding.AwayFromZero);
-        var text = (rounded > 0 ? "+" : "") + rounded.ToString("0.#", CultureInfo.InvariantCulture) + (metric.Kind == KpiKind.Count ? "%" : " pt");
+        var text = (rounded > 0 ? "+" : "") + rounded.ToString("0.#", CultureInfo.InvariantCulture) + (metric.Kind != KpiKind.Rate ? "%" : " pt");
         return (text, rounded == 0 ? null : (rounded > 0) == metric.HigherIsBetter);
     }
 }
