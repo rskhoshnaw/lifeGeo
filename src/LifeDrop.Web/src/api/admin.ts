@@ -863,6 +863,12 @@ export interface KpiCounts {
   orderTotals: { currency: string; total: number }[]
   followUpBase: number
   followUpsOverdue: number
+  // Step 5.73: samples given, money received (confirmed / waiting for the finance manager) and approved returns, per currency. A result saved before these existed lacks them.
+  samples?: number
+  paymentsConfirmed?: { currency: string; total: number }[] | null
+  paymentsWaiting?: { currency: string; total: number }[] | null
+  returnsApproved?: number
+  returnTotals?: { currency: string; total: number }[] | null
 }
 export interface KpiRates {
   visitCompletion: number | null

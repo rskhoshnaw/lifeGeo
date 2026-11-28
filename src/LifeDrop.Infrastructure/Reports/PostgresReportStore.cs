@@ -63,8 +63,8 @@ public sealed class PostgresReportStore(NpgsqlDataSource dataSource) : IReportSt
 
     private sealed class Acc
     {
-        public int Planned, Completed, Failed, DelayBase, Delayed, NewCustomers, ApprovedNew, Orders, Delivered, DeliveryFailed, FollowBase, Overdue;
-        public List<CurrencyTotal> Totals = [];
+        public int Planned, Completed, Failed, DelayBase, Delayed, NewCustomers, ApprovedNew, Orders, Delivered, DeliveryFailed, FollowBase, Overdue, Samples, ReturnsApproved;
+        public List<CurrencyTotal> Totals = [], PayConfirmed = [], PayWaiting = [], ReturnTotals = [];
     }
 
     public async Task<IReadOnlyDictionary<Guid, KpiCounts>> CountsAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, KpiFilter filter, DateOnly today, DateTimeOffset now, CancellationToken cancellationToken)
@@ -142,9 +142,35 @@ public sealed class PostgresReportStore(NpgsqlDataSource dataSource) : IReportSt
             GROUP BY f.assignee_id
             """, c => c.Parameters.Add(P("today", NpgsqlDbType.Date, today)), r => { var a = Of(r.GetGuid(0)); a.FollowBase = r.GetInt32(1); a.Overdue = r.GetInt32(2); });
 
-        return acc.Where(p => p.Value.Planned + p.Value.DelayBase + p.Value.NewCustomers + p.Value.Orders + p.Value.FollowBase + p.Value.Totals.Count > 0)
+        // Plan step 5.73. Samples given (not voided) in the range, by who gave them.
+        await QueryAsync("""
+            SELECT s.distributed_by, count(*)::int
+            FROM sample_distributions s JOIN customers c ON c.tenant_id = s.tenant_id AND c.id = s.customer_id
+            WHERE s.tenant_id = @tenant AND s.distributed_by = ANY(@users) AND s.status = 'given' AND (s.created_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to AND (@ctype::text IS NULL OR c.type = @ctype)
+            GROUP BY s.distributed_by
+            """, _ => { }, r => Of(r.GetGuid(0)).Samples = r.GetInt32(1));
+
+        // Money the customer paid (not refunds), by who received it: confirmed by the finance manager, or still waiting for that; voided and replaced payments are not money.
+        await QueryAsync("""
+            SELECT p.received_by, p.status, p.currency, sum(p.amount)
+            FROM payments p JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
+            WHERE p.tenant_id = @tenant AND p.received_by = ANY(@users) AND p.direction = 'in' AND p.status IN ('confirmed', 'collected') AND (p.created_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to AND (@ctype::text IS NULL OR c.type = @ctype)
+            GROUP BY p.received_by, p.status, p.currency
+            """, _ => { }, r => (r.GetString(1) == "confirmed" ? Of(r.GetGuid(0)).PayConfirmed : Of(r.GetGuid(0)).PayWaiting).Add(new CurrencyTotal(r.GetString(2), r.GetDecimal(3))));
+
+        // Returns that the sales manager approved, by who wrote them, with their value per currency.
+        await QueryAsync("""
+            SELECT r.created_by, r.currency, count(*)::int, sum(r.total)
+            FROM returns r JOIN customers c ON c.tenant_id = r.tenant_id AND c.id = r.customer_id
+            WHERE r.tenant_id = @tenant AND r.created_by = ANY(@users) AND r.status = 'approved' AND (r.created_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to AND (@ctype::text IS NULL OR c.type = @ctype)
+            GROUP BY r.created_by, r.currency
+            """, _ => { }, r => { var a = Of(r.GetGuid(0)); a.ReturnsApproved += r.GetInt32(2); a.ReturnTotals.Add(new CurrencyTotal(r.GetString(1), r.GetDecimal(3))); });
+
+        static List<CurrencyTotal> Ordered(List<CurrencyTotal> list) => list.OrderBy(t => t.Currency, StringComparer.Ordinal).ToList();
+        return acc.Where(p => p.Value.Planned + p.Value.DelayBase + p.Value.NewCustomers + p.Value.Orders + p.Value.FollowBase + p.Value.Totals.Count + p.Value.Samples + p.Value.PayConfirmed.Count + p.Value.PayWaiting.Count + p.Value.ReturnsApproved > 0)
             .ToDictionary(p => p.Key, p => new KpiCounts(p.Value.Planned, p.Value.Completed, p.Value.Failed, p.Value.DelayBase, p.Value.Delayed, p.Value.NewCustomers, p.Value.ApprovedNew, p.Value.Orders,
-                p.Value.Delivered, p.Value.DeliveryFailed, p.Value.Totals.OrderBy(t => t.Currency, StringComparer.Ordinal).ToList(), p.Value.FollowBase, p.Value.Overdue));
+                p.Value.Delivered, p.Value.DeliveryFailed, p.Value.Totals.OrderBy(t => t.Currency, StringComparer.Ordinal).ToList(), p.Value.FollowBase, p.Value.Overdue,
+                p.Value.Samples, Ordered(p.Value.PayConfirmed), Ordered(p.Value.PayWaiting), p.Value.ReturnsApproved, Ordered(p.Value.ReturnTotals)));
     }
 
     public async Task<IReadOnlyList<AlertKpi>> AlertsAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, IReadOnlyList<string> categories, KpiFilter filter, CancellationToken cancellationToken)

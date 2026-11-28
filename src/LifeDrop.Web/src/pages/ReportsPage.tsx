@@ -9,6 +9,8 @@ import { t, type TextKey } from '../i18n.ts'
 const customerTypes = ['Pharmacy', 'Doctor', 'Wholesaler']
 const percent = (value: number | null) => (value === null ? t('web.reports.noValue') : `${value}%`)
 const money = (row: KpiRow) => row.counts.orderTotals.map((x) => `${x.total.toLocaleString('en-US', { maximumFractionDigits: 3 })} ${x.currency}`).join(' · ')
+// Money lists per currency (step 5.73); a result saved before they existed has none.
+const moneyOf = (list?: { currency: string; total: number }[] | null) => (list ?? []).map((x) => `${x.total.toLocaleString('en-US', { maximumFractionDigits: 3 })} ${x.currency}`).join(' · ') || '0'
 const monthStart = () => `${iraqToday().slice(0, 8)}01`
 
 // Reports and KPIs (plan step 2.12, PRD §10): a day range (Iraq days), region, team and customer type; the total, a row per user, and alerts by kind. Every number is a
@@ -51,6 +53,9 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
         { label: 'web.reports.orders', value: String(total.counts.orders), basis: money(total) },
         { label: 'web.reports.delivery', value: percent(total.rates.orderDelivery), basis: t('web.reports.of', { numerator: total.counts.ordersDelivered, denominator: total.counts.ordersDelivered + total.counts.ordersDeliveryFailed }) },
         { label: 'web.reports.followups', value: percent(total.rates.followUpOverdue), basis: t('web.reports.of', { numerator: total.counts.followUpsOverdue, denominator: total.counts.followUpBase }) },
+        { label: 'web.reports.samples', value: String(total.counts.samples ?? 0), basis: '' },
+        { label: 'web.reports.paymentsReceived', value: moneyOf(total.counts.paymentsConfirmed), basis: `${t('web.reports.waiting')}: ${moneyOf(total.counts.paymentsWaiting)}` },
+        { label: 'web.reports.returnsApproved', value: String(total.counts.returnsApproved ?? 0), basis: moneyOf(total.counts.returnTotals) },
       ]
     : []
 
@@ -121,6 +126,9 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
                 <th>{t('web.reports.orders')}</th>
                 <th>{t('web.reports.delivery')}</th>
                 <th>{t('web.reports.followups')}</th>
+                <th>{t('web.reports.samples')}</th>
+                <th>{t('web.reports.paymentsReceived')}</th>
+                <th>{t('web.reports.returnsApproved')}</th>
               </tr>
             </thead>
             <tbody>
@@ -149,6 +157,15 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
                     </td>
                     <td>
                       {percent(r.rates.followUpOverdue)} ({r.counts.followUpsOverdue}/{r.counts.followUpBase})
+                    </td>
+                    <td>{r.counts.samples ?? 0}</td>
+                    <td>
+                      {moneyOf(r.counts.paymentsConfirmed)}
+                      {(r.counts.paymentsWaiting?.length ?? 0) > 0 && <div className="text-xs font-normal text-slate-600">{t('web.reports.waiting')}: {moneyOf(r.counts.paymentsWaiting)}</div>}
+                    </td>
+                    <td>
+                      {r.counts.returnsApproved ?? 0}
+                      {(r.counts.returnTotals?.length ?? 0) > 0 && <div className="text-xs font-normal text-slate-600">{moneyOf(r.counts.returnTotals)}</div>}
                     </td>
                   </tr>
                 )

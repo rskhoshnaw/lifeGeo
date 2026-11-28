@@ -19,9 +19,16 @@ describe('KPI CSV', () => {
   it('writes one row per user and a total with the numerators next to the rates; an empty rate is an empty cell', () => {
     const lines = kpiCsv([row('rep@t1'), row('@evil')], row('x')).trimEnd().split('\r\n')
     expect(lines[0]!.startsWith('\ufeffuser,team,visits planned')).toBe(true)
-    expect(lines[1]).toBe('rep@t1,"Team, A",6,3,1,50,16.7,3,2,66.7,2,1,3,1,1,50,3000,0,3,1,')
+    expect(lines[1]).toBe('rep@t1,"Team, A",6,3,1,50,16.7,3,2,66.7,2,1,3,1,1,50,3000,0,3,1,,0,0,0,0,0,0,0,0')   // a result without the 5.73 counts writes zeros
     expect(lines[2]!.startsWith("'@evil,")).toBe(true)
     expect(lines).toHaveLength(4)
     expect(lines[3]!.startsWith('TOTAL,,6,3,1')).toBe(true)
+  })
+
+  it('has the samples, the money received and waiting, and the approved returns per currency (step 5.73)', () => {
+    const full: KpiRow = { ...row('rep@t1'), counts: { ...counts, samples: 3, paymentsConfirmed: [{ currency: 'IQD', total: 700 }, { currency: 'USD', total: 20 }], paymentsWaiting: [{ currency: 'IQD', total: 300 }], returnsApproved: 2, returnTotals: [{ currency: 'IQD', total: 250 }, { currency: 'USD', total: 5 }] } }
+    const lines = kpiCsv([full], full).trimEnd().split('\r\n')
+    expect(lines[0]!.endsWith('samples given,money received IQD,money received USD,money waiting IQD,money waiting USD,approved returns,returns total IQD,returns total USD')).toBe(true)
+    expect(lines[1]!.endsWith(',3,700,20,300,0,2,250,5')).toBe(true)
   })
 })

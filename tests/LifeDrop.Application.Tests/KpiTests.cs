@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using LifeDrop.Application.Reports;
 using Xunit;
 
@@ -17,6 +18,23 @@ public class KpiTests
         Assert.Equal((50.0, 16.7, 66.7, 50.0, 33.3), (rates.VisitCompletion, rates.VisitFailure, rates.Delay, rates.OrderDelivery, rates.FollowUpOverdue));
         var none = KpiReport.Rates(Counts(0, 0, 0, 0, 0, 0, 0, 0, 0));
         Assert.Equal(new double?[] { null, null, null, null, null }, new[] { none.VisitCompletion, none.VisitFailure, none.Delay, none.OrderDelivery, none.FollowUpOverdue });
+    }
+
+    // Plan step 5.73: samples, money received and approved returns are summed per currency in the total, and a result saved before they existed (no such fields) still reads and adds up.
+    [Fact]
+    public void TheNewCountsAddUpPerCurrencyAndAnOlderSavedResultWithoutThemStillReads()
+    {
+        var a = Counts(0, 0, 0, 0, 0, 0, 0, 0, 0) with { Samples = 2, PaymentsConfirmed = [new("IQD", 700m), new("USD", 20m)], PaymentsWaiting = [new("IQD", 300m)], ReturnsApproved = 1, ReturnTotals = [new("IQD", 250m)] };
+        var b = Counts(0, 0, 0, 0, 0, 0, 0, 0, 0) with { Samples = 1, PaymentsConfirmed = [new("IQD", 100m)], ReturnsApproved = 2, ReturnTotals = [new("IQD", 50m), new("USD", 5m)] };
+        var oldResult = System.Text.Json.JsonSerializer.Deserialize<KpiCounts>("{\"visitsPlanned\":4,\"visitsCompleted\":2,\"visitsFailed\":0,\"delayBase\":0,\"delayedVisits\":0,\"newCustomers\":0,\"approvedNewCustomers\":0,\"orders\":0,\"ordersDelivered\":0,\"ordersDeliveryFailed\":0,\"orderTotals\":[],\"followUpBase\":0,\"followUpsOverdue\":0}",
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        Assert.Equal((4, 0, 0), (oldResult.VisitsPlanned, oldResult.Samples, oldResult.ReturnsApproved));
+        Assert.Null(oldResult.PaymentsConfirmed);
+        var total = KpiReport.Sum(new List<KpiCounts> { a, b, oldResult });
+        Assert.Equal((3, 3), (total.Samples, total.ReturnsApproved));
+        Assert.Equal(new[] { ("IQD", 800m), ("USD", 20m) }, total.PaymentsConfirmed!.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(new[] { ("IQD", 300m) }, total.PaymentsWaiting!.Select(t => (t.Currency, t.Total)).ToArray());
+        Assert.Equal(new[] { ("IQD", 300m), ("USD", 5m) }, total.ReturnTotals!.Select(t => (t.Currency, t.Total)).ToArray());
     }
 
     [Fact]

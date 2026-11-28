@@ -817,3 +817,7 @@ Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves 
 
 `POST /products/{id}/city-prices` and `POST /customers/{id}/discounts` (kind `amount`) follow the currency of the product like its base price (5.66): IQD has no fraction, USD at most two decimals; otherwise 400 `INVALID_PRICE`. A percentage discount keeps its three decimals. A product that does not exist is still 404.
 
+## Step 5.73: samples, money received and returns in the KPI report
+
+`GET /reports/kpis` (and `kpi-compare`, saved report results) carry four more figures in `counts`, same filters and scope as before, no new route and no migration: `samples` (given, not voided), `paymentsConfirmed` and `paymentsWaiting` (money the customer paid, per currency, by the user who received it; refunds, voided and replaced payments are not counted), `returnsApproved` and `returnTotals` (approved returns, count and value per currency). Definitions in `docs/KPI.md`. The fields are additive: an older saved result lacks them (read as 0 / empty).
+
