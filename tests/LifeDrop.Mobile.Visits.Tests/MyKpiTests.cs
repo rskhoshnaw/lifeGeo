@@ -52,7 +52,7 @@ public class MyKpiTests
     {
         Assert.Equal(MyKpi.Metrics.Count, MyKpi.Metrics.Select(m => m.TextKey).Distinct().Count());
         var period = Period(10, 8, 80);
-        Assert.Equal(new double?[] { 10, 8, 80, null, null, 3, 4, null, null, 0, 0, 0, 0 }, MyKpi.Metrics.Select(m => m.Value(period)).ToArray());
+        Assert.Equal(new double?[] { 10, 8, 80, null, null, 3, 4, null, null, 0, 0, 0, 0, 0, 0 }, MyKpi.Metrics.Select(m => m.Value(period)).ToArray());
     }
 
     // Plan steps 5.73 / 5.74: samples, money received, approved returns and net sales (in dinars) are metrics of the page too; money has thousands separators; an answer from an older server (none of them) reads 0.
@@ -75,5 +75,25 @@ public class MyKpiTests
             MyKpi.Format(Metric("returns"), Metric("returns").Value(old)), MyKpi.Format(Metric("netIqd"), Metric("netIqd").Value(old))));
         // every metric has its text in the language files (the tests run in English)
         foreach (var metric in MyKpi.Metrics) Assert.False(string.IsNullOrWhiteSpace(LifeDrop.Mobile.Localization.Texts.Get(metric.TextKey)), metric.Id);
+    }
+
+    // Plan step 5.75: dollars (money received and net sales) are lines of the page only for a visitor who has some in a month of the page; two decimals.
+    [Fact]
+    public void DollarLinesAreShownOnlyWhenSomeMonthHasDollars()
+    {
+        var dinars = new MyKpiCounts(10, 8, 0, 0, 0, 3, 3, 4, 2, 0, [new("IQD", 3000m)], 0, 0, 3, [new("IQD", 1000m)]);
+        var rates = new MyKpiRates(80, null, null, null, null);
+        MyKpiPeriod Period(MyKpiCounts counts) => new("2026-11", counts, rates);
+        var onlyDinars = new MyKpiData("2026-11", Period(dinars), Period(dinars), Period(dinars), [Period(dinars)]);
+        Assert.DoesNotContain(MyKpi.Visible(onlyDinars), m => m.Id is "moneyUsd" or "netUsd");
+        Assert.Contains(MyKpi.Visible(onlyDinars), m => m.Id == "moneyIqd");                         // the dinar lines are always there
+
+        var dollars = dinars with { PaymentsConfirmed = [new("IQD", 1000m), new("USD", 1250.5m)], OrderTotals = [new("USD", 300m)], NetSales = [new("USD", 300m)] };
+        var lastMonthOnly = new MyKpiData("2026-11", Period(dinars), Period(dollars), Period(dinars), null);   // dollars in the month before show the lines too
+        Assert.Contains(MyKpi.Visible(lastMonthOnly), m => m.Id == "moneyUsd");
+        var shown = new MyKpiData("2026-11", Period(dollars), Period(dinars), Period(dinars), null);
+        Assert.Equal("1,250.50", MyKpi.Format(Metric("moneyUsd"), Metric("moneyUsd").Value(Period(dollars))));
+        Assert.Equal("300.00", MyKpi.Format(Metric("netUsd"), Metric("netUsd").Value(Period(dollars))));
+        Assert.Equal(new[] { "moneyUsd", "netUsd" }, MyKpi.Visible(shown).Where(m => m.OnlyWhenUsed).Select(m => m.Id).ToArray());
     }
 }
