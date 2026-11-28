@@ -39,3 +39,9 @@
 - **Privacy / iOS:** `src/LifeDrop.Web/public/privacy.html`, `Platforms/iOS/Info.plist`, `Platforms/iOS/Resources/PrivacyInfo.xcprivacy`, `docs/IOS.md`; test `Application.Tests/IosPrivacyFilesTests.cs`.
 - **Release and deploy:** `.github/workflows/ios.yml` (+ `scripts/ci/ios/*`, `distribute_testflight.py` with its unit test), `android-release.yml`, `docs/ANDROID.md`, `docs/IOS.md`; server `deploy/update.sh`, `backup.sh`, `backup-offsite.sh`, `restore-test.sh`, `stock-report.sh`, `device-report.sh` (all read `deploy/lib.sh`; they run psql inside the db container).
 - **Guards:** `tests/LifeDrop.Database.Tests/GrantsCoverageTests.cs` (grants), `DeploymentRehearsalTests.cs` (restricted DB role, needs `TEST_SUPERUSER_DATABASE_URL`), OpenAPI snapshot `docs/api/openapi-v1.json` (regenerate with `UPDATE_OPENAPI_SNAPSHOT=1`).
+
+## Deploy and load test (steps 5.68, 5.70)
+- `deploy/` — `update.sh` (pull, backup, migrate, rebuild, health), `backup.sh` / `backup-offsite.sh` / `restore-test.sh` / `backup-status.sh` (status files in the backup folder), `setup-db.sh`, `lib.sh`; tests `deploy/tests/backup-scripts.sh` (real Postgres + PostGIS).
+- `scripts/perf/` — `seed-load.sql` (150 visitors), `scenario.mjs` (a field day against a test API, `--speed` multiplies the load), `load.mjs` (one route), `README.md` (how to run, results).
+- Warehouse of a city (5.67): `Orders/OrderOperations.cs` (`CityWarehouseOfCustomerAsync`, `WarehouseAllowedForOrderAsync`, `SetWarehouseCitiesAsync`), panel `OrdersPage.tsx` (`WarehousesPage`, `WarehouseCities`), money typed by people: panel `pages/moneyInput.ts`, app `Mobile.Visits/MoneyInput.cs`, server `MoneyRules` (`Catalog/CatalogOperations.cs`).
+
