@@ -89,16 +89,17 @@ expect_fail "a damaged dump" "$DEPLOY/restore-test.sh" "$WORK/damaged.dump"
 ok "restore-test.sh fails on a damaged dump"
 
 # 5. backup.sh refuses a dump command that fails and says so in the status
+good_dump_cmd="$DUMP_CMD"
 export DUMP_CMD="false"
 expect_fail "a failing dump" "$DEPLOY/backup.sh"
 [ -f "$BACKUP_DIR/last-local-failed" ] || die "no failure status after a failed backup"
-export DUMP_CMD="pg_dump -Fc $LIFEDROP_DB_NAME"
+export DUMP_CMD="$good_dump_cmd"
 ok "a failed backup is recorded"
 
 # 6. backup-status.sh: failure newer than the good copy is a problem; a fresh good copy clears it; an old one is a problem
 set +e; "$DEPLOY/backup-status.sh" >"$WORK/out" 2>&1; rc=$?; set -e
 [ "$rc" = 1 ] && has "the last try failed" || die "backup-status.sh should report the failed try (rc=$rc)"
-"$DEPLOY/backup.sh" >/dev/null 2>&1
+"$DEPLOY/backup.sh" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "backup.sh failed after the failed try"; }
 "$DEPLOY/backup-status.sh" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "backup-status.sh should be fine after a good backup"; }
 has "ok       local dump"; has "off-site copy is not set up"
 echo "$(( $(date +%s) - 3 * 86400 )) old copy" > "$BACKUP_DIR/last-local-ok"
@@ -107,7 +108,7 @@ has "hours old"
 rm -f "$BACKUP_DIR/last-local-ok"
 expect_fail "no copy" "$DEPLOY/backup-status.sh"
 has "no good copy has been made yet"
-"$DEPLOY/backup.sh" >/dev/null 2>&1
+"$DEPLOY/backup.sh" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "backup.sh failed"; }
 ok "backup-status.sh reports failures, old copies and missing copies"
 
 # 7. backup-offsite.sh with stand-ins for age and rclone: a good run is recorded, a failing upload is not counted as good
