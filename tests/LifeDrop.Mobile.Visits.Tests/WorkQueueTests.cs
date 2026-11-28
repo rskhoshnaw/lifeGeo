@@ -39,6 +39,29 @@ public class WorkQueueTests
     private static readonly DateTimeOffset Start = new(2026, 10, 5, 6, 0, 0, TimeSpan.Zero);
     private static OrderPayload Payload() => new(Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), null, new[] { new OrderLineInput(Guid.NewGuid(), 2m) });
 
+    // Plan step 5.71: an order written without internet names no warehouse; when no warehouse serves the customer's city yet the server refuses it with its own answer, the phone shows
+    // what to do, and "retry" sends the very same order (same reference) once the manager has set the warehouse of that city.
+    [Fact]
+    public async Task AnOrderWithoutAWarehouseWaitsForTheCityWarehouseAndIsSentAgainWithItsReference()
+    {
+        var queue = new WorkQueue(new Clock(Start), new Memory());
+        var payload = new OrderPayload(Guid.NewGuid(), null, null, Guid.NewGuid(), null, new[] { new OrderLineInput(Guid.NewGuid(), 1m) });
+        var item = queue.Enqueue(WorkKind.Order, "order without a warehouse", payload);
+        Assert.Null(WorkQueue.Deserialize<OrderPayload>(item.PayloadJson)!.WarehouseId);   // nothing was chosen on the phone
+        var executor = new Executor { Answers = { ["order without a warehouse"] = VisitActionResult.NoCityWarehouse } };
+        Assert.True(await queue.SyncAsync(executor));
+        Assert.Equal(new WorkCounts(0, 1, 0), queue.Counts);                                // refused, kept for the user
+        var refused = queue.Items.Single();
+        Assert.Equal(VisitActionResult.NoCityWarehouse, refused.Answer);
+        Assert.Contains("Ask your manager to set the warehouse of this city", VisitLifecycle.Describe(refused.Answer!.Value));   // the tests run in English
+        executor.Answers.Clear();                                                            // the manager set the warehouse of the city
+        Assert.True(queue.Retry(refused.Id));
+        Assert.True(await queue.SyncAsync(executor));
+        Assert.Equal(new WorkCounts(0, 0, 1), queue.Counts);
+        Assert.Equal(2, executor.Sent.Count);
+        Assert.Equal(payload.ClientRef, WorkQueue.Deserialize<OrderPayload>(queue.Items.Single().PayloadJson)!.ClientRef);   // the same order, so a lost answer never makes two
+    }
+
     [Fact]
     public async Task ItemsAreSentInTheOrderTheyWereMadeAndAreSavedAfterEveryChange()
     {

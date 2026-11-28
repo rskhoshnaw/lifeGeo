@@ -11952,10 +11952,16 @@
   "fa": "اتصال {name} به مشتری مذخر"
  },
  "app.result.WarehouseNotAllowed": {
-  "en": "This warehouse is not in your cities (any more), so the order was not accepted. Open the order, choose a warehouse of your cities and send it again, or remove it.",
-  "ckb": "ئەم کۆگایە لە شارەکانی تۆدا نییە (چیتر)، بۆیە داواکاری قبوڵ نەکرا. داواکارییەکە بکەرەوە، کۆگایەکی شارەکانی خۆت هەڵبژێرە و دووبارە بینێرە، یان بیسڕەوە.",
-  "ar": "هذا المخزن ليس ضمن مدنك (بعد الآن)، لذلك لم يُقبل الطلب. افتح الطلب واختر مخزنًا من مدنك وأرسله مرة أخرى، أو احذفه.",
-  "fa": "این انبار در شهرهای شما نیست (دیگر نیست)، برای همین سفارش پذیرفته نشد. سفارش را باز کنید، انباری از شهرهای خودتان انتخاب کنید و دوباره بفرستید، یا آن را حذف کنید."
+  "en": "This is not the warehouse of the customer's city, so the order was not accepted. Remove it and write it again with the warehouse that is offered for this customer.",
+  "ckb": "ئەمە کۆگای شاری کڕیار نییە، بۆیە داواکاری قبوڵ نەکرا. بیسڕەوە و دووبارە بینووسەوە بە کۆگای ئەو کۆگایەی بۆ ئەم کڕیارە پێشنیار دەکرێت.",
+  "ar": "هذا ليس مخزن مدينة العميل، لذلك لم يُقبل الطلب. احذفه واكتبه من جديد مع المخزن المقترح لهذا العميل.",
+  "fa": "این انبارِ شهر مشتری نیست، برای همین سفارش پذیرفته نشد. آن را حذف کنید و دوباره با انباری که برای این مشتری پیشنهاد می‌شود بنویسید."
+ },
+ "app.result.NoCityWarehouse": {
+  "en": "No warehouse serves this customer's city yet, so the order was not accepted. Ask your manager to set the warehouse of this city, then press Retry.",
+  "ckb": "هێشتا هیچ کۆگایەک خزمەتی شاری ئەم کڕیارە ناکات، بۆیە داواکاری قبوڵ نەکرا. لە بەڕێوەبەرەکەت بخوازە کۆگای ئەم شارە دیاری بکات، پاشان «دووبارە هەوڵ بدەرەوە» بکە.",
+  "ar": "لا يوجد مخزن يخدم مدينة هذا العميل بعد، لذلك لم يُقبل الطلب. اطلب من مديرك تحديد مخزن هذه المدينة ثم اضغط إعادة المحاولة.",
+  "fa": "هنوز انباری برای شهر این مشتری تعیین نشده، برای همین سفارش پذیرفته نشد. از مدیرتان بخواهید انبار این شهر را مشخص کند، سپس «تلاش دوباره» را بزنید."
  },
  "web.money.decimals": {
   "en": "This amount has too many decimals for {currency}. Dinars (IQD) have none (10.440 and 10,440 both mean 10440); dollars (USD) have two.",
@@ -12034,6 +12040,18 @@
   "ckb": "شارەکان: {cities}",
   "ar": "المدن: {cities}",
   "fa": "شهرها: {cities}"
+ },
+ "web.error.warehouseNotAllowed": {
+  "en": "This is not the warehouse of the customer's city. Choose the warehouse that is offered for this customer.",
+  "ckb": "ئەمە کۆگای شاری کڕیار نییە. ئەو کۆگایە هەڵبژێرە کە بۆ ئەم کڕیارە پێشنیار دەکرێت.",
+  "ar": "هذا ليس مخزن مدينة العميل. اختر المخزن المقترح لهذا العميل.",
+  "fa": "این انبارِ شهر مشتری نیست. انباری را انتخاب کنید که برای این مشتری پیشنهاد می‌شود."
+ },
+ "web.error.noCityWarehouse": {
+  "en": "No warehouse serves this customer's city yet. Set the warehouse of the city in Warehouses ← Cities, then try again.",
+  "ckb": "هێشتا هیچ کۆگایەک خزمەتی شاری ئەم کڕیارە ناکات. لە کۆگاکان ← شارەکان کۆگای شارەکە دیاری بکە، پاشان دووبارە هەوڵ بدەرەوە.",
+  "ar": "لا يوجد مخزن يخدم مدينة هذا العميل بعد. حدّد مخزن المدينة من المستودعات ← المدن ثم حاول مرة أخرى.",
+  "fa": "هنوز انباری برای شهر این مشتری تعیین نشده. انبار شهر را در انبارها ← شهرها مشخص کنید و دوباره تلاش کنید."
  },
  "web.tab.warehouses": {
   "en": "Warehouses",

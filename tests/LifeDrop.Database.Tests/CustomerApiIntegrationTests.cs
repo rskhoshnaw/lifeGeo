@@ -5719,7 +5719,7 @@ public class CustomerApiIntegrationTests
         Assert.Equal(w1, await WarehouseOfOrder(await Order(cN, null)));
         Assert.Equal(w2, await WarehouseOfOrder(await Order(cC, w2)));
         await AssertProblemAsync(await Order(cN, w2), HttpStatusCode.Conflict, "WAREHOUSE_NOT_ALLOWED");
-        await AssertProblemAsync(await Order(cNone, null), HttpStatusCode.BadRequest, "INVALID_DATA");
+        await AssertProblemAsync(await Order(cNone, null), HttpStatusCode.Conflict, "NO_CITY_WAREHOUSE");   // its own answer (5.71): the phone shows what to do
         Assert.Equal(w2, await WarehouseOfOrder(await Order(cNone, w2)));
 
         // The sales manager (orders.anywarehouse) may send it to another company warehouse, and sees all of them

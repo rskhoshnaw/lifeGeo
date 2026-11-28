@@ -811,7 +811,7 @@ Migration 0085: `city_warehouses` (a city has one warehouse, a warehouse serves 
 | `GET /warehouses/for-order?customerId=` | `orders.create` | Wholesalers of the caller's cities as before. Company warehouses: all with `orders.anywarehouse`; else only the warehouse of the customer's city (marked `isDefault`, first), and when the customer has no city or the city has no warehouse the company warehouses of the caller's cities (5.59). Without `customerId` the old list | — |
 | `GET /city-warehouses` | `warehouses.manage` | `[{cityId, cityName, warehouseId, warehouseName}]` | — |
 | `PUT /warehouses/{id}/cities` | `warehouses.manage` | Body `{cityIds}`: the warehouse serves exactly these cities (a city that another warehouse served moves here; an empty list frees them). 204; 400 not a city or not a company warehouse; 404 | `warehouse.cities_set` |
-| `POST /orders` | `orders.create` | `warehouseId` is optional now: without it the order goes to the warehouse of the customer's city (400 `INVALID_DATA` when there is none). A company warehouse other than that one: 409 `WAREHOUSE_NOT_ALLOWED` unless the caller has `orders.anywarehouse`. The customer's city is the place of kind city at or above his place | `order.placed` |
+| `POST /orders` | `orders.create` | `warehouseId` is optional now: without it the order goes to the warehouse of the customer's city (409 `NO_CITY_WAREHOUSE` when there is none, step 5.71; before: 400 `INVALID_DATA`). A company warehouse other than that one: 409 `WAREHOUSE_NOT_ALLOWED` unless the caller has `orders.anywarehouse`. The customer's city is the place of kind city at or above his place | `order.placed` |
 
 ## Step 5.69: decimals of city prices and discount amounts
 

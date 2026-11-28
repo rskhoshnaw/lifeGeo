@@ -46,7 +46,7 @@ internal sealed class OrdersHttp(HttpClient httpClient, IAuthSession session)
                 HttpStatusCode.NotFound => VisitActionResult.NotFound,
                 HttpStatusCode.BadRequest => code switch { "CURRENCY_MISMATCH" => VisitActionResult.CurrencyMismatch, "WRONG_PASSWORD" => VisitActionResult.WrongPassword, _ => VisitActionResult.InvalidData },
                 HttpStatusCode.UnprocessableEntity => code == "GPS_MOCKED" ? VisitActionResult.GpsMocked : VisitActionResult.ServerError,
-                HttpStatusCode.Conflict => code switch { "CUSTOMER_NOT_APPROVED" => VisitActionResult.CustomerNotApproved, "OUT_OF_STOCK" => VisitActionResult.OutOfStock, "RETURN_TOO_MUCH" => VisitActionResult.ReturnTooMuch, "WAREHOUSE_NOT_ALLOWED" => VisitActionResult.WarehouseNotAllowed, _ => VisitActionResult.Conflict },
+                HttpStatusCode.Conflict => code switch { "CUSTOMER_NOT_APPROVED" => VisitActionResult.CustomerNotApproved, "OUT_OF_STOCK" => VisitActionResult.OutOfStock, "RETURN_TOO_MUCH" => VisitActionResult.ReturnTooMuch, "WAREHOUSE_NOT_ALLOWED" => VisitActionResult.WarehouseNotAllowed, "NO_CITY_WAREHOUSE" => VisitActionResult.NoCityWarehouse, _ => VisitActionResult.Conflict },
                 _ => VisitActionResult.ServerError
             }, default);
         }

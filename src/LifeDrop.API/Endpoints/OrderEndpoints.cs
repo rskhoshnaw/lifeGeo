@@ -359,6 +359,7 @@ public static class OrderEndpoints
         OrderResult.CustomerNotApproved => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.CustomerNotApproved),
         OrderResult.OutOfStock => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.OutOfStock),
         OrderResult.WarehouseNotAllowed => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.WarehouseNotAllowed),
+        OrderResult.NoCityWarehouse => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.NoCityWarehouse),
         OrderResult.Conflict => ApiErrors.Problem(StatusCodes.Status409Conflict, ApiErrors.Conflict),
         OrderResult.GpsMocked => ApiErrors.Problem(StatusCodes.Status422UnprocessableEntity, ApiErrors.GpsMocked),
         _ => Results.Forbid()

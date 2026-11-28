@@ -51,6 +51,8 @@ public enum VisitActionResult
     ReturnTooMuch,
     // Plan step 5.60: the warehouse of an order is not in the user's cities (any more).
     WarehouseNotAllowed,
+    // Plan step 5.71: no warehouse serves the city of the customer (or he has no city) and the order names none.
+    NoCityWarehouse,
     // Plan step 4.46: the current password given when changing one's own password is wrong.
     WrongPassword
 }
