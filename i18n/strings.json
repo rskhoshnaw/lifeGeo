@@ -12149,6 +12149,48 @@
   "ar": "صافي المبيعات (دولار)",
   "fa": "فروش خالص (دلار)"
  },
+ "web.targets.mode": {
+  "en": "Targets of",
+  "ckb": "ئامانجی",
+  "ar": "أهداف",
+  "fa": "هدف"
+ },
+ "web.targets.modeVisitors": {
+  "en": "Visitors",
+  "ckb": "ڤیزیتۆرەکان",
+  "ar": "الزوّار",
+  "fa": "ویزیتورها"
+ },
+ "web.targets.modeCities": {
+  "en": "Cities",
+  "ckb": "شارەکان",
+  "ar": "المدن",
+  "fa": "شهرها"
+ },
+ "web.targets.byCity": {
+  "en": "By city",
+  "ckb": "بەپێی شار",
+  "ar": "حسب المدينة",
+  "fa": "بر اساس شهر"
+ },
+ "web.targets.city": {
+  "en": "City",
+  "ckb": "شار",
+  "ar": "المدينة",
+  "fa": "شهر"
+ },
+ "web.targets.chooseCity": {
+  "en": "Choose a city",
+  "ckb": "شارێک هەڵبژێرە",
+  "ar": "اختر مدينة",
+  "fa": "یک شهر انتخاب کنید"
+ },
+ "web.targets.setCity": {
+  "en": "Set the target of a city for {month} (what was delivered to the customers of the city counts, whoever placed the orders)",
+  "ckb": "ئامانجی شارێک دابنێ بۆ {month} (ئەوەی گەیەندراوە بە کڕیارانی شارەکە دەژمێردرێت، هەرکەسێک داواکارییەکانی دابێت)",
+  "ar": "حدّد هدف مدينة لشهر {month} (يُحسب ما سُلّم لعملاء المدينة، أيًّا كان من قدّم الطلبات)",
+  "fa": "هدف یک شهر را برای {month} تعیین کنید (آنچه به مشتری‌های شهر تحویل شده حساب می‌شود، هر کسی که سفارش را ثبت کرده باشد)"
+ },
  "web.tab.warehouses": {
   "en": "Warehouses",
   "ckb": "کۆگاکان",

@@ -798,6 +798,17 @@ export interface TargetRow {
   target: number | null
   actual: number
 }
+// A city and a product of a month (step 5.76): the target and what was delivered to the customers of the city, whoever placed the orders.
+export interface CityTargetRow {
+  cityId: string
+  cityName: string | null
+  productId: string
+  productCode: string
+  productName: string
+  unit: string
+  target: number | null
+  actual: number
+}
 
 // A day of a month on which the user had a shift, with the points still kept for it (plan step 5.4).
 export interface RouteDay {
@@ -1654,6 +1665,9 @@ export class AdminApi {
   // month: any date of the month, for example 2026-10-01.
   // month: any date of the month, for example 2026-10-01.
   targets = (month: string) => this.get<TargetRow[]>(`/targets?month=${month}`)
+  // Step 5.76: the targets of cities (the whole-company managers and readers only); quantity null or 0 clears.
+  cityTargets = (month: string) => this.get<CityTargetRow[]>(`/targets/cities?month=${month}`)
+  setCityTarget = (cityId: string, productId: string, month: string, quantity: number | null) => this.send('PUT', '/targets/cities', { cityId, productId, month, quantity })
   // quantity null or 0 clears the target.
   setTarget = (userId: string, productId: string, month: string, quantity: number | null) => this.send('PUT', '/targets', { userId, productId, month, quantity })
   routeDays = (userId: string, month: string) => this.get<RouteDay[]>(`/tracking/days?userId=${userId}&month=${month}`)

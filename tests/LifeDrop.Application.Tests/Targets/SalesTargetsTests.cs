@@ -91,9 +91,38 @@ public class SalesTargetsTests
         Assert.Equal(TargetResult.Forbidden, (await service.MineAsync(new TenantId(Tenant), default, new DateOnly(2026, 10, 9), CancellationToken.None)).Result);
     }
 
+    // Plan step 5.76: the targets of cities belong to the whole company, so a reader or manager limited to a region (a supervisor) may not set or read them.
+    [Fact]
+    public async Task TheTargetsOfCitiesNeedTheWholeCompanyScope()
+    {
+        var store = new Store();
+        var tenant = new TenantId(Tenant);
+        var month = new DateOnly(2026, 10, 17);
+        var city = Guid.NewGuid();
+        Assert.Equal(TargetResult.Forbidden, await Service(store, null).SetCityAsync(tenant, new UserId(Actor), new SetCityTargetRequest(city, Product, month, 10), CancellationToken.None));
+        Assert.Equal(TargetResult.Forbidden, await Service(store, DataScope.Region).SetCityAsync(tenant, new UserId(Actor), new SetCityTargetRequest(city, Product, month, 10), CancellationToken.None));
+        Assert.Equal(TargetResult.Forbidden, await Service(store, DataScope.Own).SetCityAsync(tenant, new UserId(Actor), new SetCityTargetRequest(city, Product, month, 10), CancellationToken.None));
+        Assert.Empty(store.CitySets);
+        Assert.Equal(TargetResult.Success, await Service(store, DataScope.Tenant).SetCityAsync(tenant, new UserId(Actor), new SetCityTargetRequest(city, Product, month, 10), CancellationToken.None));
+        Assert.Equal((new DateOnly(2026, 10, 1), 10m), (store.CitySets[0].Month, store.CitySets[0].Quantity));   // any date of the month names the month
+        Assert.Equal(TargetResult.Success, await Service(store, DataScope.Tenant).SetCityAsync(tenant, new UserId(Actor), new SetCityTargetRequest(city, Product, month, 0), CancellationToken.None));
+        Assert.Null(store.CitySets[1].Quantity);                                                                 // 0 clears
+        foreach (var bad in new[] { new SetCityTargetRequest(Guid.Empty, Product, month, 5), new SetCityTargetRequest(city, Guid.Empty, month, 5), new SetCityTargetRequest(city, Product, month, -1),
+                     new SetCityTargetRequest(city, Product, month, SalesTargets.MaxQuantity + 1), new SetCityTargetRequest(city, Product, new DateOnly(2030, 1, 1), 5) })
+            Assert.Equal(TargetResult.InvalidData, await Service(store, DataScope.Tenant).SetCityAsync(tenant, new UserId(Actor), bad, CancellationToken.None));
+
+        Assert.Equal(TargetResult.Forbidden, (await Service(store, null, DataScope.Region).ListCitiesAsync(tenant, new UserId(Actor), month, CancellationToken.None)).Result);
+        Assert.Equal(TargetResult.Forbidden, (await Service(store, null).ListCitiesAsync(tenant, new UserId(Actor), month, CancellationToken.None)).Result);
+        var (result, _) = await Service(store, null, DataScope.Tenant).ListCitiesAsync(tenant, new UserId(Actor), month, CancellationToken.None);
+        Assert.Equal(TargetResult.Success, result);
+        Assert.Equal(new DateTimeOffset(2026, 9, 30, 21, 0, 0, TimeSpan.Zero), store.From!.Value.ToUniversalTime());    // 1 October 00:00 in Iraq
+        Assert.Equal(TargetResult.InvalidData, (await Service(store, null, DataScope.Tenant).ListCitiesAsync(tenant, new UserId(Actor), new DateOnly(2030, 1, 1), CancellationToken.None)).Result);
+    }
+
     private sealed class Store : ITargetStore
     {
         public List<(Guid User, Guid Product, DateOnly Month, decimal? Quantity)> Sets { get; } = [];
+        public List<(Guid City, Guid Product, DateOnly Month, decimal? Quantity)> CitySets { get; } = [];
         public AccessScope? ListScope;
         public DateOnly? ListMonth;
         public DateTimeOffset? From, To;
@@ -102,6 +131,18 @@ public class SalesTargetsTests
         {
             Sets.Add((userId, productId, month, quantity));
             return Task.FromResult(TargetResult.Success);
+        }
+
+        public Task<TargetResult> SetCityAsync(TenantId tenantId, UserId actorId, Guid cityId, Guid productId, DateOnly month, decimal? quantity, CancellationToken cancellationToken)
+        {
+            CitySets.Add((cityId, productId, month, quantity));
+            return Task.FromResult(TargetResult.Success);
+        }
+
+        public Task<IReadOnlyList<CityTargetRowDto>> ListCitiesAsync(TenantId tenantId, DateOnly month, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+        {
+            (ListMonth, From, To) = (month, from, to);
+            return Task.FromResult<IReadOnlyList<CityTargetRowDto>>([]);
         }
 
         public Task<IReadOnlyList<TargetRowDto>> ListAsync(TenantId tenantId, AccessScope scope, DateOnly month, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
