@@ -52,6 +52,28 @@ public class MyKpiTests
     {
         Assert.Equal(MyKpi.Metrics.Count, MyKpi.Metrics.Select(m => m.TextKey).Distinct().Count());
         var period = Period(10, 8, 80);
-        Assert.Equal(new double?[] { 10, 8, 80, null, null, 3, 4, null, null }, MyKpi.Metrics.Select(m => m.Value(period)).ToArray());
+        Assert.Equal(new double?[] { 10, 8, 80, null, null, 3, 4, null, null, 0, 0, 0, 0 }, MyKpi.Metrics.Select(m => m.Value(period)).ToArray());
+    }
+
+    // Plan steps 5.73 / 5.74: samples, money received, approved returns and net sales (in dinars) are metrics of the page too; money has thousands separators; an answer from an older server (none of them) reads 0.
+    [Fact]
+    public void SamplesMoneyReturnsAndNetSalesAreMetricsAndAnOlderAnswerReadsZero()
+    {
+        var counts = new MyKpiCounts(10, 8, 0, 0, 0, 3, 3, 4, 2, 0, [new("IQD", 3000m), new("USD", 5m)], 0, 0, 3, [new("IQD", 1250000m), new("USD", 20m)], [new("IQD", 300m)], 2, [new("IQD", 250m)], [new("IQD", 2750m), new("USD", 0m)]);
+        var period = new MyKpiPeriod("2026-11", counts, new MyKpiRates(80, null, null, null, null));
+        Assert.Equal("3", MyKpi.Format(Metric("samples"), Metric("samples").Value(period)));
+        Assert.Equal("1,250,000", MyKpi.Format(Metric("moneyIqd"), Metric("moneyIqd").Value(period)));   // only the dinars, with thousands separators
+        Assert.Equal("2", MyKpi.Format(Metric("returns"), Metric("returns").Value(period)));
+        Assert.Equal("2,750", MyKpi.Format(Metric("netIqd"), Metric("netIqd").Value(period)));
+        Assert.False(Metric("returns").HigherIsBetter);                                                // more returns is worse
+        // money changes like a count: a percentage of the earlier month, and no change can be worked out from 0
+        Assert.Equal(("+10%", (bool?)true), MyKpi.Change(Metric("moneyIqd"), 1100, 1000));
+        Assert.Equal(("—", (bool?)null), MyKpi.Change(Metric("moneyIqd"), 1100, 0));
+        // an older server sends none of the new fields: they read as 0, and net sales fall back to the orders
+        var old = new MyKpiPeriod("2026-11", new MyKpiCounts(10, 8, 0, 0, 0, 3, 3, 4, 2, 0, [new("IQD", 3000m)], 0, 0), new MyKpiRates(null, null, null, null, null));
+        Assert.Equal(("0", "0", "0", "3,000"), (MyKpi.Format(Metric("samples"), Metric("samples").Value(old)), MyKpi.Format(Metric("moneyIqd"), Metric("moneyIqd").Value(old)),
+            MyKpi.Format(Metric("returns"), Metric("returns").Value(old)), MyKpi.Format(Metric("netIqd"), Metric("netIqd").Value(old))));
+        // every metric has its text in the language files (the tests run in English)
+        foreach (var metric in MyKpi.Metrics) Assert.False(string.IsNullOrWhiteSpace(LifeDrop.Mobile.Localization.Texts.Get(metric.TextKey)), metric.Id);
     }
 }

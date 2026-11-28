@@ -170,7 +170,70 @@ public sealed class PostgresReportStore(NpgsqlDataSource dataSource) : IReportSt
         return acc.Where(p => p.Value.Planned + p.Value.DelayBase + p.Value.NewCustomers + p.Value.Orders + p.Value.FollowBase + p.Value.Totals.Count + p.Value.Samples + p.Value.PayConfirmed.Count + p.Value.PayWaiting.Count + p.Value.ReturnsApproved > 0)
             .ToDictionary(p => p.Key, p => new KpiCounts(p.Value.Planned, p.Value.Completed, p.Value.Failed, p.Value.DelayBase, p.Value.Delayed, p.Value.NewCustomers, p.Value.ApprovedNew, p.Value.Orders,
                 p.Value.Delivered, p.Value.DeliveryFailed, p.Value.Totals.OrderBy(t => t.Currency, StringComparer.Ordinal).ToList(), p.Value.FollowBase, p.Value.Overdue,
-                p.Value.Samples, Ordered(p.Value.PayConfirmed), Ordered(p.Value.PayWaiting), p.Value.ReturnsApproved, Ordered(p.Value.ReturnTotals)));
+                p.Value.Samples, Ordered(p.Value.PayConfirmed), Ordered(p.Value.PayWaiting), p.Value.ReturnsApproved, Ordered(p.Value.ReturnTotals),
+                KpiReport.Net(p.Value.Totals, p.Value.ReturnTotals)));
+    }
+
+    // Plan step 5.74. The city of a customer is the place of kind city at or above his place (the same rule as the price of a city and the warehouse of a city).
+    private const string CityOfCustomer = """
+        WITH RECURSIVE up AS (
+            SELECT c.id AS customer_id, p.id AS place_id, p.parent_id, p.kind, p.name FROM customers c JOIN places p ON p.tenant_id = c.tenant_id AND p.id = c.place_id WHERE c.tenant_id = @tenant
+            UNION ALL
+            SELECT up.customer_id, p.id, p.parent_id, p.kind, p.name FROM places p JOIN up ON p.tenant_id = @tenant AND p.id = up.parent_id),
+        city AS (SELECT customer_id, place_id AS city_id, name FROM up WHERE kind = 'city')
+        """;
+
+    public async Task<IReadOnlyList<SalesRow>> SalesAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, KpiFilter filter, string by, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, cancellationToken);
+        var users = userIds.ToArray();
+        var warehouse = by == "warehouse";
+        var cte = warehouse ? "" : CityOfCustomer;
+        string Key(string table) => warehouse ? $"{table}.warehouse_id" : "ct.city_id";
+        string Name() => warehouse ? "w.name" : "ct.name";
+        string Join(string table, string customer) => warehouse ? $"LEFT JOIN warehouses w ON w.tenant_id = {table}.tenant_id AND w.id = {table}.warehouse_id" : $"LEFT JOIN city ct ON ct.customer_id = {table}.{customer}";
+        var rows = new Dictionary<Guid, (string? Name, int Orders, int Delivered, List<CurrencyTotal> OrderTotals, int Returns, List<CurrencyTotal> ReturnTotals)>();
+        (string? Name, int Orders, int Delivered, List<CurrencyTotal> OrderTotals, int Returns, List<CurrencyTotal> ReturnTotals) Of(Guid? id, string? name)
+        {
+            var key = id ?? Guid.Empty;
+            if (!rows.TryGetValue(key, out var row)) rows[key] = row = (name, 0, 0, [], 0, []);
+            return row;
+        }
+        async Task QueryAsync(string sql, Action<NpgsqlDataReader> read)
+        {
+            await using var command = new NpgsqlCommand(sql, connection, transaction);
+            AddFilter(command, tenantId, filter, users);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) read(reader);
+        }
+        Guid? Id(NpgsqlDataReader r) => r.IsDBNull(0) ? null : r.GetGuid(0);
+        string? NameOf(NpgsqlDataReader r) => r.IsDBNull(1) ? null : r.GetString(1);
+        const string OrderWhere = "o.tenant_id = @tenant AND o.created_by = ANY(@users) AND o.status <> 'cancelled' AND (o.created_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to AND (@ctype::text IS NULL OR c.type = @ctype)";
+        const string ReturnWhere = "r.tenant_id = @tenant AND r.created_by = ANY(@users) AND r.status = 'approved' AND (r.created_at AT TIME ZONE 'Asia/Baghdad')::date BETWEEN @from AND @to AND (@ctype::text IS NULL OR c.type = @ctype)";
+
+        await QueryAsync($"""
+            {cte}
+            SELECT {Key("o")}, {Name()}, count(*)::int, count(*) FILTER (WHERE o.status = 'delivered')::int
+            FROM orders o JOIN customers c ON c.tenant_id = o.tenant_id AND c.id = o.customer_id {Join("o", "customer_id")}
+            WHERE {OrderWhere} GROUP BY 1, 2
+            """, r => { var row = Of(Id(r), NameOf(r)); rows[Id(r) ?? Guid.Empty] = row with { Orders = r.GetInt32(2), Delivered = r.GetInt32(3) }; });
+        await QueryAsync($"""
+            {cte}
+            SELECT {Key("o")}, {Name()}, o.currency, sum(o.total)
+            FROM orders o JOIN customers c ON c.tenant_id = o.tenant_id AND c.id = o.customer_id {Join("o", "customer_id")}
+            WHERE {OrderWhere} GROUP BY 1, 2, 3
+            """, r => Of(Id(r), NameOf(r)).OrderTotals.Add(new CurrencyTotal(r.GetString(2), r.GetDecimal(3))));
+        await QueryAsync($"""
+            {cte}
+            SELECT {Key("r")}, {Name()}, r.currency, count(*)::int, sum(r.total)
+            FROM returns r JOIN customers c ON c.tenant_id = r.tenant_id AND c.id = r.customer_id {Join("r", "customer_id")}
+            WHERE {ReturnWhere} GROUP BY 1, 2, 3
+            """, r => { var row = Of(Id(r), NameOf(r)); row.ReturnTotals.Add(new CurrencyTotal(r.GetString(2), r.GetDecimal(4))); rows[Id(r) ?? Guid.Empty] = row with { Returns = row.Returns + r.GetInt32(3) }; });
+
+        static List<CurrencyTotal> Ordered(List<CurrencyTotal> list) => list.OrderBy(t => t.Currency, StringComparer.Ordinal).ToList();
+        return rows.Select(p => new SalesRow(p.Key == Guid.Empty ? null : p.Key, p.Value.Name, p.Value.Orders, p.Value.Delivered, Ordered(p.Value.OrderTotals), p.Value.Returns, Ordered(p.Value.ReturnTotals),
+            KpiReport.Net(p.Value.OrderTotals, p.Value.ReturnTotals))).ToList();
     }
 
     public async Task<IReadOnlyList<AlertKpi>> AlertsAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, IReadOnlyList<string> categories, KpiFilter filter, CancellationToken cancellationToken)

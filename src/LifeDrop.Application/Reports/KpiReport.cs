@@ -20,7 +20,9 @@ public sealed record KpiCounts(int VisitsPlanned, int VisitsCompleted, int Visit
     int OrdersDelivered, int OrdersDeliveryFailed, IReadOnlyList<CurrencyTotal> OrderTotals, int FollowUpBase, int FollowUpsOverdue,
     // Plan step 5.73 (the end of the list so that older saved results, which lack these, still read): samples given, money received (confirmed / still waiting for the finance manager) and
     // approved returns, per currency. Definitions in docs/KPI.md.
-    int Samples = 0, IReadOnlyList<CurrencyTotal>? PaymentsConfirmed = null, IReadOnlyList<CurrencyTotal>? PaymentsWaiting = null, int ReturnsApproved = 0, IReadOnlyList<CurrencyTotal>? ReturnTotals = null);
+    int Samples = 0, IReadOnlyList<CurrencyTotal>? PaymentsConfirmed = null, IReadOnlyList<CurrencyTotal>? PaymentsWaiting = null, int ReturnsApproved = 0, IReadOnlyList<CurrencyTotal>? ReturnTotals = null,
+    // Plan step 5.74: net sales = the orders of the range minus the approved returns of the range, per currency (a currency that has only returns is negative).
+    IReadOnlyList<CurrencyTotal>? NetSales = null);
 
 // Null when the denominator is 0 (nothing to measure), never 0 %. Percent with one decimal.
 public sealed record KpiRates(double? VisitCompletion, double? VisitFailure, double? Delay, double? OrderDelivery, double? FollowUpOverdue);
@@ -33,6 +35,10 @@ public sealed record KpiReportDto(DateOnly From, DateOnly To, KpiRow Total, IRea
 
 public enum ReportResult { Success, Forbidden, InvalidData, NotFound }
 
+// Plan step 5.74: sales per warehouse or per city of the customer. Id and Name are null for the orders and returns that belong to none (a customer without a city; a return that put nothing back in a warehouse).
+public sealed record SalesRow(Guid? Id, string? Name, int Orders, int OrdersDelivered, IReadOnlyList<CurrencyTotal> OrderTotals, int ReturnsApproved, IReadOnlyList<CurrencyTotal> ReturnTotals, IReadOnlyList<CurrencyTotal> NetSales);
+public sealed record SalesReportDto(DateOnly From, DateOnly To, string By, SalesRow Total, IReadOnlyList<SalesRow> Rows);
+
 public sealed record KpiUser(Guid UserId, string? Email, string? TeamName);
 
 public interface IReportStore
@@ -41,6 +47,8 @@ public interface IReportStore
     Task<IReadOnlyList<KpiUser>> ListUsersAsync(TenantId tenantId, AccessScope scope, KpiFilter filter, CancellationToken cancellationToken);
     // Counts per user for the given users; users without any data are missing from the result.
     Task<IReadOnlyDictionary<Guid, KpiCounts>> CountsAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, KpiFilter filter, DateOnly today, DateTimeOffset now, CancellationToken cancellationToken);
+    // Orders (not cancelled) and approved returns written by these users in the range, grouped by warehouse (by = "warehouse") or by the city of the customer (by = "city").
+    Task<IReadOnlyList<SalesRow>> SalesAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, KpiFilter filter, string by, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<IReadOnlyList<AlertKpi>> AlertsAsync(TenantId tenantId, IReadOnlyList<Guid> userIds, IReadOnlyList<string> categories, KpiFilter filter, CancellationToken cancellationToken);
 }
 
@@ -72,6 +80,23 @@ public sealed class KpiReport(IReportStore store, IPermissionStore permissions, 
         return (ReportResult.Success, new KpiReportDto(filter.From, filter.To, new KpiRow(Guid.Empty, null, null, total, Rates(total)), rows, alerts));
     }
 
+    // Plan step 5.74: the same readers, users and filters as the KPI report; the rows are the warehouses (or cities) the orders and returns of those users belong to, and a total.
+    public async Task<(ReportResult Result, SalesReportDto? Report)> SalesAsync(TenantId tenantId, UserId actorId, KpiFilter filter, string? by, CancellationToken cancellationToken)
+    {
+        var scope = tenantId.IsEmpty || actorId.IsEmpty ? null : await permissions.GetAccessScopeAsync(tenantId, actorId, PermissionKeys.ReportsRead, cancellationToken);
+        if (scope is null) return (ReportResult.Forbidden, null);
+        var customerType = string.IsNullOrWhiteSpace(filter.CustomerType) ? null : filter.CustomerType.Trim();
+        if (by is not ("warehouse" or "city") || filter.To < filter.From || filter.To.DayNumber - filter.From.DayNumber >= MaxDays || filter.RegionId == Guid.Empty || filter.TeamId == Guid.Empty || customerType?.Length > 50)
+            return (ReportResult.InvalidData, null);
+        filter = filter with { CustomerType = customerType };
+        var users = await store.ListUsersAsync(tenantId, scope, filter, cancellationToken);
+        var rows = users.Count == 0 ? new List<SalesRow>() : (await store.SalesAsync(tenantId, users.Select(u => u.UserId).ToList(), filter, by, cancellationToken)).ToList();
+        rows = rows.OrderBy(r => r.Name is null).ThenBy(r => r.Name, StringComparer.Ordinal).ThenBy(r => r.Id).ToList();
+        var total = new SalesRow(null, null, rows.Sum(r => r.Orders), rows.Sum(r => r.OrdersDelivered), SumMoney(rows.Select(r => (IReadOnlyList<CurrencyTotal>?)r.OrderTotals)), rows.Sum(r => r.ReturnsApproved),
+            SumMoney(rows.Select(r => (IReadOnlyList<CurrencyTotal>?)r.ReturnTotals)), SumMoney(rows.Select(r => (IReadOnlyList<CurrencyTotal>?)r.NetSales)));
+        return (ReportResult.Success, new SalesReportDto(filter.From, filter.To, by, total, rows));
+    }
+
     private static async Task<Dictionary<Guid, KpiCounts>> ToDictionary(Task<IReadOnlyDictionary<Guid, KpiCounts>> task) => (await task).ToDictionary(p => p.Key, p => p.Value);
 
     public static double? Percent(int numerator, int denominator) => denominator <= 0 ? null : Math.Round(100.0 * numerator / denominator, 1);
@@ -86,7 +111,13 @@ public sealed class KpiReport(IReportStore store, IPermissionStore permissions, 
         all.Sum(c => c.NewCustomers), all.Sum(c => c.ApprovedNewCustomers), all.Sum(c => c.Orders), all.Sum(c => c.OrdersDelivered), all.Sum(c => c.OrdersDeliveryFailed),
         all.SelectMany(c => c.OrderTotals).GroupBy(t => t.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new CurrencyTotal(g.Key, g.Sum(t => t.Total))).ToList(),
         all.Sum(c => c.FollowUpBase), all.Sum(c => c.FollowUpsOverdue),
-        all.Sum(c => c.Samples), SumMoney(all.Select(c => c.PaymentsConfirmed)), SumMoney(all.Select(c => c.PaymentsWaiting)), all.Sum(c => c.ReturnsApproved), SumMoney(all.Select(c => c.ReturnTotals)));
+        all.Sum(c => c.Samples), SumMoney(all.Select(c => c.PaymentsConfirmed)), SumMoney(all.Select(c => c.PaymentsWaiting)), all.Sum(c => c.ReturnsApproved), SumMoney(all.Select(c => c.ReturnTotals)),
+        SumMoney(all.Select(c => c.NetSales)));
+
+    // Orders minus approved returns, per currency, in currency order; a currency in either list is in the result.
+    public static List<CurrencyTotal> Net(IReadOnlyList<CurrencyTotal> orders, IReadOnlyList<CurrencyTotal>? returns) =>
+        orders.Select(t => (t.Currency, t.Total)).Concat((returns ?? Array.Empty<CurrencyTotal>()).Select(t => (t.Currency, -t.Total))).GroupBy(t => t.Currency).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new CurrencyTotal(g.Key, g.Sum(t => t.Item2))).ToList();
 
     private static List<CurrencyTotal> SumMoney(IEnumerable<IReadOnlyList<CurrencyTotal>?> lists) =>
         lists.SelectMany(l => l ?? Array.Empty<CurrencyTotal>()).GroupBy(t => t.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new CurrencyTotal(g.Key, g.Sum(t => t.Total))).ToList();

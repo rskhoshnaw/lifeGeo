@@ -30,3 +30,9 @@ Voided and replaced payments are not money. A result saved before step 5.73 has 
 
 ## Own numbers and comparison (plan step 5.29)
 `GET /reports/kpi-compare` gives one user's numbers for one calendar month (Iraq days, no customer-type filter) next to the month before, the same month a year earlier and 12 months of trend. A visitor reads their own (app: "My KPIs"); a reader with `reports.read` can ask for a user inside their area (panel: Reports, "KPIs: compare months"). A count changes by a percentage of the earlier month (no percentage when it was 0), a rate by percentage points; more is better except for failures, late starts and overdue follow-ups.
+
+## Net sales and sales per warehouse or city (plan step 5.74)
+- **Net sales** (a money figure per currency in `counts.netSales`) = the total of the orders of the range (not cancelled) minus the total of the approved returns of the range. Orders count by the day they were placed and returns by the day they were written, so a return of an old order lowers the month it was written in. A currency that has only returns is negative.
+- **`GET /reports/sales?from=&to=&by=warehouse|city`** (`reports.read`, the same readers, area and filters as the KPI report: region, team, customer type) lists, per warehouse (the warehouse of the order or the return) or per **city of the customer** (the place of kind city at or above his place): the number of orders, how many were delivered, the order totals, the approved returns (count and value) and the net sales, and a total. Orders and returns that belong to no warehouse or no city come as one row without a name (a customer without a city; a return that put nothing back into a warehouse).
+- The app's "My KPIs" shows, for the visitor's own month, the samples, the money received (dinars), the approved returns and the net sales (dinars) next to the month before and last year.
+

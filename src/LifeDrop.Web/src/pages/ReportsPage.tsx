@@ -5,6 +5,7 @@ import { kpiCsv } from '../components/reportCsv.ts'
 import { KpiCompareView } from '../components/KpiCompareView.tsx'
 import { SavedReports } from '../components/SavedReports.tsx'
 import { t, type TextKey } from '../i18n.ts'
+import { SalesByPlace } from '../components/SalesByPlace.tsx'
 
 const customerTypes = ['Pharmacy', 'Doctor', 'Wholesaler']
 const percent = (value: number | null) => (value === null ? t('web.reports.noValue') : `${value}%`)
@@ -56,6 +57,7 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
         { label: 'web.reports.samples', value: String(total.counts.samples ?? 0), basis: '' },
         { label: 'web.reports.paymentsReceived', value: moneyOf(total.counts.paymentsConfirmed), basis: `${t('web.reports.waiting')}: ${moneyOf(total.counts.paymentsWaiting)}` },
         { label: 'web.reports.returnsApproved', value: String(total.counts.returnsApproved ?? 0), basis: moneyOf(total.counts.returnTotals) },
+        { label: 'web.reports.netSales', value: moneyOf(total.counts.netSales ?? total.counts.orderTotals), basis: t('web.reports.netSalesBasis') },
       ]
     : []
 
@@ -129,6 +131,7 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
                 <th>{t('web.reports.samples')}</th>
                 <th>{t('web.reports.paymentsReceived')}</th>
                 <th>{t('web.reports.returnsApproved')}</th>
+                <th>{t('web.reports.netSales')}</th>
               </tr>
             </thead>
             <tbody>
@@ -167,11 +170,13 @@ export function ReportsPage({ admin }: { admin: AdminApi }) {
                       {r.counts.returnsApproved ?? 0}
                       {(r.counts.returnTotals?.length ?? 0) > 0 && <div className="text-xs font-normal text-slate-600">{moneyOf(r.counts.returnTotals)}</div>}
                     </td>
+                    <td>{moneyOf(r.counts.netSales ?? r.counts.orderTotals)}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          <SalesByPlace admin={admin} filter={{ from, to, regionId: region, teamId: team, customerType: type }} />
           {report.alerts.length > 0 && (
             <>
               <h3 className="font-medium">{t('web.reports.alerts')}</h3>

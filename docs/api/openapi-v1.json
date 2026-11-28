@@ -13452,6 +13452,126 @@
         }
       }
     },
+    "/reports/sales": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "GetSalesReport",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "regionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "teamId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "customerType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesReportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reports/kpi-compare": {
       "get": {
         "tags": [
@@ -26296,6 +26416,15 @@
             "items": {
               "$ref": "#/components/schemas/CurrencyTotal"
             }
+          },
+          "netSales": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
           }
         }
       },
@@ -29338,6 +29467,108 @@
           },
           "isMocked": {
             "type": "boolean"
+          }
+        }
+      },
+      "SalesReportDto": {
+        "required": [
+          "from",
+          "to",
+          "by",
+          "total",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "by": {
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/SalesRow"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SalesRow"
+            }
+          }
+        }
+      },
+      "SalesRow": {
+        "required": [
+          "id",
+          "name",
+          "orders",
+          "ordersDelivered",
+          "orderTotals",
+          "returnsApproved",
+          "returnTotals",
+          "netSales"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "orders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ordersDelivered": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "orderTotals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
+          },
+          "returnsApproved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "returnTotals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
+          },
+          "netSales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
           }
         }
       },

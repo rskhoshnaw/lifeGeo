@@ -12077,6 +12077,66 @@
   "ar": "المرتجعات المعتمدة",
   "fa": "مرجوعی‌های تأییدشده"
  },
+ "web.reports.netSales": {
+  "en": "Net sales",
+  "ckb": "فرۆشی خاڵس",
+  "ar": "صافي المبيعات",
+  "fa": "فروش خالص"
+ },
+ "web.reports.netSalesBasis": {
+  "en": "orders minus approved returns",
+  "ckb": "داواکارییەکان لێکەم گەڕاندنەوە پەسەندکراوەکان",
+  "ar": "الطلبات ناقص المرتجعات المعتمدة",
+  "fa": "سفارش‌ها منهای مرجوعی تأییدشده"
+ },
+ "web.reports.salesBy": {
+  "en": "Sales by",
+  "ckb": "فرۆش بەپێی",
+  "ar": "المبيعات حسب",
+  "fa": "فروش به تفکیک"
+ },
+ "web.reports.byWarehouse": {
+  "en": "Warehouse",
+  "ckb": "کۆگا",
+  "ar": "المخزن",
+  "fa": "انبار"
+ },
+ "web.reports.byCity": {
+  "en": "City of the customer",
+  "ckb": "شاری کڕیار",
+  "ar": "مدينة العميل",
+  "fa": "شهر مشتری"
+ },
+ "web.reports.noPlace": {
+  "en": "(none)",
+  "ckb": "(هیچ)",
+  "ar": "(لا شيء)",
+  "fa": "(هیچ)"
+ },
+ "app.kpi.samples": {
+  "en": "Samples given",
+  "ckb": "نموونەی دراو",
+  "ar": "العينات المسلّمة",
+  "fa": "نمونه‌های داده‌شده"
+ },
+ "app.kpi.moneyIqd": {
+  "en": "Money received (IQD)",
+  "ckb": "پارەی وەرگیراو (دینار)",
+  "ar": "الأموال المستلمة (دينار)",
+  "fa": "پول دریافت‌شده (دینار)"
+ },
+ "app.kpi.returns": {
+  "en": "Approved returns",
+  "ckb": "گەڕاندنەوە پەسەندکراوەکان",
+  "ar": "المرتجعات المعتمدة",
+  "fa": "مرجوعی‌های تأییدشده"
+ },
+ "app.kpi.netIqd": {
+  "en": "Net sales (IQD)",
+  "ckb": "فرۆشی خاڵس (دینار)",
+  "ar": "صافي المبيعات (دينار)",
+  "fa": "فروش خالص (دینار)"
+ },
  "web.tab.warehouses": {
   "en": "Warehouses",
   "ckb": "کۆگاکان",

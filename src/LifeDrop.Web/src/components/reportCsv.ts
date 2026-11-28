@@ -11,7 +11,7 @@ export function csvCell(value: string | number | null): string {
 export const kpiColumns = [
   'user', 'team', 'visits planned', 'visits completed', 'visits failed', 'completion %', 'failed %', 'visits with a planned time', 'delayed visits', 'delay %',
   'new customers', 'approved new customers', 'orders', 'orders delivered', 'orders not delivered', 'delivery %', 'order total IQD', 'order total USD', 'follow-ups', 'overdue follow-ups', 'overdue %',
-  'samples given', 'money received IQD', 'money received USD', 'money waiting IQD', 'money waiting USD', 'approved returns', 'returns total IQD', 'returns total USD',
+  'samples given', 'money received IQD', 'money received USD', 'money waiting IQD', 'money waiting USD', 'approved returns', 'returns total IQD', 'returns total USD', 'net sales IQD', 'net sales USD',
 ]
 
 // One row per user and the total, with the numerators and denominators next to the rates; rates stay empty when there is nothing to measure.
@@ -23,7 +23,7 @@ export function kpiCsv(rows: KpiRow[], total: KpiRow): string {
     return [
       name, team, c.visitsPlanned, c.visitsCompleted, c.visitsFailed, r.rates.visitCompletion, r.rates.visitFailure, c.delayBase, c.delayedVisits, r.rates.delay,
       c.newCustomers, c.approvedNewCustomers, c.orders, c.ordersDelivered, c.ordersDeliveryFailed, r.rates.orderDelivery, money('IQD'), money('USD'), c.followUpBase, c.followUpsOverdue, r.rates.followUpOverdue,
-      c.samples ?? 0, of(c.paymentsConfirmed, 'IQD'), of(c.paymentsConfirmed, 'USD'), of(c.paymentsWaiting, 'IQD'), of(c.paymentsWaiting, 'USD'), c.returnsApproved ?? 0, of(c.returnTotals, 'IQD'), of(c.returnTotals, 'USD'),
+      c.samples ?? 0, of(c.paymentsConfirmed, 'IQD'), of(c.paymentsConfirmed, 'USD'), of(c.paymentsWaiting, 'IQD'), of(c.paymentsWaiting, 'USD'), c.returnsApproved ?? 0, of(c.returnTotals, 'IQD'), of(c.returnTotals, 'USD'), of(c.netSales ?? c.orderTotals, 'IQD'), of(c.netSales ?? c.orderTotals, 'USD'),
     ].map(csvCell).join(',')
   }
   return ['\ufeff' + kpiColumns.map(csvCell).join(','), ...rows.map((r) => line(r, r.email ?? r.userId, r.teamName ?? '')), line(total, 'TOTAL', '')].join('\r\n') + '\r\n'
