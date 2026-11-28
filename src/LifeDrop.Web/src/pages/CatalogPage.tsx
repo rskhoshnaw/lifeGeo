@@ -567,7 +567,7 @@ function CustomerPrices({ admin, canManage }: { admin: AdminApi; canManage: bool
   )
 }
 
-function CustomerDiscounts({ admin, customerId, canManage, onChanged }: { admin: AdminApi; customerId: string; canManage: boolean; onChanged: () => void }) {
+export function CustomerDiscounts({ admin, customerId, canManage, onChanged }: { admin: AdminApi; customerId: string; canManage: boolean; onChanged: () => void }) {
   const discounts = useLoad(useCallback(() => admin.discounts(customerId), [admin, customerId]))
   const products = useLoad(useCallback(() => (canManage ? admin.products(false) : Promise.resolve([] as Product[])), [admin, canManage]))
   const action = useAction(() => {
@@ -581,12 +581,17 @@ function CustomerDiscounts({ admin, customerId, canManage, onChanged }: { admin:
   const [to, setTo] = useState('')
   // An amount is in the currency of one product, so it needs a product.
   const effectiveKind = product ? kind : 'percent'
+  // A percentage is a plain number; an amount is money in the currency of its product: 10.440 is ten thousand four hundred and forty dinars, and dinars have no fraction (5.69).
+  const currency = (products.data ?? []).find((p) => p.id === product)?.currency ?? 'IQD'
+  const parsed = effectiveKind === 'amount' ? parseMoney(value, currency) : { value: Number(value) }
+  const valueProblem = effectiveKind === 'amount' && value.trim() !== '' && parsed.problem ? t(moneyProblemKey(parsed.problem), { currency }) : null
+  const valid = value !== '' && parsed.problem === undefined && Number.isFinite(parsed.value)
 
   function add(e: FormEvent) {
     e.preventDefault()
-    if (value === '') return
+    if (!valid) return
     void action.run(async () => {
-      await admin.createDiscount(customerId, { productId: product || null, kind: effectiveKind, value: Number(value), validFrom: from || null, validTo: to || null })
+      await admin.createDiscount(customerId, { productId: product || null, kind: effectiveKind, value: parsed.value!, validFrom: from || null, validTo: to || null })
       setValue('')
     })
   }
@@ -631,10 +636,11 @@ function CustomerDiscounts({ admin, customerId, canManage, onChanged }: { admin:
             <option value="percent">{t('web.catalog.percent')}</option>
             <option value="amount">{t('web.catalog.amount')}</option>
           </select>
-          <input aria-label={t('web.catalog.value')} placeholder={t('web.catalog.value')} type="number" min={0} step="any" className="w-28 rounded border px-2 py-1" value={value} onChange={(e) => setValue(e.target.value)} />
+          <input aria-label={t('web.catalog.value')} placeholder={t('web.catalog.value')} inputMode="decimal" className="w-28 rounded border px-2 py-1" value={value} onChange={(e) => setValue(e.target.value)} />
+          {valueProblem && <span role="alert" className="text-red-700">{valueProblem}</span>}
           <input aria-label={t('web.catalog.from')} type="date" className="rounded border px-2 py-1" value={from} onChange={(e) => setFrom(e.target.value)} />
           <input aria-label={t('web.catalog.to')} type="date" className="rounded border px-2 py-1" value={to} onChange={(e) => setTo(e.target.value)} />
-          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || value === ''}>
+          <button type="submit" className="rounded border px-3 py-1" disabled={action.busy || !valid}>
             {t('web.catalog.addDiscount')}
           </button>
         </form>

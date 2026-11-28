@@ -45,6 +45,16 @@ public sealed class PostgresProductStore(NpgsqlDataSource dataSource) : IProduct
         return await command.ExecuteScalarAsync(cancellationToken) as string;
     }
 
+    public async Task<string?> CurrencyOfAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await BeginAsync(connection, tenantId, null, cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT currency FROM products WHERE tenant_id = @tenant AND id = @id", connection, transaction);
+        command.Parameters.AddWithValue("tenant", tenantId.Value);
+        command.Parameters.AddWithValue("id", productId);
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
+    }
+
     public async Task<Guid?> CreateAsync(TenantId tenantId, UserId actorId, SaveProductRequest product, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

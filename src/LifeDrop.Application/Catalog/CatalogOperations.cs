@@ -86,6 +86,8 @@ public interface IProductStore
     Task<IReadOnlyList<ProductDto>> ListAsync(TenantId tenantId, bool includeInactive, string? query, CancellationToken cancellationToken);
     // The status ("active" / "inactive") of the product that has this code, or null when none has. Products are never deleted, only switched off, and the code stays taken.
     Task<string?> StatusOfCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    // The currency of a product (null when there is no such product): a city price and an amount discount are in it, so it decides how many decimals they may have.
+    Task<string?> CurrencyOfAsync(TenantId tenantId, Guid productId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     // Null when the code exists already.
     Task<Guid?> CreateAsync(TenantId tenantId, UserId actorId, SaveProductRequest product, CancellationToken cancellationToken);
     // False when the product does not exist.
@@ -245,6 +247,8 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
         var from = request.ValidFrom ?? IraqCalendar.Today(clock);
         if (productId == Guid.Empty || request.CityId is null || request.CityId == Guid.Empty || !ValidPrice(request.Price) || request.ValidTo is { } to && to < from)
             return (CatalogResult.InvalidData, null);
+        // Dinars have no fraction, dollars have two decimals (5.66); a product that does not exist is answered by the store (NotFound).
+        if (await store.CurrencyOfAsync(tenantId, productId, cancellationToken) is { } currency && !MoneyRules.IsValidAmount(request.Price!.Value, currency)) return (CatalogResult.InvalidPrice, null);
         return await store.CreateCityPriceAsync(tenantId, actorId, productId, request, from, cancellationToken);
     }
 
@@ -273,6 +277,8 @@ public sealed partial class CatalogService(IProductStore store, IPermissionStore
             request.Value is not > 0 || decimal.Round(request.Value.Value, 3) != request.Value || request.Value > (percent ? 100m : MaxPrice) ||
             (!percent && request.ProductId is null) || request.ValidTo is { } to && to < from)
             return (CatalogResult.InvalidData, null);
+        // An amount is in the currency of its product, so it follows the same decimals rule as a price (a percentage keeps its three decimals).
+        if (!percent && await store.CurrencyOfAsync(tenantId, request.ProductId!.Value, cancellationToken) is { } currency && !MoneyRules.IsValidAmount(request.Value!.Value, currency)) return (CatalogResult.InvalidPrice, null);
         return await store.CreateDiscountAsync(tenantId, actorId, customerId, request, from, cancellationToken);
     }
 

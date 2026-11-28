@@ -5112,6 +5112,10 @@ public class CustomerApiIntegrationTests
         await AssertProblemAsync(await AddCityPrice(p1, new { CityId = n1, Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");   // a neighbourhood is not a city
         await AssertProblemAsync(await AddCityPrice(p1, new { Price = 1m, ValidFrom = "2026-12-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = -1m, ValidFrom = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
+        // Dinars have no fraction and dollars have two decimals: a city price follows the currency of its product (5.69); a product that is not there is still NotFound
+        await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1650.5m, ValidFrom = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_PRICE");   // p1 is in IQD
+        await AssertProblemAsync(await AddCityPrice(p2, new { CityId = suli, Price = 3.456m, ValidFrom = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_PRICE");     // p2 is in USD
+        Assert.Equal(HttpStatusCode.Created, (await AddCityPrice(p2, new { CityId = suli, Price = 3.25m, ValidFrom = "2027-06-01" })).StatusCode);
         await AssertProblemAsync(await AddCityPrice(p1, new { CityId = suli, Price = 1m, ValidFrom = "2027-06-05", ValidTo = "2027-06-01" }), HttpStatusCode.BadRequest, "INVALID_DATA");
         await AssertProblemAsync(await AddCityPrice(p1, new { CityId = Guid.NewGuid(), Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
         await AssertProblemAsync(await AddCityPrice(Guid.NewGuid(), new { CityId = suli, Price = 1m, ValidFrom = "2027-06-01" }), HttpStatusCode.NotFound, "NOT_FOUND");
@@ -5135,6 +5139,8 @@ public class CustomerApiIntegrationTests
         Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { Kind = "percent", Value = 10m, ValidFrom = "2026-10-01" })).StatusCode);
         Assert.Equal((1800m, "city", 1620m), await PriceOf(c1, "2026-10-06"));
         Assert.Equal((10m, "base", 9m), await PriceOf(c1, "2026-10-06", "ZZZ-10"));
+        await AssertProblemAsync(await AddDiscount(c1, new { ProductId = p1, Kind = "amount", Value = 100.5m, ValidFrom = "2026-10-01" }), HttpStatusCode.BadRequest, "INVALID_PRICE");   // dinars have no fraction
+        await AssertProblemAsync(await AddDiscount(c1, new { ProductId = p2, Kind = "amount", Value = 0.125m, ValidFrom = "2026-10-01" }), HttpStatusCode.BadRequest, "INVALID_PRICE");   // dollars have two decimals
         Assert.Equal(HttpStatusCode.Created, (await AddDiscount(c1, new { ProductId = p1, Kind = "amount", Value = 100m, ValidFrom = "2026-10-01" })).StatusCode);
         var third = await AddDiscount(c1, new { ProductId = p1, Kind = "percent", Value = 5m, ValidFrom = "2026-10-01", ValidTo = "2026-10-20" });
         Assert.Equal(HttpStatusCode.Created, third.StatusCode);
@@ -5191,7 +5197,7 @@ public class CustomerApiIntegrationTests
             await using var reader = await cmd.ExecuteReaderAsync();
             await reader.NextResultAsync();
             await reader.ReadAsync();
-            Assert.Equal("city_price.created=4,city_price.ended=1,discount.created=4,discount.ended=1,product.created=4,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=3", reader.GetString(0));
+            Assert.Equal("city_price.created=5,city_price.ended=1,discount.created=4,discount.ended=1,product.created=4,product.details_changed=2,product.photo_changed=3,product.photo_removed=1,product.updated=3", reader.GetString(0));
         }
     }
 
