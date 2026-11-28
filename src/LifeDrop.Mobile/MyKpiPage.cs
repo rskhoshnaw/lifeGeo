@@ -80,7 +80,7 @@ public sealed class MyKpiPage : ContentPage
                 Show(Texts.Get("app.kpi.loadFailed"));
                 return;
             }
-            foreach (var metric in MyKpi.Metrics) _list.Children.Add(Card(metric, data));
+            foreach (var metric in MyKpi.Visible(data)) _list.Children.Add(Card(metric, data));
             _list.Children.Add(new Label { Text = Texts.Get("app.kpi.trend"), FontAttributes = FontAttributes.Bold, FontSize = 16, Margin = new Thickness(0, 8, 0, 0) });
             foreach (var period in data.Trend ?? [])
                 _list.Children.Add(new Label
